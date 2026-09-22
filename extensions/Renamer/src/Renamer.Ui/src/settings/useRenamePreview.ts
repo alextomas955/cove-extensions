@@ -1,8 +1,8 @@
 /**
- * useRenamePreview — the debounced live-preview data hook (R9).
+ * useRenamePreview - the debounced live-preview data hook (R9).
  *
  * Live preview: a ~250ms-debounced POST to /preview-sample with the in-flight options. The
- * hook owns the fetch, its debounce, and cancellation on every re-run — the panel consumes only the
+ * hook owns the fetch, its debounce, and cancellation on every re-run - the panel consumes only the
  * resulting {@link PreviewSampleResult}[] and an error flag, never the request directly. The backend
  * engine is the single source of truth; this never re-implements naming.
  *

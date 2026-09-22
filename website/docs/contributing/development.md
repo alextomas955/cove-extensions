@@ -4,21 +4,9 @@ sidebar_position: 2
 
 # Development
 
-This is the day-to-day loop: what to run after an edit, which directory to run it from, and what a
-red result means. It assumes you already have a working first build - if you do not, start with
-[Getting started](./getting-started).
-
-Pages this one does not restate:
-
-- The test tiers and how to run them - [Testing](./testing).
-- Every configuration knob, and every gate tool's config file - [Configuration
-  reference](./configuration).
-- How the build wiring works, and why each fact is declared where it is - [Monorepo
-  architecture](./architecture).
-- Module shape, the wire contract, and the correctness rules - [Extension authoring
-  patterns](./authoring-patterns).
-- Adding an end-to-end suite - [Adding an extension's E2E suite](./authoring-e2e).
-- The branch model - [Branching](./branching). Cutting a release - [Releasing](./releasing).
+The day-to-day loop: what to run after an edit, which directory to run it from, and what a red
+result means. If you do not have a working first build yet, start with [Getting
+started](./getting-started).
 
 **Every command below names the directory it runs from, and that matters.** `npm run <script>`
 resolves against the nearest `package.json`, and this repo holds several, so the same script name

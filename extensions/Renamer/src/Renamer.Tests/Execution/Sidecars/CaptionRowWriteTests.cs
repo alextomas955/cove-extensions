@@ -44,7 +44,7 @@ public sealed class CaptionRowWriteTests
 
             // The line that makes this measure the code rather than the fixture. Seeding through this
             // context leaves the caption tracked, and relationship fix-up then populates the file's
-            // Captions navigation — state production never has, because every read the port makes is
+            // Captions navigation - state production never has, because every read the port makes is
             // AsNoTracking and each batch worker saves through a context that has loaded nothing.
             db.ChangeTracker.Clear();
 

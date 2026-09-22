@@ -1,12 +1,12 @@
 /**
  * Built-in starter templates. Clicking a preset chip sets `FilenameTemplate`
  * via the existing set() path so `dirty` flips and the existing debounced /preview-sample
- * re-renders — the live preview is the feedback. Presets do not touch `FolderTemplate`
+ * re-renders - the live preview is the feedback. Presets do not touch `FolderTemplate`
  * (folder-move stays opt-in).
  *
  * Every template uses bare `$token` and wraps each optional token in a `{}` group (leading
  * separator + literals inside the group) so no preset ever leaves dangling punctuation. The
- * engine has no `${token}` form — never use it here.
+ * engine has no `${token}` form - never use it here.
  */
 export interface Preset {
   label: string;

@@ -12,14 +12,14 @@ namespace Renamer.Tests.Execution.Collisions;
 /// disk move succeeds but the subsequent SaveChangesAsync throws (a forced unique-index clash, with
 /// the pre-check bypassed via <see cref="CollisionBlindDataPort"/>). Assert that after execution:
 /// (a) the file is back at its original on-disk path, (b) the moved sidecar (if any) is back, and
-/// (c) the DB row still carries the old basename — disk and DB consistent. Runs on SQLite-in-memory
+/// (c) the DB row still carries the old basename - disk and DB consistent. Runs on SQLite-in-memory
 /// because EF-InMemory enforces neither the unique index nor transaction rollback.
 ///
 /// The test first proves the disk move really happened (it is observable via the executor having
-/// invoked DiskMover.Move — asserted by the file being momentarily at the new path is not possible
+/// invoked DiskMover.Move - asserted by the file being momentarily at the new path is not possible
 /// post-rollback, so instead we assert the negative-control: a DiskMover spy is unnecessary because
 /// the only path that reaches SaveChangesAsync is after a successful move; we additionally assert the
-/// failure reason names the rollback, proving the catch — not the move — produced the terminal state).
+/// failure reason names the rollback, proving the catch - not the move - produced the terminal state).
 /// </summary>
 public sealed class RollbackTests
 {
@@ -56,7 +56,7 @@ public sealed class RollbackTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // The save threw after the move → item failed with a rollback reason (proving the catch,
-            // i.e. the move had already happened before the save error — not a pre-move skip).
+            // i.e. the move had already happened before the save error - not a pre-move skip).
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
@@ -70,7 +70,7 @@ public sealed class RollbackTests
             // and is not left at the new path.
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
 
-            // (c) the DB row still has the old basename — disk and DB consistent.
+            // (c) the DB row still has the old basename - disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(folderPath + "/a.mkv", pathA);
@@ -198,8 +198,8 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The save commits but reports no row for the file at all. That is not a path mismatch — there is
-    /// no recomputed path to disagree with — so the executor must say so and leave the committed move
+    /// The save commits but reports no row for the file at all. That is not a path mismatch - there is
+    /// no recomputed path to disagree with - so the executor must say so and leave the committed move
     /// alone. Rolling back here would revert a save that succeeded.
     /// </summary>
     [Fact]
@@ -306,7 +306,7 @@ public sealed class RollbackTests
             Assert.Equal("A-bytes", File.ReadAllText(newPath));
             Assert.False(File.Exists(oldA), "the old slot must stay empty");
 
-            // The database agrees with the disk — the whole point of not rolling back here.
+            // The database agrees with the disk - the whole point of not rolling back here.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("b.mkv", basename);
             Assert.Equal(folderPath + "/b.mkv", path);

@@ -30,7 +30,7 @@ const ETA_MAX_SAMPLES = 60;
 
 /**
  * A scan sample already reduced to display values. The poll handler computes these (not the render)
- * so the wall-clock ETA fallback's `Date.now()` stays out of the render path — the React Compiler
+ * so the wall-clock ETA fallback's `Date.now()` stays out of the render path - the React Compiler
  * forbids impure calls during render. `line` is the host's own phase text when present ("Scanning
  * library… {done}/{total}") or a percent, and reads "Finalizing…" while the scan holds at its 99%
  * persist cap so the bar doesn't look stalled.
@@ -58,13 +58,13 @@ function errText(err: unknown): string {
 
 /**
  * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job
- * reaches its own verdict — or `onExpire` when the run ended on a bound instead. The loop, its two
+ * reaches its own verdict - or `onExpire` when the run ended on a bound instead. The loop, its two
  * bounds and the hand-declared response shape all live in that module; what this hook adds is the
  * React lifecycle: start on a job id, stop on unmount or job change, so no timer leaks and no state
  * updates fire after unmount.
  *
- * A cancelled poll rejects too, and that rejection is this hook's own cleanup — nothing to report to
- * a component that is already gone — so only an expiry is passed on.
+ * A cancelled poll rejects too, and that rejection is this hook's own cleanup - nothing to report to
+ * a component that is already gone - so only an expiry is passed on.
  */
 function usePollJob(
   jobId: string | null,
@@ -109,18 +109,18 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
   // The latest running-scan sample the bar renders, already reduced to display values. Null until
   // the first progress poll lands (the view shows the bare spinner in that brief window).
   const [progress, setProgress] = useState<ScanDisplay | null>(null);
-  // Highest percent seen so far — the displayed bar is clamped up to this so a backwards poll sample
+  // Highest percent seen so far - the displayed bar is clamped up to this so a backwards poll sample
   // (the host can revise progress downward) never makes the bar visibly retreat.
   const maxPercent = useRef(0);
   // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's
   // etaSeconds is null. A rolling window (not a since-open anchor) so the estimate tracks the
-  // current scan rate and the slow first sample ages out — otherwise a scan that finishes in
+  // current scan rate and the slow first sample ages out - otherwise a scan that finishes in
   // seconds flashes an absurd "~2h left" from the cold-start average.
   const samples = useRef<ProgressSample[]>([]);
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
   // synthetic unmount, so it suppresses the second mount's POST without also discarding the
-  // first mount's in-flight response — a `cancelled`-in-cleanup guard would do both, since
+  // first mount's in-flight response - a `cancelled`-in-cleanup guard would do both, since
   // StrictMode's synthetic unmount fires the cleanup before the network round-trip resolves.
   const requested = useRef(false);
 
@@ -168,14 +168,14 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
       const percent = maxPercent.current;
       const finalizing = isFinalizing(job.progress);
       // Append this poll to the sample buffer that feeds the EWMA ETA. The buffer is capped
-      // generously (a scan is only ~tens of polls) — the EWMA recency-weights anyway, so the cap is
+      // generously (a scan is only ~tens of polls) - the EWMA recency-weights anyway, so the cap is
       // just a memory bound, not part of the estimate.
       samples.current = [
         ...samples.current.slice(-(ETA_MAX_SAMPLES - 1)),
         { timeMs: Date.now(), progress: job.progress },
       ];
       // Use our own EWMA ETA first, not the host's job.etaSeconds. The host's estimate for a
-      // fraction-reporting job (which the scan is) comes from its legacy fraction path — a since-start
+      // fraction-reporting job (which the scan is) comes from its legacy fraction path - a since-start
       // average that folds the slow cold-start sample in, so it flashes an absurd "~2h left" on a scan
       // that finishes in seconds. Our recency-weighted EWMA tracks the actual current rate. Fall back
       // to the host value only before we have two samples (a rate needs two points).
@@ -189,7 +189,7 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
     },
     (message) => {
       // A scan that went quiet or an id that stopped answering. Reported as a scan error because from
-      // the view's side that is what it is — there is no summary to render and none is coming.
+      // the view's side that is what it is - there is no summary to render and none is coming.
       setError(message);
     },
   );

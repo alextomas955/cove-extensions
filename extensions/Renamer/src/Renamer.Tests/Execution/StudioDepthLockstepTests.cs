@@ -10,7 +10,7 @@ namespace Renamer.Tests.Execution;
 /// <see cref="CoveRenamerDataPort.MaxParentDepth"/> and driven through the real per-kind EF Include
 /// chain, so it fails if anyone (a) adds or removes a <c>.ThenInclude(s =&gt; s!.Parent)</c> hop in
 /// <c>VideoQuery</c>/<c>ImageQuery</c>/<c>AudioQuery</c>, or (b) changes the constant without matching
-/// the chains — closing the "the coupling is enforced only by a comment" concern. Runs against a real
+/// the chains - closing the "the coupling is enforced only by a comment" concern. Runs against a real
 /// SQLite-backed <see cref="CoveContext"/> so the self-referencing Studio parent FK hydrates as
 /// production would.
 /// </summary>
@@ -72,7 +72,7 @@ public sealed class StudioDepthLockstepTests
         {
             // One level deeper than supported. The (MaxParentDepth+1)-th ancestor is beyond the hard
             // product depth limit: it is neither eager-loaded nor walked, so it is absent from the
-            // surfaced chain. That absence is the explicit contract — a studio nested deeper than the
+            // surfaced chain. That absence is the explicit contract - a studio nested deeper than the
             // limit simply gets no routing rule (unmatched / no-rule), not a silent mis-hydration.
             var ancestors = await SeedAncestorChainAsync(db, CoveRenamerDataPort.MaxParentDepth + 1);
             var direct = new Studio { Name = "direct", ParentId = ancestors[^1].Id };

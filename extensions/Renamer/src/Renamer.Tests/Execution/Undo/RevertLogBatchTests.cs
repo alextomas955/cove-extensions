@@ -3,7 +3,7 @@ using Renamer.Execution;
 namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
-/// The tolerant parsers that read a legacy stored journal — the only part of that type still reached,
+/// The tolerant parsers that read a legacy stored journal - the only part of that type still reached,
 /// and the only reader the one-shot migration uses. Locating a batch finds the last still-replayable
 /// header and the line range holding its rows; parsing that range yields <c>entityId|fileId|old</c>
 /// rows in append order, each entity id distinct from its file id. A flat pre-header blob is one

@@ -6,7 +6,7 @@ export * from "./primitives";
 export * from "./overlay";
 export * from "./entityPickerLogic";
 // `actions` is pure (zero-import), so re-exporting it here costs a consumer nothing. The SDK-touching
-// `postAction` is deliberately not re-exported — it is reached through its own `./postAction` subpath,
+// `postAction` is deliberately not re-exported - it is reached through its own `./postAction` subpath,
 // so importing this barrel never pulls `@cove/extension-sdk` into the consumer's graph.
 export * from "./actions";
 // Re-export the pure logic functions explicitly: `primitivesLogic` also declares a `RegexValidity`

@@ -5,12 +5,12 @@
 import { expect } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
-/** POSIX basename — container paths are always '/'-separated. */
+/** POSIX basename - container paths are always '/'-separated. */
 export function basename(path) {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** POSIX dirname — container paths are always '/'-separated. */
+/** POSIX dirname - container paths are always '/'-separated. */
 export function dirname(path) {
   const idx = path.lastIndexOf("/");
   return idx <= 0 ? "/" : path.slice(0, idx);
@@ -42,7 +42,7 @@ export async function assertRenamedTo({ api, container, videoId, expectedBasenam
 
   // The old path being gone is proven on disk, never inferred from the DB path: a DB update with no
   // disk move, or a copy that left the source behind, both leave a stale file while the record reads
-  // correct — only a filesystem check catches that leak.
+  // correct - only a filesystem check catches that leak.
   const oldOnDisk = await container.exec(["test", "-f", originalPath]);
   expect(
     oldOnDisk.exitCode,

@@ -18,7 +18,7 @@ export interface ExtensionViteOptions {
 }
 
 // The host import-map provides these; a second React bundled here would break hook identity.
-// `@cove/extension-sdk` is intentionally absent — it is not in the host import-map, so it must ship
+// `@cove/extension-sdk` is intentionally absent - it is not in the host import-map, so it must ship
 // bundled.
 //
 // The mixed spelling is deliberate, and each host module is named here exactly once. The seven bare

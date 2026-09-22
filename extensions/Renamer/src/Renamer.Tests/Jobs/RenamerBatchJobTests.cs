@@ -23,7 +23,7 @@ public sealed class RenamerBatchJobTests
     /// from a DI provider that registers the base <c>DbContext</c> scoped over the test's shared
     /// in-memory SQLite connection, so each <c>CreateAsyncScope()</c> (including the per-worker scopes
     /// the parallel batch opens) resolves a distinct context over the same database. A singleton
-    /// registration would hand every parallel worker the one seeded context — a <c>DbContext</c> is
+    /// registration would hand every parallel worker the one seeded context - a <c>DbContext</c> is
     /// not thread-safe, so concurrent workers on it throw/corrupt. The seed/assert context (<c>db</c>)
     /// shares the connection, so rows the workers save are visible to the test's read-backs.
     /// </summary>

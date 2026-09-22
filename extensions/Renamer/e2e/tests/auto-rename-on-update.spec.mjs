@@ -1,6 +1,6 @@
 // Verifies Renamer's AutoRenamerOnUpdate hook end-to-end through the real UI: enabling "Auto-
 // rename on update" in the settings panel, then editing a video's title via its real Edit tab,
-// must rename the file automatically — with no explicit "Rename selected" action from the user.
+// must rename the file automatically - with no explicit "Rename selected" action from the user.
 //
 // Uses its own harness instance per test (same pattern as extension-lifecycle.spec.mjs), not the
 // shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak
@@ -67,7 +67,7 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   await detailPage.openEditTab();
   await detailPage.setTitle(title);
 
-  // No "Rename selected" click anywhere in this test — the hook alone must produce the rename.
+  // No "Rename selected" click anywhere in this test - the hook alone must produce the rename.
   await assertRenamedTo({
     api,
     container: isolatedHarness.container,
@@ -92,7 +92,7 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
   const baseUrl = isolatedHarness.baseUrl;
   const api = { get: (p) => callApi(baseUrl, "GET", p) };
 
-  // No settings change here — AutoRenamerOnUpdate defaults to false. This is the negative-path
+  // No settings change here - AutoRenamerOnUpdate defaults to false. This is the negative-path
   // counterpart to the test above: confirms the hook is genuinely opt-in, not just untested.
   const video = await seedVideo({ container: isolatedHarness.container, baseUrl });
   const originalPath = video.files[0].path;
@@ -102,7 +102,7 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
   await detailPage.openEditTab();
   await detailPage.setTitle("Should Not Trigger Rename");
 
-  // Give the (absent) hook the same window the positive test needs to prove it real — a fixed
+  // Give the (absent) hook the same window the positive test needs to prove it real - a fixed
   // wait is appropriate here specifically because the assertion is "nothing happened," which
   // pollUntil's early-exit-on-success shape can't express (there's no success condition to poll for).
   await page.waitForTimeout(5_000);

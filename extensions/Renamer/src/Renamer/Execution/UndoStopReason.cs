@@ -48,9 +48,6 @@ public enum UndoStopReason
 
 // Decides whether an entry that stopped short of being restored can still be retried.
 //
-// The human-readable note beside a stop reason is never matched on: it is prose, and a decision keyed
-// on it changes meaning when someone rewords it.
-//
 // Exactly one reason is terminal. Every other reason describes a condition the world can clear or the
 // owner can correct: a lock is released, a drive is remounted, an occupied slot is emptied. Keeping
 // those rows pending costs a row, while retiring one wrongly removes the user's only recovery path for

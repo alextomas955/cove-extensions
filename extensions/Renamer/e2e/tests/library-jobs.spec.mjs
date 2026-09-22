@@ -59,7 +59,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
     expect(scannedFileIds).toContain(fileId);
   }
 
-  // The path search runs server-side now, so only a request over real HTTP proves it works — no unit
+  // The path search runs server-side now, so only a request over real HTTP proves it works - no unit
   // test can. A fragment unique to the first seeded name must return that row and not its sibling.
   const searched = await api.post(`${ROUTE}/scan-rows`, { Take: 500, Query: `scanalpha-${stamp}` });
   expect(searched.status).toBe(200);
@@ -67,7 +67,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   expect(matchedFileIds).toContain(seededFileIds[0]);
   expect(matchedFileIds).not.toContain(seededFileIds[1]);
 
-  // Scan is read-only — every seeded item's file must be untouched on disk/DB.
+  // Scan is read-only - every seeded item's file must be untouched on disk/DB.
   for (let i = 0; i < videos.length; i++) {
     const current = await api.get(`/api/videos/${videos[i].id}`);
     expect(current.json.files[0].path).toBe(originalPaths[i]);
@@ -75,7 +75,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
 });
 
 // Uses its own harness instance per test, unlike scan-library above: renamer-library mutates
-// every item in the library, not just the ones this test seeds — under real parallel execution,
+// every item in the library, not just the ones this test seeds - under real parallel execution,
 // a sibling test in the same worker could have its own seeded/mid-rename video swept into this
 // job's "whole library" scope, occasionally missing the polling window for its own rename.
 test("renamer-library renames every seeded item in one run", async ({ isolatedHarness }) => {

@@ -1,8 +1,8 @@
-// Verifies no-clobber collision handling on a real disk — a class of bug (e.g. a case-only rename on
+// Verifies no-clobber collision handling on a real disk - a class of bug (e.g. a case-only rename on
 // a case-insensitive filesystem) that only manifests against a real filesystem, which is exactly
 // what E2E protects and temp-dir-based unit tests can miss.
 //
-// Renamer's actual collision contract: a target-name collision does not skip the second item — it
+// Renamer's actual collision contract: a target-name collision does not skip the second item - it
 // auto-suffixes it via DuplicateSuffixFormat (default " ({n})") so both items end up renamed, never
 // one clobbering the other. `SkipCollision` exists as a status but is not what a plain
 // duplicate-title collision produces; auto-suffix is the default and expected outcome here.
@@ -61,7 +61,7 @@ test(
       put: (p, b) => callApi(baseUrl, "PUT", p, b),
     };
 
-    // A "$title"-only template makes both items' computed target basename exactly "<title>.mp4" — a
+    // A "$title"-only template makes both items' computed target basename exactly "<title>.mp4" - a
     // deterministic collision whose auto-suffixed second name (" (1)") can then be asserted exactly.
     const setTemplate = await api.put(
       `${ROUTE}/data/options`,
@@ -80,7 +80,7 @@ test(
       destName: `collision-b-${Date.now()}.mp4`,
     });
 
-    // Both items get the same title, so "$title" computes an identical target for both — a deterministic
+    // Both items get the same title, so "$title" computes an identical target for both - a deterministic
     // collision. (FilenameAsTitle defaults to true, so without an explicit Title each item's $title
     // falls back to its own distinct source basename and no collision occurs; setting Title forces it.)
     const sharedTitle = `Collision Test ${Date.now()}`;
@@ -106,7 +106,7 @@ test(
     });
 
     // Confirm the preview for the second item, targeting the same name as the first, is classified as
-    // an auto-suffix (not a silent overwrite) before any mutation — /preview must stay read-only
+    // an auto-suffix (not a silent overwrite) before any mutation - /preview must stay read-only
     // regardless of what it reports.
     const preview = await api.post(`${ROUTE}/preview`, {
       EntityType: "video",
@@ -119,7 +119,7 @@ test(
     const afterPreview = await api.get(`/api/videos/${second.id}`);
     expect(afterPreview.json.files[0].path).toBe(second.files[0].path); // preview touched nothing
 
-    // Now actually rename the second item and confirm the auto-suffixed path is what it lands at —
+    // Now actually rename the second item and confirm the auto-suffixed path is what it lands at -
     // and that the first item's file was never touched by the second item's move.
     const renameSecond = await api.post(`${ROUTE}/renamer`, {
       EntityType: "video",
@@ -142,14 +142,14 @@ test(
     expect(basename(secondNewPath)).toBe(`${sharedTitle} (1).mp4`);
     expect(secondNewPath).not.toBe(firstNewPath); // no-clobber: distinct final paths
 
-    // The second item's own source path must be gone — moved, not copied.
+    // The second item's own source path must be gone - moved, not copied.
     const secondSourceGone = await container.exec(["test", "-f", second.files[0].path]);
     expect(
       secondSourceGone.exitCode,
       `Second item's source ${second.files[0].path} still exists — not moved`,
     ).not.toBe(0);
 
-    // Both renamed files must exist on disk — neither was lost, and the second never overwrote the first.
+    // Both renamed files must exist on disk - neither was lost, and the second never overwrote the first.
     const firstStillThere = await container.exec(["test", "-f", firstNewPath]);
     expect(
       firstStillThere.exitCode,

@@ -172,7 +172,7 @@ public class TemplateEngineTests
     }
 
     [Theory]
-    // A bracketed number with no 'p' is a serial/index/scene number, not a resolution — never stripped.
+    // A bracketed number with no 'p' is a serial/index/scene number, not a resolution - never stripped.
     [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
     // A hash-like bracketed token is not a resolution tag.
     [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
@@ -836,7 +836,7 @@ public class TemplateEngineTests
     public void Performers_RecordPath_DuplicateName_KeepsBothWhenNeitherInTitle()
     {
         // Two distinct performers share the name "Alex" (the DB does not enforce unique performer
-        // names). When neither is named in the title, both survive the drop and both render — the
+        // names). When neither is named in the title, both survive the drop and both render - the
         // record channel preserves per-position multiplicity rather than collapsing duplicates by name.
         var tokens = new Dictionary<string, string> { ["title"] = "Bob Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>

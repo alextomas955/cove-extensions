@@ -10,7 +10,7 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// Security-critical: the host's <c>[RequiresPermission]</c> filter is MVC-only and does
 /// nothing for minimal-API extension endpoints, so each handler enforces the permission itself via
-/// <see cref="ICurrentPrincipalAccessor"/>. These prove both deny paths return 403 and — critically —
+/// <see cref="ICurrentPrincipalAccessor"/>. These prove both deny paths return 403 and - critically -
 /// that the <c>/renamer</c> deny path does not enqueue a job. The authorized path enqueues exactly one
 /// renamer-batch job and returns 202 {jobId}.
 /// </summary>
@@ -78,7 +78,7 @@ public sealed class EndpointPermissionTests
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
             Assert.Equal(403, StatusOf(denied));
 
-            // The matching images.read principal is not forbidden — the preview proceeds (a successful
+            // The matching images.read principal is not forbidden - the preview proceeds (a successful
             // preview returns a JSON value result with no explicit status code, i.e. 200, not 403).
             var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesRead);
             var allowed = await ext.PreviewAsync(
@@ -160,7 +160,7 @@ public sealed class EndpointPermissionTests
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
-        // Audio is officially supported (kept in v1.6) and gated on audios.write — videos.write is denied.
+        // Audio is officially supported (kept in v1.6) and gated on audios.write - videos.write is denied.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         Assert.Equal(403, StatusOf(await ext.RenamerEnqueue(
             new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs,
@@ -179,7 +179,7 @@ public sealed class EndpointPermissionTests
     {
         // No scope factory / event bus is wired: UndoAsync must return 403 from the first permission
         // check, before it ever opens a scope or reads the RevertLog. If it touched the
-        // scope factory it would NRE here — the absence of a throw proves the 403-first ordering.
+        // scope factory it would NRE here - the absence of a throw proves the 403-first ordering.
         var ext = NewExtension();
 
         var result = await ext.UndoAsync(

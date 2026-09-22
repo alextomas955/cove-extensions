@@ -3,8 +3,8 @@
  *
  * The claims under test are the two that make a poller bounded: a job that stops reporting progress
  * ends the run, and a job id that stops resolving ends it too even while the stall budget has room.
- * Both were unbounded — one cleared its interval only on a terminal status, the other swallowed every
- * read failure — so a wedged job left a poll per second running with the button stuck disabled.
+ * Both were unbounded - one cleared its interval only on a terminal status, the other swallowed every
+ * read failure - so a wedged job left a poll per second running with the button stuck disabled.
  *
  * Time and read outcomes are inputs, so every case here is exact at one-millisecond granularity with
  * no clock and no fake timers. Every expectation is a literal; none is obtained by calling the module
@@ -91,7 +91,7 @@ test("an expiry is not a job failure, and its message says which happened", () =
   const failed = decidePoll({ read: "ok", status: "failed", error: "disk full" }, ctx());
 
   // The banner has to be able to tell these apart, because only one of them means the work stopped.
-  // An expiry means the UI stopped watching — the job may still be running and may already have
+  // An expiry means the UI stopped watching - the job may still be running and may already have
   // renamed files, so a banner that claimed nothing changed would be stating a falsehood about a
   // destructive operation.
   assert.equal(expired.action, "expire");
@@ -127,7 +127,7 @@ test("read failures at the allowance expire even while the stall budget has room
 
 test("an unrecognised status keeps polling and never resolves", () => {
   // A status this UI does not know is not a success. This module takes the status as a plain string,
-  // so a vocabulary it has not been told about arrives as an unknown one — and it must degrade to an
+  // so a vocabulary it has not been told about arrives as an unknown one - and it must degrade to an
   // expiry with a message, never to a false "renamed" banner.
   assert.deepEqual(decidePoll({ read: "ok", status: "queued" }, ctx()), { action: "continue" });
   assert.deepEqual(decidePoll({ read: "ok", status: "" }, ctx()), { action: "continue" });
@@ -156,7 +156,7 @@ test("a successful read clears the consecutive-failure count", () => {
 });
 
 test("the shipped bounds are far enough out that a healthy run is never abandoned", () => {
-  // Floors, not equalities, so the numbers can be tuned without editing a test — but a budget set to
+  // Floors, not equalities, so the numbers can be tuned without editing a test - but a budget set to
   // something a legitimate library operation would trip fails here. A stall budget of one minute or
   // less would abandon a large library's finalize step, and an allowance of one or two polls would
   // end a run on a single blip.
@@ -165,7 +165,7 @@ test("the shipped bounds are far enough out that a healthy run is never abandone
     `stall budget ${JOB_STALL_BUDGET_MS}ms would abandon a healthy run`,
   );
   assert.ok(
-    // The floor holds today, so the comparison is statically provable and the rule objects — but what
+    // The floor holds today, so the comparison is statically provable and the rule objects - but what
     // it guards is a later edit that lowers the constant under the floor, which is precisely when the
     // comparison stops being provable and this case earns its place. The sibling assertion above
     // escapes the rule only because its constant is written as arithmetic rather than a literal.

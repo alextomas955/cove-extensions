@@ -139,7 +139,7 @@ public sealed class AssociatedExtensionSidecarTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            // A file whose name literally matches the malformed extension's leaf — present only to
+            // A file whose name literally matches the malformed extension's leaf - present only to
             // prove the probe never even forms a path that could reach it.
             string traversal = Path.Combine(dir.Root, "clip...mp4");
             File.WriteAllText(traversal, "decoy");

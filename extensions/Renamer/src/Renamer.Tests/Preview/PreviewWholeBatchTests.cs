@@ -89,7 +89,7 @@ public sealed class PreviewWholeBatchTests
             Assert.Equal(1, pair.Count);
 
             // wire-shape regression: the bytes the UI reads must be camelCase with `status` and
-            // `confirmLevel` the camelCase string — not PascalCase, not a numeric enum. Serialize with
+            // `confirmLevel` the camelCase string - not PascalCase, not a numeric enum. Serialize with
             // the handler's own options.
             var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"items\":", json);
@@ -124,7 +124,7 @@ public sealed class PreviewWholeBatchTests
     public async Task PreviewAsync_ExcludedItem_AppearsAsSkipExcluded_WithReason_NotSilentlyDropped()
     {
         // An item matched by a source-path exclude is a visible SkipExcluded
-        // skip-with-reason in the whole-batch preview item list — not silently dropped. It is a
+        // skip-with-reason in the whole-batch preview item list - not silently dropped. It is a
         // non-acting skip (BatchPreview.Summarize counts only Renamer|Move), so the summary shows
         // zero acting items while the item itself still appears with its exclude reason.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -183,7 +183,7 @@ public sealed class PreviewWholeBatchTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Preview probes the source on disk, so give the seeded row a real on-disk file — a gone
+            // Preview probes the source on disk, so give the seeded row a real on-disk file - a gone
             // source would be SkipMissingSource instead of the same-volume Renamer this test asserts.
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(

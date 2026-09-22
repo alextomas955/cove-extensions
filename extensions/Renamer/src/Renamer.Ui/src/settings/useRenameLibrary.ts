@@ -1,5 +1,5 @@
 /**
- * useRenameLibrary — the "Run for the whole library" job data layer (R9).
+ * useRenameLibrary - the "Run for the whole library" job data layer (R9).
  *
  * Owns the shared "Rename all files" flow the panel button and the Dry Run modal both trigger:
  * enqueue the rename-library job, poll it to completion, and report renamed/skipped counts. Also
@@ -23,7 +23,7 @@ import { api } from "../common/lib/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
 
-/** The "Run for the whole library" success/error banner state — mirrors UndoSection's Feedback shape. */
+/** The "Run for the whole library" success/error banner state - mirrors UndoSection's Feedback shape. */
 export type RunLibraryFeedback =
   { kind: "success"; text: string } | { kind: "error"; text: string } | null;
 
@@ -59,7 +59,7 @@ export function useRenameLibrary(): UseRenameLibrary {
   const activePoll = useRef<(() => void) | null>(null);
   // Whether this hook's component is still mounted. Every state write below the first `await` is
   // guarded by it, because a poll rejected by the unmount cleanup settles after the component that
-  // would render the result is gone — and re-set to true in the effect body, since StrictMode's
+  // would render the result is gone - and re-set to true in the effect body, since StrictMode's
   // dev-only remount would otherwise leave it false for the rest of the session.
   const mounted = useRef(true);
 
@@ -86,14 +86,14 @@ export function useRenameLibrary(): UseRenameLibrary {
   }, []);
 
   /**
-   * The shared "Rename all files" handler — called identically by the panel-level button and
+   * The shared "Rename all files" handler - called identically by the panel-level button and
    * the Dry Run modal's footer button. Enqueues the rename-library job, polls it to completion the
    * same way the modal polls its scan job, and reports renamed/skipped counts.
    *
    * The rename job itself never reports per-status counts (RunRenameLibraryJobAsync only calls
    * progress.Report(percent, message), no UnitsSucceeded/Summary), so the banner's counts come from
    * a scan: the modal already holds the scan's counts (`scanCounts` supplied), while the panel-direct
-   * path has no scan yet and runs one first, then reads the counts off the scan's own aggregate — both
+   * path has no scan yet and runs one first, then reads the counts off the scan's own aggregate - both
    * paths execute the same server-derived id set either way, since the scan and the rename job
    * independently call the identical LoadAllEntityIdsAsync query.
    */

@@ -4,7 +4,7 @@ slug: /
 
 # alextomas955 Cove Extensions
 
-This site documents the `cove-extensions` monorepo — a single git repository that holds
+This site documents the `cove-extensions` monorepo - a single git repository that holds
 extensions for [Cove](https://github.com/yourcove/cove), a self-hosted media library platform.
 
 > **Community project.** These are personal, third-party extensions maintained by
@@ -17,7 +17,7 @@ independently.
 
 This site has two sections:
 
-- **[Contributing](./contributing/)** — how to work in this repo, from a first build through the
+- **[Contributing](./contributing/)** - how to work in this repo, from a first build through the
   daily loop, the tests, the shape rules for an extension, and how a release is cut.
-- **[Extensions](./extensions/renamer/)** — documentation for each extension, starting with
+- **[Extensions](./extensions/renamer/)** - documentation for each extension, starting with
   Renamer.

@@ -20,7 +20,7 @@ namespace Renamer.Tests.Api;
 /// <remarks>
 /// A rule keys on a stable id so a rename cannot break it; a merge or delete removes that id and the
 /// rule then matches nothing. The panel needs to be able to say so, and it cannot infer absence from a
-/// failed browser lookup — that reads the same for an entity the viewer may not read, and for a dropped
+/// failed browser lookup - that reads the same for an entity the viewer may not read, and for a dropped
 /// request. So the answer comes from the database, and these tests pin which ids come back.
 /// <para>
 /// Every expected list is written out by hand from the seeded rows, never derived from the same options
@@ -31,7 +31,7 @@ public sealed class OrphanedRulesEndpointTests
 {
     /// <summary>
     /// Builds the extension over the seeded connection, so the handler's own elevated scope resolves a
-    /// context on the same database — the wiring <c>ScanLibraryEndpointTests</c> uses.
+    /// context on the same database - the wiring <c>ScanLibraryEndpointTests</c> uses.
     /// </summary>
     private static async Task<global::Renamer.Renamer> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions options)

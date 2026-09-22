@@ -7,7 +7,7 @@ namespace Renamer.Tests.TestSupport;
 /// <c>subst</c>, giving a second path root that resolves to the same physical volume. This lets the
 /// executor's <c>VolumeClassifier</c> branch report a cross-volume move (distinct
 /// <see cref="Path.GetPathRoot(string)"/> values) and exercise the real <c>CrossVolumeMover</c>
-/// end-to-end on one machine — no second physical
+/// end-to-end on one machine - no second physical
 /// drive required (a real two-drive run remains a manual cross-platform check).
 ///
 /// The backing directory is created under the temp tree; both it and the subst mapping are torn down
@@ -15,7 +15,7 @@ namespace Renamer.Tests.TestSupport;
 /// </summary>
 public sealed class SubstDrive : IDisposable
 {
-    /// <summary>The mapped drive root, e.g. <c>"P:\"</c> — a distinct path root from the temp dir.</summary>
+    /// <summary>The mapped drive root, e.g. <c>"P:\"</c> - a distinct path root from the temp dir.</summary>
     public string Root { get; }
 
     private readonly char _letter;

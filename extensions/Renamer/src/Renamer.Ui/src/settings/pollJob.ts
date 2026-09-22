@@ -5,7 +5,7 @@
  * even for a run it started itself. This reads the extension's own projection instead.
  *
  * Deliberately not named `*Logic.ts`: that glob's purity rule in the root ESLint config restricts a
- * module to relative imports, and the request helper below is a package import — the name is a
+ * module to relative imports, and the request helper below is a package import - the name is a
  * correctness requirement, not a style choice. Every decision here is still the L0 module's:
  * `./jobPollLogic` owns both bounds and every verdict, and is imported rather than reimplemented.
  * The clock reads live here, in the poll handler, so that module stays testable without one.
@@ -32,7 +32,7 @@ import {
  * How often the status route is read, in milliseconds.
  *
  * One value because both callers independently chose the same one. If a caller ever needs a
- * different cadence, take it as a parameter rather than moving this number — the two flows poll at
+ * different cadence, take it as a parameter rather than moving this number - the two flows poll at
  * this rate today, and silently changing one of them is what a shared constant makes easy.
  */
 const JOB_POLL_INTERVAL_MS = 1000;
@@ -51,7 +51,7 @@ export type JobInfo = RenamerJobStatus;
  *
  * `failure` is separate from the job reading because the two callers need different halves of the
  * same event: one renders the terminal `JobInfo` (splitting summary from error on `status`, as it
- * always has), the other raises {@link decidePoll}'s message — including its wording for a failed
+ * always has), the other raises {@link decidePoll}'s message - including its wording for a failed
  * job that names no reason, which is the logic module's to own rather than a literal to re-type
  * here.
  */
@@ -65,7 +65,7 @@ interface JobOutcome {
 /** A running poll: the promise the caller awaits, and the handle that stops it. */
 export interface JobPoll {
   /**
-   * Resolves when the job reaches its own verdict — completion or failure alike, told apart by
+   * Resolves when the job reaches its own verdict - completion or failure alike, told apart by
    * {@link JobOutcome.failure}. Rejects with {@link JobUnresponsiveError} when the run ended on a
    * bound instead (the job went quiet, or its id stopped answering), and with a plain Error on
    * {@link JobPoll.cancel}.
@@ -73,7 +73,7 @@ export interface JobPoll {
   done: Promise<JobOutcome>;
   /**
    * Stops the poll and rejects `done`. Called from a caller's unmount cleanup, which is why a
-   * caller must also guard its post-await state writes — the rejection lands after the component
+   * caller must also guard its post-await state writes - the rejection lands after the component
    * that would render it is gone.
    */
   cancel: () => void;
@@ -104,7 +104,7 @@ export function pollJob(jobId: string, onProgress?: (job: JobInfo) => void): Job
     let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
     // Clearing the interval does not cancel the reads already in flight, and at a one-second interval
     // a slow endpoint has more than one. Without this latch a read issued before the run ended settles
-    // after it — reporting a completed job for one already declared expired, reporting completion
+    // after it - reporting a completed job for one already declared expired, reporting completion
     // twice, or writing progress for a job the caller has finished reporting on.
     let settled = false;
 
@@ -128,7 +128,7 @@ export function pollJob(jobId: string, onProgress?: (job: JobInfo) => void): Job
           );
 
           if (decision.action === "continue") {
-            // Still pending/running — surface live progress from this same read (no second poller).
+            // Still pending/running - surface live progress from this same read (no second poller).
             onProgress?.(job);
             return;
           }

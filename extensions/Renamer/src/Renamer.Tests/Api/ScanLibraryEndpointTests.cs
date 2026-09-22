@@ -60,7 +60,7 @@ public sealed class ScanLibraryEndpointTests
     /// <summary>
     /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>) from a DI
     /// provider whose <c>DbContext</c> registration is scoped over <paramref name="conn"/>, so the job
-    /// body's own <c>CreateAsyncScope()</c> resolves a context over the same database the test seeded —
+    /// body's own <c>CreateAsyncScope()</c> resolves a context over the same database the test seeded -
     /// mirrors <c>RenamerBatchJobTests.BuildExtensionAsync</c>. The scan job never touches <c>IEventBus</c>,
     /// but <c>InitializeAsync</c> requires both seams to be resolvable.
     /// </summary>
@@ -136,7 +136,7 @@ public sealed class ScanLibraryEndpointTests
 
             var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
 
-            // Per kind, not flat — that split is what lets the readback drop a kind the caller cannot see.
+            // Per kind, not flat - that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
                 new HashSet<RenamerFileKind> { RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio },
                 summary.Kinds.Select(k => k.Kind).ToHashSet());
@@ -145,7 +145,7 @@ public sealed class ScanLibraryEndpointTests
             // Exact, not sampled: every kind's per-status counts account for all of its files.
             Assert.All(summary.Kinds, k => Assert.Equal(k.Files, k.StatusCounts.Sum(c => c.Count)));
 
-            // The rows themselves come from the page query, planned on demand — every seeded file appears.
+            // The rows themselves come from the page query, planned on demand - every seeded file appears.
             var principal = FakePrincipalAccessor.WithPermissions(
                 Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
             var page = await ReadRowsAsync(ext, principal);
@@ -192,7 +192,7 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            // Caller holds videos.read but not images.read — only Video is in the captured readable set.
+            // Caller holds videos.read but not images.read - only Video is in the captured readable set.
             await ext.RunScanLibraryJobAsync(
                 Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
 
@@ -238,7 +238,7 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // The scan previews the source on disk, so the seeded row needs a real on-disk file — a
+            // The scan previews the source on disk, so the seeded row needs a real on-disk file - a
             // gone source would be SkipMissingSource, not the previewed rename this test asserts.
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "One");
@@ -382,7 +382,7 @@ public sealed class ScanLibraryEndpointTests
 
             Assert.Equal(n, loaded.Count);
             int expectedChunks = (n + CoveRenamerDataPort.LoadChunkSize - 1) / CoveRenamerDataPort.LoadChunkSize;
-            // A bounded number of queries per chunk — far fewer than N. The video query is a split
+            // A bounded number of queries per chunk - far fewer than N. The video query is a split
             // query, so EF issues one reader for the roots and one for each collection it includes
             // (files, their captions, performers, tags). That count is bounded by the query's shape
             // and not by the population, which is the property under test: the reader count is on

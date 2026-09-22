@@ -4,25 +4,9 @@ sidebar_position: 7
 
 # Configuration reference
 
-This page lists every configuration knob you may need to set or read while working in this repo,
-grouped by the file that owns it, in roughly the order you meet them. It states what each knob does
-and where its value lives; it does not repeat the values, because a copied value goes stale without
-telling anyone. Read the value off the file named in each entry.
-
-Related pages, which this one does not restate:
-
-- How the build wiring works, and why each fact is declared where it is - [Monorepo
-  architecture](./architecture).
-- Module shape, the wire contract, and the correctness rules - [Extension authoring
-  patterns](./authoring-patterns).
-- The branch model and what CI runs on a pull request - [Branching](./branching).
-- How a release is built and published - [Releasing](./releasing).
-- The end-to-end harness and how to add a suite - [Adding an extension's E2E
-  suite](./authoring-e2e).
-- An extension's user-facing settings - that extension's own docs, for example the [Renamer settings
-  reference](/extensions/renamer/settings).
-
-This page describes the levers, not the design.
+Every configuration knob in this repo, grouped by the file that owns it, in roughly the order you
+meet them. Each entry says what the knob does and where its value lives. Read the value off the file
+named, because a copy here goes stale without telling anyone.
 
 ## The .NET SDK pin
 

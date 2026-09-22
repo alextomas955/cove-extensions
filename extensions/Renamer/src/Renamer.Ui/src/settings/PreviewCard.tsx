@@ -2,7 +2,7 @@
  * One sample's old→new diff + advisory flags. The response shape comes from the generated wire
  * module, which is derived from the committed OpenAPI document.
  *
- * security: every filename / folder / flag string is rendered as a React text node —
+ * security: every filename / folder / flag string is rendered as a React text node -
  * React escapes it. There is no raw-HTML rendering anywhere in this file.
  */
 

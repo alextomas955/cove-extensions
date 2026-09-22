@@ -1,6 +1,6 @@
 /**
  * Pure, DOM-free derivation of a row's warning badges. A badge comes from the row's `status` string
- * enum plus its advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) — there is no
+ * enum plus its advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) - there is no
  * `flags[]` array on /preview.
  *
  * Deliberately a sibling of dryRunLogic.ts rather than an addition to it: that module's header claims
@@ -30,7 +30,7 @@ export interface Badgeable {
   suffixed: boolean;
   sanitized: boolean;
   /**
-   * Required, because both wire shapes that reach a badge carry it — `/preview`'s item view and the
+   * Required, because both wire shapes that reach a badge carry it - `/preview`'s item view and the
    * paged `/scan-rows` row. Required rather than optional so a caller that forgets to pass it fails to
    * compile, instead of silently rendering a row whose warning was never asked for.
    */
@@ -43,7 +43,7 @@ export interface Badgeable {
  *
  * Two fields rather than one because a bare status-to-badge map cannot express the shipped behaviour:
  * the two acting statuses earn no badge of their own and are the only ones that read
- * `suffixed`/`sanitized` — a skipped row whose computed name was cleaned had nothing cleaned, because
+ * `suffixed`/`sanitized` - a skipped row whose computed name was cleaned had nothing cleaned, because
  * nothing ran.
  */
 interface StatusBadging {
@@ -56,11 +56,11 @@ interface StatusBadging {
  *
  * Total by type, not by convention: keyed on the union generated from the extension's own OpenAPI
  * document, so a status the server grows fails this build (TS2741, naming the missing key) the moment
- * the wire types are regenerated. That is the guarantee, and its price is stated rather than hidden —
+ * the wire types are regenerated. That is the guarantee, and its price is stated rather than hidden -
  * every new status needs a decision at this site instead of defaulting to silence, which is a status
  * counted in the Dry Run modal's attention segment with no pill saying why.
  *
- * So: no index signature and no optional keys — either would restore the exact silence the type exists
+ * So: no index signature and no optional keys - either would restore the exact silence the type exists
  * to remove, because either lets a new status compile with no decision made about it.
  *
  * A runtime fallback is a different question, and the distinction matters: the type protects against a
@@ -68,7 +68,7 @@ interface StatusBadging {
  * grew after this bundle shipped. Only CI's regeneration can enforce the first; nothing at build time
  * can see the second, which is reachable whenever a locally rebuilt DLL meets a stale bundle. So the
  * fallback below is deliberately not a default entry in the map (that would hide a missing decision at
- * compile time) but a lookup guard, and it surfaces rather than hides — matching `ScanBucket.Of`'s rule
+ * compile time) but a lookup guard, and it surfaces rather than hides - matching `ScanBucket.Of`'s rule
  * that an unrecognised status must be visible for review, never hidden and never thrown. Dereferencing
  * the lookup unguarded would throw inside a virtualised list row, and an uncaught throw in render tears
  * down the whole extension surface the host mounted, not just this pill.

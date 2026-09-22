@@ -11,7 +11,7 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// A caption's stored filename is a basename only, and the executor enforces that rather than
 /// trusting it: the value is joined into both the sidecar's source and its target, so a separator or
 /// a parent traversal in it builds a move that reaches outside the folders the rename is confined to.
-/// Nothing downstream catches it — the canonical re-check resolves the primary, not the sidecar
+/// Nothing downstream catches it - the canonical re-check resolves the primary, not the sidecar
 /// targets, and the disk mover applies no confinement of its own.
 /// </summary>
 /// <remarks>
@@ -49,7 +49,7 @@ public sealed class CaptionFilenameGuardTests
 
             File.WriteAllText(Path.Combine(dir.Root, "src", "clip.mkv"), "video");
             // The file "src/../escape.srt" names. An unguarded sidecar move takes it to
-            // "dst/nested/../escape.srt" — a third directory, outside both the source and the target.
+            // "dst/nested/../escape.srt" - a third directory, outside both the source and the target.
             string outside = Path.Combine(dir.Root, "escape.srt");
             File.WriteAllText(outside, "not mine to move");
             string wouldEscapeTo = Path.Combine(dir.Root, "dst", "escape.srt");

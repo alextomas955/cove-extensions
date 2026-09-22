@@ -10,7 +10,7 @@ import { chosenLibraryPath } from "./options";
 
 // The panel stores a destination root as the very string the library-path list gave it, then
 // re-checks membership against a later reading of that list. Cove hands paths back in the platform's
-// own spelling, so a root that arrives spelled differently must still name the same folder — a miss
+// own spelling, so a root that arrives spelled differently must still name the same folder - a miss
 // makes chosenLibraryPath return undefined, which is the state that skips the rule, so a user's
 // destination silently stops applying.
 test("a stored root still names its library path through a separator difference", () => {

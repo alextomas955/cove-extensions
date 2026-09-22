@@ -48,16 +48,16 @@ export class RenamerSettingsPage {
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
-    // The whole-library run's success banner — the poll target that proves the scan+rename job pair
+    // The whole-library run's success banner - the poll target that proves the scan+rename job pair
     // settled, not the correctness proof (disk+DB state is asserted separately). Matched on the
     // opening sentence alone: the counts that follow come from the pre-run scan, so pinning them here
     // would tie this locator to a number the banner does not learn from the run.
     this.renameAllFeedback = page.getByText(/Rename finished\./);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
-    // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
+    // The in-app (React) confirm modal's accept button - dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), not a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
-    // The panel's own sentence for "there is nothing to put back" — the branch that replaces the whole
+    // The panel's own sentence for "there is nothing to put back" - the branch that replaces the whole
     // status-line-plus-button row, so it is what a withheld control looks like to a user.
     this.noRenameToUndoText = page.getByText("No rename to undo.");
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
@@ -67,7 +67,7 @@ export class RenamerSettingsPage {
     this.dryRunButton = page.getByRole("button", { name: "Dry run" });
     // DryRunModal's shell: role="dialog" aria-labelledby the "Dry run" title.
     this.dryRunDialog = page.getByRole("dialog", { name: "Dry run" });
-    // The modal footer's "Rename N files" button — enabled only once the scan lands with a will-change count.
+    // The modal footer's "Rename N files" button - enabled only once the scan lands with a will-change count.
     this.dryRunRenameButton = this.dryRunDialog.getByRole("button", {
       name: /^Rename \d+ files?$/,
     });
@@ -224,10 +224,10 @@ export class RenamerSettingsPage {
   /**
    * Clicks "Rename all files" and waits for the in-panel success banner. Saves first when the panel
    * is dirty: the button is disabled while there are unsaved edits (disabled={dirty || …}), because
-   * a real whole-library rename must run the saved rules, not the in-flight ones — so a caller that
+   * a real whole-library rename must run the saved rules, not the in-flight ones - so a caller that
    * just edited the template must persist before the button is clickable, mirroring the panel's own
    * renameLibrary flow. The success banner only gates the poll (the scan + rename job pair settling);
-   * it is never the correctness assertion — the caller proves disk+DB state itself.
+   * it is never the correctness assertion - the caller proves disk+DB state itself.
    */
   async renameAll() {
     if (await this.unsavedChangesIndicator.isVisible()) {
@@ -238,7 +238,7 @@ export class RenamerSettingsPage {
   }
 
   /**
-   * Enables the "Auto-rename on update" switch and returns without saving — call save() after,
+   * Enables the "Auto-rename on update" switch and returns without saving - call save() after,
    * same as any other edit. The switch is always visible in the flat "Run & automation" section.
    */
   async enableAutoRenameOnUpdate() {
@@ -292,7 +292,7 @@ export class RenamerSettingsPage {
    *
    * A caller asserting that the undo control is withheld must wait on this sentence first, never on the
    * control's absence alone: the section renders a "Checking for a recent rename…" spinner until its
-   * /last-batch fetch resolves, and the control is absent throughout that window too — so an immediate
+   * /last-batch fetch resolves, and the control is absent throughout that window too - so an immediate
    * absence check passes on a panel that has not yet decided.
    */
   async waitForNoRenameToUndo() {

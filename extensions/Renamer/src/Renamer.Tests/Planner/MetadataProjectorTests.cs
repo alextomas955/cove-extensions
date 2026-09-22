@@ -85,7 +85,7 @@ public sealed class MetadataProjectorTests
         Assert.Equal("2024-03-02", tokens[Tokens.Date]);   // default DateFormat yyyy-MM-dd
         Assert.Equal("2024", tokens[Tokens.Year]);
         // Projector emits the raw ext token ("mkv"); the engine adds the leading dot at Render
-        // time (NormalizeExt) — see the end-to-end test asserting result.Ext == ".mkv".
+        // time (NormalizeExt) - see the end-to-end test asserting result.Ext == ".mkv".
         Assert.Equal("mkv", tokens[Tokens.Ext]);
 
         Assert.Equal(["Bob", "Ann"], multi[Tokens.Performers]);
@@ -107,7 +107,7 @@ public sealed class MetadataProjectorTests
 
         Assert.Equal("Track", tokens[Tokens.Title]);
         Assert.Equal("mp3", tokens[Tokens.AudioCodec]);
-        // Absent — not empty-string — so the engine's {} collapse drops them.
+        // Absent - not empty-string - so the engine's {} collapse drops them.
         Assert.False(tokens.ContainsKey(Tokens.Resolution));
         Assert.False(tokens.ContainsKey(Tokens.VideoCodec));
         Assert.False(tokens.ContainsKey(Tokens.FrameRate));
@@ -139,7 +139,7 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void EmptyScalars_AreOmitted_NotEmptyString()
     {
-        // Audio with no Title/Code/Studio/Date — those scalar tokens must be absent.
+        // Audio with no Title/Code/Studio/Date - those scalar tokens must be absent.
         var file = new RenamerFile(
             FileId: 4, Kind: RenamerFileKind.Audio, Basename: "x.mp3", ParentFolderId: 8,
             ParentFolderPath: "a", Format: "mp3", Duration: 1, AudioCodec: "mp3");
@@ -163,7 +163,7 @@ public sealed class MetadataProjectorTests
     {
         // Cove's Format field is the container name, not the extension: an .mkv file reports
         // Format "matroska". The extension token must be the real on-disk extension ("mkv"), not
-        // "matroska" — otherwise the rename rewrites movie.mkv → movie.matroska (a non-standard
+        // "matroska" - otherwise the rename rewrites movie.mkv → movie.matroska (a non-standard
         // extension that breaks player/OS association). Regression guard for that bug.
         var file = new RenamerFile(
             FileId: 5, Kind: RenamerFileKind.Video, Basename: "movie.mkv", ParentFolderId: 9,

@@ -14,7 +14,7 @@
  * imports resolve only inside a consuming bundle: each stand-in renders the text-bearing props and the
  * children it is handed, so what the assertions read is this modal's own output.
  *
- * A render commits on React's own schedule, so each step waits for the state its assertion is about —
+ * A render commits on React's own schedule, so each step waits for the state its assertion is about -
  * save one, marked where it stands, which waits on real elapsed time because it asserts that a stopped
  * walk stays stopped.
  */

@@ -12,8 +12,8 @@ namespace Cove.Extensions.Shared;
 /// policy through one; that is the only reason this derived type exists.
 /// <para>
 /// Declare it on the enum. An equivalent converter in a <see cref="JsonSerializerOptions.Converters"/>
-/// collection does not duplicate this one, it outranks it — the precedence is property attribute, then
-/// the options collection, then the type attribute — so a second copy that drifted would win silently.
+/// collection does not duplicate this one, it outranks it - the precedence is property attribute, then
+/// the options collection, then the type attribute - so a second copy that drifted would win silently.
 /// </para>
 /// </remarks>
 public sealed class CamelCaseStringEnumConverter() : JsonStringEnumConverter(JsonNamingPolicy.CamelCase);

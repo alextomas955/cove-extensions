@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// </summary>
 /// <remarks>
 /// Volume identity is expressed differently per platform, so each case runs on the platform whose semantics it
-/// asserts and skips with a reason on the other — a Windows drive literal has no root on Unix, and a Unix mount
+/// asserts and skips with a reason on the other - a Windows drive literal has no root on Unix, and a Unix mount
 /// path has no meaning on Windows, so one shared assertion would be testing neither.
 /// </remarks>
 public sealed class VolumeClassifierTests
@@ -121,14 +121,14 @@ public sealed class VolumeClassifierTests
     /// </summary>
     /// <remarks>
     /// Every case above passes <see cref="Mounts"/>, so all of them hold whatever the real table says
-    /// — and the real table is the input production actually routes on. That made the environment's own
+    /// - and the real table is the input production actually routes on. That made the environment's own
     /// contribution the single untested part of this class, which is the same shape as the defect
     /// behind issue #108: a test that supplies the value the environment owns cannot notice the real
     /// one being wrong.
     /// <para>
     /// <c>/dev/shm</c> is a tmpfs and therefore a distinct mount, measured present and writable with
     /// no privilege in a Linux container. If the production table ever stops seeing past <c>/</c>, this
-    /// reds while every injected case stays green — which is exactly the split worth having.
+    /// reds while every injected case stays green - which is exactly the split worth having.
     /// </para>
     /// </remarks>
     [Fact]
@@ -137,7 +137,7 @@ public sealed class VolumeClassifierTests
         UnixOnly();
         Assert.SkipUnless(Directory.Exists("/dev/shm"), "needs /dev/shm as a second real mount");
 
-        // No mountPoints argument anywhere below — this is the production default path.
+        // No mountPoints argument anywhere below - this is the production default path.
         Assert.Equal("/dev/shm", VolumeClassifier.VolumeKey("/dev/shm/clip.mkv"));
         Assert.False(
             VolumeClassifier.SameVolume("/tmp/clip.mkv", "/dev/shm/clip.mkv"),

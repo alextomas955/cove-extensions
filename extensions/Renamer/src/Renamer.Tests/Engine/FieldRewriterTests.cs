@@ -55,7 +55,7 @@ public class FieldRewriterTests
             FieldReplacers = [new FieldReplaceRule { TargetToken = "studio", Find = "'", Replace = "" }],
         };
         Assert.Equal("Bobs Studio", FieldRewriter.RewriteScalar(Tokens.Studio, "Bob's Studio", o));
-        // A title with the same apostrophe is untouched — the rule targets studio only.
+        // A title with the same apostrophe is untouched - the rule targets studio only.
         Assert.Equal("Bob's Movie", FieldRewriter.RewriteScalar(Tokens.Title, "Bob's Movie", o));
     }
 
@@ -98,7 +98,7 @@ public class FieldRewriterTests
     [Fact]
     public void Replacer_EmptyFind_IsNoOp()
     {
-        // An empty Find must not loop/throw — the rule is skipped.
+        // An empty Find must not loop/throw - the rule is skipped.
         var o = new RenamerOptions
         {
             FieldReplacers = [new FieldReplaceRule { TargetToken = "title", Find = "", Replace = "X" }],

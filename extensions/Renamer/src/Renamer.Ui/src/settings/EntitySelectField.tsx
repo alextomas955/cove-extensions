@@ -16,7 +16,7 @@
  *
  * The input the host draws therefore carries no accessible name of its own: the selector exposes
  * neither an id to point `htmlFor` at nor a name hook on the Cove floor this extension declares, and
- * a group's name does not reach a textbox nested inside it. That gap is recorded twice — here, and
+ * a group's name does not reach a textbox nested inside it. That gap is recorded twice - here, and
  * executably as the named allowance in `settingsFieldNaming.test.ts`, which fails when it matches
  * nothing. A Cove release exposing a name hook on the selector closes it: pass the label through,
  * then delete the allowance, which will by then be failing.

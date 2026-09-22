@@ -5,45 +5,44 @@ sidebar_position: 9
 # Releasing
 
 This describes how a release is built and how an extension is published to the official Cove
-extension registry. Nothing here publishes automatically — cutting a release and opening the
+extension registry. Nothing here publishes automatically - cutting a release and opening the
 registry pull request are deliberate steps a maintainer takes, per extension.
 
 ## Releases are per-extension, gated by extension-scoped tags
 
 `extensions/catalog.json` is the source of truth for the release matrix. Each entry declares its
 own `tagPrefix` (e.g. Renamer's is `renamer/`), and a release for that extension is cut by pushing
-a tag of the form `<tagPrefix>v<semver>` — for example `renamer/v1.0.0`. This is a change from the
-old single-extension-repo scheme, which used a flat `v*` tag with no extension prefix.
+a tag of the form `<tagPrefix>v<semver>` - for example `renamer/v1.0.0`.
 
 ## What CI does: a catalog-driven validate → build → release matrix
 
 `.github/workflows/build.yml` reads `extensions/catalog.json` to compute its build matrix:
 
-- **validate** — on every pull request, on a tag push, and on the daily scheduled run, confirms the
+- **validate** - on every pull request, on a tag push, and on the daily scheduled run, confirms the
   catalog is well-formed. It does not run on a direct branch push: `build.yml` has no branch-push
   trigger. On a tag push it
   additionally confirms the tag matches exactly one catalog entry's `tagPrefix` with a valid semver
   suffix, that the entry's `extension.json` declares exactly the tag's version, and that the
-  extension's registry manifest — when it has one — already carries that version as its **first**
+  extension's registry manifest - when it has one - already carries that version as its **first**
   `versions[]` row. All of these fail before any extension builds.
-- **build** — runs for every extension in `extensions/catalog.json` on every PR (there is no
-  `paths:` filtering; this matches the upstream template convention, not a CI-minute optimization —
+- **build** - runs for every extension in `extensions/catalog.json` on every PR (there is no
+  `paths:` filtering; this matches the upstream template convention, not a CI-minute optimization -
   every extension's build is exercised on every PR regardless of which extension the PR actually
   touched). Those pull-request builds carry a placeholder version, because no tag names one. On a tag
-  push the matrix narrows to the tagged extension alone — no other extension builds on that run.
-  - Packaging paths are driven entirely by each catalog entry's fields — `projectPath`,
-    `manifestPath`, and `uiPath` (only present when the extension ships a frontend) — not hardcoded
+  push the matrix narrows to the tagged extension alone - no other extension builds on that run.
+  - Packaging paths are driven entirely by each catalog entry's fields - `projectPath`,
+    `manifestPath`, and `uiPath` (only present when the extension ships a frontend) - not hardcoded
     to one extension. Adding a new extension's release capability requires only a correct
     `catalog.json` entry; the workflow logic itself does not need editing.
   - Packaging is one `Assemble package` step. The job publishes into a throwaway directory, then that
     step copies the file set the entry's `artifacts` array declares into a clean package directory,
-    stamping the release version into the packaged `extension.json` as it copies — so the shipped
+    stamping the release version into the packaged `extension.json` as it copies - so the shipped
     manifest always agrees with the release it came from, and whatever else the build emits alongside
     the declared names (debug symbols, XML docs, a host-provided assembly) cannot reach a release. A
     declared file the build did not produce fails the job before anything is zipped, and the step
     prints every file it copied and a count. Every shipped `.json` is also refused if it carries an
     absolute path.
-- **release** — triggers only on a tag push, downloads every build job's artifact, and attaches
+- **release** - triggers only on a tag push, downloads every build job's artifact, and attaches
   the matching `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
@@ -77,7 +76,7 @@ Every extension keeps a `CHANGELOG.md` of user-facing changes, newest first, and
 `versions[]` row carries a two-or-three-sentence version of the same thing. Write the entry in the
 change that earns it, not at release time. Two rules govern both.
 
-**Head the entry with the version it will ship as — never "Unreleased".** The version is knowable
+**Head the entry with the version it will ship as - never "Unreleased".** The version is knowable
 the moment the first change lands, because semver is decided by what the change does and not by when
 somebody pushes a tag. A placeholder heading is a second edit someone has to remember at release,
 and forgetting it publishes a changelog telling users that the release they are reading about has
@@ -85,7 +84,7 @@ not happened. Write `## 0.4.0` from the first bullet, and cutting `renamer/v0.4.
 changelog edit at all.
 
 **An entry says what a user needs to know, not everything the version contains.** A refactor, a new
-test, an internal rename, a dependency bump and a tooling change do not appear — the git history
+test, an internal rename, a dependency bump and a tooling change do not appear - the git history
 already has them, and padding the entry with them buries the two lines that mattered. A change earns
 a bullet when it changes what the user sees, what they must do, or what they can rely on. A change
 with no user-facing effect earns one only when a user would still want to know: a data-loss or
@@ -97,7 +96,7 @@ Then, for the entry itself:
   or raises the floor. That sentence is why a user opened the changelog.
 - **One bullet per thing the user must act on; fold the rest into themes.** Ten bullets a user reads
   beat twenty-two they skim. Several fixes to one feature are one bullet.
-- **Say what changed, why it is better, and what it means for the reader** — never which files moved
+- **Say what changed, why it is better, and what it means for the reader** - never which files moved
   or which internals were touched.
 - **Leave released entries as they shipped.** An entry describes what users actually got at the time,
   so a later convention applies from the next version forward rather than backwards over history.
@@ -108,20 +107,20 @@ An extension's minimum host version is declared once, in its `extension.json` `m
 That is the only place you edit it; the loaded assembly reads it from the shipped manifest, and
 `scripts/validate-extension-repo.mjs` checks it is at least the repo-wide `CoveMinVersion` in
 `Directory.Build.props`. That check runs in the validate job, so it sees pull requests, tag pushes and
-the scheduled run — not a direct branch push.
+the scheduled run - not a direct branch push.
 
 The `minCoveVersion` in a registry manifest's `versions[]` row is a different thing that happens to
 share a name. Each row describes an immutable zip a user can still download, and its floor is the
-floor _that_ artifact needs — not a copy of the source tree's current one. So a raised floor reaches
+floor _that_ artifact needs - not a copy of the source tree's current one. So a raised floor reaches
 the registry by prepending a new row for the release you are cutting, never by editing an existing
 row: a row claiming a higher floor than its zip actually needs both misdescribes that file and locks
 out users for whom it works.
 
-Raising the floor is a user-facing change — a user below the new floor loses the extension entirely,
+Raising the floor is a user-facing change - a user below the new floor loses the extension entirely,
 rather than losing a feature. Say so in that extension's `CHANGELOG.md`, and name the capability
 that forced the floor, so the requirement reads as a reason rather than a version number.
 
-## What the registry computes — do not hand-write it
+## What the registry computes - do not hand-write it
 
 Each extension's registry draft carries the `id`, `repositoryUrl`, a `raw.githubusercontent.com`
 `sourceManifestUrl`, the categories, and a `versions[]` entry with `version`, `downloadUrl`,
@@ -129,9 +128,9 @@ Each extension's registry draft carries the `id`, `repositoryUrl`, a `raw.github
 
 It deliberately omits three things the registry owns:
 
-- `checksum` — computed by registry CI from the reachable `downloadUrl`.
-- `releasedAt` — stamped by registry CI when the pull request merges.
-- `index.json` — regenerated by registry CI; it is never edited by hand.
+- `checksum` - computed by registry CI from the reachable `downloadUrl`.
+- `releasedAt` - stamped by registry CI when the pull request merges.
+- `index.json` - regenerated by registry CI; it is never edited by hand.
 
 Letting CI compute the checksum ties the published metadata to the actual asset bytes; a
 hand-written checksum could mask a wrong or tampered asset.

@@ -6,7 +6,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// <summary>
 /// The cross-volume copy → verify(size + hash) → atomic-renamer → delete-source-last primitive,
 /// exercised directly against the real filesystem via the <see cref="TempDir"/> fixture (no second
-/// physical drive — the mover is called regardless of the real volume layout, exactly like
+/// physical drive - the mover is called regardless of the real volume layout, exactly like
 /// <see cref="DiskMover"/>'s tests). Proves: a verified happy move; no-clobber on an existing dest;
 /// a same-size-but-different-content copy is rejected (size-only would false-pass); a locked source
 /// is a classified skip not a throw; sidecars skip-not-clobber; an in-flight copy orphaned by an
@@ -17,7 +17,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// The in-flight name is minted per call and unguessable, so these cases learn it from the mover
 /// through the post-copy seam rather than constructing it. That direction is the point: a test that
 /// built its own expected path would be asserting on a value it supplied itself and would keep
-/// passing however wrong the real name was — which is exactly what the suite did before the name was
+/// passing however wrong the real name was - which is exactly what the suite did before the name was
 /// minted. Where the copy never gets far enough to reach the seam (a no-clobber skip, a locked
 /// source, a cancel), the case asserts on the destination directory's whole contents instead, which
 /// needs no name at all.
@@ -295,7 +295,7 @@ public sealed class CrossVolumeMoverTests
         Assert.Equal("the genuine bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old));
         // The orphan is inert, not garbage to collect: this call minted a different name, so it is
-        // neither promoted nor collided with — and the mover deletes only what it created.
+        // neither promoted nor collided with - and the mover deletes only what it created.
         Assert.DoesNotContain(orphan, minted);
         Assert.True(File.Exists(orphan), "an orphan the mover did not create must be left alone");
         Assert.Equal(orphanContent, File.ReadAllText(orphan));
@@ -337,9 +337,9 @@ public sealed class CrossVolumeMoverTests
 
     // When the destination copy is corrupted (a flipped byte) or torn (truncated) before verify, the
     // verify fails, the source survives with its original bytes, and the suspect destination and
-    // in-flight copy are gone — an interrupted/corrupted transfer never loses the original. The bit-flip
+    // in-flight copy are gone - an interrupted/corrupted transfer never loses the original. The bit-flip
     // case proves the content-hash half of verify; the truncation case proves the size half. Both run
-    // entirely in a TempDir — no second physical drive (a real two-drive run is a manual cross-platform
+    // entirely in a TempDir - no second physical drive (a real two-drive run is a manual cross-platform
     // check, deliberately not faked here).
 
     [Fact]
@@ -452,8 +452,8 @@ public sealed class CrossVolumeMoverTests
         var plantedOnTarget = dir.Touch("moved/Renamed.mkv.rnm0cf1c5d4", UserContent);
         var plantedElsewhere = dir.Touch("moved/Holiday.mkv.rnmc15381a0", UserContent);
 
-        // Corrupt the in-flight copy between copy and verify, so the failure arm — the one that does
-        // delete — runs. It must reach the minted path and nothing else.
+        // Corrupt the in-flight copy between copy and verify, so the failure arm - the one that does
+        // delete - runs. It must reach the minted path and nothing else.
         var minted = new List<string>();
         var mover = new CrossVolumeMover((inFlight, _) =>
         {
@@ -500,7 +500,7 @@ public sealed class CrossVolumeMoverTests
     }
 
     /// <summary>
-    /// A post-copy seam that only records the path production minted, leaving the copy untouched — the
+    /// A post-copy seam that only records the path production minted, leaving the copy untouched - the
     /// mover's real behaviour, plus the observation the test needs.
     /// </summary>
     private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>

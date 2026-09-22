@@ -56,14 +56,14 @@ public sealed class RenamerPlannerTests
     public async Task TraversalFolderTemplate_NeutralizedByEngine_ConfinedUnderRoot()
     {
         // Defense-in-depth: the engine strips "../" segments per-segment (TrimEdge dots),
-        // so "../../escape" renders to the benign subfolder "escape" — which the confinement gate
+        // so "../../escape" renders to the benign subfolder "escape" - which the confinement gate
         // then accepts as a move under the root. The raw "../.." → rejected path is proven directly
         // at the helper level in PathConfinementTests.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
-        // Pin the title-only filename template — this test asserts folder-template confinement, not the default name shape.
+        // Pin the title-only filename template - this test asserts folder-template confinement, not the default name shape.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "../../escape" };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
@@ -77,7 +77,7 @@ public sealed class RenamerPlannerTests
     public async Task ConfinementRejection_WiredIntoPlanner_IsSkipped_ZeroMutation()
     {
         // Drive a real confinement rejection through the planner via the FullPathMax re-check
-        // the engine never measures on the absolute path — proves the planner classifies
+        // the engine never measures on the absolute path - proves the planner classifies
         // a confinement failure as a skip with the helper's reason, mutating nothing.
         var port = new FakeRenamerDataPort();
         port.SeedEntity(VideoEntity(new string('A', 300), VideoFile(1, "raw.mkv")));
@@ -111,7 +111,7 @@ public sealed class RenamerPlannerTests
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
     {
         // Seed the same entity behind the loading path; plan it both ways and prove item-for-item
-        // equality — the pure method and the load-then-plan method share identical plan logic.
+        // equality - the pure method and the load-then-plan method share identical plan logic.
         var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
         var port = new FakeRenamerDataPort();
         port.SeedEntity(entity);

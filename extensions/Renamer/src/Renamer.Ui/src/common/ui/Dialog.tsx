@@ -5,11 +5,11 @@
  * `bg-surface rounded-lg border border-border shadow-xl p-6`) so the extension dialog reads as
  * native. Adds an intentional a11y improvement over the host baseline:
  * `role="dialog"` + `aria-modal` + `aria-labelledby`, a minimal focus trap, Esc-to-cancel, and
- * scrim-click-to-cancel — all suppressed while an operation is `pending`.
+ * scrim-click-to-cancel - all suppressed while an operation is `pending`.
  *
  * Import audit (see `primitives.tsx`'s header for the full sweep): the barrel-exported
- * `ConfirmDialog` is not a swap for this `Dialog`. It has none of the above — no `role="dialog"`,
- * no focus trap, no Esc-to-cancel, no scrim-click-cancel, no size variants — because it's built for
+ * `ConfirmDialog` is not a swap for this `Dialog`. It has none of the above - no `role="dialog"`,
+ * no focus trap, no Esc-to-cancel, no scrim-click-cancel, no size variants - because it's built for
  * a single destructive-delete use case with a fixed `max-w-sm`. Swapping it in for `DryRunModal`/
  * `UndoSection` would regress the accessibility this shell exists to provide.
  */
@@ -24,9 +24,9 @@ export function Dialog({
   size = "lg",
   children,
 }: {
-  /** id of the element that labels the dialog (the title) — wired to aria-labelledby. */
+  /** id of the element that labels the dialog (the title) - wired to aria-labelledby. */
   titleId: string;
-  /** optional id of the element that describes the dialog — wired to aria-describedby. */
+  /** optional id of the element that describes the dialog - wired to aria-describedby. */
   describedById?: string;
   /** while true, Esc / scrim-click / programmatic close are suppressed (operation in flight). */
   pending?: boolean;

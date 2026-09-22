@@ -7,10 +7,10 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// The FullPathMax re-check re-anchors on the destination's own root, not the
-/// source folder. The load-bearing assertion is the contrast — the same rendered name fits under a
+/// source folder. The load-bearing assertion is the contrast - the same rendered name fits under a
 /// short library path but overflows under a deep routed root, so the over-long case becomes a
 /// skip-with-reason at preview (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
-/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. pure — no disk.
+/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. pure - no disk.
 /// </summary>
 public sealed class DestAnchoredMaxPathTests
 {
@@ -81,7 +81,7 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(ShortSource);
-        // The identical render under the short source folder (no route) fits within the same FullPathMax —
+        // The identical render under the short source folder (no route) fits within the same FullPathMax -
         // proving the overflow above is caused by the deep routed anchor, not the render itself.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);

@@ -27,11 +27,11 @@ there and nowhere else. CI builds Cove from a released tag instead.
 ## Safety check
 
 Every extension: any operation that mutates the Cove library or an external system must be
-previewable/reversible in spirit — no silent, unrecoverable changes.
+previewable/reversible in spirit - no silent, unrecoverable changes.
 
 - [ ] No host-provided assemblies bundled into the publish output
 
-If this touches **Renamer** — how files move, the database is updated, collisions, or locks:
+If this touches **Renamer** - how files move, the database is updated, collisions, or locks:
 
 - [ ] DB and disk still update together (no orphaned files)
 - [ ] Never overwrites an existing target; never force-unlocks a held file

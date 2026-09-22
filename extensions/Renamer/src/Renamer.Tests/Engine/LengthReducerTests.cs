@@ -121,7 +121,7 @@ public class LengthReducerTests
         var (_, dropped) = TemplateEngine.RenderWithDropped(LongTemplateFixture.Tokens, FixtureMulti, options);
 
         // The fixture is engineered to exhaust every drop-order field, so the dropped set is the
-        // full DropOrder in order — proves the names come from the reducer, not a string diff.
+        // full DropOrder in order - proves the names come from the reducer, not a string diff.
         Assert.Equal(options.DropOrder, dropped);
     }
 

@@ -1,5 +1,5 @@
-// Every case is driven from a fixture tree in a temp dir — a fake catalog plus a fake publish
-// output — so no dotnet build, npm build or sibling Cove checkout is needed.
+// Every case is driven from a fixture tree in a temp dir - a fake catalog plus a fake publish
+// output - so no dotnet build, npm build or sibling Cove checkout is needed.
 //
 // The fixture's file names deliberately differ from any real extension's, so a passing case proves
 // the resolution came from the catalog rather than from a name baked into the packer.
@@ -110,8 +110,8 @@ function assemble({ root, publishDir, packageDir }, overrides = {}) {
   });
 }
 
-// Restages the fake build output under the CI layout — artifacts/publish/<Name> at the repo root
-// rather than under the extension — because the descendant bypass below is only reachable with a
+// Restages the fake build output under the CI layout - artifacts/publish/<Name> at the repo root
+// rather than under the extension - because the descendant bypass below is only reachable with a
 // publish directory that sits outside extensions/, which is exactly the shape build.yml passes.
 function ciShapedPublish(fixture) {
   const publishDir = path.join(fixture.root, "artifacts", "publish", NAME);
@@ -224,8 +224,8 @@ test("assembles into an absent package directory, and into an existing empty one
 });
 
 // A packageDir pointed at a source tree is refused because that tree is not empty, and since
-// nothing here deletes, the tree is byte-for-byte intact afterwards. Every destructive spelling —
-// a drive-letter case alias, a junction, a source-bearing descendant — reduces to this one case.
+// nothing here deletes, the tree is byte-for-byte intact afterwards. Every destructive spelling -
+// a drive-letter case alias, a junction, a source-bearing descendant - reduces to this one case.
 test("a packageDir pointed at a populated source tree is refused and destroys nothing", () => {
   const fixture = fixtureRoot();
   const before = snapshotTree(fixture.root);
@@ -233,7 +233,7 @@ test("a packageDir pointed at a populated source tree is refused and destroys no
   const r = assemble(fixture, { packageDir: fixture.root });
 
   assert.equal(r.ok, false, "the repo root is not empty and must be refused");
-  // Named, so this case cannot pass on some other refusal firing first — the claim is that the
+  // Named, so this case cannot pass on some other refusal firing first - the claim is that the
   // not-empty refusal is what makes the retired protected-path set unnecessary.
   assert.ok(
     r.failures.some((f) => f.startsWith("INVALID:") && f.includes("not empty")),
@@ -337,7 +337,7 @@ test("refuses to write a shipped json carrying a unix home path prefix, naming f
 });
 
 // An absolute path reaches a shipped json in more spellings than the two cases above cover, and a
-// Windows path inside json is escaped — so the text the scan actually meets is not the text a human
+// Windows path inside json is escaped - so the text the scan actually meets is not the text a human
 // writes. Every needle below is assembled from character codes for the same reason those two are.
 function leakyFixture(value) {
   return fixtureRoot({
@@ -388,7 +388,7 @@ test("refuses a shipped json carrying a network share path, in the spelling a ge
   }
 });
 
-// Separate markers, so a future narrowing of one cannot silently narrow the other — which is worth
+// Separate markers, so a future narrowing of one cannot silently narrow the other - which is worth
 // nothing unless each still refuses only its own class. A share marker written against the raw
 // spelling alone collapses into the drive one, since an escaped drive path also carries doubled
 // backslashes.
@@ -588,7 +588,7 @@ test("an unloadable declaration and an absolute path in a shipped json are repor
 });
 
 test("a .pdb and a .xml sitting in the publish output cannot reach the package", () => {
-  // A loadable declaration — the manifest and the two files it names — that still omits the symbol and
+  // A loadable declaration - the manifest and the two files it names - that still omits the symbol and
   // documentation files the fake build emitted beside them. The point is what a declaration leaves out,
   // so it has to be a declaration that would otherwise ship.
   const shipped = ["extension.json", "bundle.mjs", "Fixture.dll", "Fixture.deps.json"];
@@ -672,13 +672,13 @@ test("the three real caller shapes still assemble", () => {
 });
 
 // Resolution is an existence check and the copy happens later, so a source that resolves can still
-// fail to be written. The failure is reported rather than thrown — a caller that reads failures would
-// otherwise see an exception escape the exported function instead — and the loop stops there rather
+// fail to be written. The failure is reported rather than thrown - a caller that reads failures would
+// otherwise see an exception escape the exported function instead - and the loop stops there rather
 // than reporting a count for a package that is not on disk.
 test("a write that fails partway is a reported WRITE failure, not a throw, and stops the loop", () => {
   const fixture = fixtureRoot();
   // A directory bearing a declared artifact's name. The existence check that resolves a source is
-  // satisfied by a directory, so resolution succeeds and the copy is what fails — and it is the
+  // satisfied by a directory, so resolution succeeds and the copy is what fails - and it is the
   // fourth declared name, so the loop has already written three files when it does.
   const planted = "Fixture.Extra.dll";
   fs.rmSync(path.join(fixture.publishDir, planted));
@@ -701,7 +701,7 @@ test("a write that fails partway is a reported WRITE failure, not a throw, and s
 });
 
 // The case above plants a .dll, which the pre-write json scan skips. A declared .json reaches that
-// scan first, and it reads the source rather than only testing that it exists — so the same planted
+// scan first, and it reads the source rather than only testing that it exists - so the same planted
 // directory arrives at a read instead of at a copy, on the path that runs before anything is written.
 test("a declared json whose source cannot be read is a reported failure, not a throw", () => {
   const planted = "Fixture.deps.json";
@@ -734,7 +734,7 @@ function runCli(fixture, argv, script = scriptPath) {
 }
 
 /**
- * The entry script reached through an alias of its own directory — the mechanism this repository's
+ * The entry script reached through an alias of its own directory - the mechanism this repository's
  * worktree workflow uses, so an invocation path that changes behaviour is a real defect here.
  *
  * A failure to create the link is asserted rather than skipped: a case that quietly does not run is
@@ -775,7 +775,7 @@ test("CLI: two runs over identical input print byte-identical output", () => {
   const fixture = fixtureRoot();
   const first = runCli(fixture, fullArgv(fixture));
   // The caller clears the directory between runs, which is what the packer's refusal now requires of
-  // one that re-uses a path — the same remove-and-recreate the dev deploy does. Without it the second
+  // one that re-uses a path - the same remove-and-recreate the dev deploy does. Without it the second
   // run is refused, and determinism would be measured over two different code paths.
   fs.rmSync(fixture.packageDir, { recursive: true, force: true });
   const second = runCli(fixture, fullArgv(fixture));
@@ -787,7 +787,7 @@ test("CLI: two runs over identical input print byte-identical output", () => {
 
 // The exported function reports what landed, and the command line has to say the same thing. A write
 // that fails partway is the one refusal that leaves files behind, and the next run is refused for a
-// directory that is not empty — so a caller told nothing was written has no account of what put them
+// directory that is not empty - so a caller told nothing was written has no account of what put them
 // there.
 test("CLI: a write that fails partway names what it wrote, and does not claim it wrote nothing", () => {
   const planted = "Fixture.Extra.dll";

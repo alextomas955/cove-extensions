@@ -9,13 +9,13 @@ namespace Renamer.Tests.TestSupport;
 /// for it unconditionally either fails or quietly does nothing everywhere else.
 /// </summary>
 /// <remarks>
-/// Three arms, in precedence order — an explicit choice outranks an inferred one on every OS:
+/// Three arms, in precedence order - an explicit choice outranks an inferred one on every OS:
 /// <list type="number">
 /// <item><c>COVE_TEST_SECOND_VOLUME</c>, naming an existing directory on another filesystem. This is
 /// the only arm available on macOS, where neither of the others applies.</item>
-/// <item>Windows — a <see cref="SubstDrive"/>, a second path root, which is what
+/// <item>Windows - a <see cref="SubstDrive"/>, a second path root, which is what
 /// <see cref="Path.GetPathRoot(string)"/> keys on there.</item>
-/// <item>Unix — a directory under <c>/dev/shm</c>, a tmpfs that is a distinct entry in the kernel
+/// <item>Unix - a directory under <c>/dev/shm</c>, a tmpfs that is a distinct entry in the kernel
 /// mount table and therefore a distinct volume key; measured present and writable with no privilege
 /// in a Linux container and on the CI runner. That matters because CI runs Linux: before this
 /// existed, every cross-volume execution proof was unreachable there, and seven of them returned
@@ -23,7 +23,7 @@ namespace Renamer.Tests.TestSupport;
 /// </list>
 /// <para>
 /// A misconfigured override is refused rather than absorbed: pointing the variable at the temp tree's
-/// own volume would leave every gated test running, passing, and proving nothing — the same
+/// own volume would leave every gated test running, passing, and proving nothing - the same
 /// silent-no-op this fixture was written to end. See <see cref="AssertDistinctVolume"/>.
 /// </para>
 /// <para>
@@ -46,7 +46,7 @@ public sealed class SecondVolume : IDisposable
 
     /// <summary>
     /// Whether this host can supply a second filesystem at all. False on a Unix without
-    /// <c>/dev/shm</c> and no override — notably macOS, where a cross-volume test cannot run and must
+    /// <c>/dev/shm</c> and no override - notably macOS, where a cross-volume test cannot run and must
     /// say so rather than pass.
     /// </summary>
     public static bool IsAvailable =>
@@ -113,7 +113,7 @@ public sealed class SecondVolume : IDisposable
         {
             try
             {
-                // Only the subdir this instance created — never a caller-supplied override directory,
+                // Only the subdir this instance created - never a caller-supplied override directory,
                 // which on a real machine is a mount point holding somebody else's data.
                 Directory.Delete(_directory, recursive: true);
             }
@@ -145,8 +145,8 @@ public sealed class SecondVolume : IDisposable
     /// move from, naming both sides so the misconfiguration is actionable from CI output alone.
     /// </summary>
     /// <remarks>
-    /// The decision is delegated to <see cref="VolumeClassifier.SameVolume"/> — the same classifier
-    /// the gated tests themselves key on — so this check and those tests cannot disagree about what
+    /// The decision is delegated to <see cref="VolumeClassifier.SameVolume"/> - the same classifier
+    /// the gated tests themselves key on - so this check and those tests cannot disagree about what
     /// "cross-volume" means. Throwing is deliberate: the alternative, quietly using the directory
     /// anyway, keeps roughly a dozen copy/verify/delete proofs green while they exercise the atomic
     /// same-volume path instead.

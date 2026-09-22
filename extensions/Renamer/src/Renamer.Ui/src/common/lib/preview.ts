@@ -4,7 +4,7 @@
  * critical: `/preview` returns `RenamePlanItem[]` (camelCase over the wire), not the
  * `/preview-sample` `flags[]` array. The warning taxonomy is derived from the `status` string enum
  * (the host serializes the enum as a string) plus the additive `suffixed` / `sanitized` bools the
- * planner sets — there is no `flags[]` field here.
+ * planner sets - there is no `flags[]` field here.
  *
  * `buildConfirmSummary` is intentionally pure (no DOM, no fetch) so the confirm-dialog wording logic
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
@@ -133,7 +133,7 @@ function confirmCallToAction(level: ConfirmLevel): string {
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
  * Blast radius: when `summary` is supplied and the batch moves files across
- * drives, the confirm wording scales with `summary.confirmLevel` — an explicit "N items (X MB) move
+ * drives, the confirm wording scales with `summary.confirmLevel` - an explicit "N items (X MB) move
  * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
  * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.
  * Pure (no DOM/fetch) so it stays unit-reasonable.
@@ -160,7 +160,7 @@ export function buildConfirmSummary(
     if (clause === undefined) unclassified += 1;
     else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
   }
-  // Read in the map's declaration order, never the tally's — that one follows whatever order the items
+  // Read in the map's declaration order, never the tally's - that one follows whatever order the items
   // happened to arrive in, which would let the same selection word its sentence differently twice.
   const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
     const count = tally.get(status) ?? 0;
@@ -173,7 +173,7 @@ export function buildConfirmSummary(
   const warningLines: string[] = [];
   // First, and phrased as a failure rather than an advisory: every other line here describes a rename
   // that will happen differently, while this one describes files the executor will not be able to move
-  // at all. It reads the aggregate count, never a list of paths — a selection reaches library size, and
+  // at all. It reads the aggregate count, never a list of paths - a selection reaches library size, and
   // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
   // characters: what the user can act on is the remedy, so that is what the line carries.
   const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;

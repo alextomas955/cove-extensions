@@ -1,14 +1,14 @@
 /**
  * The full-screen "Dry run" modal: scans the whole library, then renders what the scan found with the
  * search and the status filter answered by the server. The footer "Rename N files" button calls the
- * same rename-trigger callback the panel-level "Rename all files" button calls — this modal never
+ * same rename-trigger callback the panel-level "Rename all files" button calls - this modal never
  * talks to the rename-library endpoint through a separate code path.
  *
  * It composes three pieces and holds only what they share: {@link useLibraryScan} runs the scan,
  * {@link ScanProgress} shows it running, and {@link DryRunRows} owns the table and its own row walk.
  * What stays here is the dialog shell, the filter controls, and the two reasons a rename is refused.
  *
- * Prop contract: the modal is self-contained — it enqueues its own scan on mount and manages its own
+ * Prop contract: the modal is self-contained - it enqueues its own scan on mount and manages its own
  * job-polling lifecycle. The parent only supplies `onClose` and `onRenameAll` (the shared rename
  * handler) plus whether a rename triggered from elsewhere is in flight, so the footer button's
  * disabled/spinner state matches the panel-level button exactly.
@@ -53,7 +53,7 @@ export function DryRunModal({
   renaming,
   renameProgress,
 }: Readonly<{
-  /** The panel's CURRENT (possibly unsaved) options — sent so the scan previews unsaved edits. */
+  /** The panel's CURRENT (possibly unsaved) options - sent so the scan previews unsaved edits. */
   options: RenamerOptions;
   /**
    * Whether the panel holds edits that are not saved. The rename runs the saved options, so a dry
@@ -61,7 +61,7 @@ export function DryRunModal({
    */
   dirty: boolean;
   onClose: () => void;
-  /** The SHARED rename-trigger handler — also called by the panel-level button. */
+  /** The SHARED rename-trigger handler - also called by the panel-level button. */
   onRenameAll: (counts: DryRunCounts) => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
@@ -97,7 +97,7 @@ export function DryRunModal({
     };
   }, [search]);
 
-  // Counts come from the aggregate, so the segment labels do not move when the filter changes — they
+  // Counts come from the aggregate, so the segment labels do not move when the filter changes - they
   // describe the whole scan, not the rows that happen to be loaded.
   const counts = scan.summary ? summaryCounts(scan.summary) : null;
 

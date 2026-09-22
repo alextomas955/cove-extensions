@@ -3,7 +3,7 @@
  *
  * Answered by the extension's own route, which asks the database as System. The browser cannot decide
  * this for itself: a lookup that fails reads the same for a deleted entity, for one this viewer may not
- * read, and for a dropped request — and labelling a valid rule "deleted" on that confusion would be
+ * read, and for a dropped request - and labelling a valid rule "deleted" on that confusion would be
  * worse than the stuck spinner it replaces.
  *
  * A failed read reports nothing orphaned, so the panel falls back to the host's own label rather than

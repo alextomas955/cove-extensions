@@ -8,7 +8,7 @@ namespace Renamer.Tests.Preview;
 /// Pure-string assertions for <see cref="BatchPreview"/>: the whole-batch blast-radius aggregate
 /// over a planned <see cref="RenamerPlanItem"/> set (count, same/cross split, per-destination-volume
 /// byte sum + count, and the scaled <see cref="ConfirmLevel"/>). Like
-/// <c>FreeSpaceGuardTests</c> this needs no real second drive — only OS-aware path roots, an injected
+/// <c>FreeSpaceGuardTests</c> this needs no real second drive - only OS-aware path roots, an injected
 /// FileId→size map, and arithmetic are exercised, so it runs identically on Windows and Unix.
 /// </summary>
 public sealed class BlastRadiusTests
@@ -82,7 +82,7 @@ public sealed class BlastRadiusTests
         Assert.Equal(0, summary.CrossVolumeCount);
         Assert.Equal(0, summary.CrossVolumeBytes);
         Assert.Empty(summary.VolumePairs);
-        // Same-drive renames are cheap/reversible — never escalate beyond Light regardless of size.
+        // Same-drive renames are cheap/reversible - never escalate beyond Light regardless of size.
         Assert.Equal(ConfirmLevel.Light, summary.ConfirmLevel);
     }
 

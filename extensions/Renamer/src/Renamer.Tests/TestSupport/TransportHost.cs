@@ -19,7 +19,7 @@ namespace Renamer.Tests.TestSupport;
 /// <remarks>
 /// A handler called directly receives whatever arguments the test constructs, so a test written that
 /// way proves nothing about what the host's model binding actually produces for a given request body.
-/// Anything asserting on the wire — the bound request shape, the status code, the response bytes —
+/// Anything asserting on the wire - the bound request shape, the status code, the response bytes -
 /// belongs on this seam.
 /// </remarks>
 public sealed class TransportHost : IAsyncDisposable

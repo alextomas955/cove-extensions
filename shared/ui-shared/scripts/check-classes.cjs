@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Class-discipline + XSS gate for an extension's panel sources — one shared copy for every UI.
+ * Class-discipline + XSS gate for an extension's panel sources - one shared copy for every UI.
  *
  * Fails (exit 1) if any panel .tsx contains:
- *   1. A Tailwind utility class the host does NOT emit — those would silently render unstyled,
+ *   1. A Tailwind utility class the host does NOT emit - those would silently render unstyled,
  *      because the host's Tailwind JIT never scans this bundle (it only generates classes it sees
  *      in its own source). Arbitrary-value classes (e.g. `w-[123px]`) are the common trap.
- *   2. The raw-HTML React prop (dangerouslySetInnerHTML) — filenames/diff/flags must render as
+ *   2. The raw-HTML React prop (dangerouslySetInnerHTML) - filenames/diff/flags must render as
  *      escaped text nodes only, never as raw HTML, to avoid an injection vector.
  *
  * The consuming package's `src/` and the shared UI module's `src/` are both scanned (this bundle
@@ -41,7 +41,7 @@ const SRC_DIR = src ? path.resolve(src) : path.resolve(process.cwd(), "src");
 // own location so it is correct regardless of which package invoked the shared copy.
 const SHARED_SRC_DIR = path.resolve(__dirname, "..", "src");
 
-// Scan ALL .tsx sources (not a hardcoded list — so new components are covered too).
+// Scan ALL .tsx sources (not a hardcoded list - so new components are covered too).
 function tsxFiles(dir) {
   return fs
     .readdirSync(dir, { withFileTypes: true })
@@ -88,7 +88,7 @@ function usesClass(text, cls) {
   return false;
 }
 
-// The raw-HTML React prop — banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
+// The raw-HTML React prop - banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
 // it merely appears in a comment/doc string (e.g. "NO dangerouslySetInnerHTML"). Render escaped only.
 const RAW_HTML_RE = /dangerouslySetInnerHTML\s*[:=]/;
 

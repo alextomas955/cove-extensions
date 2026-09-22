@@ -9,7 +9,7 @@ namespace Renamer.Tests.TestSupport;
 /// <remarks>
 /// The first migration ships portable SQL and is executed here as the host executes it. The second
 /// ships PostgreSQL syntax, because the host runs on PostgreSQL alone, and SQLite cannot parse its
-/// <c>ADD COLUMN IF NOT EXISTS</c> — so the column is added here by an equivalent SQLite statement.
+/// <c>ADD COLUMN IF NOT EXISTS</c> - so the column is added here by an equivalent SQLite statement.
 /// <para>
 /// That makes this setup, not coverage: nothing in the SQLite suite executes the second migration's
 /// shipped string, and a test here cannot report that it drifted. What the string does is verified

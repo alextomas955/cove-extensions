@@ -19,10 +19,10 @@ namespace Renamer.Tests.Api;
 /// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
 /// Each test first performs a real renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
 /// log is written to the extension's store) and then exercises the endpoints on the same extension
-/// instance — the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
+/// instance - the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
 /// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
 /// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
-/// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
+/// + correct entity event), header-driven kind (an image batch publishes ImageUpdated - never a Video
 /// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
 /// </summary>
 public sealed class UndoEndpointTests
@@ -70,7 +70,7 @@ public sealed class UndoEndpointTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            // Offset the Video id sequence so videoId != fileId — the published undo event must carry
+            // Offset the Video id sequence so videoId != fileId - the published undo event must carry
             // the entity id from the log row, never the file id.
             db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
             await db.SaveChangesAsync();
@@ -85,7 +85,7 @@ public sealed class UndoEndpointTests
             var (ext, store) = await BuildExtensionAsync(db, bus);
             await SeedTitleOptionsAsync(store); // → "My Film.mkv"
 
-            // Forward renamer via the shared batch core — writes one real batch to the store.
+            // Forward renamer via the shared batch core - writes one real batch to the store.
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
@@ -161,14 +161,14 @@ public sealed class UndoEndpointTests
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
-            // Undoing an image batch requires images.write (the batch header carries the kind) — not
+            // Undoing an image batch requires images.write (the batch header carries the kind) - not
             // videos.write. This proves the per-kind permission gate on the undo path.
             var result = await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite),
                 new RecordingAuthorizationService(), default);
             Assert.Equal(1, UndoValue(result).Undone);
 
-            // The published event is ImageUpdated — proving the kind comes from the batch header,
+            // The published event is ImageUpdated - proving the kind comes from the batch header,
             // never a hardcoded RenamerFileKind.Video default on the undo path.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.ImageUpdated, evt.Type);
@@ -243,7 +243,7 @@ public sealed class UndoEndpointTests
             Assert.False(File.Exists(newFull));
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
-            // Now — and only now — the batch is consumed.
+            // Now - and only now - the batch is consumed.
             var afterRetry = LastBatchValue(await ext.LastBatchAsync(read, default));
             Assert.True(afterRetry.Consumed, "batch consumed once a retry actually restored an entry");
         }

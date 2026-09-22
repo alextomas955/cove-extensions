@@ -443,7 +443,7 @@ public sealed class RoutingPlannerTests
     public async Task Excluded_ProducesSkipExcluded_ForEveryFile_NotSkipGated()
     {
         // An excluded multi-file entity yields a SkipExcluded skip-with-reason for every file
-        // (mirrors the gated path), carrying the matched exclude rule label — and it is not the
+        // (mirrors the gated path), carrying the matched exclude rule label - and it is not the
         // (gating) SkipGated status, guarding the relabel.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(
@@ -496,10 +496,10 @@ public sealed class RoutingPlannerTests
     {
         // The move-to-itself bug: with a destination configured, every file is a "move" (isMove
         // true). If the route resolves the file back to the folder it already lives in and the
-        // rendered name equals its current basename, nothing changes on disk — it must be NoOp, not
+        // rendered name equals its current basename, nothing changes on disk - it must be NoOp, not
         // a Move reported (and executed) as a rename to its own identical path. Here the default
         // root is the file's source root, no subfolder, and the filename template reproduces the
-        // current basename stem — so target full path == current full path.
+        // current basename stem - so target full path == current full path.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -519,8 +519,8 @@ public sealed class RoutingPlannerTests
     [Fact]
     public async Task RoutedToSameFolder_SameName_IsNoOp_WhenTheHostSuppliedABackslashPath()
     {
-        // Cove does not guarantee a forward-slash Folder.Path — its own tests build
-        // `new Folder { Path = "C:\\library" }` — so on a Windows host ParentFolderPath arrives with
+        // Cove does not guarantee a forward-slash Folder.Path - its own tests build
+        // `new Folder { Path = "C:\\library" }` - so on a Windows host ParentFolderPath arrives with
         // backslashes while the confinement gate returns its target forward-slashed. The no-op check
         // compares the two ordinally, so a file already sitting at its routed destination read as a
         // Move to its own path. This seeds the raw host shape deliberately: every other test here

@@ -4,8 +4,8 @@ using Renamer.Options;
 namespace Renamer.Tests.Options;
 
 /// <summary>
-/// Pins that an existing persisted <c>RenamerOptions</c> blob — one whose properties and enum values hold
-/// the byte-literal PascalCase spelling a shipped v0.1.0 install wrote — still deserializes to the correct
+/// Pins that an existing persisted <c>RenamerOptions</c> blob - one whose properties and enum values hold
+/// the byte-literal PascalCase spelling a shipped v0.1.0 install wrote - still deserializes to the correct
 /// <see cref="RenamerOptions"/> through <see cref="RenamerOptions.JsonOptions"/>, the persisted-blob
 /// serializer <c>OptionsStore</c> reuses unchanged. The Cove-facing response wire re-cased to camelCase in
 /// this wave, but the options blob keeps its own PascalCase spelling independently (it is stored via the

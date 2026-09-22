@@ -3,56 +3,17 @@ paths:
   - "**/*.cs"
 ---
 
-# C# comments and XML docs
+# XML docs
 
-Comments explain why, not what. Default to no comment. Match the surrounding comment density.
+`.claude/rules/comments.md` carries the comment rules. This file adds the `///` ones.
 
-Write a comment only for:
+Write XML docs only on the SDK-facing surface: the `IExtension` boundary, interfaces, shared
+contract types. Skip them on internal code, tests, and generated code. Write a tag only where it
+states something the signature cannot. No `<param>` that restates a parameter name.
 
-- A domain rule the code does not show, such as a routing precedence order.
-- A non-obvious edge case and its reason.
-- An external-system quirk: the Cove ABI, a host API limit, a platform path rule.
-- Safety or security reasoning, such as resolving symlinks late to shrink a TOCTOU window.
-- A concurrency, performance, or consistency assumption, such as `CoveContext` not being
-  thread-safe.
-- A temporary workaround, with the condition for removing it.
-- A public-API contract the signature cannot show: null behavior, what throws, ordering.
-
-Never write:
-
-- A restatement of a name, or a description of what the next line obviously does.
-- Narration of the edit, author voice, or a comparison with code that is no longer there. That
-  belongs in the commit message.
-- Process or tooling vocabulary: phases, plans, tickets, tasks, agents, or the name of a planning
-  tool. Shipped code is tool-agnostic.
-- A measurement: a line number, count, version, date, hash, or timing. It goes stale with no
-  signal. Cover it with a test, or state the durable form ("the rollback catch", not "the catch at
-  :153").
-- The argument for a decision. State the constraint and stop.
-- A comparison with an alternative the code does not take ("rather than", "instead of").
-- Capitalised emphasis, arrows, or an XML doc block longer than one summary sentence and one
-  remarks paragraph.
-
-Write XML docs (`///`) only on the SDK-facing surface (the `IExtension` boundary, interfaces, shared
-contract types), and only where a tag states something the signature cannot. Skip them on internal
-code, tests, and generated code. No `<param>` that restates the parameter name. `<remarks>` explains
-why and lists the edge cases. `<exception>` documents what a caller must catch.
-
-## Describe what the code does, not what it should do
-
-A comment stating a requirement and a comment stating a fact read alike and age differently. "The
-retention window has to be measured from the earliest batch" is a requirement; rewriting it as "is
-measured from" turned it into a false claim about a purge that keys on each batch's own timestamp.
-
-When a comment describes behavior, check the code path before writing it. Where the code does not do
-what the comment wants, describe what it does, name the consequence, and report the defect.
-
-## Record types document all constructor parameters or none
-
-`CS1573` is an error here: a record whose doc block carries a `<param>` for some positional
-parameters and not others fails the build. Documenting the rest to satisfy it reintroduces the
-name-restating tags this file forbids, so put the substance in `<remarks>` and carry no `<param>` at
-all.
+A record documents all its positional parameters or none. `CS1573` is an error here, so a partial
+set fails the build, and completing the set reintroduces name-restating tags. Put the substance in
+`<remarks>` and carry no `<param>` at all.
 
 `CS1591` is silenced on purpose and no doc-enforcement analyzer is installed. Do not add one.
 
@@ -61,11 +22,9 @@ all.
 /// <summary>Gets the user by id.</summary>
 User GetUserById(int id);
 
-// Good: states the contract; remarks explain why.
+// Good: states the contract; remarks give the reason.
 /// <summary>Resolves <paramref name="candidate"/> to its canonical on-disk path.</summary>
-/// <remarks>
-/// Resolves symlinks as late as possible to keep the TOCTOU window small. Throws when the target
-/// escapes the allowed roots.
-/// </remarks>
+/// <remarks>Resolves symlinks late to keep the TOCTOU window small. Throws when the target escapes
+/// the allowed roots.</remarks>
 string ResolveCanonicalPath(string candidate);
 ```

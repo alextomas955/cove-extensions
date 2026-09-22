@@ -2,8 +2,8 @@
 /**
  * That the destination editor's advice names a control the user can actually see.
  *
- * The root picker is withheld when Cove has no library path to offer — the read failed, or the host has
- * none configured — and the path-shape hint beside the template input is the one line telling the user
+ * The root picker is withheld when Cove has no library path to offer - the read failed, or the host has
+ * none configured - and the path-shape hint beside the template input is the one line telling the user
  * a typed path is about to become literal folder names. Sending them to "the root beside it" in that
  * state points at nothing, which leaves the only warning they get unactionable.
  *
@@ -12,8 +12,8 @@
  * test waits for the field to appear rather than for a span.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. PathShapeHint's stand-in reproduces its real gate — it renders only for an absolute-path
- * shape — by calling the real predicate, so a hint this test reads is one the user would see.
+ * bundle. PathShapeHint's stand-in reproduces its real gate - it renders only for an absolute-path
+ * shape - by calling the real predicate, so a hint this test reads is one the user would see.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";

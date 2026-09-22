@@ -58,7 +58,7 @@ test("a URL or a host-less reference is refused rather than defaulted to some ot
 
 test("the real Directory.Build.props declares both image properties", () => {
   // Reads the repo's own build file, so renaming CoveTestImageRepository or CoveTestImageTag fails
-  // here — where the fetcher takes them from — instead of drifting until a CI leg cannot resolve a tag.
+  // here - where the fetcher takes them from - instead of drifting until a CI leg cannot resolve a tag.
   const propsPath = path.join(repoRoot, "Directory.Build.props");
   const props = parseMsBuildProperties(fs.readFileSync(propsPath, "utf8"));
 
@@ -117,7 +117,7 @@ test("the version-resource reader finds a key's UTF-16 value across its alignmen
 // ---- tag parsing, ranking and leg resolution ------------------------------------------------------
 
 test("the strict-semver regex is the whole filter: every non-semver tag spelling parses to null", () => {
-  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere — the
+  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere - the
   // regex rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
   // through a list nobody updated.
   for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {

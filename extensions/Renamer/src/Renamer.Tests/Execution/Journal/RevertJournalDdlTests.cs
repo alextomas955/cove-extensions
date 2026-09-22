@@ -42,7 +42,7 @@ public sealed class RevertJournalDdlTests
     [Fact]
     public async Task TheShippedMigration_RunAgainstItsOwnResult_Succeeds()
     {
-        // The table can outlive its receipt — an uninstall removes the extension's directory and
+        // The table can outlive its receipt - an uninstall removes the extension's directory and
         // nothing removes the receipt, while a restored database can carry the tables with none. A
         // second application therefore has to be harmless, and its failure would only be a host log
         // line, which is the silence these cases exist to close.
@@ -91,7 +91,7 @@ public sealed class RevertJournalDdlTests
     public async Task TheDefaultedColumns_TakeTheirValuesFromTheSchema()
     {
         // Written through raw SQL that names only the required columns, so what comes back is the
-        // schema's defaults rather than values the entity supplied — the two are indistinguishable
+        // schema's defaults rather than values the entity supplied - the two are indistinguishable
         // when the entity writes every column.
         var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
         await using var _ = db;

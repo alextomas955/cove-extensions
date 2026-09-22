@@ -4,7 +4,7 @@
 //
 // note on imports: this template lives inside the shared harness (tests/e2e/), so it imports the
 // harness with relative paths (`../lib/...`). When you copy it into your extension, change those to
-// the package name — `@cove-extensions/e2e` and `@cove-extensions/e2e/resolve-extension` — so there
+// the package name - `@cove-extensions/e2e` and `@cove-extensions/e2e/resolve-extension` - so there
 // is no `../../../` path archaeology (npm workspaces resolves the harness by name). See
 // extensions/Renamer/e2e/lib/renamer-fixtures.mjs for the real-world shape and the "Authoring E2E
 // tests" docs page (https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) for
@@ -14,7 +14,7 @@
 import { test, expect } from "../lib/fixtures.mjs";
 import { resolveExtensionPaths } from "../lib/resolve-extension.mjs";
 
-// resolveExtensionPaths derives your extension's build outputs from this file's own location — no
+// resolveExtensionPaths derives your extension's build outputs from this file's own location - no
 // hand-rolled repo-root math. When copied into your extension it resolves relative to the copy. The
 // UI bundle needs no argument here: what a package ships is declared in your extension's
 // catalog.json entry, and the harness installs exactly that declared set.

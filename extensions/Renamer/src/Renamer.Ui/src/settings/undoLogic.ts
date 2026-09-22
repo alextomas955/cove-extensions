@@ -3,8 +3,8 @@
  * summary, and its feedback sentence from the `/undo` response. One module because they are one
  * panel's copy, and they already shared a `plural` helper each had its own copy of.
  *
- * Kept import-free apart from the generated wire types (no React, no DOM, no SDK) so it stays L0 —
- * deterministic and testable with no environment — and so the sentences a user reads before and after
+ * Kept import-free apart from the generated wire types (no React, no DOM, no SDK) so it stays L0 -
+ * deterministic and testable with no environment - and so the sentences a user reads before and after
  * a destructive action are the exact sentences the suite covers. `now` is a parameter rather than a
  * call to `Date.now()` for the same reason: a clock read inside would make every expiry case
  * untestable.
@@ -12,7 +12,7 @@
  * The feedback half is extracted from the panel for one further reason: **every number it states comes
  * from a `…Count` field, and a `…Sample` is read only to name the first reason.** The response
  * describes at most a fixed number of entries per channel because a rename batch reaches library size,
- * so a sentence built from an array's length would under-report a large undo — telling the user three
+ * so a sentence built from an array's length would under-report a large undo - telling the user three
  * files could not come back when five hundred are still sitting under their renamed names. That
  * distinction is not visible in a render function and cannot be eyeballed in a review, so it lives here
  * where a test pins it. The cap's value is deliberately absent from this module: nothing here may
@@ -26,13 +26,13 @@ import type { LastBatchSummary, UndoResult } from "../wire/api";
  *
  * A deliberate second copy of `CoveRevertJournal.RetentionWindow` on the server. The panel states the
  * batch's actual expiry date rather than a static "kept for 7 days" note, and that date is the
- * summary's own open timestamp plus this window — computed here because the window is a constant
+ * summary's own open timestamp plus this window - computed here because the window is a constant
  * rather than per-batch data, so putting it on the wire would add a field that is the same on every
  * response.
  *
  * The cost of that choice is this duplication, and a duplicated number with nothing watching it
  * drifts silently: the symptom would be a date the user trusts and the server does not honour. So it
- * is pinned rather than commented — `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` asserts the
+ * is pinned rather than commented - `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` asserts the
  * server constant is seven days and names this file in its failure message.
  */
 export const RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -66,8 +66,8 @@ export interface UndoPanelStatus {
    * True once `now` is past that moment.
    *
    * The rows may still be on disk: the server purges an expired batch when the next batch opens and
-   * nowhere else, so a library that has been quiet since keeps them. What has gone is the promise —
-   * the next rename drops the batch with no further warning — so the caller withholds the button
+   * nowhere else, so a library that has been quiet since keeps them. What has gone is the promise -
+   * the next rename drops the batch with no further warning - so the caller withholds the button
    * rather than offering a recovery it cannot say will still be there.
    */
   expired: boolean;
@@ -107,7 +107,7 @@ function relativeTime(epochMs: number, now: number): string {
  * Build the panel's status, or `null` when there is nothing to offer.
  *
  * `null` covers both "no batch was ever journalled" and "every file in the last batch has been
- * settled" — the panel renders its "No rename to undo." branch for either, because from the user's
+ * settled" - the panel renders its "No rename to undo." branch for either, because from the user's
  * side they are the same situation. The second test is on `remainingCount`, which the server derives
  * from the same aggregate it derives `consumed` from, so the two cannot disagree.
  *
@@ -153,7 +153,7 @@ export function buildUndoStatus(
  * Compose the sentence for a completed undo.
  *
  * Three outcomes: a clean run, a run that restored some of the batch, and a run that restored none of
- * it. A stranded companion rides on the first two rather than replacing them — the media file did come
+ * it. A stranded companion rides on the first two rather than replacing them - the media file did come
  * back, which is what undo promises, but a slot the user owns is still occupied and nothing else will
  * say so.
  */
@@ -176,7 +176,7 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 
   // The one read of a sample: which reason to name. The failed channel is preferred so the order
   // matches the panel's long-standing merge. A sample is expected to be non-empty whenever its count
-  // is, because the server's cap is at least one — but that is the server's promise, not something
+  // is, because the server's cap is at least one - but that is the server's promise, not something
   // this module can prove, so the empty case names itself rather than interpolating `undefined` into
   // a sentence the user reads.
   const firstReason =

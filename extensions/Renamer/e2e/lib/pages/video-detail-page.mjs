@@ -1,6 +1,6 @@
 import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
 
-// Page Object for a video's detail page (/video/{id}) — specifically its "Edit" tab, which is how
+// Page Object for a video's detail page (/video/{id}) - specifically its "Edit" tab, which is how
 // a real user changes an item's metadata (title, date, etc.) through the UI.
 
 // The budget for the whole visit, however many navigations it takes, matching the settings page
@@ -44,7 +44,7 @@ export class VideoDetailPage {
    * Waits for the detail page's tabs, re-navigating on a failed chunk fetch.
    *
    * A chunk failure is a signal rather than a timeout, and a fresh navigation recovers it, so the wait
-   * ends the moment one appears. Everything else — an app still starting, a route still resolving —
+   * ends the moment one appears. Everything else - an app still starting, a route still resolving -
    * is answered by the tab appearing, so the budget is what bounds the wait for those.
    *
    * `/video/{id}` is one of the host's own routes, so the host has nothing to resolve it away to and

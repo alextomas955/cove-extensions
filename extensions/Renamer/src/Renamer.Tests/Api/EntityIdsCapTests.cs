@@ -70,7 +70,7 @@ public sealed class EntityIdsCapTests
 
             Assert.Equal(400, StatusOf(result));
 
-            // The reject happens before any planner/DB work — the seeded row is untouched.
+            // The reject happens before any planner/DB work - the seeded row is untouched.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
@@ -101,7 +101,7 @@ public sealed class EntityIdsCapTests
     [Fact]
     public async Task RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
     {
-        // Exactly at the cap is allowed — the bound rejects only what exceeds it.
+        // Exactly at the cap is allowed - the bound rejects only what exceeds it.
         var ext = NewExtension();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
@@ -137,7 +137,7 @@ public sealed class EntityIdsCapTests
     /// <remarks>
     /// Driven over the real route rather than by calling the handler with a null argument: a direct
     /// call supplies the null itself, so it says nothing about what the host's model binding actually
-    /// produces for these two bodies — which is the whole question.
+    /// produces for these two bodies - which is the whole question.
     /// </remarks>
     [Theory]
     [MemberData(nameof(AbsentIdArrayRequests))]

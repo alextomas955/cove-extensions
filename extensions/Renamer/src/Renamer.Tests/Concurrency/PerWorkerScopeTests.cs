@@ -14,7 +14,7 @@ namespace Renamer.Tests.Concurrency;
 /// The structural isolation proof. The batch's execution pass opens a per-worker
 /// <c>CreateAsyncScope()</c> so no <see cref="DbContext"/> instance is shared across parallel
 /// workers. Cove disables EF's thread-safety checks (<c>EnableThreadSafetyChecks(false)</c>), so a
-/// shared-context bug does not throw — it corrupts silently. This proof is therefore structural: an
+/// shared-context bug does not throw - it corrupts silently. This proof is therefore structural: an
 /// instrumented scoped factory records every <see cref="CoveContext"/> it constructs, and the test
 /// asserts the set of contexts the workers resolved has exactly one distinct instance per worker (by
 /// reference). It never relies on an EF exception.
@@ -82,7 +82,7 @@ public sealed class PerWorkerScopeTests
 
         // Structural proof: the planning pass opens one read scope; the execution pass opens one scope per acting unit.
         // The distinct-instance count must be at least the worker count (n acting items), and every
-        // recorded context is a distinct reference — no instance was shared across workers.
+        // recorded context is a distinct reference - no instance was shared across workers.
         var distinct = new HashSet<DbContext>(constructed, ReferenceEqualityComparer.Instance);
         Assert.Equal(constructed.Count, distinct.Count); // all references distinct, by reference
         Assert.True(distinct.Count >= n + 1,

@@ -17,7 +17,7 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// The whole-library renamer: <c>RenamerLibraryEnqueue</c> gates on any renamer-write permission and
 /// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the existing <c>RunRenamerBatchAsync</c> once per
-/// kind that has at least one candidate id — never a synthetic combined kind. Exercised as plain
+/// kind that has at least one candidate id - never a synthetic combined kind. Exercised as plain
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
 /// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
 /// </summary>
@@ -77,8 +77,8 @@ public sealed class RenamerLibraryEndpointTests
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
     /// <summary>
-    /// Seeds one video and one image — each in its own folder, since <c>Folder.Path</c> is
-    /// unique-indexed — with real bytes on disk, and returns the two file ids.
+    /// Seeds one video and one image - each in its own folder, since <c>Folder.Path</c> is
+    /// unique-indexed - with real bytes on disk, and returns the two file ids.
     /// </summary>
     private static async Task<(int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(DbContext db, TempDir dir)
     {
@@ -303,13 +303,13 @@ public sealed class RenamerLibraryEndpointTests
             var progress = new FakeJobProgress();
 
             // Caller only holds videos.write + images.write (no audios.write) and there are zero
-            // image candidates in the DB — both the permission filter and the empty-candidate skip
+            // image candidates in the DB - both the permission filter and the empty-candidate skip
             // land on a kind that opens no batch.
             await ext.RunRenamerLibraryJobAsync(
                 Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
+            // Only Video opened a batch - Image had zero candidates, so RunRenamerBatchAsync was never
             // called for it and no empty batch opened.
             var batch = Assert.Single(await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync());
             Assert.Equal(nameof(RenamerFileKind.Video), batch.Kind);
@@ -344,7 +344,7 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
 
-            // Image untouched on disk and in the DB — the kind was never in the writable set, so the
+            // Image untouched on disk and in the DB - the kind was never in the writable set, so the
             // job loop never even queried its candidates.
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "raw.jpg")));
             var (afterImageName, afterImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);

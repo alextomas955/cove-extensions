@@ -34,7 +34,7 @@ internal static class TagFixtures
 }
 
 /// <summary>
-/// Pure unit tests for <see cref="DestinationResolver.Resolve"/> — no DB, no disk. Proves the
+/// Pure unit tests for <see cref="DestinationResolver.Resolve"/> - no DB, no disk. Proves the
 /// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path → Unmatched),
 /// within-category list order, direct-outranks-ancestor, route-on-stable-id for both studio and
 /// tag, source-path exact-beats-regex, and the unorganized slot.
@@ -288,7 +288,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
 
 /// <summary>
 /// A valid-but-backtracking source-path regex must be treated as "no match" (skip the rule,
-/// keep cascading) when it times out at match time — never an uncaught throw that aborts the batch.
+/// keep cascading) when it times out at match time - never an uncaught throw that aborts the batch.
 /// The build-time guard only catches a syntax-invalid pattern (ArgumentException); a pattern that
 /// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
 /// time, which the resolver now catches and falls through.
@@ -328,7 +328,7 @@ public sealed class DestinationResolverRegexTimeoutTests
     public void BacktrackingRegex_TimesOut_LaterStudioRuleStillWins_BatchContinues()
     {
         // The timing-out source-path regex sits in the cascade, but a studio rule (higher precedence)
-        // matches first — proving a routed item still routes and the timeout never aborts resolution.
+        // matches first - proving a routed item still routes and the timeout never aborts resolution.
         // (Studio outranks source-path, so the studio rule is reached before the regex; this asserts
         // the resolver returns cleanly with the studio route regardless of a pathological path rule.)
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
@@ -413,11 +413,11 @@ public sealed class DestinationResolverUnmatchedTests
 }
 
 /// <summary>
-/// Excludes run first in the resolver — a matching tag / studio (incl.
+/// Excludes run first in the resolver - a matching tag / studio (incl.
 /// parent, stable id) / source-path (exact + regex) returns <see cref="RouteCategory.Excluded"/>
 /// before any routing category (including Unorganized) is considered, with a clear label. A
 /// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
-/// aborting resolution. pure — no DB, no disk.
+/// aborting resolution. pure - no DB, no disk.
 /// </summary>
 public sealed class DestinationResolverExcludeTests
 {
@@ -647,7 +647,7 @@ public sealed class DestinationResolverExcludeTests
     {
         // Classic ReDoS pattern + a long non-matching path → catastrophic backtracking. A tiny match
         // timeout makes it fast/deterministic. The timeout must be a no-match (the item is not
-        // excluded by that rule) and must not throw — so resolution completes as Unmatched.
+        // excluded by that rule) and must not throw - so resolution completes as Unmatched.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
         string evil = new string('a', 40) + "!";
         var e = Entity(parentFolderPath: evil);

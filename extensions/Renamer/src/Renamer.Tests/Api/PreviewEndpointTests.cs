@@ -11,7 +11,7 @@ namespace Renamer.Tests.Api;
 
 /// <summary>
 /// Dry-run preview: <c>PreviewAsync</c> runs the planner over the seeded entity and returns
-/// <see cref="RenamerPlanItem"/>[] (old→new + status) with zero mutation — proven by reading back
+/// <see cref="RenamerPlanItem"/>[] (old→new + status) with zero mutation - proven by reading back
 /// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
 /// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
 /// </summary>
@@ -59,7 +59,7 @@ public sealed class PreviewEndpointTests
             Assert.Equal(RenamerStatus.Renamer, item.Status);
 
             // wire-shape regression (the bug live-browser verification caught): the response must
-            // serialize as camelCase with `status` the camelCase string "renamer" — not PascalCase,
+            // serialize as camelCase with `status` the camelCase string "renamer" - not PascalCase,
             // not the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
             // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
             // fires. Assert the actual bytes the response options produce.

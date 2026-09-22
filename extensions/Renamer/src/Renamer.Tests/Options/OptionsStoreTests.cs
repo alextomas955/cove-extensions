@@ -103,7 +103,7 @@ public sealed class OptionsStoreTests
     public async Task LoadAsync_NullableMemberStoredAsNull_StaysNull()
     {
         // The restore is keyed on the declared nullability, so a member whose null is a real state
-        // keeps it — "there is no unorganized route" must not become a route.
+        // keeps it - "there is no unorganized route" must not become a route.
         var fake = new FakeStore();
         await fake.SetAsync(OptionsStore.Key, """{"UnorganizedDestination":null}""");
 
@@ -128,7 +128,7 @@ public sealed class OptionsStoreTests
     public async Task LoadAsync_NegativeLengthCap_StillRendersANonEmptyName()
     {
         // The reducer clamps a negative budget to zero and returns an empty basename, which reads as
-        // a result rather than as a failure — the reason a nonsense cap has to be caught on load.
+        // a result rather than as a failure - the reason a nonsense cap has to be caught on load.
         var fake = new FakeStore();
         await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":-1}""");
         var loaded = await new OptionsStore(fake).LoadAsync();

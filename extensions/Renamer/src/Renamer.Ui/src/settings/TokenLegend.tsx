@@ -1,6 +1,6 @@
 /**
  * Always-visible token reference. Clicking a chip inserts `$token` at the caret of the
- * last-focused template input (filename or folder — the panel passes the active ref). A chip is
+ * last-focused template input (filename or folder - the panel passes the active ref). A chip is
  * tinted when either template already uses its token.
  */
 import { Chip } from "@cove-extensions/ui-shared";
@@ -8,7 +8,7 @@ import { Chip } from "@cove-extensions/ui-shared";
 import { templateUsesToken } from "./templateValidation";
 import { TOKENS, type TokenEntry } from "./tokens";
 
-/** Tooltip copy for an optional chip — names the exact wrapped string it inserts. */
+/** Tooltip copy for an optional chip - names the exact wrapped string it inserts. */
 function optionalTooltip(t: TokenEntry): string {
   return `Inserts wrapped in an optional group: ${t.insert} — disappears cleanly when empty.`;
 }

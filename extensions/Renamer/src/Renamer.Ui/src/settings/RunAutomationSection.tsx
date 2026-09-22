@@ -1,5 +1,5 @@
 /**
- * RunAutomationSection — the "Run & automation" card: the auto-rename-on-update toggle plus the
+ * RunAutomationSection - the "Run & automation" card: the auto-rename-on-update toggle plus the
  * "Run for the whole library" block (Dry run / Rename all buttons, the unsaved-edits warning, and
  * the run-result banner with its jump-to-Undo link). Presentational: the actual scan+rename job and
  * its feedback live in useRenameLibrary; this only renders state and calls the passed-in handlers.

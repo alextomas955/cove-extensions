@@ -22,7 +22,7 @@ public sealed class FakeRevertJournal : IRevertJournal
     /// <summary>Every appended row, in append order, whether or not it has since been retired.</summary>
     public IReadOnlyList<RevertRow> Rows => [.. _appended];
 
-    /// <summary>The rows still awaiting restore — what a real journal would still be holding.</summary>
+    /// <summary>The rows still awaiting restore - what a real journal would still be holding.</summary>
     public IReadOnlyList<RevertRow> PendingRows =>
         [.. _appended.Where(r => !_retired.ContainsKey((r.RunId, r.Seq)))];
 
@@ -30,7 +30,7 @@ public sealed class FakeRevertJournal : IRevertJournal
     public IReadOnlyList<DateTime> PurgeCalls => [.. _purgeCalls];
 
     /// <summary>
-    /// When set, <see cref="AppendAsync"/> throws this instead of recording the row — the seam that
+    /// When set, <see cref="AppendAsync"/> throws this instead of recording the row - the seam that
     /// drives the executor's post-commit failure path, where the database save has already committed.
     /// </summary>
     public Exception? AppendThrow { get; set; }
@@ -60,7 +60,7 @@ public sealed class FakeRevertJournal : IRevertJournal
         return Task.CompletedTask;
     }
 
-    // The real journal's semantics, including the fallback and the keyset cursors — a double that
+    // The real journal's semantics, including the fallback and the keyset cursors - a double that
     // answered an easier question would let a case pass here that the storage would fail.
     public Task<RevertOperationSummary?> ReadUndoTargetAsync(CancellationToken ct = default)
     {

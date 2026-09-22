@@ -1,7 +1,7 @@
 /**
  * Inline, advisory, non-blocking template/token validators shared by the settings sections.
  *
- * Both render 0..N amber lines and never block Save, remove a value, or feed the persisted shape —
+ * Both render 0..N amber lines and never block Save, remove a value, or feed the persisted shape -
  * purely UX guidance derived from the static token set.
  *
  * security: every string is a React text node (auto-escaped); the "Did you mean" suggestion is
@@ -13,7 +13,7 @@ import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templ
 
 /**
  * Renders one amber line for unbalanced braces, one per unknown $token (with a best-effort
- * "Did you mean"), and — for the filename field — one per sample whose /preview-sample flags
+ * "Did you mean"), and - for the filename field - one per sample whose /preview-sample flags
  * include "empty" (passed in via emptySamples; reuses the existing debounced preview, no new
  * request). Renders nothing when there are no issues. never feeds Save and never moves the caret.
  */

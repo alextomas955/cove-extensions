@@ -6,13 +6,13 @@ namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
 /// The one-shot legacy journal migration: what an installation still carries under the two stored keys
-/// becomes one batch in the journal table, and both keys go — including when the value cannot be read.
+/// becomes one batch in the journal table, and both keys go - including when the value cannot be read.
 /// </summary>
 /// <remarks>
 /// Every legacy fixture here is hand-written rather than produced by the code that reads it. A fixture
 /// generated from the parser under test agrees with that parser forever, whatever either of them says;
-/// a transcribed one fails when the format claim is wrong. Assertions are on the outcome — the keys are
-/// gone, the batch is readable from the table — never on the migration having been called.
+/// a transcribed one fails when the format claim is wrong. Assertions are on the outcome - the keys are
+/// gone, the batch is readable from the table - never on the migration having been called.
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalBlobMigrationTests
@@ -82,12 +82,12 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal([80, 70], batch.Rows.Select(r => r.FileId));
 
         // The old path is followed by the new one here, so it is one field and stops at the next
-        // separator — the opposite of the headered shape, where the path is the last field.
+        // separator - the opposite of the headered shape, where the path is the last field.
         Assert.Equal(["/lib/b.mkv", "/lib/a.mkv"], batch.Rows.Select(r => r.OldPath));
 
         // No header means no timestamp to inherit. Treating an unknown age as expired would delete a
         // pending undo on the next batch open with nothing to say so, which is the outcome this
-        // exists to make impossible — so an unknown age gets the full window instead.
+        // exists to make impossible - so an unknown age gets the full window instead.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(Now.Ticks, summary.Value.OpenedAtUtcTicks);
@@ -159,7 +159,7 @@ public sealed class JournalBlobMigrationTests
         Assert.NotNull(batch);
         Assert.Equal(rows, batch.Rows.Count);
 
-        // Every row arrived exactly once, with its own sequence number — a chunk boundary that dropped
+        // Every row arrived exactly once, with its own sequence number - a chunk boundary that dropped
         // or repeated a line would show as a short count or a repeated key.
         Assert.Equal(rows, batch.Rows.Select(r => r.FileId).Distinct().Count());
         Assert.Equal(rows, batch.Rows.Select(r => r.Seq).Distinct().Count());
@@ -181,7 +181,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
 
-        // Nothing was invented from an unreadable value — no empty batch was opened either.
+        // Nothing was invented from an unreadable value - no empty batch was opened either.
         Assert.Null(await journal.ReadUndoTargetAsync());
         await AssertBothKeysGoneAsync(store);
     }

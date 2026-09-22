@@ -16,7 +16,7 @@ public sealed class ScanAggregatorTests
     // Volume identity is per-platform (VolumeClassifier): the path root on Windows, the enclosing mount
     // point on Unix. A POSIX-only literal therefore has the single "\" root on Windows and every item
     // would fold as same-volume, so distinct volumes come from drive letters there and from a fixed
-    // synthetic mount table here — the real table would make the cross-volume assertions
+    // synthetic mount table here - the real table would make the cross-volume assertions
     // machine-dependent.
     private static readonly IReadOnlyCollection<string>? Mounts =
         OperatingSystem.IsWindows() ? null : ["/", "/c", "/d"];
@@ -177,7 +177,7 @@ public sealed class ScanAggregatorTests
     [Fact]
     public void ToSummary_ConfirmLevel_IsComputedOverUntruncatedPairs()
     {
-        // Every pair is a single small file, so only the destination spread can earn Heavy — and the
+        // Every pair is a single small file, so only the destination spread can earn Heavy - and the
         // spread lives in the pairs the cap would drop. A confirm derived from the topped list would
         // still read Heavy here, so the sharper proof is that the untruncated cross count survives too.
         int overCap = ScanSummary.MaxVolumePairsPerKind + 5;

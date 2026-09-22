@@ -331,7 +331,7 @@ public sealed class CoveDataPortRoutingFieldsTests
         Assert.Equal(expected.TagRefs, actual.TagRefs);
 
         // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
-        // compares by reference — two field-identical files from distinct loads are never record-equal.
+        // compares by reference - two field-identical files from distinct loads are never record-equal.
         // Compare the files field-by-field (and captions element-wise) instead.
         Assert.Equal(expected.Files.Count, actual.Files.Count);
         for (int f = 0; f < expected.Files.Count; f++)

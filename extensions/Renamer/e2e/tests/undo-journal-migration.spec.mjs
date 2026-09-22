@@ -4,7 +4,7 @@
 //
 // Why this and not the happy path. A fresh install has nothing to migrate, so it passes whether the
 // migration works or not; the case that discriminates is an upgrade. And because the migration
-// deletes its own source, "it ran twice" is not an error anyone would see — it is a duplicate batch
+// deletes its own source, "it ran twice" is not an error anyone would see - it is a duplicate batch
 // that quietly outranks the real one. Both halves are asserted here.
 //
 // Uses its own harness per test. It restarts the container (the only way to reach an initialize-time
@@ -142,7 +142,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   expect((await harness.container.exec(["test", "-f", renamedPath])).exitCode).not.toBe(0);
 
   // (4) A second load does not migrate again. There is nothing left to read, so a re-run would have
-  // to invent a batch — and a duplicate batch outranks the real one silently, which is why this is
+  // to invent a batch - and a duplicate batch outranks the real one silently, which is why this is
   // asserted on the table rather than inferred from the keys being gone.
   await harness.restart();
   expect(await sql(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");

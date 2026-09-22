@@ -25,7 +25,7 @@ const e2eProjects = catalogEntries
   .filter((entry) => entry.e2ePath && entry.e2eProject)
   .map((entry) => {
     // Validated before the join: an absolute or `..`-bearing value relocates testDir outside the
-    // checkout, where the run collects either specs nobody reviewed or nothing at all — and
+    // checkout, where the run collects either specs nobody reviewed or nothing at all - and
     // collecting nothing still passes the guard below, because the entry itself resolved.
     const reason = checkRelativePath(`catalog entry ${entry.e2eProject}'s e2ePath`, entry.e2ePath);
     if (reason) throw new Error(`Refusing to derive a Playwright project: ${reason}`);
@@ -41,24 +41,24 @@ if (e2eProjects.length === 0) {
 }
 
 export default defineConfig({
-  // Safe because every test's data is isolated: worker-shared-harness test files (the default —
+  // Safe because every test's data is isolated: worker-shared-harness test files (the default -
   // see fixtures.mjs) seed their own uniquely-named data per test (timestamp + random suffix), so
   // concurrent tests in different workers never collide even though a worker's own tests run one
   // at a time against its instance. Files that mutate shared extension state itself (install/
-  // enable/disable/uninstall — see extension-lifecycle.spec.mjs) opt out of the shared harness
+  // enable/disable/uninstall - see extension-lifecycle.spec.mjs) opt out of the shared harness
   // entirely via their own `scope: 'test'` fixture, so parallel workers never race on those
   // mutations either.
   //
   // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own
   // Docker Compose network (one per Cove+Postgres pair) plus a Chromium instance. Locally, 6 is
-  // comfortably within Docker Desktop's default address-pool on a typical dev machine — confirmed
+  // comfortably within Docker Desktop's default address-pool on a typical dev machine - confirmed
   // directly (a 13-worker run failed 3 tests with "all predefined address pools have been fully
   // subnetted" on a machine that already had several unrelated projects' networks allocated). The
   // pool is host-wide and shared with whatever else is running, which is why the local figure stays
   // below what the machine alone could carry: 8 ran the Renamer suite green twice at 2.0m against
   // 6's 2.5m, so `--workers=8` is there for a machine running nothing else. In CI, each worker's
   // fixed cost (a full Compose stack + a real browser, not just a browser context against one
-  // shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB — the peak is
+  // shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB - the peak is
   // twice the worker count, and a runner that runs short of memory has a container killed rather
   // than a test failed, so CI gets fewer, not the same count as local. Override with `--workers=N`
   // if a given machine/runner can sustain more (or fewer) than its default.
@@ -67,14 +67,14 @@ export default defineConfig({
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
   forbidOnly: !!process.env.CI,
   // A worker holds a Cove container and a database of its own, and a spec that takes an isolated
-  // harness starts a second pair alongside its worker's for as long as that spec runs — so the peak
+  // harness starts a second pair alongside its worker's for as long as that spec runs - so the peak
   // is twice the worker count, not equal to it. The database keeps its data directory on tmpfs, which
   // is RAM, so that peak is paid in memory rather than on disk.
   //
   // CI and a development machine do not answer to the same ceiling: a shared runner has to hold the
   // build as well, and when it runs short the kernel kills a container rather than failing a test.
   // That arrives as a spec timing out against a host serving nothing, which reads as a UI defect and
-  // costs the run twice — once in the red, once in the wrong diagnosis.
+  // costs the run twice - once in the red, once in the wrong diagnosis.
   workers: process.env.CI ? 2 : 6,
   retries: process.env.CI ? 2 : 0,
 

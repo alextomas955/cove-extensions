@@ -1,8 +1,8 @@
 /**
- * RenameSettingsPanel — the extension's settings + live-preview page, as a composition root.
+ * RenameSettingsPanel - the extension's settings + live-preview page, as a composition root.
  *
  * Rendered by the host with no props inside its own SectionCard, so the panel root is a plain
- * <div> — no outer card, no page title. The data layer lives in three R9 hooks (useRenamerOptions
+ * <div> - no outer card, no page title. The data layer lives in three R9 hooks (useRenamerOptions
  * for load/save, useRenamePreview for the debounced /preview-sample fetch, useRenameLibrary for the
  * scan+rename-library job); this body wires those hooks to the presentational per-section children
  * (FilenameSection, LivePreviewPane, WhatGetsRenamedSection, RunAutomationSection,
@@ -31,7 +31,7 @@ import { useRenamePreview } from "./useRenamePreview";
 import { useRenameLibrary } from "./useRenameLibrary";
 
 /**
- * The fixed-bottom global save bar — reachable from anywhere on the page, visible only while
+ * The fixed-bottom global save bar - reachable from anywhere on the page, visible only while
  * `dirty`. Reuses the dirty/saving/saveError/savedFlash state and onSave handler from
  * useRenamerOptions; Discard reverts to the last-saved snapshot, never the factory defaults.
  */
@@ -101,7 +101,7 @@ function SaveBar({
 }
 
 /**
- * RenamePanelBody — the composition root rendered by the dedicated nav page (`RenamePage`). The root
+ * RenamePanelBody - the composition root rendered by the dedicated nav page (`RenamePage`). The root
  * stays a plain `<div className="space-y-6">`; the host SectionCard / page wrapper supplies outer
  * chrome.
  */
@@ -192,7 +192,7 @@ export function RenamePanelBody() {
     .filter((r) => r.flags.includes("empty"))
     .map((r) => r.sampleLabel);
 
-  // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent — inline it.
+  // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent - inline it.
   return (
     <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
       {/* Two-pane shell, narrowed to the two naming cards: they take 2/3 via col-span-2, the live

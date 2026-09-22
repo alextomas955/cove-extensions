@@ -26,7 +26,7 @@ export interface OverlayKeysOptions {
    * the close does not leak to the host page.
    */
   nav: "menu" | "dialog";
-  /** menu mode; default `[role^="menuitem"]` — the prefix form also catches menuitemcheckbox/radio. */
+  /** menu mode; default `[role^="menuitem"]` - the prefix form also catches menuitemcheckbox/radio. */
   itemSelector?: string;
   /** default true → a capture-phase document pointerdown outside the ref closes the overlay. */
   closeOnOutsideClick?: boolean;
@@ -44,8 +44,8 @@ export interface OverlayKeysOptions {
  * @remarks
  * The capture-vs-bubble and stopPropagation-vs-preventDefault Escape differences are intentional per
  * mode (a menu must win over host handlers; a dialog must not leak its cancel to the host page).
- * `enabled` gates only the cancels (Escape + outside-click) — the Tab trap keeps running while
- * suspended — and toggling it never re-runs focus-first nor drops the opener captured for restore.
+ * `enabled` gates only the cancels (Escape + outside-click) - the Tab trap keeps running while
+ * suspended - and toggling it never re-runs focus-first nor drops the opener captured for restore.
  */
 export function useOverlayKeys(
   ref: RefObject<HTMLElement | null>,
@@ -63,7 +63,7 @@ export function useOverlayKeys(
   //
   // The write must be a layout effect. A passive effect runs after the browser may already have
   // painted and delivered input, so a key event arriving in that gap would read the previous
-  // render's values — which for `enabled` means a cancel suppressed by an operation that has
+  // render's values - which for `enabled` means a cancel suppressed by an operation that has
   // already finished. `enabled` is likewise read from the ref and kept out of the deps below:
   // re-subscribing the listener to pick up a new value reintroduces the same gap.
   const optsRef = useRef(options);
@@ -152,7 +152,7 @@ export function useOverlayKeys(
 }
 
 /**
- * Imperatively mount an overlay outside any React tree — for bulk-action handlers, which own no tree
+ * Imperatively mount an overlay outside any React tree - for bulk-action handlers, which own no tree
  * of their own. Renders `render(finish)` into a body-attached root; `finish` is single-shot (a
  * settled guard), unmounts the root, removes the container, and resolves the promise. `null` is the
  * cancel value.

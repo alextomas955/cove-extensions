@@ -30,7 +30,7 @@ export class VideosPage {
   async goto() {
     for (let attempt = 0; ; attempt += 1) {
       await this.page.goto(`${this.baseUrl}/videos`);
-      // The grid's content loads via a client-side fetch after navigation — waiting for the network
+      // The grid's content loads via a client-side fetch after navigation - waiting for the network
       // to go idle (not just the initial HTML load) avoids reading the DOM before cards render.
       await this.page.waitForLoadState("networkidle");
 
@@ -49,7 +49,7 @@ export class VideosPage {
    * Locates a video card by its currently-displayed filename. Each card is a link ("Open video
    * <filename>") whose accessible name carries the filename directly. `has:` alone is not enough
    * to pick the tightest-scoped container when multiple cards are on the page (a worker-shared
-   * instance can have leftover seeded videos from other tests) — it can match an ancestor `div`
+   * instance can have leftover seeded videos from other tests) - it can match an ancestor `div`
    * that wraps more than one card, yielding a "Select item" button per card inside it. `.last()`
    * (innermost/deepest matching `div` in DOM order for a `has:` filter walking up from the link)
    * plus asserting exactly one match is what actually scopes to a single card.
@@ -71,7 +71,7 @@ export class VideosPage {
   /**
    * Clicks "Rename selected" and accepts the confirm() preview dialog it raises. The rename then
    * runs as a job surfaced in the Job Drawer, so the host suppresses the queued-success alert
-   * (suppressSuccessAlert) — there is no second dialog. Returns the accepted dialog message(s) so a
+   * (suppressSuccessAlert) - there is no second dialog. Returns the accepted dialog message(s) so a
    * test can assert on the preview text; the rename outcome itself is verified by polling the API/disk.
    */
   async renameSelected() {
@@ -104,7 +104,7 @@ export class VideosPage {
 
   /**
    * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can wait for the
-   * grid to hold the number of cards it seeded before selecting — the grid's contents arrive from a
+   * grid to hold the number of cards it seeded before selecting - the grid's contents arrive from a
    * client-side fetch, so a count taken too early is a count of however much had rendered.
    */
   get selectItemButtons() {
@@ -112,7 +112,7 @@ export class VideosPage {
   }
 
   /**
-   * Selects the first {@link count} grid cards by their "Select item" buttons — robust to whether a card's
+   * Selects the first {@link count} grid cards by their "Select item" buttons - robust to whether a card's
    * accessible name shows the title or the filename (the batch tests only need some selection, not a
    * specific card).
    *

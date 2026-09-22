@@ -170,7 +170,7 @@ test("every planner skip status is inside the headline count, mixed with a renam
 
 test("a status this bundle does not know is counted rather than dropped", () => {
   // A status the running server grew after this bundle shipped. It earns no clause, because inventing
-  // copy for an unknown outcome would be a guess — but the number the user weighs a destructive
+  // copy for an unknown outcome would be a guess - but the number the user weighs a destructive
   // operation against must still contain it.
   const { text } = buildConfirmSummary(
     [RENAME_ITEM, skipped("skipSomethingNewTheServerGrew")],

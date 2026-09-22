@@ -5,7 +5,7 @@
  * machine finishes inside it. The bet is usually safe and silently wrong when it is not: a loaded
  * runner turns a passing assertion into a failing one with nothing to say why.
  *
- * Wait for the thing the next assertion is about — the element appearing, the text changing, the spy
+ * Wait for the thing the next assertion is about - the element appearing, the text changing, the spy
  * having been called. A condition that already holds when the wait begins returns on the first poll
  * and proves nothing, so it is a fixed sleep of zero in a condition's clothes; pick the state the
  * action actually changes.

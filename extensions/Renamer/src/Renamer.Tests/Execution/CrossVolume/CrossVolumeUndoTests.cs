@@ -6,19 +6,19 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.CrossVolume;
 
 /// <summary>
-/// The cross-drive reverse-replay proofs — the mirror of the forward verify-failure cases in
+/// The cross-drive reverse-replay proofs - the mirror of the forward verify-failure cases in
 /// <see cref="CrossVolumeMoverTests"/>, driven through <see cref="UndoReplayer"/> (not
 /// <see cref="RenamerExecutor"/>) so the new→old direction is exercised. Each test sets up a
 /// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
-/// physical disk — no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
+/// physical disk - no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
 /// the new (subst) location and a hand-built <see cref="global::Renamer.Planner.RevertBatch"/> whose row records
 /// OldPath on the temp root and NewPath on the subst root, then reverse-replays it.
 ///
-/// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> — after undo the file is back at old
-/// byte-for-byte and gone from new. (b) <see cref="BitFlipOnCopyBack_VerifyFails_FileNotLost"/> — the
+/// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> - after undo the file is back at old
+/// byte-for-byte and gone from new. (b) <see cref="BitFlipOnCopyBack_VerifyFails_FileNotLost"/> - the
 /// reverse-direction centerpiece, the mirror of the forward data-loss proof: a bit-flip on the copy-back makes verify fail, the
 /// reverse move reports !Moved → reported skip, and the file is not lost (the new copy survives, the
-/// old slot is not half-written). (c) <see cref="CrossSaveThrows_RollsBackToNEW"/> — when the reverse
+/// old slot is not half-written). (c) <see cref="CrossSaveThrows_RollsBackToNEW"/> - when the reverse
 /// DB save throws after a successful cross copy-back, the file is rolled back to new through
 /// <see cref="CrossVolumeMover.RollbackAsync"/> and the entry is Failed.
 ///
@@ -117,7 +117,7 @@ public sealed class CrossVolumeUndoTests
             Assert.Single(result.Skipped);
             Assert.Empty(undoBus.Published);
 
-            // centerpiece: the file is not lost — the new copy survives byte-for-byte, and the old slot
+            // centerpiece: the file is not lost - the new copy survives byte-for-byte, and the old slot
             // is not half-written (no promoted file, no leftover in-flight copy).
             Assert.True(File.Exists(newFull), "the NEW copy MUST survive a failed copy-back verify");
             Assert.Equal(original, File.ReadAllText(newFull));
@@ -247,14 +247,14 @@ public sealed class CrossVolumeUndoTests
             var result = await replayer.RevertAsync(batch, default);
 
             // A gone old drive is a reported skip (the dir-missing Directory.Exists check returns false on
-            // an unmapped drive — never throws — or the cross mover's IOException classify catches it).
+            // an unmapped drive - never throws - or the cross mover's IOException classify catches it).
             // no catch(DriveNotFoundException): an offline drive surfaces as DirectoryNotFoundException : IOException.
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
             Assert.Single(result.Skipped);
             Assert.Empty(undoBus.Published);
 
-            // The file is not lost — it stays at new byte-for-byte.
+            // The file is not lost - it stays at new byte-for-byte.
             Assert.True(File.Exists(newFull), "an offline OLD drive must leave the file at NEW");
             Assert.Equal(original, File.ReadAllText(newFull));
         }
@@ -289,7 +289,7 @@ public sealed class CrossVolumeUndoTests
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
             var result = await replayer.RevertAsync(batch, default);
 
-            // The re-occupied old slot is a reported skip — never clobbered.
+            // The re-occupied old slot is a reported skip - never clobbered.
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
             Assert.Single(result.Skipped);
@@ -341,7 +341,7 @@ public sealed class CrossVolumeUndoTests
     }
 
     /// <summary>
-    /// A post-copy seam that only records the path production minted, leaving the copy untouched — the
+    /// A post-copy seam that only records the path production minted, leaving the copy untouched - the
     /// mover's real behaviour, plus the observation the test needs.
     /// </summary>
     private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>

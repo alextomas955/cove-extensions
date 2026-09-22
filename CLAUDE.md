@@ -17,10 +17,9 @@ are touched. When a change makes a rule here false, rewrite or delete the rule i
 This applies to replies, documentation, code comments, commit messages, and these instruction
 files.
 
-Mannered prose substitutes metaphor and flourish for direct statement: "a dial worth turning"
-instead of "a parameter worth varying", "earns its keep" instead of "still matters". The phrases
-display the writer instead of conveying the idea, and they are imprecise. Say what you mean. When a
-literal phrase is available, use it.
+Say what you mean, in the literal phrase. Mannered prose substitutes metaphor for direct statement
+("a dial worth turning" for "a parameter worth varying", "earns its keep" for "still matters") and
+is imprecise as well as showy.
 
 - One idea per sentence. One rule per bullet. Break a paragraph after three or four sentences.
 - Plain dash, never an em dash.
@@ -163,8 +162,8 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Tests
 
-- Tests mirror source folders. Only `TestSupport/`, `TransportSmoke/`, and e2e sit outside the
-  mirror.
+- Tests mirror source folders. `TestSupport/`, the cross-cutting suites (`Concurrency/`,
+  `Preview/`, `Wire/`) and e2e sit outside the mirror.
 - An extension has one backend test project. It references Cove's own source unconditionally, so the
   suite needs a checkout and refuses to build without one rather than running a smaller set.
 - The cove-absent CI leg builds and publishes the extension and runs no tests. It proves the shipped
@@ -184,13 +183,9 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Update docs in the same change
 
-- A change to settings, options, API, or behavior updates `extensions/<Name>/docs/`, its
-  `README.md`, its `CHANGELOG.md`, and the matching docs-site page in the same change.
-- Head a changelog entry with the version it ships as, never "Unreleased". List user impact only.
-  Full rule: `website/docs/contributing/releasing.md`.
-- Verify a documentation sentence against the code before writing it. A documented setting the
-  code ignores is a defect. Where the code is wrong, describe what the code does and report the
-  defect.
+A change to settings, options, API, or behavior updates `extensions/<Name>/docs/`, its `README.md`,
+its `CHANGELOG.md`, and the matching docs-site page in the same change. How to write them:
+`.claude/rules/docs-writing.md`.
 
 ## Adding an extension
 

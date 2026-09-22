@@ -13,7 +13,7 @@ import { createApiClient } from "./apiClient.mjs";
 export { createApiClient };
 
 /**
- * A per-test harness fixture with `extension` already installed — its own Cove instance, torn down
+ * A per-test harness fixture with `extension` already installed - its own Cove instance, torn down
  * after the test.
  *
  * Use it for a test that changes a global extension setting, or the extension's installed state. The
@@ -73,7 +73,7 @@ export const test = base.extend({
       harness.owner = await harness.bootstrapOwner();
       // Installed here rather than per test: the install copies the package in and RESTARTS Cove, so
       // done per test it charged every test in the worker a container restart (measured at about 5.5s
-      // each). It is also nothing a test can undo on its own — the specs that add, remove or toggle
+      // each). It is also nothing a test can undo on its own - the specs that add, remove or toggle
       // an install take `isolatedHarnessFixture` and a container of their own instead.
       if (extension) {
         await harness.installExtension(extension);
@@ -95,7 +95,7 @@ export const test = base.extend({
     // Two independent gates hide the real app behind the first-run wizard (App.tsx
     // `showSetupWizard`). `ownerMissing` is closed by the `harness` fixture's bootstrapOwner().
     // `needsSetup` the host may raise for its own reasons on a container whose library is empty, and
-    // it is gated on `!setupDismissed` — a plain `useState` seeded from
+    // it is gated on `!setupDismissed` - a plain `useState` seeded from
     // `sessionStorage.getItem("cove-setup-dismissed")`. Seeding that key here lands it before the
     // app's first render, so no wizard button has to exist or work, and the reason the host raised
     // the gate does not matter.

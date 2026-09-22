@@ -1,6 +1,6 @@
 /**
  * The engine's token set, in the canonical `Tokens` constant order from
- * `src/Renamer/Engine/TemplateEngine.cs` (there is no Tokens.cs — TemplateEngine.cs owns the
+ * `src/Renamer/Engine/TemplateEngine.cs` (there is no Tokens.cs - TemplateEngine.cs owns the
  * `Tokens` class). Listing the engine's real names keeps the legend and the validator
  * single-sourced with what the engine actually resolves.
  *
@@ -15,9 +15,9 @@
  *  - `core` tokens (`$title`, `$ext`) are effectively always-present, so they insert bare.
  *  - `optional` tokens insert pre-wrapped in one `{}` group whose leading separator + literals
  *    live inside the group, so the whole span collapses (engine `RenderGroup`) when the token
- *    resolves empty — no dangling `[]`, no stray separator. Spec-like tokens use the bracket
+ *    resolves empty - no dangling `[]`, no stray separator. Spec-like tokens use the bracket
  *    style `{ [$token]}`; prose-like tokens use the dash style `{ - $token}`. NB: bare `$token`
- *    only — the engine has no `${token}` form.
+ *    only - the engine has no `${token}` form.
  */
 export interface TokenEntry {
   token: string;

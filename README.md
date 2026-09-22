@@ -16,7 +16,7 @@ into a single multi-extension repo following [yourcove](https://github.com/yourc
 Extensions are registered in [`extensions/catalog.json`](extensions/catalog.json), the source of
 truth CI reads to compute its build matrix. The catalog currently ships:
 
-- **Renamer** ([`extensions/Renamer/`](extensions/Renamer/)) — bulk metadata-driven rename and
+- **Renamer** ([`extensions/Renamer/`](extensions/Renamer/)) - bulk metadata-driven rename and
   relocate for a self-hosted Cove media library.
   [Docs](https://alextomas955.github.io/cove-extensions/extensions/renamer).
 
@@ -30,7 +30,7 @@ Build the shared solution from the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
-Before building or verifying an extension's frontend, generate its wire types from the repo root —
+Before building or verifying an extension's frontend, generate its wire types from the repo root -
 they are derived from the committed OpenAPI document and gitignored, so a fresh clone has none and the
 typecheck fails on a missing module:
 
@@ -41,10 +41,10 @@ npm run generate:wire
 
 `Directory.Build.props`/`Directory.Build.targets` at this root auto-wire every project against
 `Cove.Sdk` (transitively `Cove.Plugins` + `Cove.Core`), either from a local sibling `../cove`
-checkout (if present) or from NuGet — individual extensions do not declare their own Cove
+checkout (if present) or from NuGet - individual extensions do not declare their own Cove
 reference. Package versions are centralized via NuGet Central Package Management in the root
 `Directory.Packages.props`; the `Cove.Sdk` pin stays the `$(CoveSdkVersion)` property, which derives
-from `$(CoveMinVersion)` — the declared host floor that the extension-repo validator compares each
+from `$(CoveMinVersion)` - the declared host floor that the extension-repo validator compares each
 extension's `minCoveVersion` against.
 
 ## Adding an extension

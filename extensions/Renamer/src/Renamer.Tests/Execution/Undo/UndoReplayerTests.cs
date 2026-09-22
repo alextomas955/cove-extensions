@@ -28,7 +28,7 @@ public sealed class UndoReplayerTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            // Offset the Video id sequence so the real video's id differs from its file's id — the
+            // Offset the Video id sequence so the real video's id differs from its file's id - the
             // whole point of the entityId-on-row design is that the published event uses the entity
             // id, not the file id, so the test data must make them distinguishable.
             await SeedDecoyVideoAsync(db);
@@ -104,7 +104,7 @@ public sealed class UndoReplayerTests
             // differ from file ids (the published events must carry entity ids, never file ids).
             await SeedDecoyVideoAsync(db);
             var (folderId, video1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "First");
-            // The second video shares the same folder (folders.Path is unique — cannot seed a 2nd folder).
+            // The second video shares the same folder (folders.Path is unique - cannot seed a 2nd folder).
             var (video2, file2) = await SeedSecondVideoInFolderAsync(db, folderId, "two.mkv", "Second");
             Assert.NotEqual(video1, file1);
             Assert.NotEqual(video2, file2);
@@ -133,7 +133,7 @@ public sealed class UndoReplayerTests
 
             Assert.Equal(2, result.Undone);
             // The two published events carry exactly the two entity ids (each from its own row),
-            // never a fileId — proven by the entity ids being distinct from the file ids (above).
+            // never a fileId - proven by the entity ids being distinct from the file ids (above).
             var ids = undoBus.Published.Cast<EntityEvent>().Select(e => e.EntityId).ToHashSet();
             Assert.Equal(new[] { video1, video2 }.ToHashSet(), ids);
         }
@@ -249,7 +249,7 @@ public sealed class UndoReplayerTests
     /// <summary>
     /// T3: a host shutdown mid-replay (an <see cref="OperationCanceledException"/> from the reverse save)
     /// is cancellation, not a data failure. The post-reverse-move rollback to new still runs, then the OCE
-    /// propagates out of the batch — it must not land as an <c>UndoFailure</c> row.
+    /// propagates out of the batch - it must not land as an <c>UndoFailure</c> row.
     /// </summary>
     [Fact]
     public async Task ReverseSaveCancelled_RollsDiskBackToNew_Propagates_NeverUndoFailure()
@@ -284,7 +284,7 @@ public sealed class UndoReplayerTests
             var replayer = new UndoReplayer(new CancelOnReverseSaveDataPort(db), undoBus, new DiskMover());
             await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch!, default));
 
-            // Disk rolled back to new (no half-state), no event published — a cancel, not an UndoFailure.
+            // Disk rolled back to new (no half-state), no event published - a cancel, not an UndoFailure.
             Assert.True(File.Exists(newFull), "disk rolled back to new on a cancelled reverse save");
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")), "old slot must not hold the file after rollback");
             Assert.Empty(undoBus.Published);
@@ -417,7 +417,7 @@ public sealed class UndoReplayerTests
             Assert.Equal(fileId, batch.Rows[0].FileId);
 
             // Replay: the volume class is derived from the recorded old/new path roots (same dir → same
-            // volume) — no stored field is read.
+            // volume) - no stored field is read.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
@@ -426,7 +426,7 @@ public sealed class UndoReplayerTests
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
 
-            // Disk restored to old; new gone — a migrated batch behaves exactly like a fresh one.
+            // Disk restored to old; new gone - a migrated batch behaves exactly like a fresh one.
             Assert.True(File.Exists(oldFull), "a migrated stored journal restores to OLD");
             Assert.False(File.Exists(newFull));
             Assert.Equal("legacy-bytes", File.ReadAllText(oldFull));
@@ -439,8 +439,8 @@ public sealed class UndoReplayerTests
     }
 
     /// <summary>
-    /// The reverse save commits but reports no row for the file. That is not a restored-path mismatch —
-    /// there is no recomputed path to disagree with — so the entry must say so and the restored file
+    /// The reverse save commits but reports no row for the file. That is not a restored-path mismatch -
+    /// there is no recomputed path to disagree with - so the entry must say so and the restored file
     /// must stay at old rather than be rolled back to new.
     /// </summary>
     [Fact]
@@ -498,7 +498,7 @@ public sealed class UndoReplayerTests
 
     /// <summary>
     /// Seeds one throwaway Video (no file) so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/>
-    /// hands back a Video id that is one ahead of its VideoFile id — guaranteeing videoId ≠ fileId so
+    /// hands back a Video id that is one ahead of its VideoFile id - guaranteeing videoId ≠ fileId so
     /// the round-trip test can prove the published event uses the entity id, not the file id.
     /// </summary>
     private static async Task SeedDecoyVideoAsync(DbContext db)
@@ -541,7 +541,7 @@ public sealed class UndoReplayerTests
     }
 
     /// <summary>A port whose reverse save throws a cancellation (a host shutdown mid-replay), forcing the
-    /// UndoReplayer's post-move OCE path — rollback to new, then propagate — rather than an UndoFailure.</summary>
+    /// UndoReplayer's post-move OCE path - rollback to new, then propagate - rather than an UndoFailure.</summary>
     private sealed class CancelOnReverseSaveDataPort : CoveRenamerDataPort
     {
         public CancelOnReverseSaveDataPort(DbContext db) : base(db) { }
