@@ -18,6 +18,7 @@ import {
 } from "../common/lib/entityChanged";
 import { api } from "../common/lib/extension";
 import { whenRunEnds } from "../common/lib/runCompletion";
+import { runOver, RUN_OVER_EVERYTHING } from "./missingRunLogic";
 import type { WhisparrEntityKind } from "../wire/api";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
@@ -210,7 +211,7 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
   const markSelection = useCallback(
     (providerSceneIds: readonly string[], verb: MissingBulkVerb) => {
       const entity: MissingEntity = { kind, coveId };
-      store.beginBulk(entity);
+      store.beginBulk(entity, runOver(providerSceneIds));
 
       // The ticked ids and nothing else. No catalogue read runs between the press and the
       // enqueue: marking a scene does not remove it from the missing set, so a fresh derivation
@@ -221,9 +222,14 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
       })
         .then((answered) => {
           store.bulkSettled(entity, selectionOutcomeIn(answered));
+
           // The run marks the ticked scenes one at a time, so the pills it changes are read again
-          // once it has stopped rather than painted from what was asked for.
-          void whenRunEnds(answered.jobId ?? undefined).then(refresh);
+          // once it has stopped rather than painted from what was asked for. Until then the cards
+          // it covers say they are being worked through.
+          void whenRunEnds(answered.jobId ?? undefined).then(() => {
+            refresh();
+            store.runEnded(entity);
+          });
         })
         .catch(() => {
           store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
@@ -271,12 +277,15 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
 
   const monitorAll = useCallback(() => {
     const entity: MissingEntity = { kind, coveId };
-    store.beginBulk(entity);
+    store.beginBulk(entity, RUN_OVER_EVERYTHING);
 
     postAction<MissingBulkEnqueued>(monitorAllRouteFor(entity, { page, sort, q, filters }))
       .then((answered) => {
         store.bulkSettled(entity, selectionOutcomeIn(answered));
-        void whenRunEnds(answered.jobId ?? undefined).then(refresh);
+        void whenRunEnds(answered.jobId ?? undefined).then(() => {
+          refresh();
+          store.runEnded(entity);
+        });
       })
       .catch(() => {
         store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
