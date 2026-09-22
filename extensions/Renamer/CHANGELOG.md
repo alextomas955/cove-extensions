@@ -38,6 +38,9 @@ that would change before anything touches disk.
 - **The token list appears once, under Filename.** _Required fields_ and _Drop order_ now take a
   token by typing: search the list, pick with the arrow keys or the mouse. A name outside the list
   is still accepted.
+- **The token list shows which tokens your templates use.** A token used by either the filename
+  template or the folder template is tinted, so you can see at a glance what is already in play.
+  Clicking it still inserts another copy.
 - **Four settings say what they do.** The performer and tag list fields are now _Only include_ and
   _Never include_; the toggles are _Remove spaces from studio names_ and _Convert accents to plain
   ASCII_; and a _Max count_ left empty reads _No limit_.

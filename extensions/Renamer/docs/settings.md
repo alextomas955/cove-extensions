@@ -43,7 +43,8 @@ The **preset** chips set the filename template to a starter pattern; the **live 
 card shows the result on sample items as you type.
 
 The token list under this field is the only one on the page. Clicking a token inserts it at the
-cursor of whichever template field you used last — _Filename template_ or _Folder template_.
+cursor of whichever template field you used last — _Filename template_ or _Folder template_. A token
+either template already uses is tinted in that list.
 
 ### Where files go
 
