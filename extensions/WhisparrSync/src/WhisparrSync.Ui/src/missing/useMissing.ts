@@ -11,6 +11,7 @@ import type {
   MissingTrackResult,
 } from "../wire/api";
 import { api } from "../common/lib/extension";
+import { whenRunEnds } from "../common/lib/runCompletion";
 import type { WhisparrEntityKind } from "../wire/api";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
@@ -192,12 +193,15 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
       })
         .then((answered) => {
           store.bulkSettled(entity, selectionOutcomeIn(answered));
+          // The run marks the ticked scenes wanted one at a time, so the pills it changes are read
+          // again once it has stopped rather than painted from what was asked for.
+          void whenRunEnds(answered.jobId ?? undefined).then(refresh);
         })
         .catch(() => {
           store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
         });
     },
-    [store, kind, coveId],
+    [store, kind, coveId, refresh],
   );
 
   const [track, setTrack] = useState<TrackState>({ kind: "atRest" });
@@ -226,11 +230,12 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     postAction<MissingBulkEnqueued>(monitorAllRouteFor(entity, { page, sort, q, filters }))
       .then((answered) => {
         store.bulkSettled(entity, selectionOutcomeIn(answered));
+        void whenRunEnds(answered.jobId ?? undefined).then(refresh);
       })
       .catch(() => {
         store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
       });
-  }, [store, kind, coveId, page, sort, q, filters]);
+  }, [store, kind, coveId, page, sort, q, filters, refresh]);
 
   return {
     state,
