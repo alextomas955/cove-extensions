@@ -67,11 +67,13 @@ internal sealed class ReportedRootPort(
         }
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
 
-        // Refused here, so an unconfigured connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(
-                stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _))
+        // Resolved for the generation this port was asked about, which a delivery names and the
+        // settings do not. Refused where nothing is configured, so an unconfigured connection
+        // reaches nothing that could make a request.
+        var resolution = await OutboundPair
+            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+        if (resolution.Binding is not { } binding)
         {
             cache.HoldNothingToRead(generation);
             return null;
@@ -81,7 +83,7 @@ internal sealed class ReportedRootPort(
         try
         {
             response = await instances
-                .Bound(new WhisparrBinding(generation, baseAddress, apiKey))
+                .Bound(binding)
                 .ReadRootFoldersAsync(ct)
                 .ConfigureAwait(false);
         }
@@ -93,7 +95,7 @@ internal sealed class ReportedRootPort(
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            WhisparrSyncLog.ReportedRootReadFailed(log, generation, baseAddress.Host);
+            WhisparrSyncLog.ReportedRootReadFailed(log, generation, binding.BaseAddress.Host);
 
             // Held, so a burst of deliveries during an outage does not re-pay the client's timeout
             // and retry once per file inside the inbound request pipeline.
