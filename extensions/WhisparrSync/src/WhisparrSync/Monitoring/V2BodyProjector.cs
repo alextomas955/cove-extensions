@@ -212,6 +212,24 @@ internal static class V2ListProjector
     // row it answers with is the only place its instance-side identifier appears. The match is made
     // here even where the listing was asked for one entity, because accepting a query the instance
     // silently ignored would return an entity nobody named.
+    /// <summary>The one site a lookup answered, or null where it answered none.</summary>
+    /// <remarks>
+    /// Ordered by the lookup's own relevance and asked by an exact identifier, so the first entry is
+    /// the site asked about.
+    /// </remarks>
+    internal static JsonObject? LookupEntry(string? answered)
+        => AsArray(answered) is { Count: > 0 } rows ? rows[0] as JsonObject : null;
+
+    /// <summary>The id the instance holds the site under, or zero where it holds none.</summary>
+    internal static int InstanceRowIdIn(JsonObject site)
+    {
+        ArgumentNullException.ThrowIfNull(site);
+
+        return site["id"] is JsonValue numbered && numbered.TryGetValue<int>(out var rowId)
+            ? rowId
+            : 0;
+    }
+
     internal static JsonObject? HeldEntry(string? listed, int entityId)
     {
         if (AsArray(listed) is not { } held)

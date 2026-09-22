@@ -13,6 +13,8 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import { errorCodeIn } from "../common/lib/errorCodeLogic";
 import { api } from "../common/lib/extension";
+import { announceCardsChanged } from "../common/lib/cardsChanged";
+import { pollDelayMs, runHasStopped } from "./bulkRunCompletionLogic";
 import {
   allScenesConfirmation,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
@@ -20,7 +22,13 @@ import {
   RUN_WAS_NOT_STARTED,
   searchAllMonitoredConfirmation,
 } from "../common/ui/copy";
-import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
+import type {
+  BulkJobStatus,
+  EntityMonitoringView,
+  LibraryCardKind,
+  WhisparrConnectionOffer,
+  WhisparrEntityKind,
+} from "../wire/api";
 import { BulkMonitorChoice } from "./BulkMonitorChoice";
 import { ConfirmDialog } from "./hostComponents";
 import {
@@ -46,9 +54,9 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
-  // Read for one of the selected entities: what the connected generation can do is a fact about
-  // the connection rather than about that entity.
-  const offer = await offeredFor(kind, payload.entityIds[0]);
+  // Read of the connection, naming no entity: which gestures this menu offers follows the
+  // connected generation, and the sampled entity's own state is never read from it.
+  const offer = await offeredFor(kind);
 
   const chosen = await presentOverlay<BulkMonitorAction>((finish) =>
     createElement(BulkMonitorChoice, {
@@ -68,10 +76,11 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
+  let started: { jobId?: string } = {};
   try {
     // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
     // are camelCase, so the casing is read from the server per direction.
-    await postAction(api("entities/bulk-monitor"), {
+    started = await postAction<{ jobId?: string }>(api("entities/bulk-monitor"), {
       EntityType: payload.entityType,
       Verb: chosen.verb,
       Scope: chosen.scope,
@@ -84,8 +93,52 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
+  // Not awaited: the run is the host's job drawer's to report, and the badges are this bundle's to
+  // repaint once it has finished. Awaiting it would hold the selection bar for the length of the run.
+  void repaintWhenRunEnds(kind, payload.entityIds, started.jobId);
+
   return {};
 }
+
+/**
+ * Reads every card on screen again once the run has stopped.
+ *
+ * The run changes what the instance holds, and the badges were painted before it. Nothing is read
+ * while it is still going: a card read mid-run reports a state the next entity is about to leave.
+ */
+async function repaintWhenRunEnds(
+  kind: WhisparrEntityKind,
+  coveIds: readonly number[],
+  jobId: string | undefined,
+): Promise<void> {
+  if (jobId === undefined) return;
+
+  for (let asked = 1; asked <= POLLS_BEFORE_GIVING_UP; asked++) {
+    await new Promise((settle) => setTimeout(settle, pollDelayMs(asked)));
+
+    try {
+      const status = await requestJson<BulkJobStatus>(api(`job-status/${jobId}`));
+      if (!runHasStopped(status.status)) continue;
+    } catch {
+      // The run itself is reported in the host's job drawer, so a poll that failed says nothing a
+      // reader needs. The badges are read again anyway: the run may well have carried out its work.
+    }
+
+    announceCardsChanged(CARD_KIND_OF_ENTITY[kind], coveIds);
+    return;
+  }
+}
+
+// One card kind per entity kind, so a run over studios repaints studio cards and nothing else.
+const CARD_KIND_OF_ENTITY: Record<WhisparrEntityKind, LibraryCardKind> = {
+  studio: "studio",
+  performer: "performer",
+  tag: "studio",
+};
+
+// A run of a thousand entities is one outbound request per entity, so the polls give up well after
+// the longest run this route accepts and leave the badges as the reader last saw them.
+const POLLS_BEFORE_GIVING_UP = 600;
 
 // Only the two rows that spend something the reader cannot take back are confirmed: the wider
 // scope marks a whole back catalogue wanted, and the search downloads.
@@ -143,14 +196,33 @@ async function stated(reason: string, count: number): Promise<void> {
   );
 }
 
-async function offeredFor(kind: WhisparrEntityKind, coveId: number): Promise<BulkMonitorOffer> {
+async function offeredFor(kind: WhisparrEntityKind): Promise<BulkMonitorOffer> {
   try {
-    const view = await requestJson<EntityMonitoringView>(
-      api(`entity/${kind}/${String(coveId)}/monitoring`),
-    );
-    return bulkMonitorActions(view);
+    const connection = await requestJson<WhisparrConnectionOffer>(api("connection/offer"));
+    return bulkMonitorActions(asMonitoringView(kind, connection));
   } catch {
     // Nothing was read, so nothing is known about the connected generation either.
     return { actions: [], reason: BULK_ACTIONS_COULD_NOT_BE_OFFERED, oneWayDoor: false };
   }
+}
+
+/**
+ * The connection's facts in the shape the menu reads.
+ *
+ * Every entity-shaped member carries what the menu treats as unset: it rebuilds both monitored
+ * states itself, and a refusal one entity earned is not a fact about a selection.
+ */
+function asMonitoringView(
+  kind: WhisparrEntityKind,
+  connection: WhisparrConnectionOffer,
+): EntityMonitoringView {
+  return {
+    kind,
+    generation: connection.generation,
+    capabilities: connection.capabilities,
+    present: null,
+    monitored: false,
+    refusal: connection.configured ? "none" : "notConfigured",
+    scope: null,
+  };
 }

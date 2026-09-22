@@ -29,6 +29,16 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
+        // No entity in the route and none reached: the selection bar's menu follows the connection,
+        // so naming an entity here would cost a read of the instance for facts this answers from
+        // stored settings.
+        endpoints.MapGet(ConnectionOfferRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, CancellationToken ct)
+                => ReadConnectionOfferAsync(principal, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
         endpoints.MapPost(MonitorRoute,
             (string kind, int coveId, MonitorEntityRequest request,
              ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
@@ -117,6 +127,28 @@ public sealed partial class WhisparrSync
             .ConfigureAwait(false);
 
         return TypedResults.Ok(reading);
+    }
+
+    // Answered from the stored connection alone. Nothing outbound is sent, so the menu this fills
+    // opens at the same speed whatever the instance is doing.
+    internal static async Task<Results<Ok<WhisparrConnectionOffer>, ForbiddenCode>>
+        ReadConnectionOfferAsync(
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            CancellationToken ct)
+    {
+        if (!HasReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        return await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+            is not { } target
+                ? TypedResults.Ok(WhisparrConnectionOffer.NotConfigured)
+                : TypedResults.Ok(
+                    new WhisparrConnectionOffer(target.Generation, target.Capabilities.Held, true));
     }
 
     // The request carries a scope and nothing else. Which entity the instance is asked about comes

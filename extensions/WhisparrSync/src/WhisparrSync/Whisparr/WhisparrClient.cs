@@ -958,37 +958,44 @@ internal sealed class WhisparrClient(
             .ConfigureAwait(false);
     }
 
-    // Whether v2's instance holds the entity an identifier names. One read, narrowed to the site's
-    // number, and only the matched entry is carried onward.
+    // Whether v2's instance holds the entity an identifier names. One read of one site, so it is
+    // bounded as the per-item call it is rather than as a read of everything held.
     //
-    // How long it takes varies with the holdings, so the read is bounded by LibraryReadTimeout. v2
-    // builds its whole set before filtering, so the narrowed answer is no faster than the unfiltered
-    // one: an instance holding 512 sites answers in about 41 seconds. Bounded as a per-item call it
-    // times out on every site, and the site pass then registers and moves nothing.
+    // The site list would answer this too, and did: v2 builds its whole set before filtering, so
+    // asking it for one site costs the same pass over every site as asking for all of them. An
+    // instance holding 512 sites answers that in about 30 seconds and this lookup in under one.
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+        // The lookup answers the site under whichever spelling the library holds, and answers it
+        // from the instance's own row where it holds that site.
+        var answered = await GeneratedV2ReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.ISeriesLookupApi>()
+                    .ListSeriesLookupAsync(HeldCardProjector.SiteLookupTerm(foreignId), ct))
             .ConfigureAwait(false);
-        if (numbered.Number is not { } siteNumber)
+
+        if (Refused(answered))
         {
-            return NoSiteNumber(numbered);
+            return answered;
         }
 
-        var listed = await GeneratedV2ReadAsync(
-            baseAddress,
-            apiKey,
-            api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
-                tvdbId: siteNumber, cancellationToken: ct),
-            LibraryReadTimeout).ConfigureAwait(false);
-        if (Refused(listed))
+        if (V2ListProjector.LookupEntry(answered.Body) is not { } site)
         {
-            return listed;
+            // The lookup named no site at all, so nothing in this generation's namespace answers to
+            // the identifier the library holds.
+            return new WhisparrResponse(NoInstanceStatus, null, string.Empty)
+            {
+                Refusal = MonitorRefusalKind.NoIdentityInThisNamespace,
+            };
         }
 
-        return V2ListProjector.HeldEntry(listed.Body, siteNumber) is { } held
-            ? new WhisparrResponse(listed.StatusCode, listed.ContentType, held.ToJsonString())
-            : new WhisparrResponse(AssembledNotHeld, listed.ContentType, string.Empty);
+        // A row carrying no id of the instance's own was mapped from the metadata source, which is
+        // the instance answering that it holds no site under that identifier.
+        return V2ListProjector.InstanceRowIdIn(site) > 0
+            ? new WhisparrResponse(answered.StatusCode, answered.ContentType, site.ToJsonString())
+            : new WhisparrResponse(AssembledNotHeld, answered.ContentType, string.Empty);
     }
 
     // The add carries the number and the scope and nothing the metadata source said: the instance

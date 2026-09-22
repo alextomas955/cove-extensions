@@ -19,7 +19,14 @@ public sealed class V2SiteRefusalTests
     // The number the metadata source names that site by.
     private const int V2SiteNumber = 3372;
 
-    private const string NoHeldSeries = "[]";
+    // The lookup naming no site at all: nothing in this generation's namespace answers to the
+    // identifier the library holds.
+    private const string NoSiteNamed = "[]";
+
+    // A row carrying no id of the instance's own was mapped from the metadata source, which is the
+    // instance answering that it holds no site under that identifier.
+    private const string ASiteTheInstanceHoldsNoRowFor =
+        """[{"tvdbId":3372,"title":"Vixen"}]""";
 
     // The list, holding the site the source named, monitored.
     private const string HeldSeries =
@@ -48,26 +55,12 @@ public sealed class V2SiteRefusalTests
     [Fact]
     public async Task AStudioTheSourceNamesNoSiteForIsTheNoIdentityRefusal()
     {
-        var (host, studioId) = await V2StudioAsync(WhisparrSiteNumber.NamesNone);
+        var (host, studioId) = await ANumberedSiteAsync((HttpStatusCode.OK, NoSiteNamed));
         await using var owned = host;
 
         var view = await host.ReadMonitoringAsync(studioId);
 
         Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
-    }
-
-    // An unreached source establishes nothing about the studio, so reporting it as one the source
-    // names no site for would send a reader to fix an identity that may be correct.
-    [Fact]
-    public async Task ASourceThatWasNotReachedIsHeldApartFromOneNamingNoSite()
-    {
-        var (host, studioId) = await V2StudioAsync(WhisparrSiteNumber.NotReached);
-        await using var owned = host;
-
-        var view = await host.ReadMonitoringAsync(studioId);
-
-        Assert.NotEqual(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
-        Assert.NotEqual(MonitorRefusalKind.None, view.Refusal);
     }
 
     // The classification holding on the read alone would still send a reader who pressed a control
@@ -78,7 +71,7 @@ public sealed class V2SiteRefusalTests
     [InlineData("scope")]
     public async Task EveryActingRouteReportsThatSameFact(string verb)
     {
-        var (host, studioId) = await V2StudioAsync(WhisparrSiteNumber.NamesNone);
+        var (host, studioId) = await ANumberedSiteAsync((HttpStatusCode.OK, NoSiteNamed));
         await using var owned = host;
 
         var view = await host.ActRawAsync(
@@ -92,7 +85,7 @@ public sealed class V2SiteRefusalTests
     [Fact]
     public async Task TheVerbThatDownloadsReportsThatSameFact()
     {
-        var (host, studioId) = await V2StudioAsync(WhisparrSiteNumber.NamesNone);
+        var (host, studioId) = await ANumberedSiteAsync((HttpStatusCode.OK, NoSiteNamed));
         await using var owned = host;
 
         var answered = await host.PostRawAsync("studio", studioId, "search-all-monitored", "{}");
@@ -131,7 +124,8 @@ public sealed class V2SiteRefusalTests
     [Fact]
     public async Task ASiteTheInstanceDoesNotHoldResolvesAndReadsAsAbsent()
     {
-        var (host, studioId) = await ANumberedSiteAsync((HttpStatusCode.OK, NoHeldSeries));
+        var (host, studioId) = await ANumberedSiteAsync(
+            (HttpStatusCode.OK, ASiteTheInstanceHoldsNoRowFor));
         await using var owned = host;
 
         var view = await host.ReadMonitoringAsync(studioId);

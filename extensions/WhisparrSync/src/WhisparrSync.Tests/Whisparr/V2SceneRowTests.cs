@@ -61,33 +61,39 @@ public sealed class V2SceneRowTests
     }
 
     [Fact]
-    public async Task TheHeldReadNarrowsToTheNumberAndCarriesTheMatchedRow()
+    public async Task TheHeldReadAsksTheLookupByTheStoredIdentifierAndCarriesTheRowItRankedFirst()
     {
-        const string listed = """
+        const string answered = """
             [{"id":11,"tvdbId":5999,"title":"Jay Bank Presents","monitored":true},
              {"id":12,"tvdbId":247,"title":"Tushy Raw","monitored":false}]
             """;
 
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, listed);
-        var client = SiteClient(handler, TestSiteNumbers.Numbering(StoredSiteId, SiteId));
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, answered);
+        var client = SiteClient(handler, new TestSiteNumbers());
 
         var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
             Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
 
-        // The recorded query, never the recorded path: AbsolutePath alone cannot tell a read narrowed
-        // to one site from one that asked the instance for its whole catalogue.
-        Assert.Equal("/api/v3/series?tvdbId=5999", Assert.Single(handler.Targets));
+        // The recorded query, never the recorded path: AbsolutePath alone cannot tell a read of one
+        // site from one that asked the instance for its whole catalogue.
+        var target = Assert.Single(handler.Targets);
+        Assert.StartsWith("/api/v3/series/lookup", target, StringComparison.Ordinal);
+        Assert.Contains(StoredSiteId, target, StringComparison.Ordinal);
+
         Assert.Equal(
             MonitoringProjector.EntityReading.Held, MonitoringProjector.Classify(read).Reading);
         Assert.Equal(11, MonitoringProjector.EntityIdIn(read.Body));
         Assert.DoesNotContain("Tushy Raw", read.Body, StringComparison.Ordinal);
     }
 
+    // A row carrying no id of the instance's own was mapped from the metadata source, which is the
+    // instance answering that it holds no site under that identifier.
     [Fact]
-    public async Task ASiteTheListHoldsNoRowForReadsAsNotHeld()
+    public async Task ASiteTheInstanceHoldsNoRowForReadsAsNotHeld()
     {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
-        var client = SiteClient(handler, TestSiteNumbers.Numbering(StoredSiteId, SiteId));
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK, """[{"tvdbId":5999,"title":"Jay Bank Presents"}]""");
+        var client = SiteClient(handler, new TestSiteNumbers());
 
         var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
             Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
@@ -95,6 +101,22 @@ public sealed class V2SceneRowTests
         Assert.Equal(
             MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
         Assert.Single(handler.Requests);
+    }
+
+    // Held apart from a row the instance holds nothing under: an answer naming no site at all says
+    // nothing in this generation's namespace answers to the identifier the library holds.
+    [Fact]
+    public async Task ALookupNamingNoSiteAtAllIsTheNoIdentityRefusal()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
+            Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
+
+        Assert.Equal(
+            MonitorRefusalKind.NoIdentityInThisNamespace,
+            MonitoringProjector.Classify(read).Refusal);
     }
 
     [Fact]

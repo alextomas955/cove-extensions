@@ -285,6 +285,35 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/connection/offer": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrConnectionOffer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor": {
       "post": {
         "tags": [
@@ -3383,6 +3412,35 @@
           "readEntityCatalogue",
           "readInstanceFilesystem"
         ]
+      },
+      "WhisparrConnectionOffer": {
+        "required": [
+          "generation",
+          "capabilities",
+          "configured"
+        ],
+        "type": "object",
+        "properties": {
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        }
       },
       "WhisparrEntityKind": {
         "enum": [
