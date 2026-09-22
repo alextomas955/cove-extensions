@@ -17,8 +17,15 @@ export function badgeChipFor(input: {
   readonly running: boolean;
   readonly settled: boolean;
   readonly state: WhisparrEntityState | null;
+  /** Whether the page could not be answered for, which is not a fact about this card. */
+  readonly pageRefused: boolean;
 }): BadgeChip {
   if (input.running) return "working";
   if (input.state !== null) return "state";
+
+  // A page nothing answered for establishes nothing about any card. Saying "not linked" there would
+  // report a read that failed as a fact about the library, and the page states its own reason once.
+  if (input.pageRefused) return null;
+
   return input.settled ? "notLinked" : null;
 }

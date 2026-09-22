@@ -80,6 +80,14 @@ const WINDOW_SETTLE_BUDGET_MS = 30_000;
  */
 const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Status unknown"];
 
+/**
+ * What a card reads where the library holds no id the connected generation could name it by.
+ *
+ * Not one of the state words above: the instance was never asked, so the card reports why nothing
+ * was asked rather than a state the instance gave.
+ */
+const NOT_LINKED = "Not linked";
+
 /** A real StashDB studio id. The library stores it, and the extension names the instance by it. */
 const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
@@ -310,13 +318,17 @@ test.describe("library status", () => {
       "the chip reads something outside this product's own five-state vocabulary",
     ).toHaveText(STATE_CHIP_TEXT);
 
-    // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
-    // indistinguishable from one that never will.
-    await page.waitForTimeout(SETTLE_DWELL_MS);
+    // One chip, and it says why nothing was asked. A count alone would pass on a card that drew a
+    // state, so the text is what separates "never asked" from "the instance answered".
+    const unlinkedChip = stateChips(cardFor(page, unidentified.name));
     await expect(
-      stateChips(cardFor(page, unidentified.name)),
+      unlinkedChip,
+      "a studio Cove holds no usable link for carries no chip, or carries more than one",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+    await expect(
+      unlinkedChip,
       "a studio Cove holds no usable link for was given a state anyway",
-    ).toHaveCount(0);
+    ).toHaveText(new RegExp(`${NOT_LINKED}$`));
 
     const missingComponent = consoleErrors.filter((line) =>
       /component not found|does not provide an export|SyntaxError/i.test(line),
@@ -570,20 +582,18 @@ test.describe("library status", () => {
       "the excluded scene reads as one the instance was never offered",
     ).not.toHaveText(/Not added$/);
 
-    // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
-    // indistinguishable from one that never will.
-    await page.waitForTimeout(SETTLE_DWELL_MS);
+    // One chip, and it says why nothing was asked. A count alone would pass on a card that drew a
+    // state, so the text is what separates "never asked" from "the instance answered".
     const silent = videoCardFor(page, unidentified.title);
+    const silentChip = stateChips(silent);
     await expect(
-      stateChips(silent),
+      silentChip,
+      "a scene Cove holds no usable link for carries no chip, or carries more than one",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+    await expect(
+      silentChip,
       "a scene Cove holds no usable link for was given a state anyway",
-    ).toHaveCount(0);
-    // The host draws its own entry wrapper for any registered slot, so the assertion is that the
-    // wrapper holds nothing rather than that it is absent.
-    await expect(
-      badgeStrip(silent),
-      "a scene Cove holds no usable link for drew a badge element anyway",
-    ).toBeEmpty();
+    ).toHaveText(new RegExp(`${NOT_LINKED}$`));
 
     // Otherwise unchanged. A card that lost its own title, or drew the host's error boundary in
     // place of its body, is a worse outcome than a wrong state.

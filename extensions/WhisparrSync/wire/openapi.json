@@ -2004,7 +2004,7 @@
           "lastEventSecretPosition",
           "missingSetting",
           "refusal",
-          "hostAuthenticationRequired"
+          "registrationIsSafe"
         ],
         "type": "object",
         "properties": {
@@ -2049,7 +2049,7 @@
               "string"
             ]
           },
-          "hostAuthenticationRequired": {
+          "registrationIsSafe": {
             "type": "boolean"
           }
         }

@@ -16,7 +16,7 @@ import { READ_IS_STALE } from "../common/ui/copy";
 import type { CopyResult } from "./useRegistration";
 import {
   describeRegistration,
-  HOST_AUTHENTICATION_REQUIRED,
+  REGISTRATION_WOULD_LOCK_COVE_DOWN,
   LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
   registerRefusal,
@@ -65,9 +65,9 @@ export function ImportWebhookSection({
           <TextInput value={address} onChange={onAddressChange} mono />
         </Field>
 
-        {view !== null && !view.hostAuthenticationRequired ? (
+        {view !== null && !view.registrationIsSafe ? (
           <div role="note">
-            <StatusText kind="warning">{HOST_AUTHENTICATION_REQUIRED}</StatusText>
+            <StatusText kind="warning">{REGISTRATION_WOULD_LOCK_COVE_DOWN}</StatusText>
           </div>
         ) : null}
 
