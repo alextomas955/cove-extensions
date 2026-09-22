@@ -9,8 +9,17 @@ import { createExtensionViteConfig } from "../../../../shared/ui-shared/vite/cre
 const repoRoot = path.resolve(__dirname, "../../../..");
 const sharedUiRoot = path.resolve(repoRoot, "shared/ui-shared");
 
+const base = createExtensionViteConfig({ packageDir: __dirname, reactPlugin: react() });
+
 export default defineConfig({
-  ...createExtensionViteConfig({ packageDir: __dirname, reactPlugin: react() }),
+  ...base,
+  resolve: {
+    ...base.resolve,
+    // A bundle externalizes these, so nothing resolves them there. A test run has to, and the shared
+    // package's source — including the JSX runtime the transform injects into it — would otherwise
+    // resolve them against a node_modules that package does not have.
+    dedupe: ["react", "react-dom", "lucide-react"],
+  },
   test: {
     coverage: {
       provider: "v8",
