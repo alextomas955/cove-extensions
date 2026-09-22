@@ -23,6 +23,7 @@ import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { WHISPARR_DATA_MOUNT } from "@cove-extensions/e2e/whisparr";
 
 import {
+  FOLDER_AGREEMENT_CHANGE,
   FOLDER_AGREEMENT_SAVE,
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_NOTHING_RESOLVED,
@@ -66,13 +67,35 @@ async function visitPrompts(page, baseUrl, root) {
 
 /** Types `path` under one prompt and presses its own save, answering what the browser received. */
 async function statePath(page, prompt, path) {
+  // The field the path is typed into. Read before anything is typed, because a prompt that settled
+  // keeps its field closed until the reader opens it, and a fill against a field that is not there
+  // spends the whole budget waiting while the failure names the response that never came.
+  const field = prompt.getByRole("textbox");
+
+  // A folder that has settled asks for nothing, so its field stays closed until the reader opens
+  // it. Opened here when it is, which is what a reader stating a different path does.
+  const change = prompt.getByRole("button", { name: FOLDER_AGREEMENT_CHANGE, exact: true });
+  if ((await change.count()) > 0 && (await field.count()) === 0) {
+    await change.click();
+  }
+
+  await expect(
+    field,
+    `the prompt for this folder offers no path field, so there is nothing to state a path in. It reads "${String(
+      await prompt.textContent(),
+    )
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200)}"`,
+  ).toBeVisible({ timeout: CONTROL_BUDGET_MS });
+
   const answered = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith("/addressing/folder-mappings") &&
       response.request().method() === "PUT",
     { timeout: CONTROL_BUDGET_MS },
   );
-  await prompt.getByRole("textbox").fill(path);
+  await field.fill(path);
   await prompt.getByRole("button", { name: FOLDER_AGREEMENT_SAVE }).click();
 
   const response = await answered;
