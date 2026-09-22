@@ -108,6 +108,10 @@ export function Chip({
 /** Sentinel `value` for the "Custom…" option in {@link ExampleSelect}. */
 const CUSTOM_SENTINEL = "__custom__";
 
+/** The two entry-identity rules {@link TagListInput} chooses between. */
+const identity = (value: string) => value;
+const fold = (value: string) => value.toLowerCase();
+
 const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wide text-muted";
 // Names a group of controls, so it stays quieter than the section title containing it.
 const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
@@ -675,6 +679,12 @@ export function TagListInput({
 }) {
   const id = useId();
   const listId = `${id}-suggestions`;
+  // When two entries are the same entry. A suggestion set is a vocabulary the rename engine resolves
+  // case-insensitively (`Engine/TemplateEngine.cs` builds its token maps with
+  // `StringComparer.OrdinalIgnoreCase`), so two spellings of one token are one token to it: a
+  // drop-order list holding both makes `Engine/LengthReducer.cs` re-render for each and report the
+  // same field dropped twice. Free-text lists keep exact match, where case is the user's own.
+  const sameEntry = suggestions === undefined ? identity : fold;
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   // Separate from focus, so Escape can put the list away without taking the caret out of the field.
@@ -687,21 +697,25 @@ export function TagListInput({
     onLiveChange?.("");
   }
 
+  function add(candidate: string) {
+    const taken = values.some((existing) => sameEntry(existing) === sameEntry(candidate));
+    if (!taken) onChange([...values, candidate]);
+    clearInput();
+  }
+
   function addCurrent() {
     const v = (normalize ? normalize(query) : query).trim();
     // Text the control will not take stays on screen for the user to correct.
     if (v.length === 0) return;
     if (onReject?.(v)) return;
-    if (!values.includes(v)) onChange([...values, v]);
-    clearInput();
+    add(v);
   }
 
   function commit(option: string) {
-    if (!values.includes(option)) onChange([...values, option]);
-    clearInput();
+    add(option);
   }
 
-  const offered = suggestions ? suggestionOptions(suggestions, values, query) : [];
+  const offered = suggestions ? suggestionOptions(suggestions, values, query, sameEntry) : [];
   const listOpen = suggestions !== undefined && focused && !dismissed && offered.length > 0;
   const activeId =
     listOpen && active >= 0 && active < offered.length ? `${listId}-${active}` : undefined;

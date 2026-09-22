@@ -186,3 +186,30 @@ test("Enter on a rejected entry adds nothing and leaves the text there to correc
 
   view.unmount();
 });
+
+test("a token already picked is not accepted again in a different case", async () => {
+  const view = await render();
+  await focus(view.container);
+  await type(view.container, "studio");
+  await press(view.container, "Enter");
+  expect(chips(view.container)).toEqual(["studio"]);
+
+  await type(view.container, "Studio");
+  await press(view.container, "Enter");
+
+  // The rename engine resolves a token case-insensitively, so this is the token already on screen.
+  expect(chips(view.container)).toEqual(["studio"]);
+
+  view.unmount();
+});
+
+test("a token already picked is not offered again in a different case", async () => {
+  const view = await render();
+  await focus(view.container);
+  await type(view.container, "STUDIO");
+  await press(view.container, "Enter");
+
+  expect(offered(view.container)).toEqual(["title", "performers", "resolution"]);
+
+  view.unmount();
+});

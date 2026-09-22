@@ -3,8 +3,6 @@
  * it stays L0 — testable with no environment — and so the logic the components render on top of is
  * exactly the logic the suite covers.
  */
-import { availableOptions } from "./entityPickerLogic";
-
 /** The outcome of validating a rule pattern. */
 export interface RegexValidity {
   valid: boolean;
@@ -117,20 +115,28 @@ export function listEditors<T>(
 
 /**
  * What a type-to-search control still has to offer: the fixed suggestion set minus what is already a
- * chip, narrowed by the typed query. Composed from the two existing pure helpers so the offer rule
- * and the match rule each live in one place. Result order is the suggestion set's, never the match's,
- * and an empty result is the caller's signal to render no list at all rather than an empty box.
+ * chip, narrowed by the typed query. Result order is the suggestion set's, never the match's, and an
+ * empty result is the caller's signal to render no list at all rather than an empty box.
+ *
+ * `key` decides when two values are the same value. It defaults to exact match; a caller over a
+ * vocabulary the consumer of those values resolves case-insensitively passes a folding key, so the
+ * offer rule and that consumer agree on what a duplicate is. The comparison folds, the list does not:
+ * the options returned are the originals, because the folded form is an identity, not something to
+ * show the user or commit.
+ *
+ * The exclusion is built here rather than delegated to `availableOptions`, which stays exact-match:
+ * that helper serves pickers over opaque entity ids, where folding two ids together would merge two
+ * distinct entities.
  */
 export function suggestionOptions(
   suggestions: readonly string[],
   picked: readonly string[],
   query: string,
+  key: (value: string) => string = (value) => value,
 ): string[] {
-  const remaining = availableOptions(
-    suggestions.map((value) => ({ value, label: value })),
-    picked,
-  );
-  return filterByText(query, remaining, (option) => option.label).map((option) => option.value);
+  const taken = new Set(picked.map(key));
+  const remaining = suggestions.filter((suggestion) => !taken.has(key(suggestion)));
+  return filterByText(query, remaining, (option) => option);
 }
 
 /**

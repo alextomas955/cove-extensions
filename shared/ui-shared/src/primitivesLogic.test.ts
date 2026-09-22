@@ -113,6 +113,27 @@ test("a suggestion already picked is not offered again", () => {
   ]);
 });
 
+test("a folding key treats a pick in another case as the same pick", () => {
+  const fold = (value: string) => value.toLowerCase();
+  assert.deepEqual(suggestionOptions(TOKENS, ["STUDIO", "Year"], "", fold), [
+    "title",
+    "parentStudio",
+    "studioCode",
+    "date",
+  ]);
+  // The offer list is the original spellings, never the folded ones: the fold is an identity, not a
+  // value to hand back.
+  assert.deepEqual(suggestionOptions(["Title", "Studio"], [], "", fold), ["Title", "Studio"]);
+});
+
+test("without a key a pick in another case is a different pick", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, ["STUDIO"], "studio"), [
+    "studio",
+    "parentStudio",
+    "studioCode",
+  ]);
+});
+
 test("the query filters case-insensitively and keeps the suggestion set's order", () => {
   assert.deepEqual(suggestionOptions(TOKENS, [], "stud"), ["studio", "parentStudio", "studioCode"]);
   assert.deepEqual(suggestionOptions(TOKENS, [], "STUD"), ["studio", "parentStudio", "studioCode"]);
