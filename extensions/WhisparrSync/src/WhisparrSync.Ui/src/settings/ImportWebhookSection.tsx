@@ -62,7 +62,7 @@ export function ImportWebhookSection({
           label="Callback address"
           helper="Correct the scheme, host, port or path prefix if Whisparr reaches Cove somewhere other than you do. The rest is Cove's own."
         >
-          <TextInput value={address} onChange={onAddressChange} mono />
+          {(id) => <TextInput id={id} value={address} onChange={onAddressChange} mono />}
         </Field>
 
         {view !== null && !view.registrationIsSafe ? (

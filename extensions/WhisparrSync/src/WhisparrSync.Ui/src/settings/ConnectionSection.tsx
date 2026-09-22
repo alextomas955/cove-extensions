@@ -113,26 +113,32 @@ export function ConnectionSection({
           label="Whisparr address"
           helper="The address Cove itself reaches Whisparr on, including the scheme and port."
         >
-          <TextInput
-            value={draft.address}
-            onChange={onAddressChange}
-            placeholder={ADDRESS_PLACEHOLDER}
-          />
+          {(id) => (
+            <TextInput
+              id={id}
+              value={draft.address}
+              onChange={onAddressChange}
+              placeholder={ADDRESS_PLACEHOLDER}
+            />
+          )}
         </Field>
 
         <Field
           label="API key"
           helper="Leave blank to keep the key already stored for this generation."
         >
-          <input
-            type="password"
-            value={draft.apiKey}
-            onChange={(e) => {
-              onKeyChange(e.target.value);
-            }}
-            className={INPUT_CLASS}
-            autoComplete="off"
-          />
+          {(id) => (
+            <input
+              id={id}
+              type="password"
+              value={draft.apiKey}
+              onChange={(e) => {
+                onKeyChange(e.target.value);
+              }}
+              className={INPUT_CLASS}
+              autoComplete="off"
+            />
+          )}
         </Field>
 
         <div className="flex items-center gap-3">
