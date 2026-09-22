@@ -57,29 +57,30 @@ internal sealed class ConnectionTestRunner(
     public async Task<ConnectionTestView> TestStoredAsync(CancellationToken ct)
     {
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var generation = stored.SelectedGeneration;
 
-        // A generation nothing has configured stands in as a connection with a blank address, which
-        // the read below refuses by naming the address.
-        var connection = stored.ConnectionFor(stored.SelectedGeneration)
-            ?? new WhisparrSyncGenerationConnection();
-        var apiKey = await credentials
-            .ReadAsync(stored.SelectedGeneration, ct)
-            .ConfigureAwait(false);
-
-        // Refused here, so an unconfigured connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
+        // Resolved the way every outbound request is, so this reports on the instance a request
+        // would reach. A probe of the options address would answer for a connection nothing sends
+        // to once a save has moved the row the key sits in. The refusal for an unconfigured
+        // connection comes from the same resolution, so nothing here could make a request without
+        // both settings.
+        var resolution = await OutboundPair
+            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+        if (resolution.Binding is not { } binding)
         {
-            return ConnectionTestView.NotConfigured(missing, baseAddress?.ToString());
+            return ConnectionTestView.NotConfigured(
+                resolution.Missing!.Value, resolution.Address?.ToString());
         }
 
-        var view = await tester.TestAsync(connection.Address, apiKey, ct).ConfigureAwait(false);
+        var view = await tester
+            .TestAsync(binding.BaseAddress.ToString(), binding.ApiKey, ct)
+            .ConfigureAwait(false);
         if (!InstanceAnswered(view.Kind))
         {
             return view;
         }
 
         var now = clock.GetUtcNow();
-        var generation = stored.SelectedGeneration;
         var connected = view.Kind == ConnectionFailureKind.Connected;
 
         // Applied to the connection the gate loads, not the one read before the probe: another writer
