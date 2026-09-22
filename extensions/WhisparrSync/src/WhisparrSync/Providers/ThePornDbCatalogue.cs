@@ -204,9 +204,12 @@ internal sealed class ThePornDbCatalogue
                 : null;
     }
 
-    // The scene route answers one row for the identifier Cove stores, carrying a `poster` sized for
-    // a card beside a wider `image`. Null is both a row the provider names no picture on and a read
-    // that established nothing, which the card renders the same placeholder for.
+    // The scene route answers one row for the identifier Cove stores, carrying several pictures of
+    // the same scene. `background` is the widescreen one and is served from the provider's own
+    // store; `image` is the same shape but addresses the studio's site, which refuses some of them.
+    // `poster` is a tall one, so a card crops most of its height away and is the last resort.
+    // Null is both a row the provider names no picture on and a read that established nothing,
+    // which the card renders the same placeholder for.
     public async Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct)
     {
         var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
@@ -220,7 +223,37 @@ internal sealed class ThePornDbCatalogue
 
         return entity is null
             ? null
-            : Text(entity.Value, "poster") ?? Text(entity.Value, "image");
+            : Sized(entity.Value, "background") ?? Text(entity.Value, "poster");
+    }
+
+    // The sized variants of one picture, narrowest first past the card's own width. A row carries
+    // the address as a plain string where the provider offers no variants of it.
+    private static string? Sized(JsonElement row, string property)
+    {
+        if (!row.TryGetProperty(property, out var sizes))
+        {
+            return null;
+        }
+
+        if (sizes.ValueKind == JsonValueKind.String)
+        {
+            return sizes.GetString() is { Length: > 0 } only ? only : null;
+        }
+
+        if (sizes.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var size in (string[])["medium", "large", "full", "small"])
+        {
+            if (Text(sizes, size) is { Length: > 0 } address)
+            {
+                return address;
+            }
+        }
+
+        return null;
     }
 
     // The site route answers one row for the uuid Cove stores, carrying this provider's own `id`
