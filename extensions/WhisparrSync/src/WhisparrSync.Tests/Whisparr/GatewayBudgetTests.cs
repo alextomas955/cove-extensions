@@ -40,7 +40,7 @@ public sealed class GatewayBudgetTests
 
     [Fact]
     public void AReadOfEverythingHeldIsBudgetedAboveAPerItemCall()
-        => Assert.True(WhisparrClient.LibraryReadTimeout > WhisparrClient.RequestTimeout);
+        => Assert.True(WhisparrTransport.LibraryReadTimeout > WhisparrTransport.RequestTimeout);
 
     // Driving the real timeout would mean waiting out the per-item budget, so the case records the
     // budget each registration was built with, which is the value the request is bounded by.
@@ -50,9 +50,9 @@ public sealed class GatewayBudgetTests
         var builtWith = new List<TimeSpan>();
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
-        WhisparrClient.Configure(http);
+        WhisparrTransport.Configure(http);
         var client = new WhisparrClient(
-            http,
+            new WhisparrTransport(http, NullLogger.Instance),
             new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
             new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
             new TestSiteNumbers(),
@@ -61,8 +61,8 @@ public sealed class GatewayBudgetTests
         await client.ReduceHeldSitesAsync(
             SomeAddress, SomeKey, [207], TestContext.Current.CancellationToken);
 
-        Assert.Contains(WhisparrClient.LibraryReadTimeout, builtWith);
-        Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
+        Assert.Contains(WhisparrTransport.LibraryReadTimeout, builtWith);
+        Assert.DoesNotContain(WhisparrTransport.RequestTimeout, builtWith);
     }
 
     // The lookup answers one site without the pass over every site the list route makes, so it is
@@ -74,9 +74,9 @@ public sealed class GatewayBudgetTests
         var builtWith = new List<TimeSpan>();
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
-        WhisparrClient.Configure(http);
+        WhisparrTransport.Configure(http);
         var client = new WhisparrClient(
-            http,
+            new WhisparrTransport(http, NullLogger.Instance),
             new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
             new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
             new TestSiteNumbers(),
@@ -89,8 +89,8 @@ public sealed class GatewayBudgetTests
             SomeSiteIdentifier,
             TestContext.Current.CancellationToken);
 
-        Assert.Contains(WhisparrClient.RequestTimeout, builtWith);
-        Assert.DoesNotContain(WhisparrClient.LibraryReadTimeout, builtWith);
+        Assert.Contains(WhisparrTransport.RequestTimeout, builtWith);
+        Assert.DoesNotContain(WhisparrTransport.LibraryReadTimeout, builtWith);
     }
 
     private static async Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
