@@ -42,12 +42,15 @@ export function ImportBehaviorSection({
     >
       <div className="space-y-2" aria-busy={saving}>
         <Field label="Replacement files">
-          <Select
-            value={behavior ?? "add"}
-            options={CHOICES.map((choice) => ({ value: choice.value, label: choice.label }))}
-            disabled={behavior === null || saving || sharedReason !== null}
-            onChange={onChange}
-          />
+          {(id) => (
+            <Select
+              id={id}
+              value={behavior ?? "add"}
+              options={CHOICES.map((choice) => ({ value: choice.value, label: choice.label }))}
+              disabled={behavior === null || saving || sharedReason !== null}
+              onChange={onChange}
+            />
+          )}
         </Field>
 
         {chosen === null ? null : <StatusText kind="muted">{chosen.consequence}</StatusText>}

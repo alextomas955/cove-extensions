@@ -9,16 +9,17 @@ import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
-    Field: (props: { label: string; children: ReactNode }) =>
-      h("label", null, props.label, props.children),
+    Field: (props: { label: string; children: (controlId: string) => ReactNode }) =>
+      h("label", { htmlFor: "control" }, props.label, props.children("control")),
     Select: (props: {
       value: string;
       disabled?: boolean;
+      id?: string;
       options: readonly { value: string; label: string }[];
     }) =>
       h(
         "select",
-        { value: props.value, disabled: props.disabled, onChange: () => undefined },
+        { id: props.id, value: props.value, disabled: props.disabled, onChange: () => undefined },
         props.options.map((option) =>
           h("option", { key: option.value, value: option.value }, option.label),
         ),
