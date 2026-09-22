@@ -5,9 +5,11 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Connection;
 
 // What one resolution established. Missing names the setting that was empty and is null once a
-// binding was built, so a caller cannot report a refusal a resolution did not make.
+// binding was built, so a caller cannot report a refusal a resolution did not make. Address is the
+// rebuilt form and is present on a refusal the key caused, so that refusal can echo the instance it
+// would have reached.
 internal readonly record struct OutboundResolution(
-    WhisparrBinding? Binding, ConnectionSetting? Missing);
+    WhisparrBinding? Binding, ConnectionSetting? Missing, Uri? Address);
 
 // The one place the address and the key an outbound request is built from are resolved.
 internal static class OutboundPair
@@ -46,7 +48,7 @@ internal static class OutboundPair
             : held.Address;
 
         return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out var missing)
-            ? new OutboundResolution(new WhisparrBinding(generation, baseAddress, apiKey), null)
-            : new OutboundResolution(null, missing);
+            ? new OutboundResolution(new WhisparrBinding(generation, baseAddress, apiKey), null, baseAddress)
+            : new OutboundResolution(null, missing, baseAddress);
     }
 }
