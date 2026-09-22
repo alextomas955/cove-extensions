@@ -46,7 +46,7 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
 // interface. One class rather than a second recorder beside it: two logs with independent
 // ordering would let an assertion that a path issued nothing be read off a list that could never
 // have held the call in question.
-internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
+internal sealed class RecordingWhisparrClient(WhisparrResponse answer, WhisparrBinding? binding = null)
     : IWhisparrClient,
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
@@ -68,6 +68,13 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrInstanceFilesystemReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
+
+    // What a case that asserts on the recorded instance gets back. A recorded call names the binding
+    // rather than arguments, because a bound member takes none.
+    internal static WhisparrBinding AnyInstance { get; }
+        = new(WhisparrGeneration.V3, new Uri("http://whisparr.test:6969/"), "recorded-key");
+
+    public WhisparrBinding Binding { get; } = binding ?? AnyInstance;
 
     public List<(Uri BaseAddress, string ApiKey)> Calls { get; } = [];
 
@@ -140,81 +147,58 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     // the queue keeps reading the last page it was given.
     public Dictionary<string, Queue<WhisparrResponse>> NotificationAnswers { get; } = [];
 
-    public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
+    public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
+        => Record(nameof(ReadNotificationSchemaAsync), null, null);
+
+    public Task<WhisparrResponse> ListNotificationsAsync(CancellationToken ct)
+        => Record(nameof(ListNotificationsAsync), null, null);
+
+    public Task<WhisparrResponse> ReadRootFoldersAsync(CancellationToken ct)
+        => Record(nameof(ReadRootFoldersAsync), null, null);
+
+    public Task<WhisparrResponse> ReadQualityProfilesAsync(CancellationToken ct)
+        => Record(nameof(ReadQualityProfilesAsync), null, null);
+
+    public Task<WhisparrResponse> ReadHistoryAsync(int page, int pageSize, CancellationToken ct)
     {
-        Calls.Add((baseAddress, apiKey));
-        Verbs.Add(nameof(ReadStatusAsync));
-        return Task.FromResult(answer);
-    }
-
-    public Task<WhisparrResponse> ReadNotificationSchemaAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => Record(nameof(ReadNotificationSchemaAsync), baseAddress, null, null);
-
-    public Task<WhisparrResponse> ListNotificationsAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => Record(nameof(ListNotificationsAsync), baseAddress, null, null);
-
-    public Task<WhisparrResponse> ReadRootFoldersAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => Record(nameof(ReadRootFoldersAsync), baseAddress, null, null);
-
-    public Task<WhisparrResponse> ReadQualityProfilesAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => Record(nameof(ReadQualityProfilesAsync), baseAddress, null, null);
-
-    public Task<WhisparrResponse> ReadHistoryAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        int page,
-        int pageSize,
-        CancellationToken ct)
-    {
-        Histories.Add(new HistoryCall(baseAddress, apiKey, generation, page, pageSize));
+        Histories.Add(new HistoryCall(
+            Binding.BaseAddress, Binding.ApiKey, Binding.Generation, page, pageSize));
         Verbs.Add(nameof(ReadHistoryAsync));
         return Task.FromResult(Answer(nameof(ReadHistoryAsync)));
     }
 
-    public Task<WhisparrResponse> ReadCommandAsync(
-        Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
-        => Record(nameof(ReadCommandAsync), baseAddress, commandId, null);
+    public Task<WhisparrResponse> ReadCommandAsync(int commandId, CancellationToken ct)
+        => Record(nameof(ReadCommandAsync), commandId, null);
 
-    public Task<WhisparrResponse> CreateNotificationAsync(
-        Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
-        => Record(nameof(CreateNotificationAsync), baseAddress, null, body);
+    public Task<WhisparrResponse> CreateNotificationAsync(JsonNode body, CancellationToken ct)
+        => Record(nameof(CreateNotificationAsync), null, body);
 
     public Task<WhisparrResponse> UpdateNotificationAsync(
-        Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
-        => Record(nameof(UpdateNotificationAsync), baseAddress, id, body);
+        int id, JsonNode body, CancellationToken ct)
+
+        => Record(nameof(UpdateNotificationAsync), id, body);
 
     public Task<WhisparrResponse> ReadStudioAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         string foreignId,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(ReadStudioAsync), baseAddress, apiKey)
+            new ActingCall(nameof(ReadStudioAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
-                Generation = generation,
+                Generation = Binding.Generation,
                 ForeignId = foreignId,
             });
 
     public Task<WhisparrResponse> AddMonitoredStudioAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         string foreignId,
         MonitorScope scope,
         AddDefaults defaults,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(AddMonitoredStudioAsync), baseAddress, apiKey)
+            new ActingCall(nameof(AddMonitoredStudioAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
-                Generation = generation,
+                Generation = Binding.Generation,
                 ForeignId = foreignId,
                 Scope = scope,
                 Defaults = defaults,
@@ -222,54 +206,46 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> SetStudioMonitoredAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         int entityId,
         bool monitored,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SetStudioMonitoredAsync), baseAddress, apiKey)
+            new ActingCall(nameof(SetStudioMonitoredAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
-                Generation = generation,
+                Generation = Binding.Generation,
                 EntityId = entityId,
                 Monitored = monitored,
             });
 
     public Task<WhisparrResponse> SetStudioScopeAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         int entityId,
         MonitorScope scope,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SetStudioScopeAsync), baseAddress, apiKey)
+            new ActingCall(nameof(SetStudioScopeAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
-                Generation = generation,
+                Generation = Binding.Generation,
                 EntityId = entityId,
                 Scope = scope,
             });
 
     public Task<WhisparrResponse> ReadPerformerAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        string foreignId, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(ReadPerformerAsync), baseAddress, apiKey)
+            new ActingCall(nameof(ReadPerformerAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Performer,
                 ForeignId = foreignId,
             });
 
     public Task<WhisparrResponse> AddMonitoredPerformerAsync(
-        Uri baseAddress,
-        string apiKey,
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(AddMonitoredPerformerAsync), baseAddress, apiKey)
+            new ActingCall(nameof(AddMonitoredPerformerAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Performer,
                 ForeignId = foreignId,
@@ -278,9 +254,9 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> SetPerformerMonitoredAsync(
-        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
+        int entityId, bool monitored, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SetPerformerMonitoredAsync), baseAddress, apiKey)
+            new ActingCall(nameof(SetPerformerMonitoredAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Performer,
                 EntityId = entityId,
@@ -288,57 +264,50 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> SetSceneMonitoredAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         int sceneId,
         bool monitored,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SetSceneMonitoredAsync), baseAddress, apiKey)
+            new ActingCall(nameof(SetSceneMonitoredAsync), Binding.BaseAddress, Binding.ApiKey)
             {
-                Generation = generation,
+                Generation = Binding.Generation,
                 EntityId = sceneId,
                 Monitored = monitored,
             });
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        string foreignId, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(AddSceneExclusionAsync), baseAddress, apiKey)
+            new ActingCall(nameof(AddSceneExclusionAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 ForeignId = foreignId,
             });
 
     public Task<WhisparrResponse> RemoveSceneExclusionAsync(
-        Uri baseAddress, string apiKey, int exclusionId, CancellationToken ct)
+        int exclusionId, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(RemoveSceneExclusionAsync), baseAddress, apiKey)
+            new ActingCall(nameof(RemoveSceneExclusionAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 EntityId = exclusionId,
             });
 
     public Task<WhisparrResponse> AddSceneAsync(
-        Uri baseAddress,
-        string apiKey,
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(AddSceneAsync), baseAddress, apiKey)
+            new ActingCall(nameof(AddSceneAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 ForeignId = foreignId,
                 Defaults = defaults,
             });
 
     public Task<WhisparrResponse> RegisterSiteAsync(
-        Uri baseAddress,
-        string apiKey,
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(RegisterSiteAsync), baseAddress, apiKey)
+            new ActingCall(nameof(RegisterSiteAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
                 Generation = WhisparrGeneration.V2,
@@ -348,13 +317,11 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> MoveSiteRootAsync(
-        Uri baseAddress,
-        string apiKey,
         int siteId,
         string rootFolderPath,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(MoveSiteRootAsync), baseAddress, apiKey)
+            new ActingCall(nameof(MoveSiteRootAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
                 Generation = WhisparrGeneration.V2,
@@ -363,12 +330,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> RefreshSiteCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
         int siteId,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(RefreshSiteCatalogueAsync), baseAddress, apiKey)
+            new ActingCall(nameof(RefreshSiteCatalogueAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
                 Generation = WhisparrGeneration.V2,
@@ -376,67 +341,58 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> RefreshCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
         WhisparrEntityKind kind,
         int entityId,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(RefreshCatalogueAsync), baseAddress, apiKey)
+            new ActingCall(nameof(RefreshCatalogueAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = kind,
                 EntityId = entityId,
             });
 
-    public Task<WhisparrResponse> ReadHardlinkSettingAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => RecordActing(new ActingCall(nameof(ReadHardlinkSettingAsync), baseAddress, apiKey));
+    public Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct)
+        => RecordActing(new ActingCall(nameof(ReadHardlinkSettingAsync), Binding.BaseAddress, Binding.ApiKey));
 
     public Task<WhisparrResponse> ListImportableFilesAsync(
-        Uri baseAddress, string apiKey, string folder, CancellationToken ct)
+        string folder, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(ListImportableFilesAsync), baseAddress, apiKey)
+            new ActingCall(nameof(ListImportableFilesAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Folder = folder,
             });
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
-        Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
+        JsonNode files, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(AttachOwnedFilesAsync), baseAddress, apiKey) { Body = files });
+            new ActingCall(nameof(AttachOwnedFilesAsync), Binding.BaseAddress, Binding.ApiKey) { Body = files });
 
     public Task<WhisparrResponse> ReadInstanceFolderAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         string directory,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(ReadInstanceFolderAsync), baseAddress, apiKey)
+            new ActingCall(nameof(ReadInstanceFolderAsync), Binding.BaseAddress, Binding.ApiKey)
             {
-                Generation = generation,
+                Generation = Binding.Generation,
                 Folder = directory,
             });
 
     public Task<WhisparrResponse> SearchMonitoredAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         IReadOnlyList<int> entityIds,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SearchMonitoredAsync), baseAddress, apiKey)
+            new ActingCall(nameof(SearchMonitoredAsync), Binding.BaseAddress, Binding.ApiKey)
             {
-                Generation = generation,
+                Generation = Binding.Generation,
                 Kind = kind,
                 EntityIds = [.. entityIds],
             });
 
     public Task<WhisparrResponse> SearchSceneAsync(
-        Uri baseAddress, string apiKey, int sceneId, CancellationToken ct)
+        int sceneId, CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(SearchSceneAsync), baseAddress, apiKey) { EntityId = sceneId });
+            new ActingCall(nameof(SearchSceneAsync), Binding.BaseAddress, Binding.ApiKey) { EntityId = sceneId });
 
     public RecordingWhisparrClient Answering(string verb, params WhisparrResponse[] answers)
     {
@@ -450,9 +406,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     public static RecordingWhisparrClient Reporting(string fixtureFileName)
         => new(new WhisparrResponse(200, JsonContentType, ProbeFixtures.Read(fixtureFileName)));
 
-    private Task<WhisparrResponse> Record(string verb, Uri baseAddress, int? id, JsonNode? body)
+    private Task<WhisparrResponse> Record(string verb, int? id, JsonNode? body)
     {
-        Notifications.Add(new NotificationCall(verb, baseAddress, id, body?.DeepClone()));
+        Notifications.Add(
+            new NotificationCall(verb, Binding.BaseAddress, id, body?.DeepClone()));
         Verbs.Add(verb);
         return Task.FromResult(Answer(verb));
     }
@@ -468,8 +425,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<WhisparrResponse> ReadEntityPresenceAsync(
-        Uri baseAddress,
-        string apiKey,
         WhisparrEntityKind kind,
         string foreignId,
         CancellationToken ct)
@@ -479,15 +434,13 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+        string remoteId, CancellationToken ct)
     {
         SceneStatuses.Add(new SceneStatusCall(null, null, remoteId));
         return Task.FromResult(Answer(nameof(ReadSceneByRemoteIdAsync)));
     }
 
     public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-        Uri baseAddress,
-        string apiKey,
         IReadOnlyCollection<string> providerSceneIds,
         CancellationToken ct)
     {
@@ -498,8 +451,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-        Uri baseAddress,
-        string apiKey,
         IReadOnlyCollection<string> foreignIds,
         CancellationToken ct)
     {
@@ -517,9 +468,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         IReadOnlyList<string> foreignIds,
         CancellationToken ct)
@@ -537,7 +485,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<WhisparrHeldCards> ReadHeldSceneCardsAsync(
-        Uri baseAddress, string apiKey, IReadOnlyList<string> foreignIds, CancellationToken ct)
+        IReadOnlyList<string> foreignIds, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(foreignIds);
         SceneBatchReads.Add([.. foreignIds]);
@@ -569,26 +517,20 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<WhisparrResponse> TrackEntityAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(TrackEntityAsync), baseAddress, apiKey)
+            new ActingCall(nameof(TrackEntityAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = kind,
-                Generation = generation,
+                Generation = Binding.Generation,
                 ForeignId = foreignId,
                 Defaults = defaults,
             });
 
     public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         string foreignId,
         CancellationToken ct)
@@ -608,8 +550,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
-        Uri baseAddress,
-        string apiKey,
         int siteId,
         IReadOnlyCollection<int> sceneNumbers,
         CancellationToken ct)
@@ -636,8 +576,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
-        Uri baseAddress,
-        string apiKey,
         IReadOnlyCollection<int> siteNumbers,
         CancellationToken ct)
     {
@@ -660,7 +598,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 
     public Task<SceneExclusionLookup> FindSceneExclusionAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        string foreignId, CancellationToken ct)
     {
         ExclusionLookups.Add(foreignId);
         Verbs.Add(nameof(FindSceneExclusionAsync));

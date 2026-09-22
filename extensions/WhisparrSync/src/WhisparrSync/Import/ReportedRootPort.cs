@@ -52,7 +52,7 @@ internal sealed class ReportedRootCache(TimeProvider clock)
 }
 
 internal sealed class ReportedRootPort(
-    IWhisparrClient client,
+    IWhisparrInstanceFactory instances,
     OptionsStore options,
     ICredentialPort credentials,
     ReportedRootCache cache,
@@ -80,7 +80,10 @@ internal sealed class ReportedRootPort(
         WhisparrResponse response;
         try
         {
-            response = await client.ReadRootFoldersAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+            response = await instances
+                .Bound(new WhisparrBinding(generation, baseAddress, apiKey))
+                .ReadRootFoldersAsync(ct)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

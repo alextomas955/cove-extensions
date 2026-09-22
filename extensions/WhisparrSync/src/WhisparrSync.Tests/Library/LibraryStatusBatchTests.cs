@@ -81,9 +81,7 @@ public sealed class LibraryStatusBatchTests
                 perCard.AnswerAsync,
                 new Capability<IWhisparrEntityBatchReading>(batch, null),
                 WhisparrEntityKind.Studio,
-                WhisparrGeneration.V3,
-                Instance,
-                ApiKey,
+                Bound(WhisparrGeneration.V3),
                 [1, 2],
                 TestCt);
 
@@ -102,9 +100,7 @@ public sealed class LibraryStatusBatchTests
                 new CountingRead().AnswerAsync,
                 new Capability<IWhisparrEntityBatchReading>(batch, null),
                 WhisparrEntityKind.Studio,
-                WhisparrGeneration.V3,
-                Instance,
-                ApiKey,
+                Bound(WhisparrGeneration.V3),
                 [1],
                 TestCt);
 
@@ -145,9 +141,7 @@ public sealed class LibraryStatusBatchTests
                 perCard.AnswerAsync,
                 new Capability<IWhisparrEntityBatchReading>(batch, null),
                 WhisparrEntityKind.Studio,
-                WhisparrGeneration.V3,
-                Instance,
-                ApiKey,
+                Bound(WhisparrGeneration.V3),
                 coveIds,
                 TestCt)).Rows;
 
@@ -159,11 +153,12 @@ public sealed class LibraryStatusBatchTests
                 GenerationCapabilities.For(WhisparrGeneration.V2)
                     .Obtain<IWhisparrSceneExclusionReading>(),
                 new Capability<IWhisparrSceneBatchReading>(batch, null),
-                Instance,
-                ApiKey,
-                WhisparrGeneration.V3,
+                Bound(WhisparrGeneration.V3),
                 [.. remoteIds.Select((id, index) => new LibraryCardIdentity(index + 1, id))],
                 TestCt)).Readings;
+
+    private static WhisparrBinding Bound(WhisparrGeneration generation)
+        => new(generation, Instance, ApiKey);
 
     private static Uri Instance => new("http://whisparr.invalid");
 
@@ -187,9 +182,6 @@ public sealed class LibraryStatusBatchTests
         public int Calls { get; private set; }
 
         public Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             WhisparrEntityKind kind,
             IReadOnlyList<string> foreignIds,
             CancellationToken ct)
@@ -206,7 +198,7 @@ public sealed class LibraryStatusBatchTests
         public int Calls { get; private set; }
 
         public Task<WhisparrHeldCards> ReadHeldSceneCardsAsync(
-            Uri baseAddress, string apiKey, IReadOnlyList<string> foreignIds, CancellationToken ct)
+            IReadOnlyList<string> foreignIds, CancellationToken ct)
         {
             Calls++;
             return Task.FromResult(answer);
@@ -218,21 +210,17 @@ public sealed class LibraryStatusBatchTests
     private sealed class RefusingSceneReading : IWhisparrSceneStatusReading
     {
         public Task<WhisparrResponse> ReadEntityPresenceAsync(
-            Uri baseAddress,
-            string apiKey,
             WhisparrEntityKind kind,
             string foreignId,
             CancellationToken ct)
             => throw new InvalidOperationException("The scene card path probes no entity.");
 
         public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-            Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+            string remoteId, CancellationToken ct)
             => throw new InvalidOperationException(
                 "The batch answered for this page, so no scene is read on its own.");
 
         public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(

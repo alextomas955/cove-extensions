@@ -28,10 +28,10 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(MissingBulkMonitorRoute,
             (string kind, int coveId, MissingBulkRequest request,
              ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              CancellationToken ct)
                 => EnqueueMissingBulkMonitorAsync(
-                    kind, coveId, request, principal, jobs, scopes, options, credentials, client, ct))
+                    kind, coveId, request, principal, jobs, scopes, options, credentials, instances, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -48,7 +48,7 @@ public sealed partial class WhisparrSync
             IServiceScopeFactory scopes,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             CancellationToken ct)
     {
         // Re-checked here because the route declaration enforces nothing on a minimal API.
@@ -69,7 +69,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -159,7 +159,7 @@ public sealed partial class WhisparrSync
         if (await ResolveTargetAsync(
                 services.GetRequiredService<OptionsStore>(),
                 services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrClient>(),
+                services.GetRequiredService<IWhisparrInstanceFactory>(),
                 runCt).ConfigureAwait(false) is not { } target)
         {
             return null;
@@ -199,14 +199,14 @@ public sealed partial class WhisparrSync
         }
 
         var identity = await services.GetRequiredService<IEntityIdentityPort>()
-            .ResolveAsync(owning, owningId, target.Generation, runCt).ConfigureAwait(false);
+            .ResolveAsync(owning, owningId, target.Binding.Generation, runCt).ConfigureAwait(false);
         if (identity.ForeignId is not { Length: > 0 } foreignId)
         {
             return null;
         }
 
         var catalogue = await reading.ReadEntityCatalogueAsync(
-            target.BaseAddress, target.ApiKey, target.Generation, owning, foreignId, runCt)
+            owning, foreignId, runCt)
             .ConfigureAwait(false);
         if (catalogue.Scenes is not { } scenes)
         {
@@ -226,7 +226,7 @@ public sealed partial class WhisparrSync
         return (providerSceneId, markCt) => rows.TryGetValue(providerSceneId, out var rowId)
             ? ContainedAsync(
                 () => marking.SetSceneMonitoredAsync(
-                    target.BaseAddress, target.ApiKey, target.Generation, rowId, monitored, markCt),
+                    rowId, monitored, markCt),
                 target,
                 _log,
                 markCt)
@@ -249,7 +249,7 @@ public sealed partial class WhisparrSync
         if (await ResolveTargetAsync(
                 services.GetRequiredService<OptionsStore>(),
                 services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrClient>(),
+                services.GetRequiredService<IWhisparrInstanceFactory>(),
                 runCt).ConfigureAwait(false) is not { } target
             || target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
                 .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not { } acting)
@@ -258,14 +258,14 @@ public sealed partial class WhisparrSync
         }
 
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, runCt),
+            () => target.Reads.ReadQualityProfilesAsync(runCt),
             target,
             _log,
             runCt).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, runCt),
+                () => target.Reads.ReadRootFoldersAsync(runCt),
                 target,
                 _log,
                 runCt).ConfigureAwait(false);
@@ -299,7 +299,7 @@ public sealed partial class WhisparrSync
 
         return (providerSceneId, markCt) => ContainedAsync(
             () => acting.AddSceneAsync(
-                target.BaseAddress, target.ApiKey, providerSceneId, composeWith, markCt),
+                providerSceneId, composeWith, markCt),
             target,
             _log,
             markCt);

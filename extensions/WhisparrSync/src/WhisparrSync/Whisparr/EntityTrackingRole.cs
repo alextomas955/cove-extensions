@@ -19,11 +19,5 @@ public interface IWhisparrEntityTrackingActing
 {
     /// <summary>Adds <paramref name="foreignId"/> so its catalogue is tracked and wanted by nothing.</summary>
     Task<WhisparrResponse> TrackEntityAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        WhisparrEntityKind kind,
-        string foreignId,
-        AddDefaults defaults,
-        CancellationToken ct);
+        WhisparrEntityKind kind, string foreignId, AddDefaults defaults, CancellationToken ct);
 }

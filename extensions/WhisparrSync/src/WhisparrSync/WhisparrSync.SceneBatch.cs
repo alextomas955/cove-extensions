@@ -127,11 +127,11 @@ public sealed partial class WhisparrSync
         {
             var options = services.GetRequiredService<OptionsStore>();
             var credentials = services.GetRequiredService<ICredentialPort>();
-            var client = services.GetRequiredService<IWhisparrClient>();
+            var instances = services.GetRequiredService<IWhisparrInstanceFactory>();
 
             if (!targetResolved)
             {
-                target = await ResolveTargetAsync(options, credentials, client, sceneCt)
+                target = await ResolveTargetAsync(options, credentials, instances, sceneCt)
                     .ConfigureAwait(false);
                 targetResolved = true;
             }
@@ -148,7 +148,7 @@ public sealed partial class WhisparrSync
             var acted = verb switch
             {
                 SceneBatchVerb.Add => await AddSceneResolvedAsync(
-                    coveId, target, options, credentials, client, sceneCards, scopes, _log, sceneCt)
+                    coveId, target, options, credentials, instances, sceneCards, scopes, _log, sceneCt)
                     .ConfigureAwait(false),
                 SceneBatchVerb.Monitor => await SetSceneMonitoringResolvedAsync(
                     monitored: true,
@@ -156,7 +156,7 @@ public sealed partial class WhisparrSync
                     target,
                     options,
                     credentials,
-                    client,
+                    instances,
                     sceneCards,
                     _log,
                     sceneCt).ConfigureAwait(false),
@@ -166,15 +166,15 @@ public sealed partial class WhisparrSync
                     target,
                     options,
                     credentials,
-                    client,
+                    instances,
                     sceneCards,
                     _log,
                     sceneCt).ConfigureAwait(false),
                 SceneBatchVerb.Search => await SearchSceneResolvedAsync(
-                    coveId, target, options, credentials, client, sceneCards, _log, sceneCt)
+                    coveId, target, options, credentials, instances, sceneCards, _log, sceneCt)
                     .ConfigureAwait(false),
                 SceneBatchVerb.Exclude => await ExcludeSceneResolvedAsync(
-                    coveId, target, options, credentials, client, sceneCards, _log, sceneCt)
+                    coveId, target, options, credentials, instances, sceneCards, _log, sceneCt)
                     .ConfigureAwait(false),
                 _ => throw new InvalidOperationException(
                     $"{verb} is not a verb the scene selection carries."),

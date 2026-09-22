@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Providers;
 using WhisparrSync.Scene;
@@ -118,10 +119,12 @@ public sealed class AbsentCapabilityTests
 
         // v2's site paths send nothing at all for an identifier no site number is established for,
         // so the drive below reaches none of that generation's site routes without this.
-        var client = TestWhisparrClient.Over(
-            handler, siteNumbers: TestSiteNumbers.Numbering("studio-1", 3372));
+        using var http = new HttpClient(handler);
+        var instances = TestWhisparrClient.FactoryOver(
+            http, handler, siteNumbers: TestSiteNumbers.Numbering("studio-1", 3372));
 
-        await DriveEveryGeneratedRouteAsync(client);
+        await DriveEveryGeneratedRouteAsync(
+            instances, TestWhisparrClient.TransportOver(http, handler));
 
         Assert.NotEmpty(handler.Requests);
         Assert.Equal(
@@ -153,68 +156,75 @@ public sealed class AbsentCapabilityTests
     }
 
     // One call per generated operation this product names, driven through the seam rather than
-    // through the generated client, so a member rewired to another operation is what fails.
-    private static async Task DriveEveryGeneratedRouteAsync(WhisparrClient client)
+    // through the generated client, so a member rewired to another operation is what fails. Both
+    // instances are driven, because each declares the members its own generation holds.
+    private static async Task DriveEveryGeneratedRouteAsync(
+        WhisparrInstanceFactory instances, WhisparrTransport transport)
     {
         var address = new Uri("http://whisparr:6969");
         const string key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
         var defaults = new AddDefaults(4, "/config/library");
         var ct = TestContext.Current.CancellationToken;
 
-        await client.ReadStatusAsync(address, key, ct);
-        await client.ReadNotificationSchemaAsync(address, key, ct);
-        await client.ListNotificationsAsync(address, key, ct);
-        await client.ReadRootFoldersAsync(address, key, ct);
-        await client.ReadQualityProfilesAsync(address, key, ct);
-        await client.ReadHistoryAsync(address, key, WhisparrGeneration.V3, 1, 10, ct);
-        await client.ReadCommandAsync(address, key, 8123, ct);
-        await client.ReadInstanceFolderAsync(address, key, WhisparrGeneration.V3, "/config/library/", ct);
+        var v3 = instances.Bound(new WhisparrBinding(WhisparrGeneration.V3, address, key));
+        var v2 = instances.Bound(new WhisparrBinding(WhisparrGeneration.V2, address, key));
 
-        await client.ReadStudioAsync(address, key, WhisparrGeneration.V3, "studio-1", ct);
-        await client.AddMonitoredStudioAsync(
-            address, key, WhisparrGeneration.V3, "studio-1", MonitorScope.AllScenes, defaults, ct);
-        await client.SetStudioMonitoredAsync(
-            address, key, WhisparrGeneration.V3, 4, monitored: true, ct);
-        await client.ReadEntityPresenceAsync(address, key, WhisparrEntityKind.Studio, "studio-1", ct);
+        // The status read runs before a generation is known, so it sits on the transport rather than
+        // on either instance. Driven here all the same: its route is one this product sends on.
+        await transport.ReadStatusAsync(address, key, ct);
 
-        await client.ReadPerformerAsync(address, key, "performer-1", ct);
-        await client.AddMonitoredPerformerAsync(address, key, "performer-1", defaults, ct);
-        await client.SetPerformerMonitoredAsync(address, key, 11, monitored: true, ct);
-        await client.ReadEntityPresenceAsync(
-            address, key, WhisparrEntityKind.Performer, "performer-1", ct);
+        await v3.ReadNotificationSchemaAsync(ct);
+        await v3.ListNotificationsAsync(ct);
+        await v3.ReadRootFoldersAsync(ct);
+        await v3.ReadQualityProfilesAsync(ct);
+        await v3.ReadHistoryAsync(1, 10, ct);
+        await v3.ReadCommandAsync(8123, ct);
 
-        await client.AddSceneAsync(address, key, "scene-1", defaults, ct);
-        await client.ReadSceneByRemoteIdAsync(address, key, "scene-1", ct);
-        await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
-        await client.SetSceneMonitoredAsync(
-            address, key, WhisparrGeneration.V3, 41, monitored: true, ct);
-        await client.AddSceneExclusionAsync(address, key, "scene-1", ct);
-        await client.RemoveSceneExclusionAsync(address, key, 12, ct);
+        var v3Studio = (IWhisparrStudioActing)v3;
+        var v3Scene = (IWhisparrSceneStatusReading)v3;
+        await ((IWhisparrInstanceFilesystemReading)v3).ReadInstanceFolderAsync("/config/library/", ct);
+        await v3Studio.ReadStudioAsync("studio-1", ct);
+        await v3Studio.AddMonitoredStudioAsync("studio-1", MonitorScope.AllScenes, defaults, ct);
+        await v3Studio.SetStudioMonitoredAsync(4, monitored: true, ct);
+        await v3Scene.ReadEntityPresenceAsync(WhisparrEntityKind.Studio, "studio-1", ct);
 
-        await client.ReadHardlinkSettingAsync(address, key, ct);
-        await client.ListImportableFilesAsync(address, key, "/config/library", ct);
-        await client.AttachOwnedFilesAsync(
-            address, key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), ct);
+        var v3Performer = (IWhisparrPerformerActing)v3;
+        await v3Performer.ReadPerformerAsync("performer-1", ct);
+        await v3Performer.AddMonitoredPerformerAsync("performer-1", defaults, ct);
+        await v3Performer.SetPerformerMonitoredAsync(11, monitored: true, ct);
+        await v3Scene.ReadEntityPresenceAsync(WhisparrEntityKind.Performer, "performer-1", ct);
 
-        await client.SearchMonitoredAsync(
-            address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], ct);
+        var v3Missing = (IWhisparrMissingSceneActing)v3;
+        await v3Missing.AddSceneAsync("scene-1", defaults, ct);
+        await v3Scene.ReadSceneByRemoteIdAsync("scene-1", ct);
+        await v3Missing.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 4, ct);
+        await ((IWhisparrSceneMonitorActing)v3).SetSceneMonitoredAsync(41, monitored: true, ct);
+
+        var v3Exclusions = (IWhisparrSceneExclusionActing)v3;
+        await v3Exclusions.AddSceneExclusionAsync("scene-1", ct);
+        await v3Exclusions.RemoveSceneExclusionAsync(12, ct);
+
+        var v3Reflect = (IWhisparrReflectOwnedActing)v3;
+        await v3Reflect.ReadHardlinkSettingAsync(ct);
+        await v3Reflect.ListImportableFilesAsync("/config/library", ct);
+        await v3Reflect.AttachOwnedFilesAsync(
+            new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), ct);
+
+        await ((IWhisparrSearchGrabbing)v3).SearchMonitoredAsync(
+            WhisparrEntityKind.Studio, [4], ct);
 
         // The scope change is driven on v2 only. v3 reads and replaces the resource through the
         // hand-composed date gate, whose route belongs to DeclaredRoutes.
-        await client.ReadHistoryAsync(address, key, WhisparrGeneration.V2, 1, 10, ct);
-        await client.ReadStudioAsync(address, key, WhisparrGeneration.V2, "studio-1", ct);
-        await client.AddMonitoredStudioAsync(
-            address, key, WhisparrGeneration.V2, "studio-1", MonitorScope.AllScenes, defaults, ct);
-        await client.SetStudioMonitoredAsync(
-            address, key, WhisparrGeneration.V2, 4, monitored: true, ct);
-        await client.SetStudioScopeAsync(
-            address, key, WhisparrGeneration.V2, 4, MonitorScope.AllScenes, ct);
-        await client.SearchMonitoredAsync(
-            address, key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, [4], ct);
-        await client.SetSceneMonitoredAsync(
-            address, key, WhisparrGeneration.V2, 41, monitored: true, ct);
-        await client.ReduceSiteSceneRowsAsync(address, key, 1, [1363738], ct);
-        await client.ReadInstanceFolderAsync(address, key, WhisparrGeneration.V2, "/config/library/", ct);
+        var v2Studio = (IWhisparrStudioActing)v2;
+        await v2.ReadHistoryAsync(1, 10, ct);
+        await v2Studio.ReadStudioAsync("studio-1", ct);
+        await v2Studio.AddMonitoredStudioAsync("studio-1", MonitorScope.AllScenes, defaults, ct);
+        await v2Studio.SetStudioMonitoredAsync(4, monitored: true, ct);
+        await v2Studio.SetStudioScopeAsync(4, MonitorScope.AllScenes, ct);
+        await ((IWhisparrSearchGrabbing)v2).SearchMonitoredAsync(WhisparrEntityKind.Studio, [4], ct);
+        await ((IWhisparrSceneMonitorActing)v2).SetSceneMonitoredAsync(41, monitored: true, ct);
+        await ((IWhisparrSiteSceneReading)v2).ReduceSiteSceneRowsAsync(1, [1363738], ct);
+        await ((IWhisparrInstanceFilesystemReading)v2).ReadInstanceFolderAsync("/config/library/", ct);
     }
 
     // The seam's configuring half is the callback registration and nothing else. The types that can
@@ -234,6 +244,7 @@ public sealed class AbsentCapabilityTests
 
         Assert.Equal(
             [
+                nameof(ConnectionTester),
                 typeof(GeneratedClientRegistry<Whisparr3Target>).Name,
                 nameof(InstanceSiteNumberPort),
                 "Lease",
@@ -245,8 +256,10 @@ public sealed class AbsentCapabilityTests
                 nameof(Whisparr2Gateway),
                 nameof(Whisparr3Apis),
                 nameof(Whisparr3Gateway),
-                nameof(WhisparrClient),
+                nameof(WhisparrInstanceFactory),
                 nameof(WhisparrTransport),
+                nameof(WhisparrV2Instance),
+                nameof(WhisparrV3Instance),
             ],
             TypesHoldingAnHttpClient().Order().ToList());
 

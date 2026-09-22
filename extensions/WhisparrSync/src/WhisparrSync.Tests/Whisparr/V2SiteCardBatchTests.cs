@@ -12,10 +12,6 @@ public sealed class V2SiteCardBatchTests
 {
     private const string StudioUuid = "e3b61b3e-0c20-4bea-9441-b88430ed6317";
     private const string OtherUuid = "5ee16943-0da6-4ee4-94c1-54172e3d0b7e";
-    private const string SomeKey = "0123456789abcdef0123456789abcdef";
-
-    private static readonly Uri SomeAddress = new("http://whisparr:6969");
-
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static string Site(int rowId, bool monitored) =>
@@ -123,11 +119,7 @@ public sealed class V2SiteCardBatchTests
 
     private static Task<WhisparrHeldCards> ReadAsync(
         HttpClient http, BodyRecordingHandler handler, string[] foreignIds)
-        => TestWhisparrClient.Over(http, handler).ReadHeldEntitiesAsync(
-            SomeAddress,
-            SomeKey,
-            WhisparrGeneration.V2,
-            WhisparrEntityKind.Studio,
-            foreignIds,
-            TestCt);
+        => ((IWhisparrEntityBatchReading)TestWhisparrClient.Over(
+                http, handler, generation: WhisparrGeneration.V2))
+            .ReadHeldEntitiesAsync(WhisparrEntityKind.Studio, foreignIds, TestCt);
 }

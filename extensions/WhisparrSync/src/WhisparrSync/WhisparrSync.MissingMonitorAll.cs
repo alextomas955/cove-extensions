@@ -28,10 +28,10 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(MissingMonitorAllRoute,
             (string kind, int coveId, string? q, string? filters,
              ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              CancellationToken ct)
                 => EnqueueMissingMonitorAllAsync(
-                    kind, coveId, q, filters, principal, jobs, scopes, options, credentials, client,
+                    kind, coveId, q, filters, principal, jobs, scopes, options, credentials, instances,
                     ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
@@ -51,7 +51,7 @@ public sealed partial class WhisparrSync
             IServiceScopeFactory scopes,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             CancellationToken ct)
     {
         // Re-checked here because the route declaration enforces nothing on a minimal API.
@@ -68,7 +68,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -164,7 +164,7 @@ public sealed partial class WhisparrSync
         var context = await ResolveMissingContextAsync(
                 services.GetRequiredService<OptionsStore>(),
                 services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrClient>(),
+                services.GetRequiredService<IWhisparrInstanceFactory>(),
                 services.GetRequiredService<ProviderEndpointPort>(),
                 ct)
             .ConfigureAwait(false);

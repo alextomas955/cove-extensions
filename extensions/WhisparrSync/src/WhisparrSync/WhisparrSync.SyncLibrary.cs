@@ -33,10 +33,10 @@ public sealed partial class WhisparrSync
         // the whole library to do it.
         endpoints.MapPost(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              CancellationToken ct)
                 => EnqueueSyncPreviewAsync(
-                    principal, jobs, scopes, options, credentials, client, ct))
+                    principal, jobs, scopes, options, credentials, instances, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -44,10 +44,10 @@ public sealed partial class WhisparrSync
         // party holds, which is the same fact whichever route answered it.
         endpoints.MapGet(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              CancellationToken ct)
                 => ReadSyncPreviewAsync(
-                    principal, jobs, counts, options, credentials, client, ct))
+                    principal, jobs, counts, options, credentials, instances, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -56,9 +56,9 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(SyncRunRoute,
             (SyncRunRequest? request, ICurrentPrincipalAccessor principal, IJobService jobs,
              IServiceScopeFactory scopes, OptionsStore options, ICredentialPort credentials,
-             IWhisparrClient client, CancellationToken ct)
+             IWhisparrInstanceFactory instances, CancellationToken ct)
                 => EnqueueSyncRunAsync(
-                    request, principal, jobs, scopes, options, credentials, client, ct))
+                    request, principal, jobs, scopes, options, credentials, instances, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -75,7 +75,7 @@ public sealed partial class WhisparrSync
         IServiceScopeFactory scopes,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         CancellationToken ct)
     {
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
@@ -87,7 +87,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        var refused = await SyncRefusalFor(options, credentials, client, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncEnqueued(null, refused));
@@ -110,7 +110,7 @@ public sealed partial class WhisparrSync
         SyncPreviewCache counts,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         CancellationToken ct)
     {
         if (!HasConfigurePermission(principal))
@@ -123,7 +123,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
 
         var running = SyncRunIsInFlight(jobs);
-        var refused = await SyncRefusalFor(options, credentials, client, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncPreviewRead(null, refused, running));
@@ -156,7 +156,7 @@ public sealed partial class WhisparrSync
             var target = await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
+                    services.GetRequiredService<IWhisparrInstanceFactory>(),
                     runCt)
                 .ConfigureAwait(false);
 
@@ -168,30 +168,29 @@ public sealed partial class WhisparrSync
             return SyncPassFor(target) switch
             {
                 SyncRegisters.Scenes => new SyncPreviewAiming(
-                    target.Generation,
+                    target.Binding.Generation,
                     SyncRegisters.Scenes,
                     (asked, batchCt) => target.Capabilities
                         .Obtain<IWhisparrSceneStatusReading>()
                         .Match(
                             reads => reads.ReduceHeldScenesAsync(
-                                target.BaseAddress, target.ApiKey, asked, batchCt),
+                                asked, batchCt),
                             _ => throw new InvalidOperationException(
                                 "A scene count reached a target holding no scene-status read.")),
                     HeldSites: null),
 
                 SyncRegisters.Sites => new SyncPreviewAiming(
-                    target.Generation,
+                    target.Binding.Generation,
                     SyncRegisters.Sites,
                     Held: null,
                     (asked, batchCt) => ReduceHeldSitesAsync(
                         services.GetRequiredService<ISiteNumberPort>(),
-                        target.BaseAddress,
-                        target.ApiKey,
+                        target.Binding,
                         (numbers, numbersCt) => target.Capabilities
                             .Obtain<IWhisparrHeldSiteReading>()
                             .Match(
                                 reads => reads.ReduceHeldSitesAsync(
-                                    target.BaseAddress, target.ApiKey, numbers, numbersCt),
+                                    numbers, numbersCt),
                                 _ => throw new InvalidOperationException(
                                     "A site count reached a target holding no held-site read.")),
                         asked,
@@ -210,8 +209,7 @@ public sealed partial class WhisparrSync
     // strength of nothing.
     internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
         ISiteNumberPort siteNumbers,
-        Uri baseAddress,
-        string apiKey,
+        WhisparrBinding binding,
         Func<IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlySet<int>>> heldSites,
         IReadOnlyCollection<string> asked,
         CancellationToken ct)
@@ -265,7 +263,7 @@ public sealed partial class WhisparrSync
             {
                 return (
                     identity,
-                    await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, identity, ct)
+                    await siteNumbers.ResolveSiteNumberAsync(binding, identity, ct)
                         .ConfigureAwait(false));
             }
             finally
@@ -286,7 +284,7 @@ public sealed partial class WhisparrSync
         IServiceScopeFactory scopes,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         CancellationToken ct)
     {
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
@@ -298,7 +296,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        var refused = await SyncRefusalFor(options, credentials, client, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncEnqueued(null, refused));
@@ -358,7 +356,7 @@ public sealed partial class WhisparrSync
             var target = await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
+                    services.GetRequiredService<IWhisparrInstanceFactory>(),
                     runCt)
                 .ConfigureAwait(false);
 
@@ -377,7 +375,7 @@ public sealed partial class WhisparrSync
                     await ComposeSceneAddAsync(owningKind: null, owningId: 0, services, runCt)
                             .ConfigureAwait(false) is { } register
                         ? new SyncLibraryAiming(
-                            target.Generation,
+                            target.Binding.Generation,
                             SyncRegisters.Scenes,
                             (identity, sceneCt) => OfferSceneAsync(register, identity, sceneCt),
                             RegisterSite: null,
@@ -391,7 +389,7 @@ public sealed partial class WhisparrSync
                             .ConfigureAwait(false)
                         is { } registerSite
                         ? new SyncLibraryAiming(
-                            target.Generation,
+                            target.Binding.Generation,
                             SyncRegisters.Sites,
                             RegisterScene: null,
                             registerSite,
@@ -421,7 +419,7 @@ public sealed partial class WhisparrSync
         if (await ResolveTargetAsync(
                 services.GetRequiredService<OptionsStore>(),
                 services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrClient>(),
+                services.GetRequiredService<IWhisparrInstanceFactory>(),
                 runCt).ConfigureAwait(false) is not { } target
             || target.Capabilities.Obtain<IWhisparrSiteRegistrationActing>()
                 .Match<IWhisparrSiteRegistrationActing?>(held => held, _ => null) is not { } acting
@@ -432,14 +430,14 @@ public sealed partial class WhisparrSync
         }
 
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, runCt),
+            () => target.Reads.ReadQualityProfilesAsync(runCt),
             target,
             _log,
             runCt).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, runCt),
+                () => target.Reads.ReadRootFoldersAsync(runCt),
                 target,
                 _log,
                 runCt).ConfigureAwait(false);
@@ -483,27 +481,27 @@ public sealed partial class WhisparrSync
             var registered = await SiteRegistrationStep.RegisterAsync(
                 (identity, readCt) => ContainedAsync(
                     () => studios.ReadStudioAsync(
-                        target.BaseAddress, target.ApiKey, target.Generation, identity, readCt),
+                        identity, readCt),
                     target,
                     _log,
                     readCt),
                 (identity, addCt) => composed.Defaults is { } addWith
                     ? ContainedAsync(
                         () => acting.RegisterSiteAsync(
-                            target.BaseAddress, target.ApiKey, identity, addWith, addCt),
+                            identity, addWith, addCt),
                         target,
                         _log,
                         addCt)
                     : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
                 (siteId, agreed, moveCt) => ContainedAsync(
                     () => acting.MoveSiteRootAsync(
-                        target.BaseAddress, target.ApiKey, siteId, agreed, moveCt),
+                        siteId, agreed, moveCt),
                     target,
                     _log,
                     moveCt),
                 (siteId, refreshCt) => ContainedAsync(
                     () => acting.RefreshSiteCatalogueAsync(
-                        target.BaseAddress, target.ApiKey, siteId, refreshCt),
+                        siteId, refreshCt),
                     target,
                     _log,
                     refreshCt),
@@ -580,16 +578,16 @@ public sealed partial class WhisparrSync
 
         var ports = new SiteSceneMonitorPorts(
             (studioId, ct) => scenes.SceneIdentitiesFor(
-                WhisparrEntityKind.Studio, studioId, target.Generation, ct),
+                WhisparrEntityKind.Studio, studioId, target.Binding.Generation, ct),
             async (providerSceneId, ct) =>
                 await (await catalogues(ct).ConfigureAwait(false))
                     .ResolveNumericSceneIdAsync(providerSceneId, ct)
                     .ConfigureAwait(false),
             (siteId, numbers, ct) => rows.ReduceSiteSceneRowsAsync(
-                target.BaseAddress, target.ApiKey, siteId, numbers, ct),
+                siteId, numbers, ct),
             (rowId, ct) => ContainedAsync(
                 () => monitoring.SetSceneMonitoredAsync(
-                    target.BaseAddress, target.ApiKey, target.Generation, rowId, monitored: true, ct),
+                    rowId, monitored: true, ct),
                 target,
                 _log,
                 ct));
@@ -638,7 +636,7 @@ public sealed partial class WhisparrSync
         if (sceneId is null && reading is not null)
         {
             var held = await ContainedAsync(
-                () => reading.ReadSceneByRemoteIdAsync(target.BaseAddress, target.ApiKey, identity, ct),
+                () => reading.ReadSceneByRemoteIdAsync(identity, ct),
                 target,
                 _log,
                 ct).ConfigureAwait(false);
@@ -650,9 +648,6 @@ public sealed partial class WhisparrSync
         return sceneId is { } named
             ? await ContainedAsync(
                 () => monitoring.SetSceneMonitoredAsync(
-                    target.BaseAddress,
-                    target.ApiKey,
-                    target.Generation,
                     named,
                     monitored: true,
                     ct),
@@ -673,10 +668,10 @@ public sealed partial class WhisparrSync
     private static async Task<SyncRefusalKind> SyncRefusalFor(
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         CancellationToken ct)
     {
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return SyncRefusalKind.NoInstanceConnected;

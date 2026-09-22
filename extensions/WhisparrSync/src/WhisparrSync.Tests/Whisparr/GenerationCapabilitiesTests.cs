@@ -72,7 +72,7 @@ public sealed class GenerationCapabilitiesTests
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V2,
-            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
 
         var refusal = capabilities.Obtain<IWhisparrMissingSceneActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
@@ -90,7 +90,7 @@ public sealed class GenerationCapabilitiesTests
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V2,
-            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
 
         var refusal = capabilities.Obtain<IWhisparrPerformerActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
@@ -109,7 +109,7 @@ public sealed class GenerationCapabilitiesTests
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V3,
-            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
 
         Assert.Contains(WhisparrCapability.MonitorPerformer, capabilities.Held);
         Assert.NotNull(
@@ -181,7 +181,7 @@ public sealed class GenerationCapabilitiesTests
         Assert.NotNull(SceneSearchRoleOn(WhisparrGeneration.V3, client));
 
         var refusal = GenerationCapabilities
-            .For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+            .For(WhisparrGeneration.V2, client)
             .Obtain<IWhisparrSceneSearchGrabbing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
@@ -199,12 +199,12 @@ public sealed class GenerationCapabilitiesTests
 
         Assert.NotNull(
             GenerationCapabilities
-                .For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+                .For(WhisparrGeneration.V2, client)
                 .Obtain<IWhisparrHeldSiteReading>()
                 .Match<IWhisparrHeldSiteReading?>(held => held, _ => null));
 
         var refusal = GenerationCapabilities
-            .For(WhisparrGeneration.V3, WhisparrRoleSet.From(client))
+            .For(WhisparrGeneration.V3, client)
             .Obtain<IWhisparrHeldSiteReading>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
@@ -216,7 +216,7 @@ public sealed class GenerationCapabilitiesTests
     private static IWhisparrSceneSearchGrabbing? SceneSearchRoleOn(
         WhisparrGeneration generation, RecordingWhisparrClient client)
         => GenerationCapabilities
-            .For(generation, WhisparrRoleSet.From(client))
+            .For(generation, client)
             .Obtain<IWhisparrSceneSearchGrabbing>()
             .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null);
 
@@ -227,7 +227,7 @@ public sealed class GenerationCapabilitiesTests
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V2,
-            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
 
         var refusal = capabilities.Obtain<IWhisparrMissingSceneActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
@@ -242,7 +242,7 @@ public sealed class GenerationCapabilitiesTests
     {
         var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
         var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V2, WhisparrRoleSet.From(client));
+            WhisparrGeneration.V2, client);
 
         Assert.Contains(WhisparrCapability.MonitorStudio, capabilities.Held);
         Assert.Same(

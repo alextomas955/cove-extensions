@@ -9,10 +9,7 @@ namespace WhisparrSync.Tests.Missing;
 public sealed class SceneStatusPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-movie-by-stashid.json";
-    private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
     private const string EntityForeignId = "5ee16943-0da6-4ee4-94c1-54172e3d0b7e";
-
-    private static Uri SomeInstance => new("http://whisparr.invalid:6969");
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -32,8 +29,7 @@ public sealed class SceneStatusPortTests
         var ids = PageOfForty();
 
         var states = await SceneStatusPort.ReadStatesAsync(
-            reading,
-            SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
+            reading, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
         Assert.Equal(40, states.Count);
         Assert.All(states.Values, state => Assert.Equal(MissingSceneState.NotAdded, state));
@@ -48,8 +44,7 @@ public sealed class SceneStatusPortTests
         var ids = PageOfForty();
 
         await SceneStatusPort.ReadStatesAsync(
-            reading,
-            SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
+            reading, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
         Assert.Equal(1, reading.PresenceCalls);
         Assert.Equal(40, reading.SceneCalls);
@@ -63,9 +58,9 @@ public sealed class SceneStatusPortTests
         var handler = BodyRecordingHandler.Answering(
             System.Net.HttpStatusCode.OK, RecordedRow());
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http, handler);
+        var client = (IWhisparrSceneStatusReading)TestWhisparrClient.Over(http, handler);
 
-        await client.ReadSceneByRemoteIdAsync(SomeInstance, SomeKey, "a-scene", TestCt);
+        await client.ReadSceneByRemoteIdAsync("a-scene", TestCt);
 
         var target = handler.Targets[0];
         Assert.Equal(1, CountOf(target, "stashId="));
@@ -84,8 +79,7 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: rewritten);
 
         var states = await SceneStatusPort.ReadStatesAsync(
-            reading,
-            SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
+            reading, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
         Assert.Equal(expected, states["a-scene"]);
     }
@@ -101,8 +95,7 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: absent);
 
         var states = await SceneStatusPort.ReadStatesAsync(
-            reading,
-            SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
+            reading, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
         Assert.Equal(MissingSceneState.NotAdded, states["a-scene"]);
     }
@@ -113,8 +106,7 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 500);
 
         var states = await SceneStatusPort.ReadStatesAsync(
-            reading,
-            SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, PageOfForty(), TestCt);
+            reading, WhisparrEntityKind.Studio, EntityForeignId, PageOfForty(), TestCt);
 
         Assert.All(states.Values, state => Assert.Equal(MissingSceneState.StatusUnknown, state));
         Assert.Equal(0, reading.SceneCalls);
@@ -162,8 +154,6 @@ public sealed class SceneStatusPortTests
         public int SceneCalls { get; private set; }
 
         public Task<WhisparrResponse> ReadEntityPresenceAsync(
-            Uri baseAddress,
-            string apiKey,
             WhisparrEntityKind kind,
             string foreignId,
             CancellationToken ct)
@@ -173,15 +163,13 @@ public sealed class SceneStatusPortTests
         }
 
         public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-            Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+            string remoteId, CancellationToken ct)
         {
             SceneCalls++;
             return Task.FromResult(new WhisparrResponse(200, "application/json", sceneAnswer));
         }
 
         public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(

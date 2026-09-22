@@ -196,7 +196,7 @@ public sealed partial class WhisparrSync
                 target = await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
+                    services.GetRequiredService<IWhisparrInstanceFactory>(),
                     runCt).ConfigureAwait(false);
                 targetResolved = true;
             }
@@ -234,7 +234,7 @@ public sealed partial class WhisparrSync
 
             var searched = await ContainedAsync(
                 () => grabbing.SearchMonitoredAsync(
-                    resolved.BaseAddress, resolved.ApiKey, resolved.Generation, kind, entityIds, runCt),
+                    kind, entityIds, runCt),
                 resolved,
                 _log,
                 runCt).ConfigureAwait(false);
