@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;

@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Cove.Core.Auth;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
