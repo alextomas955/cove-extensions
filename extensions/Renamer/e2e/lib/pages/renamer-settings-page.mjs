@@ -278,9 +278,9 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
-  /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */
+  /** The video live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
-    return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
+    return this.page.getByText("Video", { exact: true }).locator("..");
   }
 
   hasUndoAvailable() {

@@ -30,7 +30,7 @@ export function PreviewCard({ result }: { result: PreviewSampleResult }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-        Sample: {result.sampleLabel}
+        {result.sampleLabel}
       </div>
 
       {result.folder.length > 0 ? (
@@ -38,10 +38,7 @@ export function PreviewCard({ result }: { result: PreviewSampleResult }) {
       ) : null}
 
       <div className="font-mono text-sm text-muted line-through">{result.oldName}</div>
-      <div className="font-mono text-sm text-foreground">
-        <span className="text-muted">Renamed → </span>
-        {result.newName}
-      </div>
+      <div className="font-mono text-sm text-foreground">{result.newName}</div>
 
       {result.flags.length > 0 ? (
         <div className="mt-2 space-y-1">

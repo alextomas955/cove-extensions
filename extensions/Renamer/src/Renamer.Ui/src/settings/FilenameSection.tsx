@@ -134,7 +134,7 @@ export function FilenameSection({
 
         <CardSection
           title="Where files go"
-          description="Folder path template. Moves files on rename, and applies to every kind. Used when no routing rule matches."
+          description="Renaming moves the file here. Every kind follows this unless it overrides it below."
           divided
         >
           <DestinationField
