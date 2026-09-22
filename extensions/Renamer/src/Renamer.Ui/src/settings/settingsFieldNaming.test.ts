@@ -23,6 +23,8 @@ import { someOptions } from "./testOptions";
 import { HOST_SELECTOR_MARK } from "../../../../../../shared/ui-shared/src/coveRuntimeComponentsStub";
 import type { LibraryPathsState, RenamerOptions } from "./options";
 
+import { waitFor } from "../common/lib/flushRender";
+
 import { AdvancedSection } from "./AdvancedSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
 import { FilenameSection } from "./FilenameSection";
@@ -68,20 +70,6 @@ function seededOptions(): RenamerOptions {
 }
 
 const LIBRARY: LibraryPathsState = { paths: ["/media"], loading: false, failed: false };
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Waits for a rendered condition rather than a span, so a slow machine does not decide the result. */
-async function waitFor(what: string, holds: () => boolean, timeoutMs = 4000) {
-  const deadline = Date.now() + timeoutMs;
-  while (!holds()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
-    await sleep(10);
-  }
-}
 
 /** Every section that renders a field, each in a block naming it, in one document. */
 function Panel() {

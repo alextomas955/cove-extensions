@@ -6,9 +6,8 @@
  * first request fails there is no preview to keep: `preview` stays null and the error flag is set. That
  * pair is a settled outcome, not a wait — the pane must not also claim a render is still coming.
  *
- * A DOM is needed because the claim is about what is on screen. React arrives as its production build
- * (the bundle's `process.env.NODE_ENV` define applies here too), which has no `act`, so the render is
- * flushed by waiting rather than by wrapping.
+ * A DOM is needed because the claim is about what is on screen. A render commits on React's own schedule, so the
+ * test waits for the pane to appear rather than for a span.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle: that package deliberately has no node_modules of its own. Each stand-in marks itself so the
@@ -17,6 +16,8 @@
 import { test, expect, vi } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import type { PreviewSampleResult } from "../wire/api";
 
@@ -39,20 +40,12 @@ vi.mock("./PreviewCard", async () => {
 
 const { LivePreviewPane } = await import("./LivePreviewPane");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function renderPane(preview: PreviewSampleResult[] | null, previewError: boolean) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(LivePreviewPane, { preview, previewError }));
-  await sleep(COMMIT_MS);
+  await waitFor("the pane to render", () => container.childElementCount > 0);
 
   return {
     text: container.textContent,

@@ -16,13 +16,16 @@
  * This is the one UI suite that needs a DOM: the subject is a hook, and its stopping is observable
  * only once React has run its effects and re-rendered. Hence the environment pragma above, which the
  * other suites (all pure modules) neither carry nor need. `node:assert` is unreachable under it, so
- * the assertions here are vitest's `expect` rather than the node:assert the pure suites use. React
- * arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here too), which
- * has no `act`, so renders are flushed by waiting rather than by wrapping.
+ * the assertions here are vitest's `expect` rather than the node:assert the pure suites use. A render
+ * commits on React's own schedule, so each step waits for the state its assertion is about — with one
+ * exception, marked where it stands, which waits on real elapsed time because it asserts that nothing
+ * happens while it elapses.
  */
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import type { DryRunCounts } from "./dry-run/dryRunLogic";
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
@@ -73,9 +76,6 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 /** Mount the hook and hand back its latest return value plus a teardown. */
 async function mountHook() {
   let latest: UseRenameLibrary | null = null;
@@ -88,7 +88,7 @@ async function mountHook() {
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(Probe));
-  await sleep(COMMIT_MS);
+  await waitFor("the probe to render", () => latest !== null);
 
   return {
     get current(): UseRenameLibrary {
@@ -112,13 +112,14 @@ test("a job that stops reporting progress ends the run instead of polling foreve
   const hook = await mountHook();
 
   await hook.current.renameLibrary(COUNTS);
-  await sleep(COMMIT_MS);
+  await waitFor("the run to end", () => !hook.current.renamingLibrary);
 
   const readsAtSettlement = host.reads.length;
 
   // The claim is that the poll stopped, which a single count cannot show — a still-running interval
   // and a stopped one look identical at one instant. So let several more poll periods pass and
-  // require the count not to move.
+  // require the count not to move. A duration, not a condition: what is being waited for here is
+  // real elapsed time, because the assertion is that nothing happens during it.
   await sleep(3_000);
 
   expect(host.reads.length, "the poll kept reading job status after the run ended").toBe(
@@ -143,7 +144,7 @@ test("a completed job still resolves through the same poll", async () => {
   const hook = await mountHook();
 
   await hook.current.renameLibrary(COUNTS);
-  await sleep(COMMIT_MS);
+  await waitFor("the run to end", () => !hook.current.renamingLibrary);
 
   expect(hook.current.renamingLibrary).toBe(false);
   expect(hook.current.runLibraryFeedback).toEqual({

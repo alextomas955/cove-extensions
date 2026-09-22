@@ -8,12 +8,14 @@
  * bundle. `Button` stands in as a real <button> so a click reaches the handler; DestinationField
  * stands in whole, so what the assertions read is this component's own output.
  *
- * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so the render is flushed by waiting rather than by wrapping.
+ * A render commits on React's own schedule, so the test waits for the rows to appear rather than
+ * for a span.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import { PerKindRows } from "./PerKindRows";
 import { RENAMABLE_KINDS, type LibraryPathsState, type RenamerOptions } from "./options";
@@ -41,14 +43,6 @@ vi.mock("./DestinationField", () => ({
 
 const LIBRARY: LibraryPathsState = { paths: ["D:/library"], loading: false, failed: false };
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function renderRows(kinds: RenamerOptions["kinds"]) {
   const options = { ...someOptions(), kinds };
   const set = vi.fn();
@@ -57,7 +51,7 @@ async function renderRows(kinds: RenamerOptions["kinds"]) {
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(PerKindRows, { options, set, library: LIBRARY }));
-  await sleep(COMMIT_MS);
+  await waitFor("the rows to render", () => container.querySelector("button") !== null);
 
   const row = (label: string) => {
     const cell = [...container.querySelectorAll("span")].find((s) => s.textContent === label);

@@ -12,13 +12,15 @@
  * The gender-order sentence is read off the rendered screen, because it says what
  * `MultiValue.GenderRank` does with a gender the user left out. The shared primitives stand in,
  * because their `react` import resolves only inside a consuming bundle, and the entity adapter
- * stands in whole because `@cove/runtime/*` resolves only inside a running Cove. React arrives as
- * its production build, which has no `act`, so the render is flushed by waiting.
+ * stands in whole because `@cove/runtime/*` resolves only inside a running Cove. A render commits on React's own
+ * schedule, so the test waits for the token group to appear rather than for a span.
  */
 import { test, expect, vi } from "vitest";
 import assert from "node:assert/strict";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import { someOptions } from "./testOptions";
 
@@ -86,14 +88,6 @@ test("every date example is what the engine's formatter renders for 2026-03-12",
   ]);
 });
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 function textNodes(container: HTMLElement, text: string): number {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let found = 0;
@@ -118,7 +112,10 @@ test("the gender order says where a gender the user left out ends up", async () 
       insertToken: () => undefined,
     }),
   );
-  await sleep(COMMIT_MS);
+  await waitFor(
+    "the token group to render",
+    () => container.querySelector('[data-stub="GroupCard"]') !== null,
+  );
 
   expect(textNodes(container, "Most-preferred first. Anyone else sorts last.")).toBe(1);
   expect(textNodes(container, "Most-preferred first.")).toBe(0);

@@ -8,9 +8,8 @@
  * available is a confident success.
  *
  * A DOM is needed because the subject is the hook's catch arm, and which sentence it picks is
- * observable only once React has committed. React arrives as its production build (the bundle's
- * `process.env.NODE_ENV` define applies here too), which has no `act`, so renders are flushed by
- * waiting rather than by wrapping.
+ * observable only once React has committed. A render commits on React's own schedule, so each step
+ * waits for the state its assertion is about rather than for a span.
  *
  * The stubs are the host seams and never the subject: the request module, whose real one reaches
  * `@cove/runtime/api`; the shared primitives, whose `react` import resolves only inside a consuming
@@ -19,6 +18,8 @@
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 const server = vi.hoisted(() => ({
   /** Rejection handed to the undo POST, or null to answer it with a clean full restore. */
@@ -90,35 +91,30 @@ vi.mock("../common/ui/Dialog", async () => {
 
 const { UndoSection } = await import("./UndoSection");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 /** Mount the section, run the undo to its verdict, and hand back the text a user would read. */
 async function undoAndReadFeedback(): Promise<string> {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(UndoSection, { refreshKey: 0 }));
-  await sleep(COMMIT_MS);
 
-  const open = [...container.querySelectorAll("button")].find((b) =>
-    b.textContent.includes("Undo last rename"),
-  );
-  expect(open, "the undo button never rendered").toBeDefined();
-  open?.click();
-  await sleep(COMMIT_MS);
+  const button = (matches: (text: string) => boolean) =>
+    [...container.querySelectorAll("button")].find((b) => matches(b.textContent));
 
-  const confirm = [...container.querySelectorAll("button")].find((b) =>
-    /^Undo \d+ rename/.test(b.textContent),
+  const opensTheDialog = (text: string) => text.includes("Undo last rename");
+  await waitFor("the undo button to render", () => button(opensTheDialog) !== undefined);
+  button(opensTheDialog)?.click();
+
+  const confirms = (text: string) => /^Undo \d+ rename/.test(text);
+  await waitFor("the confirm button to render", () => button(confirms) !== undefined);
+  button(confirms)?.click();
+
+  // The verdict is a status line, and every arm of this suite reads one: the undo either reports the
+  // restore it performed or says it could not confirm.
+  await waitFor(
+    "the undo to reach a verdict",
+    () => container.querySelector("[data-status]") !== null,
   );
-  expect(confirm, "the confirm button never rendered").toBeDefined();
-  confirm?.click();
-  await sleep(COMMIT_MS * 4);
 
   const text = container.textContent;
   root.unmount();

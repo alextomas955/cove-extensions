@@ -10,12 +10,14 @@
  * text-bearing props and the children it is handed and nothing else, so what the assertions read is
  * this section's own output.
  *
- * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here too),
- * which has no `act`, so the render is flushed by waiting rather than by wrapping.
+ * A render commits on React's own schedule, so the test waits for the card to appear rather than for
+ * a span.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, createRef, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import { FilenameSection, type FilenameSectionProps } from "./FilenameSection";
 import { type LibraryPathsState } from "./options";
@@ -54,14 +56,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 
 const LIBRARY: LibraryPathsState = { paths: ["D:/library"], loading: false, failed: false };
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function renderSection(overrides: Partial<FilenameSectionProps>) {
   const props: FilenameSectionProps = {
     options: someOptions(),
@@ -82,7 +76,10 @@ async function renderSection(overrides: Partial<FilenameSectionProps>) {
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(FilenameSection, props));
-  await sleep(COMMIT_MS);
+  await waitFor(
+    "the card to render",
+    () => container.querySelector('[data-stub="SectionCard"]') !== null,
+  );
 
   return {
     text: () => container.textContent,

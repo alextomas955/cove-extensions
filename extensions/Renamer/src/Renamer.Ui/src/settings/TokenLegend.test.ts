@@ -10,6 +10,8 @@ import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { waitFor } from "../common/lib/flushRender";
+
 import { TokenLegend } from "./TokenLegend";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -22,14 +24,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   };
 });
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function marked(filenameTemplate: string, folderTemplate: string): Promise<string[]> {
   const container = document.createElement("div");
   document.body.append(container);
@@ -37,7 +31,7 @@ async function marked(filenameTemplate: string, folderTemplate: string): Promise
   root.render(
     createElement(TokenLegend, { onInsert: () => undefined, filenameTemplate, folderTemplate }),
   );
-  await sleep(COMMIT_MS);
+  await waitFor("the legend chips to render", () => container.querySelector("button") !== null);
 
   const chips = [...container.querySelectorAll("button")];
   expect(chips.length).toBeGreaterThan(0);

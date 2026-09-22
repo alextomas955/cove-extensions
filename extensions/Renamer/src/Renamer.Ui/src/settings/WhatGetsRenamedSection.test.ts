@@ -6,11 +6,13 @@
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle.
  *
- * React arrives as its production build, which has no `act`, so the render is flushed by waiting.
+ * A render commits on React's own schedule, so each step waits for the state its assertion is about rather than for a span.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
 import { someOptions } from "./testOptions";
@@ -42,14 +44,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   };
 });
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function renderSection() {
   const container = document.createElement("div");
   document.body.append(container);
@@ -57,7 +51,10 @@ async function renderSection() {
   root.render(
     createElement(WhatGetsRenamedSection, { options: someOptions(), set: () => undefined }),
   );
-  await sleep(COMMIT_MS);
+  await waitFor(
+    "the section to render",
+    () => container.querySelector('[data-stub="TagListInput"]') !== null,
+  );
 
   return {
     container,

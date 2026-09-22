@@ -9,13 +9,14 @@
  *
  * One seam is stubbed, and it is not the subject: the host request helper, because it reaches
  * `@cove/runtime/api`, which exists only inside Cove. Its stand-in hands each call's resolver back to
- * the test so settle order is the test's to choose. React arrives as its production build (the
- * bundle's `process.env.NODE_ENV` define applies here too), which has no `act`, so renders are flushed
- * by waiting rather than by wrapping.
+ * the test so settle order is the test's to choose, and the promise itself so a test can let the
+ * hook's own handler run before reading the result.
  */
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../common/lib/flushRender";
 
 import { useRenamePreview, type UseRenamePreview } from "./useRenamePreview";
 import { type RenamerOptions } from "./options";
@@ -28,19 +29,34 @@ const host = vi.hoisted(() => ({
     aborted: () => boolean;
     resolve: (rows: unknown) => void;
     reject: (err: unknown) => void;
+    handled: () => Promise<void>;
   }[],
+  noop: () => undefined,
 }));
+const { noop } = host;
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
-  requestJson: (_path: string, init: RequestInit) =>
-    new Promise((resolve, reject) => {
-      host.calls.push({
-        aborted: () => init.signal?.aborted === true,
-        resolve,
-        reject,
-      });
-    }),
+  requestJson: (_path: string, init: RequestInit) => {
+    let settle: { resolve: (rows: unknown) => void; reject: (err: unknown) => void };
+    const promise = new Promise((resolve, reject) => {
+      settle = { resolve, reject };
+    });
+    host.calls.push({
+      aborted: () => init.signal?.aborted === true,
+      resolve: (rows) => {
+        settle.resolve(rows);
+      },
+      reject: (err) => {
+        settle.reject(err);
+      },
+      // The hook registered its handler on this promise first, so a continuation added here runs
+      // after it. That is what lets a test read a decision the hook made and then discarded, which
+      // changes nothing on screen and so offers nothing to wait for.
+      handled: () => promise.then(noop, noop),
+    });
+    return promise;
+  },
 }));
 
 // The shared barrel re-exports the React primitives, whose `react`/`lucide-react` imports resolve only
@@ -55,11 +71,11 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Past the hook's 250ms debounce, with room for React to commit on the default lane without `act`. */
+/**
+ * Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
+ * real elapsed time, because a debounce is a timer and nothing renders while it runs.
+ */
 const PAST_DEBOUNCE_MS = 400;
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
 
 function sample(label: string): PreviewSampleResult[] {
   return [
@@ -121,12 +137,13 @@ test("an older preview response cannot repaint the pane over a newer one", async
   expect(host.calls.length, "the second POST was never issued").toBe(2);
 
   host.calls[1].resolve(sample("second"));
-  await sleep(COMMIT_MS);
+  await waitFor("the newer response to paint", () => hook.current.preview !== null);
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
 
-  // The older request answers last, which is the ordering the debounce cannot prevent.
+  // The older request answers last, which is the ordering the debounce cannot prevent. A response
+  // the hook discards paints nothing, so what is waited for is the hook's handler having run.
   host.calls[0].resolve(sample("first"));
-  await sleep(COMMIT_MS);
+  await host.calls[0].handled();
 
   expect(hook.current.preview?.[0].sampleLabel, "the superseded response repainted the pane").toBe(
     "second",
@@ -152,11 +169,11 @@ test("superseding a request aborts it, and that abort is not reported as a failu
   // The host's fetch rejects an aborted request. Reporting that would be an error the hook caused
   // itself, while the request the user is waiting on is still on its way.
   host.calls[0].reject(new Error("aborted"));
-  await sleep(COMMIT_MS);
+  await host.calls[0].handled();
   expect(hook.current.previewError, "an abort was surfaced as a preview failure").toBe(false);
 
   host.calls[1].resolve(sample("second"));
-  await sleep(COMMIT_MS);
+  await waitFor("the surviving response to paint", () => hook.current.preview !== null);
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
   expect(hook.current.previewError).toBe(false);
 
