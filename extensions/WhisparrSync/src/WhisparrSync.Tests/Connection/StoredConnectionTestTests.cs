@@ -311,9 +311,20 @@ public sealed class StoredConnectionTestTests
         public Task<bool> HasKeyAsync(WhisparrGeneration generation, CancellationToken ct)
             => inner.HasKeyAsync(generation, ct);
 
+        public async Task<WhisparrStoredConnection?> ReadConnectionAsync(
+            WhisparrGeneration generation, CancellationToken ct)
+        {
+            var held = await inner.ReadConnectionAsync(generation, ct);
+            return new WhisparrStoredConnection(held?.Address ?? "", key);
+        }
+
         public Task ApplyAsync(
-            WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc, CancellationToken ct)
-            => inner.ApplyAsync(generation, write, nowUtc, ct);
+            WhisparrGeneration generation,
+            CredentialWrite write,
+            string address,
+            DateTimeOffset nowUtc,
+            CancellationToken ct)
+            => inner.ApplyAsync(generation, write, address, nowUtc, ct);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

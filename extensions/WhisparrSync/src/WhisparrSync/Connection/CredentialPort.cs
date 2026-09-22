@@ -29,21 +29,45 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
             .AnyAsync(credential => credential.Generation == key, ct);
     }
 
+    public async Task<WhisparrStoredConnection?> ReadConnectionAsync(
+        WhisparrGeneration generation, CancellationToken ct)
+    {
+        var key = StoredNameOf(generation);
+        var row = await db.Set<WhisparrCredentialEntity>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(credential => credential.Generation == key, ct)
+            .ConfigureAwait(false);
+        return row is null ? null : new WhisparrStoredConnection(row.Address, row.ApiKey);
+    }
+
     public async Task ApplyAsync(
-        WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc, CancellationToken ct)
+        WhisparrGeneration generation,
+        CredentialWrite write,
+        string address,
+        DateTimeOffset nowUtc,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(write);
-
-        if (write.Kind == CredentialWriteKind.Keep)
-        {
-            return;
-        }
 
         var key = StoredNameOf(generation);
         var rows = db.Set<WhisparrCredentialEntity>();
         var stored = await rows
             .FirstOrDefaultAsync(credential => credential.Generation == key, ct)
             .ConfigureAwait(false);
+
+        if (write.Kind == CredentialWriteKind.Keep)
+        {
+            // The key is left alone and the address still written: the two travel together, and a
+            // row naming the instance before this save is the pair a request would be built from.
+            if (stored is not null && stored.Address != address)
+            {
+                stored.Address = address;
+                stored.UpdatedAtUtcTicks = nowUtc.UtcTicks;
+                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            }
+
+            return;
+        }
 
         if (write.Kind == CredentialWriteKind.Clear)
         {
@@ -60,12 +84,15 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
             {
                 Generation = key,
                 ApiKey = write.ApiKey!,
+                Address = address,
                 UpdatedAtUtcTicks = nowUtc.UtcTicks,
             });
         }
         else
         {
             stored.ApiKey = write.ApiKey!;
+            // Written with the key, never separately: the two are one outbound value.
+            stored.Address = address;
             stored.UpdatedAtUtcTicks = nowUtc.UtcTicks;
         }
 
