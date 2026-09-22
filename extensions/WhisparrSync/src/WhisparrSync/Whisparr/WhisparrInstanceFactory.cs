@@ -21,9 +21,9 @@ public interface IWhisparrInstanceFactory
     IWhisparrClient Bound(WhisparrBinding binding);
 }
 
-// The one switch on the generation this product keeps. Every other place a generation used to be
-// branched on now reaches the instance built here, which declares only the roles its generation
-// holds.
+// The one switch on the generation this product keeps, outbound and inbound. Every other place a
+// generation used to be branched on now reaches the instance or the reader built here, each of
+// which declares only the roles its generation holds.
 //
 // An instance is cheap, holding no connection and no buffer; the transport and the two gateways it
 // sends through are the registered singletons.
@@ -46,4 +46,15 @@ internal sealed class WhisparrInstanceFactory(
             _ => throw new ArgumentOutOfRangeException(nameof(binding)),
         };
     }
+
+    // Static and stateless, because a reader is picked from a generation a caller already
+    // established rather than from a stored connection: a webhook reads one off the user agent
+    // before any setting is consulted.
+    internal static IWhisparrPayloadReading ReadingFor(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => V3PayloadReader.Reading,
+            WhisparrGeneration.V2 => V2PayloadReader.Reading,
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 }
