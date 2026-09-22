@@ -7,6 +7,7 @@
 import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
+import type { MissingRun } from "./missingRunLogic";
 import type { WhisparrEntityKind } from "../wire/api";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
@@ -37,6 +38,13 @@ export interface MissingState {
    * selection per page. It names no scene, so nothing here grows with the page.
    */
   readonly bulk: SelectionOutcome;
+  /**
+   * The run this browser started and is still waiting on, or null where none is.
+   *
+   * Held apart from `bulk`, which is what the press itself answered: the press settles in
+   * milliseconds and the run it enqueued goes on for as long as it takes.
+   */
+  readonly running: MissingRun | null;
 }
 
 // The view is absent rather than empty, so nothing renders a catalogue of zero scenes before the
@@ -46,6 +54,7 @@ export const INITIAL_MISSING_STATE: MissingState = {
   view: null,
   cardActions: {},
   bulk: SELECTION_AT_REST,
+  running: null,
 };
 
 export interface MissingStore {
@@ -65,7 +74,9 @@ export interface MissingStore {
   ) => void;
   /** The press produced no answer at all, so nothing is claimed about the instance. */
   cardActionFailed: (entity: MissingEntity, providerSceneId: string) => void;
-  beginBulk: (entity: MissingEntity) => void;
+  beginBulk: (entity: MissingEntity, run: MissingRun) => void;
+  /** The run this browser was waiting on has stopped, however it ended. */
+  runEnded: (entity: MissingEntity) => void;
   /** The route answered. A refusal keeps whatever is ticked, so the reader can press again. */
   bulkSettled: (entity: MissingEntity, outcome: SelectionOutcome) => void;
 }
@@ -177,14 +188,25 @@ export function createMissingStore(): MissingStore {
       }));
     },
 
-    beginBulk(entity) {
+    beginBulk(entity, run) {
       if (!sameEntity(onScreen, entity)) return;
-      emit({ ...state, bulk: { kind: "inFlight" } });
+      emit({ ...state, bulk: { kind: "inFlight" }, running: run });
     },
 
+    // A press that started nothing leaves no run to wait on, so the cards stop saying they are
+    // being worked through and the reason takes their place.
     bulkSettled(entity, outcome) {
       if (!sameEntity(onScreen, entity)) return;
-      emit({ ...state, bulk: outcome });
+      emit({
+        ...state,
+        bulk: outcome,
+        running: outcome.kind === "started" ? state.running : null,
+      });
+    },
+
+    runEnded(entity) {
+      if (!sameEntity(onScreen, entity)) return;
+      emit({ ...state, bulk: SELECTION_AT_REST, running: null });
     },
   };
 

@@ -16,6 +16,7 @@ import type { WhisparrEntityKind } from "../wire/api";
 import { readEntityKind } from "./entityKindLogic";
 import { useMultiSelect } from "./hostComponents";
 import { MissingGrid } from "./MissingGrid";
+import { runIsUnderWay } from "./missingRunLogic";
 import { MissingPager } from "./MissingPager";
 import { MissingSelectionBar } from "./MissingSelectionBar";
 import { MissingToolbar } from "./MissingToolbar";
@@ -112,12 +113,14 @@ function MissingTabFor({
     [selectIds],
   );
 
-  // A started run changes nothing on the page it was started from, so ticks left behind would
-  // invite a second run over the same scenes.
-  const runStarted = state.bulk.kind === "started";
+  // The ticks are dropped once the run has finished, not when it starts: while it is under way the
+  // cards it covers say so, and a reader who could not see which ones were picked would have no
+  // idea what the run was working through.
+  const runUnderWay = runIsUnderWay(state.running);
+  const runFinished = !runUnderWay && state.bulk.kind === "atRest";
   useEffect(() => {
-    if (runStarted) selectNone();
-  }, [runStarted, selectNone]);
+    if (runFinished) selectNone();
+  }, [runFinished, selectNone]);
 
   return (
     <div className="mx-auto max-w-7xl px-4">
@@ -130,6 +133,7 @@ function MissingTabFor({
         loadedPageIds={loadedPageIds}
         selected={selectedIds}
         outcome={state.bulk}
+        runUnderWay={runUnderWay}
         onSelect={onSelect}
         onUnmonitorSelection={() => {
           unmonitorSelection([...selectedIds]);
@@ -168,6 +172,7 @@ function MissingTabFor({
           selecting: selectedIds.size > 0,
           onToggleSelect: toggle,
           actions: state.cardActions,
+          running: state.running,
           onMonitor: monitorScene,
           onSearch: searchScene,
         }}
