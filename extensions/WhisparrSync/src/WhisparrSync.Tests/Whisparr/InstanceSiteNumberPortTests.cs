@@ -1,4 +1,5 @@
 using System.Net;
+using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -23,7 +24,8 @@ public sealed class InstanceSiteNumberPortTests
         using var gateway = new Whisparr2Gateway(() => handler);
 
         var resolved = await new InstanceSiteNumberPort(gateway)
-            .ResolveSiteNumberAsync(SomeAddress, SomeKey, "3372", TestCt);
+            .ResolveSiteNumberAsync(
+                new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey), "3372", TestCt);
 
         Assert.Equal(3372, resolved.Number);
         Assert.Empty(handler.Requests);
@@ -37,7 +39,8 @@ public sealed class InstanceSiteNumberPortTests
         using var gateway = new Whisparr2Gateway(() => handler);
 
         var resolved = await new InstanceSiteNumberPort(gateway)
-            .ResolveSiteNumberAsync(SomeAddress, SomeKey, StudioUuid, TestCt);
+            .ResolveSiteNumberAsync(
+                new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey), StudioUuid, TestCt);
 
         Assert.Equal(92, resolved.Number);
         Assert.Contains(StudioUuid, Assert.Single(handler.Targets), StringComparison.Ordinal);
@@ -51,7 +54,8 @@ public sealed class InstanceSiteNumberPortTests
         using var gateway = new Whisparr2Gateway(() => handler);
 
         var resolved = await new InstanceSiteNumberPort(gateway)
-            .ResolveSiteNumberAsync(SomeAddress, SomeKey, StudioUuid, TestCt);
+            .ResolveSiteNumberAsync(
+                new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey), StudioUuid, TestCt);
 
         Assert.Equal(WhisparrSiteNumber.NamesNone, resolved);
         Assert.True(resolved.WasReached);
@@ -66,7 +70,8 @@ public sealed class InstanceSiteNumberPortTests
         using var gateway = new Whisparr2Gateway(() => handler);
 
         var resolved = await new InstanceSiteNumberPort(gateway)
-            .ResolveSiteNumberAsync(SomeAddress, SomeKey, StudioUuid, TestCt);
+            .ResolveSiteNumberAsync(
+                new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey), StudioUuid, TestCt);
 
         Assert.Equal(WhisparrSiteNumber.NotReached, resolved);
         Assert.NotEqual(WhisparrSiteNumber.NamesNone, resolved);
@@ -82,7 +87,8 @@ public sealed class InstanceSiteNumberPortTests
         using var gateway = new Whisparr2Gateway(() => handler);
 
         var resolved = await new InstanceSiteNumberPort(gateway)
-            .ResolveSiteNumberAsync(SomeAddress, SomeKey, StudioUuid, TestCt);
+            .ResolveSiteNumberAsync(
+                new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey), StudioUuid, TestCt);
 
         Assert.Equal(WhisparrSiteNumber.NamesNone, resolved);
     }

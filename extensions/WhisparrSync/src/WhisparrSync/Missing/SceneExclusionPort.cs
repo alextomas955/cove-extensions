@@ -13,8 +13,6 @@ internal static class SceneExclusionPort
     // One request per page derivation, never one per card.
     public static async Task<IReadOnlySet<string>> ReadExcludedAsync(
         IWhisparrSceneExclusionReading reading,
-        Uri baseAddress,
-        string apiKey,
         IReadOnlyList<string> providerSceneIds,
         CancellationToken ct)
     {
@@ -26,8 +24,6 @@ internal static class SceneExclusionPort
             return new HashSet<string>(StringComparer.Ordinal);
         }
 
-        return await reading
-            .ReduceExclusionsAsync(baseAddress, apiKey, providerSceneIds, ct)
-            .ConfigureAwait(false);
+        return await reading.ReduceExclusionsAsync(providerSceneIds, ct).ConfigureAwait(false);
     }
 }

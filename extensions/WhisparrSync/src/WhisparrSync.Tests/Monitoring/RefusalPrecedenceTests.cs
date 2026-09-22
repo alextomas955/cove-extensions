@@ -159,13 +159,8 @@ public sealed class RefusalPrecedenceTests
     {
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
 
-        var answered = await TestWhisparrClient.Over(handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"),
-            "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
-            WhisparrGeneration.V3,
-            1,
-            10,
-            TestContext.Current.CancellationToken);
+        var answered = await TestWhisparrClient.Over(handler)
+            .ReadHistoryAsync(1, 10, TestContext.Current.CancellationToken);
 
         return MonitoringProjector.Classify(answered).Refusal;
     }

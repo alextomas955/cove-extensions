@@ -38,9 +38,9 @@ public sealed class SyncPreviewJobTests
     public async Task TheComposedBodyIsABareArrayOfIdentifiers()
     {
         var bytes = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
-        var client = TestWhisparrClient.Over(bytes);
+        var reading = (IWhisparrSceneStatusReading)TestWhisparrClient.Over(bytes);
 
-        await client.ReduceHeldScenesAsync(Instance, Key, [FirstScene, SecondScene], TestCt);
+        await reading.ReduceHeldScenesAsync([FirstScene, SecondScene], TestCt);
 
         var sent = Assert.Single(bytes.Requests);
         Assert.Equal(HttpMethod.Post, sent.Method);
@@ -424,8 +424,7 @@ public sealed class SyncPreviewJobTests
                     Held: null,
                     (asked, batchCt) => global::WhisparrSync.WhisparrSync.ReduceHeldSitesAsync(
                         source,
-                        Instance,
-                        Key,
+                        new WhisparrBinding(WhisparrGeneration.V2, Instance, Key),
                         instance.AskAsync,
                         asked,
                         batchCt))),
@@ -543,7 +542,7 @@ public sealed class SyncPreviewJobTests
         public int MaxInFlight { get; private set; }
 
         public async Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
-            Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
+            WhisparrBinding binding, string storedSiteId, CancellationToken ct)
         {
             var live = Interlocked.Increment(ref _live);
             lock (_gate)

@@ -27,9 +27,6 @@ internal sealed class StubInstanceCatalogue : IWhisparrEntityCatalogueReading
         => new(id, id, date, null, null, null, [], [], monitored, HasFile: false);
 
     public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         string foreignId,
         CancellationToken ct)

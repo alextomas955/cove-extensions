@@ -61,7 +61,6 @@ internal static class OutboundSeam
     public static IReadOnlyDictionary<string, WhisparrVerbClass> VerbClassByMember { get; } =
         new Dictionary<string, WhisparrVerbClass>(StringComparer.Ordinal)
         {
-            [nameof(IWhisparrClient.ReadStatusAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadNotificationSchemaAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ListNotificationsAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadRootFoldersAsync)] = WhisparrVerbClass.Read,
@@ -149,10 +148,6 @@ public sealed class SafetyInvariantTests
     // single value rather than a list, so a second anonymous route fails here.
     private const string InboundRoute = "/api/extensions/com.alextomas955.whisparrsync/callback";
 
-    private const string GrabKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
-    private static readonly Uri GrabAddress = new("http://whisparr:6969");
-
     [Fact]
     public void EverySafetyInvariantHasATestInThisGroup()
     {
@@ -231,11 +226,11 @@ public sealed class SafetyInvariantTests
         WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.ReachingNothing();
-        var client = TestWhisparrClient.Over(handler);
+        var grabbing = (IWhisparrSearchGrabbing)TestWhisparrClient.Over(
+            handler, generation: generation);
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => client.SearchMonitoredAsync(
-                GrabAddress, GrabKey, generation, WhisparrEntityKind.Studio, [4], TestCt));
+            () => grabbing.SearchMonitoredAsync(WhisparrEntityKind.Studio, [4], TestCt));
 
         Assert.Single(handler.Requests);
     }
@@ -245,10 +240,10 @@ public sealed class SafetyInvariantTests
     public async Task ASceneSearchThatReachedNothingIsNotIssuedASecondTime()
     {
         var handler = BodyRecordingHandler.ReachingNothing();
-        var client = TestWhisparrClient.Over(handler);
+        var grabbing = (IWhisparrSceneSearchGrabbing)TestWhisparrClient.Over(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => client.SearchSceneAsync(GrabAddress, GrabKey, 41, TestCt));
+            () => grabbing.SearchSceneAsync(41, TestCt));
 
         Assert.Single(handler.Requests);
     }
@@ -671,7 +666,9 @@ public sealed class SafetyInvariantTests
 
         public Ingest()
         {
-            Client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+            Client = new RecordingWhisparrClient(
+                RecordingWhisparrClient.Json(200, "[]"),
+                new WhisparrBinding(WhisparrGeneration.V3, Ingest.BaseAddress, ApiKey));
             Client.Answering(
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
                 RecordingWhisparrClient.Json(
@@ -697,7 +694,11 @@ public sealed class SafetyInvariantTests
             var clock = new FixedClock(Now);
             _followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
             _reportedRoots = new ReportedRootPort(
-                Client, _options, _credentials, new ReportedRootCache(clock), NullLogger.Instance);
+                new FixedInstanceFactory(Client),
+                _options,
+                _credentials,
+                new ReportedRootCache(clock),
+                NullLogger.Instance);
         }
 
         public FakeStore Store { get; } = new();
@@ -730,7 +731,7 @@ public sealed class SafetyInvariantTests
 
         public Task<BackstopPassResult> BackstopAsync()
             => new BackstopPass(
-                    Client,
+                    new FixedInstanceFactory(Client),
                     _options,
                     Gate,
                     _credentials,
@@ -930,8 +931,6 @@ public sealed class SafetyInvariantTests
         public List<IReadOnlyList<string>> AskedAbout { get; } = [];
 
         public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> providerSceneIds,
             CancellationToken ct)
         {
@@ -942,7 +941,7 @@ public sealed class SafetyInvariantTests
         }
 
         public Task<SceneExclusionLookup> FindSceneExclusionAsync(
-            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            string foreignId, CancellationToken ct)
             => throw new NotSupportedException(
                 "A page derivation asks about a whole page at once and never for one row's own "
                     + "identifier.");

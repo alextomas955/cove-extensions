@@ -51,15 +51,10 @@ public sealed class GatewayBudgetTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
         WhisparrTransport.Configure(http);
-        var client = new WhisparrClient(
-            new WhisparrTransport(http, NullLogger.Instance),
-            new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
-            new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
-            new TestSiteNumbers(),
-            NullLogger.Instance);
+        var client = V2Over(http, handler, builtWith);
 
-        await client.ReduceHeldSitesAsync(
-            SomeAddress, SomeKey, [207], TestContext.Current.CancellationToken);
+        await ((IWhisparrHeldSiteReading)client)
+            .ReduceHeldSitesAsync([207], TestContext.Current.CancellationToken);
 
         Assert.Contains(WhisparrTransport.LibraryReadTimeout, builtWith);
         Assert.DoesNotContain(WhisparrTransport.RequestTimeout, builtWith);
@@ -75,19 +70,10 @@ public sealed class GatewayBudgetTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
         WhisparrTransport.Configure(http);
-        var client = new WhisparrClient(
-            new WhisparrTransport(http, NullLogger.Instance),
-            new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
-            new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
-            new TestSiteNumbers(),
-            NullLogger.Instance);
+        var client = V2Over(http, handler, builtWith);
 
-        await client.ReadStudioAsync(
-            SomeAddress,
-            SomeKey,
-            WhisparrGeneration.V2,
-            SomeSiteIdentifier,
-            TestContext.Current.CancellationToken);
+        await ((IWhisparrStudioActing)client).ReadStudioAsync(
+            SomeSiteIdentifier, TestContext.Current.CancellationToken);
 
         Assert.Contains(WhisparrTransport.RequestTimeout, builtWith);
         Assert.DoesNotContain(WhisparrTransport.LibraryReadTimeout, builtWith);
@@ -100,6 +86,20 @@ public sealed class GatewayBudgetTests
         return await apis
             .Api<V2Api.IHistoryApi>()
             .GetHistoryAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    // The budget the v2 arm builds its client with is what a case reads off builtWith.
+    private static IWhisparrClient V2Over(
+        HttpClient http, HttpMessageHandler handler, List<TimeSpan> builtWith)
+    {
+        var v3Gateway = new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout);
+        return new WhisparrInstanceFactory(
+                new WhisparrTransport(http, v3Gateway, NullLogger.Instance),
+                v3Gateway,
+                new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
+                new TestSiteNumbers(),
+                NullLogger.Instance)
+            .Bound(new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey));
     }
 
     private sealed class SlowHandler(TimeSpan delay) : HttpMessageHandler

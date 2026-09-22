@@ -11,10 +11,6 @@ namespace WhisparrSync.Tests.Missing;
 public sealed class SceneExclusionPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-exclusions.json";
-    private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
-    private static Uri SomeInstance => new("http://whisparr.invalid:6969");
-
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -33,9 +29,9 @@ public sealed class SceneExclusionPortTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, RecordedRows());
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        await client.ReduceExclusionsAsync(SomeInstance, SomeKey, ["a-scene"], TestCt);
+        await client.ReduceExclusionsAsync(["a-scene"], TestCt);
 
         var target = Assert.Single(handler.Targets);
         Assert.EndsWith("/api/v3/exclusions", target, StringComparison.Ordinal);
@@ -63,9 +59,9 @@ public sealed class SceneExclusionPortTests
         var handler = BodyRecordingHandler.Answering(
             HttpStatusCode.OK, ManyRowsAround(rows, 5_000));
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(SomeInstance, SomeKey, page, TestCt);
+        var excluded = await client.ReduceExclusionsAsync(page, TestCt);
 
         Assert.True(
             excluded.Count <= page.Count,
@@ -80,10 +76,9 @@ public sealed class SceneExclusionPortTests
         var named = ForeignIdsFrom(rows, 3);
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, RecordedRows());
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(
-            SomeInstance, SomeKey, [.. named, "a-scene-nothing-excluded"], TestCt);
+        var excluded = await client.ReduceExclusionsAsync([.. named, "a-scene-nothing-excluded"], TestCt);
 
         Assert.Equal([.. named.Order()], [.. excluded.Order()]);
     }
@@ -96,9 +91,9 @@ public sealed class SceneExclusionPortTests
         var handler = BodyRecordingHandler.Answering(
             HttpStatusCode.OK, ManyRowsAround(rows, 5_000));
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(SomeInstance, SomeKey, page, TestCt);
+        var excluded = await client.ReduceExclusionsAsync(page, TestCt);
 
         Assert.NotEmpty(excluded);
         Assert.All(
@@ -121,8 +116,7 @@ public sealed class SceneExclusionPortTests
         var reading = new RecordingExclusionReading();
         var page = PageOfForty();
 
-        await SceneExclusionPort.ReadExcludedAsync(
-            reading, SomeInstance, SomeKey, page, TestCt);
+        await SceneExclusionPort.ReadExcludedAsync(reading, page, TestCt);
 
         Assert.Equal(1, reading.Calls);
         Assert.Equal(page, reading.AskedAbout[0]);
@@ -133,8 +127,7 @@ public sealed class SceneExclusionPortTests
     {
         var reading = new RecordingExclusionReading();
 
-        var excluded = await SceneExclusionPort.ReadExcludedAsync(
-            reading, SomeInstance, SomeKey, [], TestCt);
+        var excluded = await SceneExclusionPort.ReadExcludedAsync(reading, [], TestCt);
 
         Assert.Empty(excluded);
         Assert.Equal(0, reading.Calls);
@@ -148,10 +141,9 @@ public sealed class SceneExclusionPortTests
     {
         var handler = BodyRecordingHandler.Answering(status, RecordedRows());
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(
-            SomeInstance, SomeKey, PageOfForty(), TestCt);
+        var excluded = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
 
         Assert.Empty(excluded);
     }
@@ -161,10 +153,9 @@ public sealed class SceneExclusionPortTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "<!doctype html><html></html>");
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(
-            SomeInstance, SomeKey, PageOfForty(), TestCt);
+        var excluded = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
 
         Assert.Empty(excluded);
     }
@@ -212,8 +203,6 @@ public sealed class SceneExclusionPortTests
         public List<IReadOnlyList<string>> AskedAbout { get; } = [];
 
         public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> providerSceneIds,
             CancellationToken ct)
         {
@@ -224,7 +213,7 @@ public sealed class SceneExclusionPortTests
         }
 
         public Task<SceneExclusionLookup> FindSceneExclusionAsync(
-            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            string foreignId, CancellationToken ct)
             => throw new NotSupportedException(
                 "The port under test reduces a page and never asks for one exclusion row's own "
                     + "identifier.");

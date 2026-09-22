@@ -26,27 +26,24 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             Func<string, CancellationToken, Task<WhisparrResponse>> reading,
             Capability<IWhisparrEntityBatchReading> batch,
             WhisparrEntityKind kind,
-            WhisparrGeneration generation,
-            Uri baseAddress,
-            string apiKey,
+            WhisparrBinding binding,
             IReadOnlyList<int> coveIds,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(batch);
-        ArgumentNullException.ThrowIfNull(baseAddress);
+        ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(coveIds);
 
         var named = new List<(int CoveId, string? ForeignId)>(coveIds.Count);
         foreach (var coveId in coveIds)
         {
-            var identity = await identities.ResolveAsync(kind, coveId, generation, ct)
+            var identity = await identities.ResolveAsync(kind, coveId, binding.Generation, ct)
                 .ConfigureAwait(false);
             named.Add((coveId, identity.ForeignId));
         }
 
-        var batched = await BatchedAsync(
-            batch, kind, generation, baseAddress, apiKey, named, ct).ConfigureAwait(false);
+        var batched = await BatchedAsync(batch, kind, binding, named, ct).ConfigureAwait(false);
 
         var rows = new List<LibraryStatusRow>(coveIds.Count);
         var dropped = batched.Dropped;
@@ -76,8 +73,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
 
             // Either the generation registers no batch role, or the batch could not speak for this
             // identifier. Both are asked about one at a time.
-            var read = await ReadOneAsync(reading, generation, baseAddress, foreignId, ct)
-                .ConfigureAwait(false);
+            var read = await ReadOneAsync(reading, binding, foreignId, ct).ConfigureAwait(false);
             dropped |= read.Dropped;
             rows.Add(new LibraryStatusRow(coveId, read.Reading));
         }
@@ -91,9 +87,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedAsync(
         Capability<IWhisparrEntityBatchReading> batch,
         WhisparrEntityKind kind,
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
+        WhisparrBinding binding,
         IReadOnlyList<(int CoveId, string? ForeignId)> named,
         CancellationToken ct)
     {
@@ -111,9 +105,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         try
         {
             return (
-                await reading
-                    .ReadHeldEntitiesAsync(baseAddress, apiKey, generation, kind, asked, ct)
-                    .ConfigureAwait(false),
+                await reading.ReadHeldEntitiesAsync(kind, asked, ct).ConfigureAwait(false),
                 false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -123,8 +115,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            WhisparrSyncLog.MonitoringRequestContained(
-                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+            Contained(binding, failure);
             return (null, true);
         }
     }
@@ -147,23 +138,20 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             IWhisparrSceneStatusReading reading,
             Capability<IWhisparrSceneExclusionReading> exclusions,
             Capability<IWhisparrSceneBatchReading> batch,
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
+            WhisparrBinding binding,
             IReadOnlyList<LibraryCardIdentity> identities,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(exclusions);
         ArgumentNullException.ThrowIfNull(batch);
-        ArgumentNullException.ThrowIfNull(baseAddress);
+        ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(identities);
 
-        var excluded = await ExcludedAmongAsync(exclusions, baseAddress, apiKey, identities, ct)
-            .ConfigureAwait(false);
+        var excluded = await ExcludedAmongAsync(exclusions, identities, ct).ConfigureAwait(false);
 
-        var batched = await BatchedScenesAsync(
-            batch, generation, baseAddress, apiKey, identities, ct).ConfigureAwait(false);
+        var batched = await BatchedScenesAsync(batch, binding, identities, ct)
+            .ConfigureAwait(false);
 
         var readings = new Dictionary<int, LibraryCardReading>(identities.Count);
         var dropped = batched.Dropped;
@@ -188,8 +176,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             WhisparrResponse answered;
             try
             {
-                answered = await reading
-                    .ReadSceneByRemoteIdAsync(baseAddress, apiKey, identity.RemoteId, ct)
+                answered = await reading.ReadSceneByRemoteIdAsync(identity.RemoteId, ct)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -203,8 +190,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
                 // one answer must not take the rest of the page's answers with it. An instance that
                 // accepts the connection and then hangs outlives the client's own timeout, which is
                 // told from a shutdown by the token and by nothing in the failure itself.
-                WhisparrSyncLog.MonitoringRequestContained(
-                    log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+                Contained(binding, failure);
                 readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
                 dropped = true;
                 continue;
@@ -220,9 +206,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     // the entity path's batch gives.
     private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedScenesAsync(
         Capability<IWhisparrSceneBatchReading> batch,
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
+        WhisparrBinding binding,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
     {
@@ -240,8 +224,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         try
         {
             return (
-                await reading.ReadHeldSceneCardsAsync(baseAddress, apiKey, asked, ct)
-                    .ConfigureAwait(false),
+                await reading.ReadHeldSceneCardsAsync(asked, ct).ConfigureAwait(false),
                 false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -251,22 +234,26 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            WhisparrSyncLog.MonitoringRequestContained(
-                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+            Contained(binding, failure);
             return (null, true);
         }
     }
 
+    // One line per contained failure, naming its classification and the host, so a page of badges
+    // that drew nothing leaves a trace.
+    private void Contained(WhisparrBinding binding, Exception failure)
+        => WhisparrSyncLog.MonitoringRequestContained(
+            log,
+            binding.Generation,
+            WhisparrSyncLog.Classify(failure),
+            binding.BaseAddress.Host);
+
     private static async Task<IReadOnlySet<string>> ExcludedAmongAsync(
         Capability<IWhisparrSceneExclusionReading> exclusions,
-        Uri baseAddress,
-        string apiKey,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
         => await exclusions.Match(
             role => role.ReduceExclusionsAsync(
-                baseAddress,
-                apiKey,
                 [.. identities.Select(identity => identity.RemoteId)],
                 ct),
             _ => Task.FromResult<IReadOnlySet<string>>(NothingExcluded)).ConfigureAwait(false);
@@ -323,8 +310,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
 
     private async Task<(LibraryCardReading? Reading, bool Dropped)> ReadOneAsync(
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
-        WhisparrGeneration generation,
-        Uri baseAddress,
+        WhisparrBinding binding,
         string foreignId,
         CancellationToken ct)
     {
@@ -344,8 +330,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             // rest of the page's answers with it. An instance that accepts the connection and then
             // hangs outlives the client's own timeout, which is told from a shutdown by the token and
             // by nothing in the failure itself.
-            WhisparrSyncLog.MonitoringRequestContained(
-                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+            Contained(binding, failure);
             return (Unestablished, true);
         }
 

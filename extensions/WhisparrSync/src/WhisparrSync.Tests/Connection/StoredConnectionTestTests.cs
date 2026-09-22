@@ -1,8 +1,10 @@
+using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Connection;
 
@@ -233,13 +235,17 @@ public sealed class StoredConnectionTestTests
     private static async Task<ConnectionTestView> ViewOfAsync(
         string version, string branch, string appName)
     {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(
-            200,
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK,
             $$"""
             { "appName": "{{appName}}", "version": "{{version}}", "branch": "{{branch}}" }
-            """));
+            """);
+        using var http = new HttpClient(handler);
+        WhisparrTransport.Configure(http);
 
-        return await new ConnectionTester(client, NullLogger<ConnectionTester>.Instance)
+        return await new ConnectionTester(
+                TestWhisparrClient.TransportOver(http, handler),
+                NullLogger<ConnectionTester>.Instance)
             .TestAsync(StoredAddress, StoredKey, TestCt);
     }
 

@@ -71,10 +71,10 @@ public sealed class WhisparrClientTransportTests
     public async Task TheClientItselfRefusesASchemeItCannotOpen()
     {
         using var http = NewHttpClient();
-        var client = TestWhisparrClient.Over(http);
+        var transport = TestWhisparrClient.TransportOver(http);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => client.ReadStatusAsync(
+            () => transport.ReadStatusAsync(
                 new Uri("file:///etc/passwd"), SomeKey, TestContext.Current.CancellationToken));
     }
 
@@ -82,7 +82,7 @@ public sealed class WhisparrClientTransportTests
     // widening, which is the event it exists to report.
     [Fact]
     public void TheSeamDeclaresTheMethodsItIsPinnedAt()
-        => Assert.Equal(9, typeof(IWhisparrClient).GetMethods().Length);
+        => Assert.Equal(8, typeof(IWhisparrClient).GetMethods().Length);
 
     // A call site can express only the requests the seam itself declares, so none can make the
     // instance search for or download anything.
@@ -100,9 +100,10 @@ public sealed class WhisparrClientTransportTests
             parameter => parameter.ParameterType == typeof(string)
                 && parameter.Name?.Contains("path", StringComparison.OrdinalIgnoreCase) == true);
 
-        // The one string every verb takes, named so the assertion above cannot pass by there being no
-        // string parameter at all.
-        Assert.Contains(parameters, parameter => parameter.Name == "apiKey");
+        // Named so the assertion above cannot pass by there being no parameter of that shape at all.
+        // An implementation is bound to one instance, so the address and the key are not here.
+        Assert.Contains(parameters, parameter => parameter.Name == "body");
+        Assert.DoesNotContain(parameters, parameter => parameter.ParameterType == typeof(Uri));
     }
 
     [Fact]
@@ -275,13 +276,13 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(200, "application/json", "{}"));
         using var http = new HttpClient(handler);
 
-        await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969/whisparr"),
-            SomeKey,
-            generation,
-            2,
-            50,
-            TestContext.Current.CancellationToken);
+        await TestWhisparrClient.Over(
+                http,
+                handler,
+                generation: generation,
+                baseAddress: new Uri("http://whisparr:6969/whisparr"),
+                apiKey: SomeKey)
+            .ReadHistoryAsync(2, 50, TestContext.Current.CancellationToken);
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
@@ -300,12 +301,8 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(200, "application/json", "{}"));
         using var http = new HttpClient(handler);
 
-        await TestWhisparrClient.Over(http, handler).ReadEntityPresenceAsync(
-            new Uri("http://whisparr:6969"),
-            SomeKey,
-            kind,
-            "an-id",
-            TestContext.Current.CancellationToken);
+        await ((IWhisparrSceneStatusReading)TestWhisparrClient.Over(http, handler))
+            .ReadEntityPresenceAsync(kind, "an-id", TestContext.Current.CancellationToken);
 
         Assert.Equal(expected, Assert.Single(handler.Requests).RequestUri?.AbsolutePath);
     }
@@ -316,11 +313,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Failing(1, Answer(200, "application/json", "[]"));
         using var http = new HttpClient(handler);
 
-        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"),
-            SomeKey,
-            WhisparrGeneration.V3,
-            1,
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(1,
             10,
             TestContext.Current.CancellationToken);
 
@@ -335,11 +328,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(401, null, ""));
         using var http = new HttpClient(handler);
 
-        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"),
-            SomeKey,
-            WhisparrGeneration.V3,
-            1,
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(1,
             10,
             TestContext.Current.CancellationToken);
 
@@ -356,11 +345,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(200, "application/json; charset=utf-8", "{}"));
         using var http = new HttpClient(handler);
 
-        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"),
-            SomeKey,
-            WhisparrGeneration.V3,
-            1,
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(1,
             10,
             TestContext.Current.CancellationToken);
 
@@ -377,11 +362,7 @@ public sealed class WhisparrClientTransportTests
         using var http = new HttpClient(handler);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
-                new Uri("http://whisparr:6969"),
-                SomeKey,
-                WhisparrGeneration.V3,
-                page,
+            () => TestWhisparrClient.Over(http, handler).ReadHistoryAsync(page,
                 pageSize,
                 TestContext.Current.CancellationToken));
 
@@ -394,22 +375,13 @@ public sealed class WhisparrClientTransportTests
 
     private static Task<WhisparrResponse> ReadThroughAsync(
         HttpMessageHandler handler, WhisparrGeneration generation)
-        => TestWhisparrClient.Over(handler).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"),
-            SomeKey,
-            generation,
-            1,
-            10,
-            TestContext.Current.CancellationToken);
+        => TestWhisparrClient.Over(handler, generation: generation, apiKey: SomeKey)
+            .ReadHistoryAsync(1, 10, TestContext.Current.CancellationToken);
 
     private static Task<WhisparrResponse> ReadThroughAsync(HttpClient http, int port)
-        => TestWhisparrClient.Over(http).ReadHistoryAsync(
-            new Uri($"http://127.0.0.1:{port}"),
-            SomeKey,
-            WhisparrGeneration.V3,
-            1,
-            10,
-            TestContext.Current.CancellationToken);
+        => TestWhisparrClient
+            .Over(http, baseAddress: new Uri($"http://127.0.0.1:{port}"), apiKey: SomeKey)
+            .ReadHistoryAsync(1, 10, TestContext.Current.CancellationToken);
 
     private static async Task<ConnectionTestView> TestAsync(string address)
         => await NewTester().TestAsync(address, SomeKey, TestContext.Current.CancellationToken);
@@ -428,7 +400,9 @@ public sealed class WhisparrClientTransportTests
     // The HttpClient outlives this call by design: it is handed to a client whose own lifetime is the
     // test's, and disposing it here would abort the request under test.
     private static ConnectionTester NewTester()
-        => new ConnectionTester(TestWhisparrClient.Over(NewHttpClient()), NullLogger<ConnectionTester>.Instance);
+        => new(
+            TestWhisparrClient.TransportOver(NewHttpClient()),
+            NullLogger<ConnectionTester>.Instance);
 
     private static HttpClient NewHttpClient()
     {
