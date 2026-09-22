@@ -255,23 +255,19 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(endpoints);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var generation = stored.SelectedGeneration;
-        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
-
-        if (!ConnectionTester.TryReadConnection(
-            stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _))
+        var binding = await OutboundPair.ResolveAsync(stored, credentials, ct).ConfigureAwait(false);
+        if (binding is null)
         {
             return null;
         }
 
-        var binding = new WhisparrBinding(generation, baseAddress, apiKey);
         var instance = instances.Bound(binding);
         var exclusions = instance as IWhisparrSceneExclusionReading;
         var catalogue = instance as IWhisparrEntityCatalogueReading;
 
         return new MissingPageContext(
             binding,
-            endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
+            endpoints.Resolve(binding.Generation, stored.MetadataProviderEndpoints),
             exclusions,
             catalogue);
     }
