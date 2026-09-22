@@ -201,12 +201,8 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     // before the page is. The host renders no element at all for its full-width row slot, so that
     // one is only assertable here.
     const onV2 = await registeredSlots(coveApi);
-    expect(
-      onV2.sort(),
-      "v2 registers a videos-view slot, so a surface it has no meaning for is on the page",
-    ).toEqual(
+    expect(onV2.sort(), "v2 registers a slot for a surface it has no meaning for").toEqual(
       [
-        "performer-detail-actions",
         "studio-card-footer",
         "studio-detail-actions",
         "studios-list-toolbar-end",

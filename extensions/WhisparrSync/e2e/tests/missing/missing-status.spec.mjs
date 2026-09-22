@@ -126,10 +126,11 @@ test("the two reasons a status is unknown are different answers, in a real host"
 
     // Every page type renders the tab and none of them reports a missing component. Asserted before
     // anything below, because a tab that did not mount makes the rest unreadable.
+    // No tag page: a tag names no catalogue anyone could ask an instance about, so this product
+    // registers no tab for one.
     for (const [path, where] of [
       [`/studio/${String(studio.id)}`, "the studio detail page"],
       [`/performer/${String(performer.id)}`, "the performer detail page"],
-      [`/tag/${String(tag.json.id)}`, "the tag detail page"],
     ]) {
       await visit(page, baseUrl, path, hostDetailTabs(page), where);
       await expect(

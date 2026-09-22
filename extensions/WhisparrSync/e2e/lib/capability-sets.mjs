@@ -5,10 +5,11 @@
 // so a capability gained or lost is reported by the test that reads it rather than by a control that
 // quietly stops appearing.
 //
-// The two differ in both directions. Six entries are held by both, six by v3 alone, and three by v2
-// alone. v3 needs neither the site registration nor the site-row read, because there a studio
-// arrives as a side effect of adding a scene; it has no implementation for the held-site read
-// either, because it answers presence per scene rather than through a list of sites.
+// The two differ in both directions. v3 needs neither the site registration nor the site-row read,
+// because there a studio arrives as a side effect of adding a scene; it has no implementation for
+// the held-site read either, because it answers presence per scene rather than through a list of
+// sites. v2 holds no performer entity and no per-scene status, so the capabilities named for those
+// are v3's alone.
 
 export const V2_CAPABILITIES = [
   "outOfBandCallbackSecret",
@@ -19,6 +20,9 @@ export const V2_CAPABILITIES = [
   "registerOwnedSites",
   "readSiteSceneRows",
   "readHeldSites",
+  "readEntityCardsInBatch",
+  "trackEntityCatalogue",
+  "readEntityCatalogue",
   "readInstanceFilesystem",
 ];
 
@@ -34,5 +38,9 @@ export const V3_CAPABILITIES = [
   "searchScene",
   "monitorScene",
   "excludeScene",
+  "readEntityCardsInBatch",
+  "readSceneCardsInBatch",
+  "trackEntityCatalogue",
+  "readEntityCatalogue",
   "readInstanceFilesystem",
 ];

@@ -606,14 +606,19 @@ test.describe("library status", () => {
       "the unidentified scene's card lost its own body",
     ).toBeVisible();
 
-    // The partial page, stated as one fact: resolved and unresolved cards coexist, and nothing
-    // that failed to resolve is reported as an absence the instance stated.
-    const drawn = await stateChips(page).count();
-    expect(drawn, "no scene card on the page carries a state at all").toBeGreaterThan(0);
+    // The partial page, stated as one fact: resolved and unresolved cards coexist, and the
+    // unresolved one says why it was never asked rather than reporting a state the instance gave.
+    // Counted by what the chips read, not how many there are: every card carries one now, so a
+    // count alone no longer separates the two cases.
+    const words = await stateChips(page).allInnerTexts();
     expect(
-      drawn,
-      "every card on the page carries a state, so the unresolved case is not on it",
-    ).toBeLessThan(await videoCards(page).count());
+      words.filter((word) => STATE_CHIP_TEXT.test(word.trim())),
+      "no scene card on the page carries a state at all",
+    ).not.toHaveLength(0);
+    expect(
+      words.filter((word) => word.trim().endsWith(NOT_LINKED)),
+      "every card on the page was given a state, so the unresolved case is not on it",
+    ).not.toHaveLength(0);
 
     // No state on the page rides on colour: each chip carries its own mark beside its label.
     const chips = await stateChips(page).all();
