@@ -19,6 +19,7 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   TextInput,
   Toggle,
   TagListInput,
@@ -207,13 +208,14 @@ export function DestinationRoutingSection({
         title="Sidecar files"
         description="Files with the same name move and rename with the primary. An existing file is never overwritten."
       >
-        <Field label="Also move sidecar files with these extensions">
+        <FieldGroup label="Also move sidecar files with these extensions">
           <TagListInput
             values={options.associatedExtensions}
             onChange={(v) => {
               set("associatedExtensions", v);
             }}
             placeholder="Add an extension, press Enter"
+            ariaLabel="Also move sidecar files with these extensions"
             normalize={normalizeSidecarExtension}
             onReject={(candidate) => !/^[a-z0-9]+$/.test(candidate)}
             onLiveChange={(raw) => {
@@ -224,7 +226,7 @@ export function DestinationRoutingSection({
             const advisory = extensionShapeAdvisory(normalizeSidecarExtension(sidecarLiveInput));
             return advisory ? <StatusText kind="warning">{advisory}</StatusText> : null;
           })()}
-        </Field>
+        </FieldGroup>
       </GroupCard>
 
       <div className="rounded-xl border border-border bg-card p-4">

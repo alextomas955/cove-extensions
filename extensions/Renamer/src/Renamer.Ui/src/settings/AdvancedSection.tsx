@@ -14,6 +14,7 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   TextInput,
   NumberInput,
   Select,
@@ -55,7 +56,9 @@ const SUFFIX_FORMAT_OPTIONS: readonly ExampleOption[] = [
 
 // A named block inside an Advanced panel, for a block that is not one labelable control. The
 // heading is a plain element, not a label: a label forwards a click on its text to the first
-// control it wraps, which for a chip list is a chip's Remove button.
+// control it wraps, which for a chip list is a chip's Remove button. `FieldGroup` is the shared
+// primitive for that, and this block still hand-rolls its heading, because its DOM and classes
+// differ from `FieldGroup`'s and the e2e field selector reads that DOM.
 
 function SubBlock({
   heading,
@@ -88,7 +91,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         summary="Illegal-character and space handling, case, ASCII"
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Illegal characters">
+          <FieldGroup label="Illegal characters">
             <SegmentedReplace
               value={options.illegalReplacement}
               onChange={(v) => {
@@ -99,9 +102,10 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               stripHelper="Illegal characters are removed."
               replaceHelper="Blank drops them."
               inputPlaceholder="e.g. _"
+              ariaLabel="Illegal characters"
             />
-          </Field>
-          <Field label="Space replacement">
+          </FieldGroup>
+          <FieldGroup label="Space replacement">
             <SegmentedReplace
               value={options.spaceReplacement}
               onChange={(v) => {
@@ -112,8 +116,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               stripHelper="Spaces are left as-is."
               replaceHelper="Each space becomes this."
               inputPlaceholder="e.g. _ or ."
+              ariaLabel="Space replacement"
             />
-          </Field>
+          </FieldGroup>
           <Field label="Remove characters" helper="Deleted from the name.">
             <TextInput
               value={options.removeCharacters}
@@ -195,7 +200,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             <TokenAdvisory values={options.dropOrder} />
           </div>
         </div>
-        <Field
+        <FieldGroup
           label="Duplicate suffix format"
           helper="{n} is added only when a name already exists."
         >
@@ -206,8 +211,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             }}
             options={SUFFIX_FORMAT_OPTIONS}
             customPlaceholder=" ({n})"
+            ariaLabel="Duplicate suffix format"
           />
-        </Field>
+        </FieldGroup>
       </CollapsibleSection>
 
       <CollapsibleSection

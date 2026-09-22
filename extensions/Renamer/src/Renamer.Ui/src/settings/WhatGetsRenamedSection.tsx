@@ -9,10 +9,13 @@ import { BARE_TOKENS } from "./templateValidation";
 import { TokenAdvisory } from "./templateAdvisories";
 
 /**
- * The required-fields token list, headed and explained. The wrapper is a div and not a label: a
- * label forwards a click inside it to its first labelable descendant, which here is a chip's Remove
- * button, so picking a suggestion would delete a chip. With no label element the input takes its
- * name from `ariaLabel` instead.
+ * The required-fields token list, headed and explained. The heading is a plain element, not a label:
+ * a label forwards a click inside it to its first labelable descendant, which for a chip list is a
+ * chip's Remove button, so a click on the heading would delete a token.
+ *
+ * `FieldGroup` is the shared primitive for exactly that, and this block still hand-rolls its heading:
+ * the DOM and classes here differ from `FieldGroup`'s, and the e2e field selector reads that DOM.
+ * With no label element the input takes its name from `ariaLabel`.
  */
 function RequiredFields({
   values,

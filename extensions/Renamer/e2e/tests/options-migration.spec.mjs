@@ -67,10 +67,9 @@ function toggleCard(page, title) {
   return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
 }
 
-// A `Field` renders a `<label>`, except where its control carries its own accessible name, where it
-// renders a `role="group"` block instead. Either shape is a candidate, and a candidate containing
-// another candidate is not one: `hasText` matches an ancestor as readily as a leaf, and `PerKindRows`
-// wraps fields of its own in a `role="group"` row.
+// A `Field` renders a `<label>` and a `FieldGroup` a `role="group"` block, so either shape is a
+// candidate, and a candidate containing another candidate is not one: `hasText` matches an ancestor
+// as readily as a leaf, and `PerKindRows` wraps fields of its own in a `role="group"` row.
 const FIELD_SELECTOR =
   'label:not(:has(label, [role="group"])), [role="group"]:not(:has(label, [role="group"]))';
 

@@ -18,10 +18,10 @@ import { createRoot } from "react-dom/client";
 import { someOptions } from "./testOptions";
 
 // The host selector's module specifier resolves only inside a running Cove, so the adapter stands in
-// whole. The host control takes the name itself, and its `Field` is therefore not a label element.
+// whole. The host control is not one labelable thing, so the adapter heads it with a `FieldGroup`.
 vi.mock("./EntitySelectField", async () => {
   const { createElement: h } = await import("react");
-  const { Field } = await import("@cove-extensions/ui-shared");
+  const { FieldGroup } = await import("@cove-extensions/ui-shared");
   return {
     EntitySelectField: (p: {
       label: string;
@@ -29,11 +29,10 @@ vi.mock("./EntitySelectField", async () => {
       labelStyle?: "micro" | "group";
       placeholder?: string;
     }) =>
-      h(Field, {
+      h(FieldGroup, {
         label: p.label,
         helper: p.helper,
         labelStyle: p.labelStyle,
-        controlNamesItself: true,
         children: h("input", {
           "data-stub": "EntitySelector",
           "aria-label": p.label,
@@ -67,20 +66,23 @@ vi.mock("@cove-extensions/ui-shared", async () => {
         h("p", null, text(p.description)),
         p.children,
       ),
-    Field: (p: {
+    Field: (p: { label?: string; helper?: string; labelStyle?: string; children?: ReactNode }) =>
+      h(
+        "label",
+        { "data-stub": "Field", "data-label-style": p.labelStyle ?? "micro" },
+        h("span", { "data-stub": "Field-label" }, text(p.label)),
+        p.children,
+        h("span", { "data-stub": "Field-helper" }, text(p.helper)),
+      ),
+    FieldGroup: (p: {
       label?: string;
       helper?: string;
       labelStyle?: string;
-      controlNamesItself?: boolean;
       children?: ReactNode;
     }) =>
       h(
-        p.controlNamesItself ? "div" : "label",
-        {
-          "data-stub": "Field",
-          "data-label-style": p.labelStyle ?? "micro",
-          role: p.controlNamesItself ? "group" : undefined,
-        },
+        "div",
+        { "data-stub": "Field", "data-label-style": p.labelStyle ?? "micro", role: "group" },
         h("span", { "data-stub": "Field-label" }, text(p.label)),
         p.children,
         h("span", { "data-stub": "Field-helper" }, text(p.helper)),

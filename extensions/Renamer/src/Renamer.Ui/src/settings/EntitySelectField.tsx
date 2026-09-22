@@ -21,7 +21,7 @@
  */
 import { EntityReferenceMultiSelector, type EntityReferenceType } from "@cove/runtime/components";
 
-import { Field, INPUT_CLASS } from "@cove-extensions/ui-shared";
+import { FieldGroup, INPUT_CLASS } from "@cove-extensions/ui-shared";
 
 type SelectorProps = Parameters<typeof EntityReferenceMultiSelector>[0];
 
@@ -65,8 +65,8 @@ export function EntitySelectField({
   } as SelectorProps & { inputAriaLabel: string };
 
   return (
-    <Field label={label} labelStyle={labelStyle} helper={helper} controlNamesItself>
+    <FieldGroup label={label} labelStyle={labelStyle} helper={helper}>
       <EntityReferenceMultiSelector {...withName} />
-    </Field>
+    </FieldGroup>
   );
 }

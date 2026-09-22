@@ -12,6 +12,7 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   NumberInput,
   Select,
   SectionCard,
@@ -119,7 +120,7 @@ export function TokenSettingsSection({
     <SectionCard title="Token settings" description="Formatting for individual tokens.">
       {usesPerformers ? (
         <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
-          <Field label="Separator">
+          <FieldGroup label="Separator">
             <SeparatorChips
               value={mv("performers").separator}
               onChange={(v) => {
@@ -127,8 +128,9 @@ export function TokenSettingsSection({
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
+              ariaLabel="Performer separator"
             />
-          </Field>
+          </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count">
               <NumberInput
@@ -161,7 +163,7 @@ export function TokenSettingsSection({
                 options={PERFORMER_SORT_OPTIONS}
               />
             </Field>
-            <Field
+            <FieldGroup
               label="Ignore genders"
               helper="Removed before the max-count cap. Performers with no gender are always kept."
             >
@@ -172,9 +174,9 @@ export function TokenSettingsSection({
                   setMulti("performers", { ignoreGenders: v });
                 }}
               />
-            </Field>
+            </FieldGroup>
           </div>
-          <Field label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
+          <FieldGroup label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
               values={mv("performers").genderOrder}
@@ -182,8 +184,9 @@ export function TokenSettingsSection({
                 setMulti("performers", { genderOrder: v });
               }}
               addPrompt="Add a gender…"
+              ariaLabel="Gender order"
             />
-          </Field>
+          </FieldGroup>
           <EntitySelectField
             entityType="performer"
             label="Only include"
@@ -207,7 +210,7 @@ export function TokenSettingsSection({
 
       {usesTags ? (
         <GroupCard title="Tags" badge={<Badge mono>$tags</Badge>}>
-          <Field label="Separator">
+          <FieldGroup label="Separator">
             <SeparatorChips
               value={mv("tags").separator}
               onChange={(v) => {
@@ -215,8 +218,9 @@ export function TokenSettingsSection({
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
+              ariaLabel="Tag separator"
             />
-          </Field>
+          </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count">
               <NumberInput
@@ -285,7 +289,7 @@ export function TokenSettingsSection({
           }
         >
           {usesDate ? (
-            <Field label="Date format" helper="e.g. yyyy-MM-dd">
+            <FieldGroup label="Date format" helper="e.g. yyyy-MM-dd">
               <ExampleSelect
                 value={options.dateFormat}
                 onChange={(v) => {
@@ -293,11 +297,12 @@ export function TokenSettingsSection({
                 }}
                 options={DATE_FORMAT_OPTIONS}
                 customPlaceholder="yyyy-MM-dd"
+                ariaLabel="Date format"
               />
-            </Field>
+            </FieldGroup>
           ) : null}
           {usesDuration ? (
-            <Field label="Duration format">
+            <FieldGroup label="Duration format">
               <ExampleSelect
                 value={options.durationFormat}
                 onChange={(v) => {
@@ -305,8 +310,9 @@ export function TokenSettingsSection({
                 }}
                 options={DURATION_FORMAT_OPTIONS}
                 customPlaceholder="hh\-mm\-ss"
+                ariaLabel="Duration format"
               />
-            </Field>
+            </FieldGroup>
           ) : null}
         </GroupCard>
       ) : null}

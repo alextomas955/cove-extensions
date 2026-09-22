@@ -117,26 +117,60 @@ export function Field({
   label,
   helper,
   labelStyle = "micro",
-  controlNamesItself = false,
   children,
 }: {
   label: string;
   helper?: string;
   labelStyle?: "micro" | "group";
-  /**
-   * Set where the control takes its own accessible name. The host entity selector draws each chip's
-   * Remove button ahead of its input, so a label element around it names that button, and a click
-   * on the heading activates it.
-   */
-  controlNamesItself?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block text-sm" title={helper}>
+      {label ? (
+        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
+          {label}
+        </span>
+      ) : null}
+      {children}
+      {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
+    </label>
+  );
+}
+
+/**
+ * Heading + a set of controls + optional helper, laid out exactly as {@link Field} but headed by a
+ * plain element rather than a label.
+ *
+ * For anything that is not one labelable control: a chip row, a segmented control, a chips-plus-input
+ * editor, the host's entity selector. A `<label>` forwards a click anywhere inside it to its first
+ * labelable descendant, and `button` is labelable, so a label over any of those turns a click on the
+ * heading into a click on whichever chip happens to be drawn first — a setting silently changed, or a
+ * configured value deleted. The heading names the block instead.
+ *
+ * A group name does not name a control nested inside it, so each control in here carries its own.
+ */
+export function FieldGroup({
+  label,
+  helper,
+  labelStyle = "micro",
+  children,
+}: {
+  label: string;
+  helper?: string;
+  labelStyle?: "micro" | "group";
   children: ReactNode;
 }) {
   const labelId = useId();
-  const body = (
-    <>
+  return (
+    <div
+      className="block text-sm"
+      title={helper}
+      role="group"
+      aria-labelledby={label ? labelId : undefined}
+    >
       {label ? (
         <span
-          id={controlNamesItself ? labelId : undefined}
+          id={labelId}
           className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}
         >
           {label}
@@ -144,25 +178,7 @@ export function Field({
       ) : null}
       {children}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
-    </>
-  );
-
-  if (controlNamesItself) {
-    return (
-      <div
-        className="block text-sm"
-        title={helper}
-        role="group"
-        aria-labelledby={label ? labelId : undefined}
-      >
-        {body}
-      </div>
-    );
-  }
-  return (
-    <label className="block text-sm" title={helper}>
-      {body}
-    </label>
+    </div>
   );
 }
 
@@ -173,6 +189,7 @@ export function TextInput({
   placeholder,
   mono = false,
   inputRef,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -180,6 +197,8 @@ export function TextInput({
   placeholder?: string;
   mono?: boolean;
   inputRef?: React.Ref<HTMLInputElement>;
+  // For an input inside a group rather than under a label of its own: a group's name does not reach it.
+  ariaLabel?: string;
 }) {
   return (
     <input
@@ -187,6 +206,7 @@ export function TextInput({
       type="text"
       value={value}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       onChange={(e) => {
         onChange(e.target.value);
       }}
@@ -291,11 +311,15 @@ export function ExampleSelect({
   onChange,
   options,
   customPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: readonly ExampleOption[];
   customPlaceholder?: string;
+  // Names the select and, when it is revealed, the custom input: this control is a block, so the
+  // heading above it names the block and reaches neither.
+  ariaLabel?: string;
 }) {
   const matched = options.find((o) => o.value === value);
   const isCustom = matched === undefined;
@@ -308,6 +332,7 @@ export function ExampleSelect({
     <div>
       <select
         value={selectValue}
+        aria-label={ariaLabel}
         onChange={(e) => {
           const v = e.target.value;
           // Choosing Custom…: keep the current value if it's already custom, else seed empty so
@@ -329,7 +354,13 @@ export function ExampleSelect({
       </select>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+          <TextInput
+            value={value}
+            onChange={onChange}
+            placeholder={customPlaceholder}
+            ariaLabel={ariaLabel}
+            mono
+          />
         </div>
       ) : (
         <span className="mt-1 block font-mono text-xs text-secondary">{helperExample}</span>
@@ -358,11 +389,14 @@ export function SeparatorChips({
   onChange,
   options,
   customPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: readonly SeparatorOption[];
   customPlaceholder?: string;
+  // Names the custom input this row reveals; the heading above the row names the row, not the input.
+  ariaLabel?: string;
 }) {
   const isCustom = !options.some((o) => o.value === value);
 
@@ -395,7 +429,13 @@ export function SeparatorChips({
       </div>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+          <TextInput
+            value={value}
+            onChange={onChange}
+            placeholder={customPlaceholder}
+            ariaLabel={ariaLabel}
+            mono
+          />
         </div>
       ) : null}
     </div>
@@ -418,6 +458,7 @@ export function SegmentedReplace({
   stripHelper,
   replaceHelper,
   inputPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -426,6 +467,8 @@ export function SegmentedReplace({
   stripHelper?: string;
   replaceHelper?: string;
   inputPlaceholder?: string;
+  // Names the replacement input this control reveals; the heading above it names the whole control.
+  ariaLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
@@ -478,6 +521,7 @@ export function SegmentedReplace({
             onChange={onChange}
             placeholder={inputPlaceholder}
             inputRef={inputRef}
+            ariaLabel={ariaLabel}
             mono
           />
           {replaceHelper ? (
@@ -759,11 +803,7 @@ export function TagListInput({
                 id={`${listId}-${i}`}
                 role="option"
                 aria-selected={i === active}
-                onClick={(e) => {
-                  // The enclosing Field is a <label>, whose activation behaviour forwards a click
-                  // inside it to the first labelable descendant — a chip's Remove button. Picking an
-                  // option would then delete a chip.
-                  e.preventDefault();
+                onClick={() => {
                   commit(option);
                 }}
                 className={
@@ -866,11 +906,14 @@ export function OrderedPickToAdd({
   values,
   onChange,
   addPrompt,
+  ariaLabel,
 }: {
   options: readonly ValueOption[];
   values: string[];
   onChange: (values: string[]) => void;
   addPrompt: string;
+  // Names the add select; the heading above this control names the chips and the select together.
+  ariaLabel?: string;
 }) {
   const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
   const offerable = availableOptions(options, values);
@@ -926,6 +969,7 @@ export function OrderedPickToAdd({
           // A select with no committed value: it returns to the prompt after each add (the value prop
           // stays the empty sentinel), so it always reads "Add a …" rather than the last pick.
           value=""
+          aria-label={ariaLabel}
           onChange={(e) => {
             const v = e.target.value;
             if (v !== "") onChange([...values, v]);

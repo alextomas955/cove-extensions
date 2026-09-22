@@ -43,6 +43,14 @@ vi.mock("@cove-extensions/ui-shared", async () => {
         p.children,
         h("span", null, text(p.helper)),
       ),
+    FieldGroup: (p: { label?: string; helper?: string; children?: ReactNode }) =>
+      h(
+        "div",
+        { "data-stub": "FieldGroup", role: "group" },
+        h("span", null, text(p.label)),
+        p.children,
+        h("span", null, text(p.helper)),
+      ),
     NumberInput: () => h("input", { type: "number" }),
     Select: () => h("select", null),
     ExampleSelect: () => h("select", null),
