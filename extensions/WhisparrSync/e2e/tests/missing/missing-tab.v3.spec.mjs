@@ -153,18 +153,34 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     `the studio detail page: the host drew its own detail tabs and no ${TAB_LABEL} tab, so this extension's tab registration did not reach the manifest the host served.`,
   ).toBeVisible({ timeout: TAB_BUDGET_MS });
 
-  // Each page type is its own registration, and one component serves all three by reading its kind
-  // from the address.
-  for (const [path, where] of [
-    [`/performer/${String(performer.id)}`, "the performer detail page"],
-    [`/tag/${String(tag.json.id)}`, "the tag detail page"],
-  ]) {
-    await visit(page, baseUrl, path, hostDetailTabs(page), where);
-    await expect(
-      missingTab(page),
-      `${where}: the host drew a ${TAB_LABEL} tab on the studio page and none here, so this page type's registration does not resolve.`,
-    ).toBeVisible({ timeout: TAB_BUDGET_MS });
-  }
+  // Each page type is its own registration, and one component serves them by reading its kind from
+  // the address.
+  await visit(
+    page,
+    baseUrl,
+    `/performer/${String(performer.id)}`,
+    hostDetailTabs(page),
+    "the performer detail page",
+  );
+  await expect(
+    missingTab(page),
+    `the performer detail page: the host drew a ${TAB_LABEL} tab on the studio page and none here, so this page type's registration does not resolve.`,
+  ).toBeVisible({ timeout: TAB_BUDGET_MS });
+
+  // A tag names no catalogue anyone could ask an instance about, so no tab is registered for one.
+  // The host's own tabs are waited for first, so this reads an absent tab rather than an unrendered
+  // page.
+  await visit(
+    page,
+    baseUrl,
+    `/tag/${String(tag.json.id)}`,
+    hostDetailTabs(page),
+    "the tag detail page",
+  );
+  await expect(
+    missingTab(page),
+    `the tag detail page: a ${TAB_LABEL} tab was drawn for a kind this product registers none for.`,
+  ).toHaveCount(0);
 
   // Mounting the tab is what renders the transcribed host components, so a wrong PROP SHAPE shows
   // up here as a region that draws nothing.

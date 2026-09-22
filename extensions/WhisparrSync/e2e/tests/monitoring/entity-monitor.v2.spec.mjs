@@ -34,9 +34,9 @@ const ACTION_REFLECT_OWNED = "Reflect owned";
 const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";
 const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whisparr v3 (Eros)";
 const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
-  "Monitoring all scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
+  "Monitoring all scenes monitors every scene Whisparr already lists for this entity, which spends indexer traffic and disk.";
 const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
-  "Narrowing the scope back to new releases only does not undo this: a scene that is already wanted stays wanted.";
+  "Narrowing the scope back to new releases only does not undo this: a scene already monitored stays monitored.";
 
 // The disc this generation's mark is drawn on, in the fill the component ships. The other
 // generation's disc is a different colour, so the fill is what says which product was drawn.
