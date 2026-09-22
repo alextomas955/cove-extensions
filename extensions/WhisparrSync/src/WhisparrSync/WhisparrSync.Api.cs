@@ -16,6 +16,8 @@ public sealed partial class WhisparrSync
     private string ImportBannerRoute => RouteBase + "/import/banner";
     private string FolderMappingsRoute => RouteBase + "/addressing/folder-mappings";
     private string MonitoringReadRoute => RouteBase + "/entity/{kind}/{coveId}/monitoring";
+
+    private string ConnectionOfferRoute => RouteBase + "/connection/offer";
     private string MonitorRoute => RouteBase + "/entity/{kind}/{coveId}/monitor";
     private string UnmonitorRoute => RouteBase + "/entity/{kind}/{coveId}/unmonitor";
     private string MonitorScopeRoute => RouteBase + "/entity/{kind}/{coveId}/scope";

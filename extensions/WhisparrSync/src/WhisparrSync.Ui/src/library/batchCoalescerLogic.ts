@@ -31,6 +31,13 @@ export interface BatchCoalescer<V> {
   registered: () => number;
   /** Every answer for a key still held, in no particular order. */
   answered: () => (V | null)[];
+  /**
+   * Drops the answers held for `keys` and fetches them again.
+   *
+   * For a caller that changed what those answers describe. A key no holder is left for is skipped:
+   * nothing on screen would draw it.
+   */
+  reread: (keys: readonly string[]) => void;
   subscribe: (listener: () => void) => () => void;
 }
 
@@ -125,6 +132,27 @@ export function createBatchCoalescer<V>(
     settled: (key) => values.has(key),
     registered: () => holders.size,
     answered: () => [...values].filter(([key]) => holders.has(key)).map(([, value]) => value),
+
+    reread(keys) {
+      const held = keys.filter((key) => holders.has(key));
+      if (held.length === 0) return;
+
+      for (const key of held) {
+        values.delete(key);
+        queued.add(key);
+      }
+
+      // Emitted before the fetch, so a card draws as unsettled rather than holding the answer the
+      // action just made stale.
+      notify();
+
+      if (!flushScheduled) {
+        flushScheduled = true;
+        schedule(() => {
+          void flush();
+        });
+      }
+    },
 
     subscribe(listener) {
       listeners.add(listener);

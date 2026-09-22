@@ -98,7 +98,7 @@ public sealed class SiteRootRegistrationTests
         Assert.Contains(
             host.Bytes!.Requests,
             sent => sent.Method == HttpMethod.Get
-                && sent.Path.EndsWith("/series", StringComparison.Ordinal));
+                && sent.Path.EndsWith("/series/lookup", StringComparison.Ordinal));
         Assert.Contains(
             "1 with no agreed root",
             Assert.Single(progress.Summaries),
@@ -149,6 +149,11 @@ public sealed class SiteRootRegistrationTests
                      {"id":2,"path":"{{SecondInstanceRoot}}","accessible":true}]
                     """,
             var route when route.EndsWith("/filesystem", StringComparison.Ordinal) => listing[0],
+
+            // The site read, answering a row the instance holds nothing under, so the add that
+            // follows is the subject of these cases rather than a read that refused ahead of it.
+            var route when route.EndsWith("/series/lookup", StringComparison.Ordinal)
+                => $$"""[{"tvdbId":{{SiteNumber}},"title":"Exploited College Girls"}]""",
             _ => "[]",
         });
 

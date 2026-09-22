@@ -187,3 +187,82 @@ test("only a fetch beginning with no answer held is told it holds none", async (
   for (const release of held) release();
   late();
 });
+
+// The run a reader started changes what the answers describe, so the card that drew the old one has
+// to be given the new one without the page being loaded again.
+test("re-reading fetches every key still on screen and answers it again", async () => {
+  const scheduler = manualScheduler();
+  const calls: string[][] = [];
+  let answer = "before";
+  const coalescer = createBatchCoalescer<string>((keys) => {
+    calls.push([...keys]);
+    return Promise.resolve({
+      answers: new Map(keys.map((key) => [key, answer])),
+      moreNotAnswered: false,
+    });
+  }, scheduler.schedule);
+
+  coalescer.request("7");
+  coalescer.request("8");
+  await scheduler.run();
+  expect(coalescer.get("7")).toBe("before");
+
+  answer = "after";
+  coalescer.reread(["7", "8"]);
+  await scheduler.run();
+
+  expect(calls).toEqual([
+    ["7", "8"],
+    ["7", "8"],
+  ]);
+  expect(coalescer.get("7")).toBe("after");
+  expect(coalescer.get("8")).toBe("after");
+});
+
+// A card drawn from an answer the action has already made wrong is worse than one drawn as
+// unsettled: the reader cannot tell it apart from a state the instance really holds.
+test("re-reading drops the held answers before the fetch that replaces them", async () => {
+  const scheduler = manualScheduler();
+  const fetching = answering("held");
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+
+  coalescer.request("7");
+  await scheduler.run();
+  expect(coalescer.settled("7")).toBe(true);
+
+  coalescer.reread(["7"]);
+
+  expect(coalescer.settled("7")).toBe(false);
+});
+
+// Nothing on screen is nothing to repaint, and a fetch of no keys is a request the route answers
+// for no card.
+test("re-reading a key no card is holding sends no fetch", async () => {
+  const scheduler = manualScheduler();
+  const fetching = answering("held");
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+
+  coalescer.reread(["7"]);
+  await scheduler.run();
+
+  expect(fetching.calls).toEqual([]);
+});
+
+// One generation reads a card with a request of its own, so repainting a page over one changed card
+// would spend a request on every other card for nothing.
+test("re-reading names only the keys it was given", async () => {
+  const scheduler = manualScheduler();
+  const fetching = answering("held");
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+
+  coalescer.request("7");
+  coalescer.request("8");
+  coalescer.request("9");
+  await scheduler.run();
+
+  coalescer.reread(["8"]);
+  await scheduler.run();
+
+  expect(fetching.calls).toEqual([["7", "8", "9"], ["8"]]);
+  expect(coalescer.settled("7")).toBe(true);
+});

@@ -65,11 +65,11 @@ public sealed class GatewayBudgetTests
         Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
     }
 
-    // Narrowing the read by the site's own number bounds how much comes back, not how long it takes:
-    // this generation builds its whole set before filtering, so one site arrives no sooner than the
-    // whole list does.
+    // The lookup answers one site without the pass over every site the list route makes, so it is
+    // bounded as the per-item call it is. Budgeted for a read of everything held it would wait
+    // minutes on an instance that had already stopped answering.
     [Fact]
-    public async Task ReadingWhetherOneSiteIsHeldIsBudgetedForAReadOfEverythingHeld()
+    public async Task ReadingWhetherOneSiteIsHeldIsBudgetedAsAPerItemCall()
     {
         var builtWith = new List<TimeSpan>();
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
@@ -79,7 +79,7 @@ public sealed class GatewayBudgetTests
             http,
             new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
             new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
-            TestSiteNumbers.Numbering(SomeSiteIdentifier, 207),
+            new TestSiteNumbers(),
             NullLogger.Instance);
 
         await client.ReadStudioAsync(
@@ -89,8 +89,8 @@ public sealed class GatewayBudgetTests
             SomeSiteIdentifier,
             TestContext.Current.CancellationToken);
 
-        Assert.Contains(WhisparrClient.LibraryReadTimeout, builtWith);
-        Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
+        Assert.Contains(WhisparrClient.RequestTimeout, builtWith);
+        Assert.DoesNotContain(WhisparrClient.LibraryReadTimeout, builtWith);
     }
 
     private static async Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
