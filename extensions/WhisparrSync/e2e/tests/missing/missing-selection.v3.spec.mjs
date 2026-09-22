@@ -151,6 +151,23 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     title: studio.name,
   });
 
+  // The scenes the tab lists. A studio the instance holds with no works answers an empty catalogue,
+  // which draws the same blank region as a studio it does not hold at all.
+  const catalogue = [
+    { foreignId: `${studioRemoteId}-a`, title: `Catalogue Scene A ${studio.name}` },
+    { foreignId: `${studioRemoteId}-b`, title: `Catalogue Scene B ${studio.name}` },
+    { foreignId: `${studioRemoteId}-c`, title: `Catalogue Scene C ${studio.name}` },
+  ];
+  for (const scene of catalogue) {
+    await whisparr.seedEntity("v3", {
+      kind: "scene",
+      foreignId: scene.foreignId,
+      title: scene.title,
+      studioForeignId: studioRemoteId,
+      studioTitle: studio.name,
+    });
+  }
+
   // A blocking dialog and a native alert are both absences this spec asserts, so both are watched
   // from the moment the page opens rather than at the one press that could raise them.
   const nativeDialogs = [];
@@ -256,6 +273,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
 
   // CASE 6. A run refused before it starts states the reason in a live region, keeps the ticks, and
   // leaves focus where it was, so the reader can fix the named cause and press again.
+  //
   const before = await selectedCount(page);
   await page.route(/\/missing\/bulk-monitor$/, async (route) => {
     await route.fulfill({

@@ -52,7 +52,7 @@ const monitorName = (title) => `Monitor ${title} in Whisparr`;
 const searchName = (title) => `Search Whisparr for ${title}`;
 // The pill draws its glyph and this word inside one element, so no element carries the word
 // alone and a match on it has to be a substring one.
-const WANTED = "Wanted";
+const MONITORED = "Monitored";
 
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
@@ -146,6 +146,23 @@ test("missing card: the three controls, the keyboard walk through them and what 
     foreignId: studioRemoteId,
     title: studio.name,
   });
+
+  // The scenes the tab lists. A studio the instance holds with no works answers an empty catalogue,
+  // which draws the same blank region as a studio it does not hold at all.
+  const catalogue = [
+    { foreignId: `${studioRemoteId}-a`, title: `Catalogue Scene A ${studio.name}` },
+    { foreignId: `${studioRemoteId}-b`, title: `Catalogue Scene B ${studio.name}` },
+    { foreignId: `${studioRemoteId}-c`, title: `Catalogue Scene C ${studio.name}` },
+  ];
+  for (const scene of catalogue) {
+    await whisparr.seedEntity("v3", {
+      kind: "scene",
+      foreignId: scene.foreignId,
+      title: scene.title,
+      studioForeignId: studioRemoteId,
+      studioTitle: studio.name,
+    });
+  }
 
   const drawn = [
     scene({ title: HOSTILE_TITLE, studioName: HOSTILE_STUDIO }),
@@ -274,12 +291,16 @@ test("missing card: the three controls, the keyboard walk through them and what 
     "a press on one card dimmed another card's control, so two cards mid-flight would overwrite each other",
   ).toBeEnabled();
 
+  // The page this spec serves has to say what the press just did. A press that succeeds reads the
+  // page again and the pill then follows that read, so a served page still calling the scene
+  // unmonitored would correctly paint over the state the press claimed.
+  drawn[1].state = "monitored";
   await held.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ state: "monitored", refusal: "none" }),
   });
-  await expect(pressed.getByText(WANTED, { exact: false })).toBeVisible({
+  await expect(pressed.getByText(MONITORED, { exact: false })).toBeVisible({
     timeout: REGION_BUDGET_MS,
   });
 
@@ -296,7 +317,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
     "the instance declined, which is a failure and reads in the failure tone",
   ).toHaveClass(/text-red-400/);
   await expect(
-    refused.getByText(WANTED, { exact: false }),
+    refused.getByText(MONITORED, { exact: false }),
     "a refused press left the optimistic pill on screen, claiming a state the instance declined",
   ).toHaveCount(0);
 

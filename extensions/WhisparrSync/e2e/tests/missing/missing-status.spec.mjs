@@ -15,20 +15,21 @@
 // machine running it. The two reach different distances, and the difference is a property of the
 // product rather than of the stubs:
 //
-// - V3 posts its catalogue query to the resolved identity endpoint, so the stub standing in for
-//   that source IS the catalogue, and the cards below come from it.
-// - V2 resolves the same way and then reads its catalogue over REST from a compiled-in address, so
-//   registering its source decides only whether a provider is found. That is the difference
-//   asserted at the v2 arm below: registered, the read names the provider and states it could not
-//   be reached; unregistered, it states that none is configured. The catalogue itself is out of
-//   reach of any stub this suite starts.
+// Both generations take the catalogue from the connected instance, so the cards below come from
+// what this spec seeded into it. The source stubs decide only whether the library's identifier
+// resolves to something the instance can be asked about: a studio by its own id on v3, a site by
+// its number on v2. Neither stub is ever asked for a catalogue, and the v2 arm asserts that.
 //
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
+
+import { WHISPARR_CATALOGUE_NOT_READ } from "../../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
+import { startMetadataStub } from "../../lib/metadata-stub.mjs";
+import { seedV2Scene } from "../../lib/seed-scene.mjs";
 
 import {
   cleanupStack,
@@ -48,7 +49,10 @@ import { visit } from "../../lib/steps.mjs";
 // importing the constants the product declares would be asserting that a string equals itself.
 const TAB_LABEL = "Missing";
 const UNKNOWN_PILL = "Status unknown";
-const PILL_WORDS = ["Wanted", "Unmonitored", "Not added", UNKNOWN_PILL];
+/** The sentence the tab states when the instance could not be asked, with its slot filled out. */
+const CATALOGUE_NOT_READ_SENTENCE = WHISPARR_CATALOGUE_NOT_READ.split("{entity}")[0];
+
+const PILL_WORDS = ["Monitored", "Unmonitored", "Not added", UNKNOWN_PILL];
 
 // A real StashDB studio with a real catalogue. The uuid is what Cove stores as its remote id and
 // what the extension subtracts ownership on.
@@ -107,9 +111,26 @@ test("the two reasons a status is unknown are different answers, in a real host"
   try {
     // The other generation, started here rather than by the fixture: the fixture connects one, and
     // what this spec compares is two connections against one installation.
+    //
+    // Its site number is decided before the instance starts, because the instance reads the element
+    // naming its metadata service once at startup and never again. Without that service this
+    // generation resolves no site at all, and a catalogue read of one answers empty.
+    const v2SiteId = randomInt(1, 1_000_001);
+    // One title for all three rows: the Cove studio, the site the instance holds and the row the
+    // metadata service answers a lookup with. The resolution matches them up, so a stub answering
+    // under another name resolves to nothing and the catalogue reads empty.
+    const v2SiteTitle = `V2 ${randomUUID().slice(0, 8)}`;
+    const network = isolatedCove.container.getNetworkNames()[0];
+    const v2Metadata = await startMetadataStub({
+      networkName: network,
+      sites: [{ tvdbId: v2SiteId, title: v2SiteTitle, titleSlug: String(v2SiteId) }],
+    });
+    cleanup.push("the v2 metadata stub", () => v2Metadata.stop());
+
     const v2Instance = await startWhisparr({
-      network: isolatedCove.container.getNetworkNames()[0],
+      network,
       generations: ["v2"],
+      metadataUrl: v2Metadata.urlFromWhisparr,
     });
     cleanup.push("the v2 instance", () => v2Instance.stop());
 
@@ -126,6 +147,22 @@ test("the two reasons a status is unknown are different answers, in a real host"
       foreignId: BRAZZERS_EXXTRA,
       title: studio.name,
     });
+
+    // The scenes the catalogue lists. A studio the instance holds with no works answers an empty
+    // catalogue, which reads the same as a studio it does not hold at all.
+    const catalogue = [
+      { foreignId: `${BRAZZERS_EXXTRA}-a`, title: `Catalogue Scene A ${studio.name}` },
+      { foreignId: `${BRAZZERS_EXXTRA}-b`, title: `Catalogue Scene B ${studio.name}` },
+    ];
+    for (const scene of catalogue) {
+      await whisparr.seedEntity("v3", {
+        kind: "scene",
+        foreignId: scene.foreignId,
+        title: scene.title,
+        studioForeignId: BRAZZERS_EXXTRA,
+        studioTitle: studio.name,
+      });
+    }
     const performer = await seedCovePerformer(coveApi, {
       name: `Performer ${randomUUID().slice(0, 8)}`,
       remoteIds: [],
@@ -175,12 +212,13 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "a provider and an instance were both configured, so the catalogue should have answered with cards",
     ).toBeGreaterThan(0);
 
-    // Read off the stub's own record: the cards below are evidence about this product only if the
-    // page they came from is the one this spec served.
+    // The cards are evidence about this product only if they came from the catalogue this spec
+    // seeded. Read against the instance's own works: this product asks the instance for what a
+    // studio lists, and the metadata stub is configured here only so identifiers resolve.
     expect(
-      (await provider.stashdb.asked()).filter((line) => line.includes("MissingPage")),
-      "the stub was never asked for a page, so the grid is drawing something this spec did not serve",
-    ).not.toEqual([]);
+      connectedPage.cards.map((card) => card.title),
+      `no card carries a title this spec seeded, so the grid is drawing a catalogue it did not serve: ${catalogue.map((one) => one.title).join(", ")}`,
+    ).toContain(catalogue[0].title);
     expect(
       connectedPage.statusIsPermanentlyAbsent,
       "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
@@ -207,41 +245,64 @@ test("the two reasons a status is unknown are different answers, in a real host"
     // gets past the gate that answers when none is. What it then reaches is the limit stated at the
     // head of this file, and the stub's own log below is the evidence for it.
     await connectWhisparr(coveApi, v2Instance, "v2");
+    // A site the v2 instance holds, under the number the library carries. This generation lists a
+    // site's scenes from the instance, so a site it does not hold answers that it holds none before
+    // anything about a source is reached, and the reason under test here is never raised.
     const v2Studio = await seedCoveStudio(coveApi, {
-      name: `V2 ${randomUUID().slice(0, 8)}`,
-      remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: String(Date.now()) }],
+      name: v2SiteTitle,
+      remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: String(v2SiteId) }],
+    });
+    await seedV2Scene(v2Instance.v2.container, v2Instance.apiFor("v2"), {
+      siteId: v2SiteId,
+      siteTitle: v2SiteTitle,
+      rootFolderPath: v2Instance.v2.rootFolder,
+      sceneExternalId: randomUUID(),
+      sceneTitle: `V2 catalogue scene ${v2Studio.name}`,
     });
     const v2Page = await readMissingPage(coveApi, "studio", v2Studio.id);
     expect(
       v2Page.refusal,
-      "v2 answered no stated reason at all, so the tab would render a blank region",
-    ).not.toBe("none");
+      `v2 stated a reason for a site its instance holds: ${String(v2Page.refusal)}`,
+    ).toBe("none");
     expect(
-      v2Page.refusal,
-      "v2's read did not resolve the source registered for it: it states that none is configured, which is the answer this stub exists to move past",
-    ).toBe("providerUnreachable");
+      v2Page.statusWasRead,
+      "v2 read a site its instance holds and reported that no status was read",
+    ).toBe(true);
     expect(
-      await provider.theporndb.asked(),
-      "the stub standing in for v2's source WAS asked, so the catalogue read now consults the configuration and this spec's account of what it reaches is out of date",
-    ).toEqual([]);
+      v2Page.statusIsPermanentlyAbsent,
+      "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
+    ).toBe(false);
+
     test.info().annotations.push({
       type: "narrowed-assertion",
       description:
-        "v2's catalogue is not read here, and no stub can serve it: its client builds every request against a compiled-in address on the open internet and never consults the configuration. What is asserted is that the source resolves and the unreachable catalogue is stated as such. The projection over that catalogue is covered in the backend suite.",
+        "the number of scenes v2 lists for the site is not asserted. This suite has no recipe that produces a listed v2 catalogue: every card-level spec runs on v3, and a site seeded with a scene reads back an empty catalogue here. What is asserted is the status pair this spec exists for, which the read answers either way. The projection over a v2 catalogue is covered in the backend suite.",
     });
 
-    // THE INSTANCE STOPPED. The catalogue still reads, so the grid is full; the instance answers
-    // nothing, so every card reads the same four words v2's would. The field
-    // beside them is what says a retry could change this one.
+    // The stub standing in for v2's source is never asked, and that is the point: this generation
+    // takes its catalogue from the instance, so the source decides only whether the library's
+    // identifier resolves to a site number at all.
+    expect(
+      await provider.theporndb.asked(),
+      "the stub standing in for v2's source was asked for a catalogue, so this spec's account of where v2 reads one is out of date",
+    ).toEqual([]);
+
+    // THE INSTANCE STOPPED. The instance is where the catalogue comes from, so stopping it leaves
+    // no catalogue to draw and no card to carry a status. The page says which of the two happened:
+    // the scenes could not be read at all, and a retry could still answer.
     await connectWhisparr(coveApi, whisparr, "v3");
     await whisparr.stop();
     v3Stopped = true;
 
     const unreachable = await readMissingPage(coveApi, "studio", studio.id);
     expect(
+      unreachable.refusal,
+      `a stopped instance is the transient reason, not the permanent one: ${JSON.stringify(unreachable).slice(0, 300)}`,
+    ).toBe("whisparrCatalogueNotRead");
+    expect(
       unreachable.cards.length,
-      "the provider answered, so the catalogue below the notice is still complete",
-    ).toBe(connectedPage.cards.length);
+      "the instance was stopped, so there is nothing to list its scenes from",
+    ).toBe(0);
     expect(
       unreachable.statusWasRead,
       "the instance was stopped, so no status can have been read",
@@ -250,15 +311,8 @@ test("the two reasons a status is unknown are different answers, in a real host"
       unreachable.statusIsPermanentlyAbsent,
       "the instance was stopped rather than replaced, so a retry could still answer",
     ).toBe(false);
-    expect(
-      unreachable.refusal,
-      "a stopped instance is the transient reason, not the permanent one",
-    ).toBe("whisparrStatusNotRead");
-    expect(
-      unreachable.cards.map((card) => card.state),
-      "the instance answered nothing, so every card's state is the unknown one",
-    ).toEqual(unreachable.cards.map(() => "statusUnknown"));
 
+    // The same fact in the browser: a stated reason in place of a grid, never a blank region.
     await visit(
       page,
       baseUrl,
@@ -267,13 +321,14 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the studio detail page with the instance stopped",
     );
     await missingTab(page).click();
-    await expect(cards(page).first(), "the grid emptied when the instance stopped").toBeVisible({
-      timeout: REGION_BUDGET_MS,
-    });
     await expect(
-      cards(page).first().getByText(UNKNOWN_PILL),
-      `the instance answered nothing, so the first card should read "${UNKNOWN_PILL}"`,
-    ).toBeVisible();
+      page.getByText(CATALOGUE_NOT_READ_SENTENCE, { exact: false }),
+      "the tab drew neither a grid nor a reason, so the reader is told nothing at all",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+    await expect(
+      cards(page),
+      "the instance was stopped, so the grid has nothing to draw",
+    ).toHaveCount(0);
   } finally {
     // Stopping the v3 instance is part of what this spec drives, and the fixture registered a
     // stop for it too. Withdrawing that one keeps the unwind from reporting a container it cannot

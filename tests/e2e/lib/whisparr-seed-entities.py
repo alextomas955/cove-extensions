@@ -149,7 +149,24 @@ def main() -> None:
     parser.add_argument("--performer-foreign-ids", default=None, help="comma separated")
     parser.add_argument("--performer-names", default=None, help="comma separated")
     parser.add_argument("--release-date", default=None, help="yyyy-mm-dd")
+    # Several scenes in one run. A caller seeding a catalogue otherwise pays a file copy and a
+    # process start per scene, which is minutes for a catalogue worth paging through.
+    parser.add_argument("--scenes", default=None, help="json list of {foreignId,title}")
     args = parser.parse_args()
+
+    if args.scenes:
+        written = []
+        connection = sqlite3.connect(database_for(args.generation))
+        try:
+            for one in json.loads(args.scenes):
+                args.foreign_id = one["foreignId"]
+                args.title = one["title"]
+                written.append(write_scene(connection, args))
+            connection.commit()
+        finally:
+            connection.close()
+        print(json.dumps({"kind": "scene", "ids": written}))
+        return
 
     if args.kind == "scene":
         connection = sqlite3.connect(database_for(args.generation))

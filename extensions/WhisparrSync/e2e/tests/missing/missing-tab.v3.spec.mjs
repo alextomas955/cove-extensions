@@ -48,7 +48,7 @@ const PANEL_SENTENCE =
 const TAB_LABEL = "Missing";
 
 // The four words a status pill can carry, transcribed from the shipped vocabulary the same way.
-const PILL_WORDS = ["Wanted", "Unmonitored", "Not added", "Status unknown"];
+const PILL_WORDS = ["Monitored", "Unmonitored", "Not added", "Status unknown"];
 
 // The studio this spec reads a catalogue for. A real StashDB studio with a real catalogue, so a page
 // of cards is reachable when a credential is available; the uuid is what Cove stores as its remote
@@ -100,7 +100,6 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
   page,
   baseUrl,
   connected,
-  provider,
 }) => {
   const { api: coveApi, whisparr } = connected;
 
@@ -131,6 +130,23 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     foreignId: BRAZZERS_EXXTRA,
     title: studio.name,
   });
+
+  // The scenes the tab lists. A studio the instance holds with no works answers an empty catalogue,
+  // which draws the same blank region as a studio it does not hold at all.
+  const catalogue = [
+    { foreignId: `${BRAZZERS_EXXTRA}-a`, title: `Catalogue Scene A ${studio.name}` },
+    { foreignId: `${BRAZZERS_EXXTRA}-b`, title: `Catalogue Scene B ${studio.name}` },
+    { foreignId: `${BRAZZERS_EXXTRA}-c`, title: `Catalogue Scene C ${studio.name}` },
+  ];
+  for (const scene of catalogue) {
+    await whisparr.seedEntity("v3", {
+      kind: "scene",
+      foreignId: scene.foreignId,
+      title: scene.title,
+      studioForeignId: BRAZZERS_EXXTRA,
+      studioTitle: studio.name,
+    });
+  }
   const performer = await seedCovePerformer(coveApi, {
     name: `Performer ${randomUUID().slice(0, 8)}`,
     remoteIds: [],
@@ -224,18 +240,19 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     `the browser reported a bundle-load failure, which is what a wrong host-symbol transcription produces: ${transcriptionFailures.join(" | ")}`,
   ).toEqual([]);
 
+  // The cards are evidence about this product only if they came from the catalogue this spec
+  // seeded, so one of the seeded titles has to be among them. Read from the instance's own works
+  // rather than the metadata stub: this product asks the instance for what a studio lists, and the
+  // stub is configured here only so the library's identifiers resolve at all.
   const first = cards(page).first();
   await expect(
     first,
-    "a catalogue was served, so the tab should have answered with cards",
+    "the instance lists a catalogue for this studio, so the tab should have answered with cards",
   ).toBeVisible({ timeout: REGION_BUDGET_MS });
-
-  // Read off the stub's own record: the cards are evidence about this product only if the page
-  // they came from is the one this spec served.
-  expect(
-    (await provider.asked()).filter((line) => line.includes("MissingPage")),
-    "the stub was never asked for a page, so the tab is drawing something this spec did not serve",
-  ).not.toEqual([]);
+  await expect(
+    cards(page).filter({ hasText: catalogue[0].title }),
+    `no card carries a title this spec seeded, so the grid is drawing a catalogue it did not serve: ${catalogue.map((one) => one.title).join(", ")}`,
+  ).toHaveCount(1);
   await expect(
     first.getByText(new RegExp(PILL_WORDS.join("|"))),
     "the first card carries no status pill in this product's own vocabulary",
