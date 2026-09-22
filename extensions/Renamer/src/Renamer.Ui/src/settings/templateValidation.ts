@@ -15,7 +15,7 @@
  *     (depth > 0) is unbalanced (Tokenizer.cs:81-110).
  *   - Tokens resolve case-insensitively (TemplateEngine.cs:147).
  */
-import { TOKENS } from "./TokenLegend";
+import { TOKENS } from "./tokens";
 
 /** The canonical known-token set, lower-cased, leading `$` dropped — single-sourced from TOKENS. */
 const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));

@@ -129,7 +129,11 @@ export function FilenameSection({
             />
           </Field>
           <TemplateValidation value={options.filenameTemplate} emptySamples={emptySamples} />
-          <TokenLegend onInsert={insertToken} />
+          <TokenLegend
+            onInsert={insertToken}
+            filenameTemplate={options.filenameTemplate}
+            folderTemplate={options.folderTemplate}
+          />
         </CardSection>
 
         <CardSection
