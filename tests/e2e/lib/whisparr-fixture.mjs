@@ -12,7 +12,7 @@
 import { GenericContainer, Wait } from "testcontainers";
 import { createApiClient } from "./apiClient.mjs";
 import { APP_USER, whisparrImage } from "./whisparr-images.mjs";
-import { buildConfigXml, seedEntity, seedHistory } from "./whisparr-seed.mjs";
+import { buildConfigXml, seedEntity, seedHistory, seedScenes } from "./whisparr-seed.mjs";
 
 const WHISPARR_PORT = 6969;
 
@@ -202,6 +202,23 @@ export async function startWhisparr({
       }
       const instance = instances[generation];
       return seedEntity({
+        container: instance.container,
+        api: handle.apiFor(generation),
+        generation,
+        rootFolderPath: instance.rootFolder,
+        ...options,
+      });
+    },
+
+    /** The same as {@link seedEntity} for scenes, writing a whole catalogue in one run. */
+    async seedScenes(generation, options = {}) {
+      if (!Object.hasOwn(instances, generation)) {
+        throw new Error(
+          `startWhisparr: seedScenes("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+        );
+      }
+      const instance = instances[generation];
+      return seedScenes({
         container: instance.container,
         api: handle.apiFor(generation),
         generation,
