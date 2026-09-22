@@ -202,8 +202,10 @@ test("the status reads in the shared vocabulary, mark and tint and all", async (
   ]);
 });
 
-test("a monitored scene is called Wanted, under the vocabulary's own mark and tint", async () => {
-  expect(chip(await mountCard({ state: "monitored" }))).toBe("green:lucide-bookmark:Wanted");
+// The state's own word, not a word of this tab's own: "Wanted" is the name of a list the
+// instance keeps rather than a state a scene is in.
+test("a monitored scene is called Monitored, under the vocabulary's own mark and tint", async () => {
+  expect(chip(await mountCard({ state: "monitored" }))).toBe("green:lucide-bookmark:Monitored");
 });
 
 test("a refused press states the reason beneath the verbs, in the tone the reason carries", async () => {
@@ -214,7 +216,7 @@ test("a refused press states the reason beneath the verbs, in the tone the reaso
 
   const stated = container.querySelector("[data-status]");
   expect(stated?.textContent).toBe(
-    "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.",
+    "Whisparr has no entry for this scene yet, so there is nothing to search for - monitor it first.",
   );
   expect(stated?.getAttribute("data-status")).toBe("muted");
 });
