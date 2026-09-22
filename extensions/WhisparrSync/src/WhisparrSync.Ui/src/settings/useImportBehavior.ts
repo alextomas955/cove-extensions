@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { onConnectionChanged } from "./connectionChangedStore";
+
 import type { UpgradeBehavior, WhisparrSyncSettingsView } from "../wire/api";
 import { api } from "../common/lib/extension";
 
@@ -31,10 +33,7 @@ export function useImportBehavior(): UseImportBehavior {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const primed = useRef(false);
-  useEffect(() => {
-    if (primed.current) return;
-    primed.current = true;
+  const read = useCallback(() => {
     requestJson<WhisparrSyncSettingsView>(SETTINGS_PATH)
       .then(setView)
       .catch(() => {
@@ -42,6 +41,17 @@ export function useImportBehavior(): UseImportBehavior {
         setView(null);
       });
   }, []);
+
+  // Nothing this section shows follows the connection, but a save it makes restates the selected
+  // generation from this view. Held from before another save, it would move the selection back.
+  useEffect(() => onConnectionChanged(read), [read]);
+
+  const primed = useRef(false);
+  useEffect(() => {
+    if (primed.current) return;
+    primed.current = true;
+    read();
+  }, [read]);
 
   const choose = useCallback(
     (next: UpgradeBehavior) => {
