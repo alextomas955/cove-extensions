@@ -9,6 +9,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { LibraryCardKind, LibraryCardReading } from "../wire/api";
 import {
   cardIsRunning,
+  cardStatusRefusal,
   cardStatusSettled,
   readCardStatus,
   requestCardStatus,
@@ -22,6 +23,14 @@ export interface CardStatus {
   readonly settled: boolean;
   /** Whether a run this browser started is still working through this card. */
   readonly running: boolean;
+  /**
+   * Whether the page could not be answered for at all.
+   *
+   * A card with no reading means two different things. Where the page was answered, the library
+   * holds no id the instance could be asked by. Where it was refused, nothing was established about
+   * any card, and the reason is stated once for the page rather than on every card.
+   */
+  readonly pageRefused: boolean;
 }
 
 export function useCardStatus(kind: LibraryCardKind, coveId: number, enabled: boolean): CardStatus {
@@ -41,10 +50,14 @@ export function useCardStatus(kind: LibraryCardKind, coveId: number, enabled: bo
     enabled ? cardIsRunning(kind, coveId) : false,
   );
 
+  const pageRefused = useSyncExternalStore(subscribe, () =>
+    enabled ? cardStatusRefusal() !== "none" : false,
+  );
+
   useEffect(() => {
     if (!enabled) return undefined;
     return requestCardStatus(kind, coveId);
   }, [enabled, kind, coveId]);
 
-  return { reading, settled, running };
+  return { reading, settled, running, pageRefused };
 }

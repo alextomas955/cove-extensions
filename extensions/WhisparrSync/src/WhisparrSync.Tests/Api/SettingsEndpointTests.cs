@@ -219,12 +219,12 @@ public sealed class SettingsEndpointTests
     }
 
     // Whisparr checks a webhook by posting to it, and that post arrives from wherever Whisparr runs.
-    // A Cove with sign-in off reads a request from anywhere but its own machine as an instance that
-    // needs protecting, turns sign-in on for good and signs out whoever was configuring it. So the
-    // registration is refused before the instance is contacted, and the port throws if it is reached,
-    // so this passes only when Whisparr was never asked.
+    // A Cove holding an owner account while sign-in is off reads a request from anywhere but its own
+    // machine as an instance that needs protecting, turns sign-in on for good and signs out whoever
+    // was configuring it. So the registration is refused before the instance is contacted, and the
+    // port throws if it is reached, so this passes only when Whisparr was never asked.
     [Fact]
-    public async Task ARegistrationIsRefusedWhileCoveLetsCallersInWithoutSigningIn()
+    public async Task ARegistrationIsRefusedWhereItWouldLockCoveDown()
     {
         var (_, options) = await SeededAsync();
         using var gate = new OptionsWriteGate();
@@ -234,14 +234,35 @@ public sealed class SettingsEndpointTests
             gate,
             new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
             new UncontactableNotificationPort(),
-            hostAuthenticationRequired: false);
+            wouldLockDown: true);
 
-        Assert.False(view.HostAuthenticationRequired);
+        Assert.False(view.RegistrationIsSafe);
 
         // Nothing was recorded as registered either, so the page does not report a registration that
         // this instance was never told about.
         var stored = await options.LoadAsync(TestCt);
         Assert.NotEqual(RegistrationStatus.Registered, stored.V3?.CallbackRegistration);
+    }
+
+    // A Cove with sign-in off and no owner account yet is one nobody can be locked out of: the host
+    // lets an outside call through untouched so first-run setup can be finished from elsewhere. A
+    // product that refused on the sign-in setting alone would block that Cove for no gain, which is
+    // what the containerised suite runs against.
+    [Fact]
+    public async Task ARegistrationGoesAheadWhereNoLockdownWouldFollow()
+    {
+        var (_, options) = await SeededAsync();
+        using var gate = new OptionsWriteGate();
+
+        var view = await RegisterAsync(
+            options,
+            gate,
+            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
+            new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
+            wouldLockDown: false);
+
+        Assert.True(view.RegistrationIsSafe);
+        Assert.Equal(RegistrationStatus.Registered, view.Status);
     }
 
     // The field the manifest reads is filled at load, so without a refresh on save a generation
@@ -322,10 +343,9 @@ public sealed class SettingsEndpointTests
                 new FixedClock(Now),
                 TestCt));
 
-    // A Cove that makes callers sign in, which is the only state a registration is attempted from.
-    private sealed class HostAuthentication(bool required) : IHostAuthenticationPort
+    private sealed class Lockdown(bool wouldLockDown) : IHostLockdownPort
     {
-        public bool Required => required;
+        public Task<bool> WouldLockDownAsync(CancellationToken ct) => Task.FromResult(wouldLockDown);
     }
 
     private static async Task<CallbackView> RegisterAsync(
@@ -333,7 +353,7 @@ public sealed class SettingsEndpointTests
         OptionsWriteGate gate,
         RecordingCredentialPort credentials,
         IWhisparrNotificationPort notifications,
-        bool hostAuthenticationRequired = true)
+        bool wouldLockDown = false)
         => ValueOf<CallbackView>(
             await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
                 new RegisterCallbackRequest(null),
@@ -346,7 +366,7 @@ public sealed class SettingsEndpointTests
                 new MintedSecretPort(),
                 notifications,
                 new RegistrationGate(),
-                new HostAuthentication(hostAuthenticationRequired),
+                new Lockdown(wouldLockDown),
                 new FixedClock(Now),
                 TestCt));
 

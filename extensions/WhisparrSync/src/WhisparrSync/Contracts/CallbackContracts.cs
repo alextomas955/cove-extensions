@@ -53,10 +53,11 @@ public enum CallbackSecretPosition
 /// what the notification now says rather than what the write answered.
 /// </para>
 /// <para>
-/// <c>HostAuthenticationRequired</c> false means registering would sign the operator out of this
-/// Cove, so the surface states that before the gesture rather than after it. Whisparr verifies a
-/// webhook by posting to it, and a Cove with authentication off reads that post as an instance
-/// reachable from outside its own machine and turns authentication on for good.
+/// <c>RegistrationIsSafe</c> false means registering would sign the operator out of this Cove, so
+/// the surface states that before the gesture rather than after it. Whisparr verifies a webhook by
+/// posting to it, and a Cove that holds an owner account while sign-in is off reads that post as an
+/// instance reachable from outside its own machine and turns sign-in on for good. A Cove with no
+/// owner yet lets the same post through, so it is safe and this reads true.
 /// </para>
 /// </remarks>
 public sealed record CallbackView(
@@ -68,7 +69,7 @@ public sealed record CallbackView(
     CallbackSecretPosition? LastEventSecretPosition,
     ConnectionSetting? MissingSetting,
     string? Refusal,
-    bool HostAuthenticationRequired);
+    bool RegistrationIsSafe);
 
 /// <summary>One request to register the callback in the connected instance.</summary>
 /// <remarks>
