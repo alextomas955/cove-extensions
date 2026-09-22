@@ -12,7 +12,7 @@ namespace Renamer.Tests.Execution;
 /// Full renamer path: seed a Folder + VideoFile on a SQLite-in-memory <see cref="Cove.Data.CoveContext"/>
 /// and a matching file in a real <see cref="TempDir"/>, plan + execute an in-place renamer, and assert:
 /// (a) the file is at the new on-disk path and absent at the old; (b) the DB VideoFile.Basename is the
-/// new name and its recomputed Path == folder.Path + "/" + newBasename (Cove recomputed it on save — the
+/// new name and its recomputed Path == folder.Path + "/" + newBasename (Cove recomputed it on save - the
 /// executor never set .Path); (c) the IEventBus received exactly one VideoUpdated for the entity id
 /// (asserting the call args, not merely that Publish was called).
 ///
@@ -90,7 +90,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// <summary>
     /// T3: a host shutdown mid-save (an <see cref="OperationCanceledException"/> from the DB save) is
     /// cancellation, not a data failure. The post-move rollback still restores the disk, then the OCE
-    /// propagates out of the batch — it must not land as a <see cref="RenamerStatus.Failed"/> item row.
+    /// propagates out of the batch - it must not land as a <see cref="RenamerStatus.Failed"/> item row.
     /// Same-volume so it runs on every platform.
     /// </summary>
     [Fact]
@@ -132,7 +132,7 @@ public sealed class RenamerExecutorIntegrationTests
 
     /// <summary>
     /// A source row present in the DB but absent on disk must be classified SkipMissingSource by the
-    /// executor's source pre-check — not SkipLocked (the swallowed-IOException bucket it would fall
+    /// executor's source pre-check - not SkipLocked (the swallowed-IOException bucket it would fall
     /// into if it reached the mover). It is a safe no-op skip: nothing renamed/failed, no revert-log
     /// row, no event published.
     /// </summary>
@@ -158,7 +158,7 @@ public sealed class RenamerExecutorIntegrationTests
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var result = await executor.ExecuteAsync(plan, options, default);
 
-            // Classified as SkipMissingSource — not SkipLocked — with a missing-source reason.
+            // Classified as SkipMissingSource - not SkipLocked - with a missing-source reason.
             var skippedItem = Assert.Single(result.Skipped);
             Assert.Equal(RenamerStatus.SkipMissingSource, skippedItem.Status);
             Assert.Contains("missing", skippedItem.Reason);
@@ -180,7 +180,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// Cross-branch: force the executor's volume branch to take the verified
     /// <see cref="CrossVolumeMover"/> path by moving a file from a real <see cref="TempDir"/> to a
     /// SUBST-mapped second root (a distinct <see cref="Path.GetPathRoot(string)"/> on the same physical
-    /// volume — no second drive). Assert the cross move executed end-to-end: the source is gone, the
+    /// volume - no second drive). Assert the cross move executed end-to-end: the source is gone, the
     /// destination exists with the original content, the DB Basename + ParentFolderId + recomputed Path
     /// are updated, a revert-log row is written, and one VideoUpdated event fired.
     /// </summary>
@@ -257,7 +257,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// Cross-path rollback: a verified cross-volume move whose subsequent DB save throws
     /// (a forced <c>(ParentFolderId, Basename)</c> unique-index clash, pre-check bypassed via
     /// <see cref="CollisionBlindDataPort"/>) must roll back through <see cref="CrossVolumeMover.RollbackAsync"/>
-    /// — copy the bytes back across the volume and restore the source — leaving disk and DB consistent.
+    /// - copy the bytes back across the volume and restore the source - leaving disk and DB consistent.
     /// Re-proves disk-first/DB-second for the cross path.
     /// </summary>
     [Fact]
@@ -278,7 +278,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // Pre-seed the dest folder (same Path the executor will GetOrCreate) holding a row that
             // already occupies "taken.mkv", so the cross-move's save of (destFolderId, "taken.mkv")
-            // hits the unique index and throws — after the verified cross move has happened.
+            // hits the unique index and throws - after the verified cross move has happened.
             var destFolder = new Cove.Core.Entities.Folder { Path = dstFolder, ModTime = DateTime.UtcNow };
             db.Set<Cove.Core.Entities.Folder>().Add(destFolder);
             await db.SaveChangesAsync();
@@ -320,7 +320,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.False(File.Exists(newOnDisk), "rolled-back file must not linger at the dest");
             Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
 
-            // (c) the DB row still carries the old basename + source folder — disk and DB consistent.
+            // (c) the DB row still carries the old basename + source folder - disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(srcFolder + "/a.mkv", pathA);
@@ -336,7 +336,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// Regression: when the cross-volume rollback fails to fully restore (here the old source slot
     /// is re-occupied before the copy-back runs, so <see cref="CrossVolumeMover.RollbackAsync"/> records a
     /// "rollback target re-occupied" warning rather than restoring), the executor must not report a clean
-    /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible —
+    /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible -
     /// silently discarding the warnings would falsely claim a rollback that did not happen.
     /// </summary>
     [Fact]
@@ -537,7 +537,7 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>Test-only port: the save throws a cancellation (a host shutdown mid-save), forcing the
-    /// executor's post-move OCE path — rollback, then propagate — rather than the data-failure path.</summary>
+    /// executor's post-move OCE path - rollback, then propagate - rather than the data-failure path.</summary>
     private sealed class CancelOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(

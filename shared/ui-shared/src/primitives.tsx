@@ -2,20 +2,20 @@
  * Field primitives re-implemented locally (the host's `SettingsPrimitives.tsx` is not
  * importable from an extension bundle). Every class string is matched byte-for-byte to
  * Cove's own primitives so the panel is typographically/spacing-wise indistinguishable
- * from native Cove settings — and so every utility resolves against the host's already-
+ * from native Cove settings - and so every utility resolves against the host's already-
  * emitted Tailwind stylesheet (no CSS bundle ships).
  *
- * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` — not the
+ * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` - not the
  * `focus-visible:ring-*` utilities, which the host stylesheet does not emit (so they would do nothing).
  *
  * Import audit (checked directly against `@cove/runtime/components`, not assumed): none of its
- * exports are a drop-in for these primitives. `SettingsPrimitives.tsx` — the host's own field/
- * control set these mirror — is never re-exported to extensions at all; only three host-internal
+ * exports are a drop-in for these primitives. `SettingsPrimitives.tsx` - the host's own field/
+ * control set these mirror - is never re-exported to extensions at all; only three host-internal
  * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
  * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
  * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
  * `CustomFieldsDisplay`/`Editor`) utilities, none of which overlap a settings-field primitive's
- * shape. `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
+ * shape. `TagBadge` is a tag/label pill with color and provenance - this codebase's status pills
  * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
  * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no local counterpart
  * anywhere in this directory: nothing here renders a raw duration, file size, or date value, and
@@ -49,29 +49,29 @@ export const INPUT_CLASS =
 
 /**
  * Selectable chip/button styling, matching the TokenLegend / PresetRow chip. Host-compiled classes
- * only — no arbitrary `[…]` values, because the host's Tailwind JIT never scans this bundle.
+ * only - no arbitrary `[…]` values, because the host's Tailwind JIT never scans this bundle.
  *
  * The selected and unselected states must not share a conflicting color utility. Tailwind resolves
  * two utilities targeting the same property by their order in the generated stylesheet, not by the
- * order in the class attribute — and the host emits `.bg-card` / `.text-foreground` / `.border-border`
+ * order in the class attribute - and the host emits `.bg-card` / `.text-foreground` / `.border-border`
  * after `.bg-accent` / `.text-accent` / `.border-accent`. So a selected state built by appending accent
  * utilities to the base chip (which carries the card/foreground/border ones) loses every color
- * conflict and renders identically to unselected — the bug that made the selection invisible.
+ * conflict and renders identically to unselected - the bug that made the selection invisible.
  *
  * The fix: a color-free shape base, plus two mutually exclusive color sets. {@link chipClass} picks one
- * — never both — so no same-property conflict exists and the host's source order is irrelevant.
+ * - never both - so no same-property conflict exists and the host's source order is irrelevant.
  */
 const CHIP_BASE = "cursor-pointer rounded-lg border px-2 py-1 text-xs";
 const CHIP_UNSELECTED =
   "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent";
-// Cove's own chip/pill selected state is an accent tint, not a solid fill — `border-accent bg-accent/15`
+// Cove's own chip/pill selected state is an accent tint, not a solid fill - `border-accent bg-accent/15`
 // (see CustomFields enum chips / BookmarkButton). The solid `bg-accent text-white` is Cove's idiom for
 // segmented toggle buttons, not chips, and reads too heavy here. The tint still carries selection on the
 // background (a property the unselected set's text/border utilities don't contest), so it stays visible
-// regardless of the host stylesheet's source order — the conflict that hid an earlier border/text tint.
+// regardless of the host stylesheet's source order - the conflict that hid an earlier border/text tint.
 const CHIP_SELECTED = "border-accent bg-accent/15 text-foreground";
 
-/** The full chip class for a selected/unselected chip — one color set, never both. */
+/** The full chip class for a selected/unselected chip - one color set, never both. */
 function chipClass(selected: boolean): string {
   return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_UNSELECTED}`;
 }
@@ -156,7 +156,7 @@ export function Field({
  * For anything that is not one labelable control: a chip row, a segmented control, a chips-plus-input
  * editor, the host's entity selector. A `<label>` forwards a click anywhere inside it to its first
  * labelable descendant, and `button` is labelable, so a label over any of those turns a click on the
- * heading into a click on whichever chip happens to be drawn first — a setting silently changed, or a
+ * heading into a click on whichever chip happens to be drawn first - a setting silently changed, or a
  * configured value deleted. The heading names the block instead.
  *
  * A group name does not name a control nested inside it, so each control in here carries its own.
@@ -321,11 +321,11 @@ export interface ExampleOption {
  * folding a static reference example into its text (`{value} → {example}`), plus a `Custom…`
  * sentinel that reveals the existing mono {@link TextInput} pre-filled with the current value.
  *
- * The canonical persisted value never changes shape — this is purely how the user produces the
+ * The canonical persisted value never changes shape - this is purely how the user produces the
  * string. On a value that matches no known option, `Custom…` is auto-selected and the input shown
  * (so a previously-customised value is never lost). Below the select, a `font-mono` helper line
  * restates the currently-selected option's example. All text renders as React text nodes
- * (auto-escaped) — no raw-HTML rendering.
+ * (auto-escaped) - no raw-HTML rendering.
  */
 export function ExampleSelect({
   value,
@@ -403,7 +403,7 @@ export interface SeparatorOption {
  * chip. The active separator's chip is persistently selected (the filled-accent {@link chipClass}).
  * Each chip label makes leading/trailing whitespace visible (never an apparently-empty chip).
  * The `Custom` chip reveals the existing mono {@link TextInput}, pre-filled, when the saved value
- * matches no preset. Binds the same separator string via `onChange` — no shape change.
+ * matches no preset. Binds the same separator string via `onChange` - no shape change.
  */
 export function SeparatorChips({
   value,
@@ -493,14 +493,14 @@ export function SegmentedReplace({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
-  // clicking "Replace with" on an empty value must reveal the input so the user can type — deriving from
+  // clicking "Replace with" on an empty value must reveal the input so the user can type - deriving from
   // value alone deadlocks. When the user is in replace mode and the input is momentarily empty, we stay in
   // replace mode (don't collapse mid-type). The key case is an external change to "" (Reset-to-
   // defaults / load): we detect "value changed to empty since last render" and snap back to strip mode.
   const [replaceMode, setReplaceMode] = useState(value !== "");
   const prevValue = useRef(value);
   // Sync the explicit UI mode to an external value change (Reset/load), detected via prevValue.
-  // This is a prop-change synchronization across renders, not a render-derived setState — the
+  // This is a prop-change synchronization across renders, not a render-derived setState - the
   // react-compiler set-state-in-effect heuristic flags it but the ref-guarded transition is correct.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -571,7 +571,7 @@ export function Checkbox({
 }) {
   const id = useId();
   // A label-less checkbox (an overlay control with no visible text) names itself through aria-label on the
-  // input, mirroring Toggle — otherwise the visible label span carries the accessible name.
+  // input, mirroring Toggle - otherwise the visible label span carries the accessible name.
   const hasVisibleLabel = Boolean(label);
   return (
     <div>
@@ -622,8 +622,8 @@ export function Toggle({
           className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
             checked ? "bg-accent" : "border border-border"
           }`}
-          // The off track has to step away from every container this panel puts a toggle in — card
-          // and surface alike — or it reads as a bare knob. Cove's border tone does, and it goes
+          // The off track has to step away from every container this panel puts a toggle in - card
+          // and surface alike - or it reads as a bare knob. Cove's border tone does, and it goes
           // inline because the host's prebuilt stylesheet is the only source of classes here.
           style={checked ? undefined : { backgroundColor: "var(--color-border)" }}
         >
@@ -632,7 +632,7 @@ export function Toggle({
             // Knob offset is an inline transform, not a translate-x-* utility. The extension
             // ships no CSS of its own; it styles via classes the host's prebuilt Tailwind bundle
             // already emits. translate-x-4 / translate-x-0.5 are used nowhere in Cove's own UI, so
-            // the host never compiles them — as classes they'd resolve to nothing and the knob
+            // the host never compiles them - as classes they'd resolve to nothing and the knob
             // wouldn't move. An inline style is element-scoped (cannot leak onto host pages) and
             // needs no bundle. 1rem = the 9-wide track minus the 4-wide knob minus the 0.125rem
             // off-state inset; transition-transform (host-emitted) still animates the slide.
@@ -859,7 +859,7 @@ export function TagListInput({
  * A toggle-chip multiselect over a fixed option set where order does not matter (the ignore-genders
  * list): clicking a chip toggles its membership, selected chips carry the accent tint via
  * {@link chipClass}. Stores the option values (e.g. the gender enum names), in the option set's order
- * rather than click order — so two configs with the same members serialize identically. Every label
+ * rather than click order - so two configs with the same members serialize identically. Every label
  * is a React text node (auto-escaped).
  *
  * A stored value not in `options` (e.g. one saved via the old free-text control, or a gender this
@@ -876,7 +876,7 @@ export function ChipMultiSelect({
   onChange: (values: string[]) => void;
 }) {
   const optionValues = new Set(options.map((o) => o.value));
-  // Stored values outside the offered set — kept verbatim so a toggle never erases them.
+  // Stored values outside the offered set - kept verbatim so a toggle never erases them.
   const extras = values.filter((v) => !optionValues.has(v));
 
   function toggle(value: string) {
@@ -932,7 +932,7 @@ export function ChipMultiSelect({
  * priority ranking): a `<select>` offers only the not-yet-added options (via {@link availableOptions}),
  * and the chosen values render as ↑↓-reorderable, removable chips in priority order. Stores the option
  * values in user order. Mirrors {@link TagListInput}'s ordered reorder/remove, but the add path is a
- * constrained dropdown rather than free text — so only valid enum names can ever be added.
+ * constrained dropdown rather than free text - so only valid enum names can ever be added.
  */
 export function OrderedPickToAdd({
   options,
@@ -1025,11 +1025,11 @@ export function OrderedPickToAdd({
  * Generic add/remove/reorder editor for a list of typed-object rows. Controlled (`rows`/`onChange`,
  * no internal persistence). The caller supplies the row layout via `renderRow` and a fresh blank row
  * via `makeRow`, so routing (Pattern+IsRegex+Dest), excludes (Pattern+IsRegex), and field-replacers
- * (TargetToken+Find+Replace) all reuse this one editor without forking — the render-prop shape is the
+ * (TargetToken+Find+Replace) all reuse this one editor without forking - the render-prop shape is the
  * only thing that keeps the generic worth its weight over three near-duplicate row components.
  *
  * `renderRow` receives the row, its index, and a typed patch callback so a field edit produces a fresh
- * row object (the update never mutates `rows` in place — it rebuilds the array and calls `onChange`).
+ * row object (the update never mutates `rows` in place - it rebuilds the array and calls `onChange`).
  * Reorder (`ordered`) mirrors {@link TagListInput}'s ↑↓ move; empty state renders only the add control.
  */
 export function ObjectArrayEditor<T>({
@@ -1048,7 +1048,7 @@ export function ObjectArrayEditor<T>({
   ordered?: boolean;
 }) {
   // A stable key per row, carried in lockstep with the data ops. The rows are arbitrary typed
-  // objects with no id, and an edit rebuilds the row object — so neither the array index nor the
+  // objects with no id, and an edit rebuilds the row object - so neither the array index nor the
   // object reference is a stable React key (an index key reattaches a removed/reordered row's DOM +
   // uncommitted input state to the wrong row). These counter-backed keys move with the data ops:
   // remove/reorder permute them, add mints a fresh one, and an external wholesale replacement
@@ -1158,7 +1158,7 @@ export function ObjectArrayEditor<T>({
  * Generic key→value map editor. Controlled (`map`/`onChange`, no internal persistence). Renders one
  * row per existing entry and a separate "add" row; the caller renders both the key and value controls
  * via render-props (`renderKey`/`renderValue`) so the studio/tag picker can supply a searchable key
- * control while a plain text map supplies a text input — the map editor itself stays agnostic to how a
+ * control while a plain text map supplies a text input - the map editor itself stays agnostic to how a
  * key is chosen.
  *
  * De-dupe on add mirrors {@link TagListInput}: adding a key already present is refused rather than
@@ -1221,7 +1221,7 @@ export function KeyValueMapEditor<TValue>({
 
   function add() {
     const k = draftKey.trim();
-    // Refuse a blank or duplicate key — a duplicate add must not clobber the existing mapping.
+    // Refuse a blank or duplicate key - a duplicate add must not clobber the existing mapping.
     if (k.length === 0 || k in map) return;
     onChange({ ...map, [k]: pendingValue });
     setDraftKey("");
@@ -1273,7 +1273,7 @@ export function KeyValueMapEditor<TValue>({
 }
 
 /**
- * Inline regex-validity message for a rule row. Presentational only — it shows an error when the
+ * Inline regex-validity message for a rule row. Presentational only - it shows an error when the
  * pattern is in regex mode and obviously malformed, and renders nothing otherwise; the consuming row
  * decides whether to block on it. The verdict comes from the tested {@link isRegexValid}, whose
  * browser-vs-.NET caveat applies: this flags obvious JS parse errors, not full .NET parity, so a
@@ -1390,7 +1390,7 @@ const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?
   };
 
 /**
- * A status-tinted pill — the badge family the single-accent `$token` {@link Badge} does not cover.
+ * A status-tinted pill - the badge family the single-accent `$token` {@link Badge} does not cover.
  * `variant` selects the tint, `shape` the corner radius (`pill` fully rounded | `tag` `rounded-md`),
  * `icon` a caller-supplied leading glyph so status never rides on color alone.
  */
@@ -1427,7 +1427,7 @@ export function StatusPill({
 /**
  * A titled block inside a {@link SectionCard}, for a card that holds more than one subject. The
  * `<section>` is named through `aria-labelledby`, so it exposes a `region` an assistive-technology
- * user (and a test locator) can address by its title — the enclosing card's own heading is not wired
+ * user (and a test locator) can address by its title - the enclosing card's own heading is not wired
  * that way, which is what keeps a nested block unambiguous. `divided` draws the hairline that
  * separates it from the block above.
  */
@@ -1505,7 +1505,7 @@ export function SectionCard({
 
 /**
  * A card whose header carries an enable {@link Toggle}; the body renders inline only when `enabled`.
- * The design's per-studio / per-tag / advanced-routing pattern — the card stays visible with its
+ * The design's per-studio / per-tag / advanced-routing pattern - the card stays visible with its
  * title + description, and flipping the header toggle reveals the controls (or an off-state hint).
  * The toggle state is owned by the caller (the same Enable* option), so this is presentational.
  */
@@ -1628,7 +1628,7 @@ export function Spinner() {
 /**
  * A thin determinate/indeterminate progress track. Presentational: the caller supplies an already-
  * clamped whole `percent` (0..100) when it has one, or omits it for the indeterminate state before
- * the first sample arrives. The fill width is an element-scoped inline style — an arbitrary
+ * the first sample arrives. The fill width is an element-scoped inline style - an arbitrary
  * `w-[NN%]` class would render nothing here (the host's Tailwind JIT never scans this bundle, the
  * same reason {@link Toggle}'s knob offset is inline). Colors/shape come from host-emitted utilities
  * only, so no CSS ships. Determinate carries `role="progressbar"` + `aria-valuenow/min/max`;

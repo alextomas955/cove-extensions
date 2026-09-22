@@ -10,12 +10,12 @@ namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
 /// The journal's paged row read against a real <see cref="CoveContext"/>: that a batch larger than one
-/// page comes back whole, in one order, each row once — and that a run over it ends.
+/// page comes back whole, in one order, each row once - and that a run over it ends.
 /// </summary>
 /// <remarks>
 /// The defect these cases exist for is a memory one: the read that fed <c>/undo</c> materialized every
 /// pending row of a batch, and a batch is as large as the library. Paging fixes that, and introduces a
-/// worse failure of its own — a cursor that fails to advance turns a request into a hang rather than an
+/// worse failure of its own - a cursor that fails to advance turns a request into a hang rather than an
 /// error. That is why the termination case here carries a bounded guard: without one it would prove the
 /// bug by never finishing.
 /// <para>
@@ -32,12 +32,12 @@ namespace Renamer.Tests.Execution.Journal;
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalPagingTests
 {
-    // 10 rows read 3 at a time is four pages — three full and a short last one, so both boundary shapes
+    // 10 rows read 3 at a time is four pages - three full and a short last one, so both boundary shapes
     // are crossed rather than assumed.
     private const int PageLimit = 3;
     private const int RowCount = 10;
 
-    // Real files are slower to seed than bare rows, so the undo cases use fewer of them — still more
+    // Real files are slower to seed than bare rows, so the undo cases use fewer of them - still more
     // than PageLimit, which is what makes them multi-page (7 rows at 3 a page is 3, 3, 1).
     private const int UndoRowCount = 7;
 
@@ -147,14 +147,14 @@ public sealed class JournalPagingTests
 
         Assert.Empty(await journal.ReadBatchPageAsync("no-such-run", long.MaxValue, PageLimit));
 
-        // And past the end of a batch that does exist — the state every paging run finishes in.
+        // And past the end of a batch that does exist - the state every paging run finishes in.
         Assert.Empty(await journal.ReadBatchPageAsync(RunId, belowSeq: 1, PageLimit));
     }
 
     [Fact]
     public async Task AMultiPageRunWhereEveryRowStopsRetryably_Terminates_AndAttemptsEachRowExactlyOnce()
     {
-        // The failure this case exists to catch does not fail an assertion — it hangs. A cursor that did
+        // The failure this case exists to catch does not fail an assertion - it hangs. A cursor that did
         // not advance past rows which stayed pending would re-read the first page forever, and nothing
         // retires to end it, because a retryable stop deliberately leaves its row in the table. The
         // bounded page guard inside RunPagedUndoAsync is what turns that hang into a failure.
@@ -176,8 +176,8 @@ public sealed class JournalPagingTests
 
             Assert.Equal(0, run.Undone);
 
-            // Counted off what the run produced — each stop carries the identity of the row it stopped
-            // on — rather than off a number this test also supplied.
+            // Counted off what the run produced - each stop carries the identity of the row it stopped
+            // on - rather than off a number this test also supplied.
             Assert.Equal(UndoRowCount, run.Attempts.Count);
             Assert.Equal(UndoRowCount, run.Attempts.Distinct().Count());
             Assert.True(run.Pages > 1, $"the batch spanned {run.Pages} page(s); the case needs more than one");
@@ -239,7 +239,7 @@ public sealed class JournalPagingTests
             Assert.Equal(UndoRowCount, run.Undone);
             Assert.Equal(UndoRowCount, run.Attempts.Distinct().Count());
 
-            // On disk, not merely in the response — a page boundary that dropped a row would leave its
+            // On disk, not merely in the response - a page boundary that dropped a row would leave its
             // file at the renamed path with the count still reading right.
             foreach (var s in seeded)
             {
@@ -269,7 +269,7 @@ public sealed class JournalPagingTests
     private sealed record PagedRun(int Undone, int Pages, IReadOnlyList<(string RunId, long Seq)> Attempts);
 
     /// <summary>
-    /// Pages the batch and reverse-replays each page, in the shape <c>UndoAsync</c> uses — a page below
+    /// Pages the batch and reverse-replays each page, in the shape <c>UndoAsync</c> uses - a page below
     /// the cursor, a replay, retirement of the settled rows, then the cursor moved to the lowest
     /// sequence the page returned.
     /// </summary>

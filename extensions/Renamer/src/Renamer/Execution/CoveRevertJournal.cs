@@ -32,7 +32,8 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
 
     // The single-writer gate over this instance's context. Held across the whole mutation, so a
     // concurrent worker never observes or saves a half-built change set. Reads are gated too, because
-    // they materialize through the same context.
+    // they materialize through the same context, and each one opens with a FlushAsync so buffered
+    // appends reach the database before anything reads or deletes over them.
     private readonly SemaphoreSlim _writes = new(1, 1);
 
     // Minted here because an auto-numbering column would be provider-specific, and the shipped schema
@@ -84,7 +85,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             Interlocked.Exchange(ref _lastSeq, 0);
@@ -139,7 +139,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             var rows = _db.Set<RevertRowEntity>();
@@ -200,7 +199,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             var rows = _db.Set<RevertRowEntity>();
@@ -231,7 +229,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             var stored = await _db.Set<RevertBatchEntity>().AsNoTracking()
@@ -254,7 +251,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             // The Take keeps this materialization bounded by the page and not by the library.
@@ -278,7 +274,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             var row = await _db.Set<RevertRowEntity>()
@@ -319,7 +314,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         await _writes.WaitAsync(ct);
         try
         {
-            // Buffered appends reach the database before anything reads or deletes over them.
             await FlushAsync(ct);
 
             long cutoff = (nowUtc - RetentionWindow).Ticks;

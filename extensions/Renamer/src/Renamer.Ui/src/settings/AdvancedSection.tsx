@@ -1,7 +1,7 @@
 /**
- * AdvancedSection — the "Advanced" section's panels, all collapsed by default: name cleanup
+ * AdvancedSection - the "Advanced" section's panels, all collapsed by default: name cleanup
  * (illegal/space handling, case, ASCII), length & collisions, cross-drive concurrency, the
- * pre-routing excludes, and field rewriting & name shaping. Presentational — every field flows up
+ * pre-routing excludes, and field rewriting & name shaping. Presentational - every field flows up
  * through `set`.
  */
 import { type ReactNode } from "react";
@@ -355,7 +355,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             makeRow={() => ({ targetToken: TOKEN_OPTIONS[0].value, find: "", replace: "" })}
             renderRow={(row, _i, update) => {
               // A rule saved before this dropdown existed (or via a hand-edited blob) may hold a
-              // token outside the 18 — surface it as an extra option so the Select shows the real
+              // token outside the 18 - surface it as an extra option so the Select shows the real
               // stored value instead of silently displaying the first option while state differs.
               const tokenOptions = TOKEN_OPTIONS.some((o) => o.value === row.targetToken)
                 ? TOKEN_OPTIONS

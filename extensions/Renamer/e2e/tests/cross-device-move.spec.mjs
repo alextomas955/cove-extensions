@@ -2,17 +2,17 @@
 // filesystem from the container's root, unlike two named volumes, which land on the same backing
 // device in Docker Desktop). A move from /data into /data2 raises a real EXDEV at the kernel level.
 //
-// important — what this test does and does not prove: Renamer's own same-vs-cross-volume
+// important - what this test does and does not prove: Renamer's own same-vs-cross-volume
 // classification (VolumeClassifier.SameVolume) is Path.GetPathRoot()-based, which always returns
 // "/" for every path on Linux (POSIX has no drive letters). So Renamer's code still classifies
 // this move as "same volume" and routes it through the fast DiskMover.Move path (File.Move), not
-// through CrossVolumeMover's verified copy->delete path — that path is only reachable on Windows,
+// through CrossVolumeMover's verified copy->delete path - that path is only reachable on Windows,
 // where GetPathRoot returns distinct drive letters. See CrossVolumeMoverTests.cs in the existing
 // xUnit suite for coverage of that path.
 //
 // What is being verified here: DiskMover.Move's `catch (IOException ex)` already catches the real
 // EXDEV .NET raises for a cross-device File.Move on Linux (.NET's File.Move surfaces EXDEV as a
-// plain IOException, same type as "destination exists" / "source locked") — so the move fails
+// plain IOException, same type as "destination exists" / "source locked") - so the move fails
 // safely (reported as a skip, not a crash, not a partial/corrupted state) even though the
 // reported reason ("locked or target exists") is misleading for this specific cause. This test
 // locks in that safety property and documents the misleading-message gap as a known finding for
@@ -45,12 +45,12 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
     expect(enqueue.status).toBe(202);
 
     const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
-    // The batch job itself always reports "completed" — per-item outcomes (renamed/skipped/failed)
+    // The batch job itself always reports "completed" - per-item outcomes (renamed/skipped/failed)
     // are in the batch log, not the job status. A skip is not a job failure.
     expect(job.status.toLowerCase()).toBe("completed");
 
     // Safety property: the source file must not have vanished or been left in a half-moved state.
-    // Either it stayed at its original path (skipped) or landed intact at exactly one place — never
+    // Either it stayed at its original path (skipped) or landed intact at exactly one place - never
     // both missing from /data and missing from /data2 (which would mean data loss).
     const afterMove = await api.get(`/api/videos/${video.id}`);
     const finalPath = afterMove.json.files[0].path;
@@ -65,7 +65,7 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
 
     if (!stillAtOriginal) {
       // If Renamer's Windows-shaped SameVolume check ever changes to be cross-platform-aware, this
-      // branch would start exercising the real CrossVolumeMover path — leave both outcomes valid so
+      // branch would start exercising the real CrossVolumeMover path - leave both outcomes valid so
       // this test does not need to change if that happens, only note which branch actually ran.
       console.log(
         "Move succeeded across the EXDEV-raising mount (unexpected on current Linux-only SameVolume logic, but not unsafe).",
@@ -78,9 +78,9 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
   } finally {
     // This test PUTs a global Renamer option (FolderRoot) into the Cove instance,
     // which is shared across every sibling spec on the same Playwright worker. Restore the defaults
-    // so a later spec that relies on the file's own library path — notably rename-ui-coverage's
+    // so a later spec that relies on the file's own library path - notably rename-ui-coverage's
     // folder-template relocate, which needs the default destination to name no root so it stays
-    // within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move, and left
+    // within /data - is not silently routed cross-device (/data2), skipped as an EXDEV move, and left
     // un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
     // assertion above still cannot leak routing state into the next test.
     const reset = await api.put(

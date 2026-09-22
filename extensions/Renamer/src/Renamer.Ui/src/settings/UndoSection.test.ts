@@ -3,8 +3,8 @@
  * What the panel says after an undo whose outcome nobody knows.
  *
  * `/undo` moves files back and cannot be repeated, so the sentence that closes it is the user's only
- * signal about whether to go and check. A transport failure leaves the request's fate unknown — the
- * server may have restored the whole batch, part of it, or none — and the one reading that must not be
+ * signal about whether to go and check. A transport failure leaves the request's fate unknown - the
+ * server may have restored the whole batch, part of it, or none - and the one reading that must not be
  * available is a confident success.
  *
  * A DOM is needed because the subject is the hook's catch arm, and which sentence it picks is
@@ -157,7 +157,7 @@ test("a malformed body is the same unknown, not a success", async () => {
 });
 
 test("a real ApiError still reads as a failure that changed nothing", async () => {
-  // The server answered, and it answered that it refused — so the batch is untouched and saying so is
+  // The server answered, and it answered that it refused - so the batch is untouched and saying so is
   // correct here. Pinned so the fix above cannot swallow this arm into the unknown one.
   server.undoRejection = new FakeApiError(403, "forbidden");
   const text = await undoAndReadFeedback();

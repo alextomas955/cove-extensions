@@ -11,7 +11,7 @@ namespace Renamer.Tests.Events;
 /// </summary>
 /// <remarks>
 /// The suppression is armed before the executor call because the host re-raises fire-and-forget. It is
-/// consumed by the event that save raises — so a run that reaches the executor and renames nothing
+/// consumed by the event that save raises - so a run that reaches the executor and renames nothing
 /// raises no event, and the armed token waits for the user's next genuine edit instead. Every path in
 /// here is written out from the arrangement by hand rather than asked of the planner, so an expectation
 /// cannot agree with the code however far the two drift.
@@ -42,7 +42,7 @@ public sealed class AutoRenamerSelfSaveReleaseTests
             // reads file rows, so it sees a free name and plans the move; the executor measures the disk
             // too and re-suffixes. A suffix format carrying no {n} renders the same name on every attempt,
             // so those two occupied names exhaust the loop and the item skips. Any per-item failure
-            // reaches the same place — this is just the shortest one that needs no platform behaviour.
+            // reaches the same place - this is just the shortest one that needs no platform behaviour.
             string blocker = Path.Combine(sortedFolder, "My Film.mkv");
             string suffixedBlocker = Path.Combine(sortedFolder, "My Film (copy).mkv");
             File.WriteAllText(blocker, "someone else's bytes");
@@ -66,7 +66,7 @@ public sealed class AutoRenamerSelfSaveReleaseTests
 
             string atLibrary = Path.Combine(libraryFolder, "raw.mkv");
 
-            // (1) A genuine edit. The rule matches, so the plan acts and the executor is called — and the
+            // (1) A genuine edit. The rule matches, so the plan acts and the executor is called - and the
             //     occupied destination sends every item to a skip, so nothing is saved and no event is
             //     raised for the suppression to consume.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);

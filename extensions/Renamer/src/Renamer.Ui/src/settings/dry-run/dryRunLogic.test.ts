@@ -279,7 +279,7 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
 
 test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus slow ETA", () => {
   // The reported symptom: a slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls
-  // toward the fast rate each poll, so the estimate is seconds — not minutes/hours — and it does so
+  // toward the fast rate each poll, so the estimate is seconds - not minutes/hours - and it does so
   // without dropping any samples (recency-weighting is the principled fix, not a magic threshold).
   const samples = [
     { timeMs: 0, progress: 0.01 },
@@ -295,7 +295,7 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   );
 
   // The confidence gate means the first fast poll (only 2 rate observations: slow seed + 1 fast) is
-  // shown, and by then the EWMA already leans toward the fast rate — so it is seconds, not minutes.
+  // shown, and by then the EWMA already leans toward the fast rate - so it is seconds, not minutes.
   // slow seed ≈ 0.00139/s; fast instant 0.5/0.2=2.5/s; smoothed = 0.3*2.5 + 0.7*0.00139 ≈ 0.751/s;
   // remaining from 0.52 ≈ 0.48/0.751 ≈ 0.6s.
   const early = etaFromSamples([

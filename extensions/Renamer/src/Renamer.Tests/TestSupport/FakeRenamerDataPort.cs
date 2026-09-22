@@ -45,10 +45,10 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Declares <paramref name="fullPath"/> absent on disk for <see cref="SourceExistsAsync"/>.</summary>
     public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
 
-    /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove the planning pass loads each id once, not twice.</summary>
+    /// <summary>Number of <see cref="LoadEntityAsync"/> calls - lets a test prove the planning pass loads each id once, not twice.</summary>
     public int LoadEntityCallCount { get; private set; }
 
-    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per call (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
+    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls - one per call (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
     public int LoadEntitiesCallCount { get; private set; }
 
     /// <summary>The library paths the fake declares; empty by default, so a test opts in to an anchor.</summary>
@@ -129,7 +129,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult(taken);
     }
 
-    /// <summary>Records every <see cref="GetOrCreateFolderIdAsync"/> call's path, in order — a created folder is a mutation, so a preview-purity test asserts this stays empty.</summary>
+    /// <summary>Records every <see cref="GetOrCreateFolderIdAsync"/> call's path, in order - a created folder is a mutation, so a preview-purity test asserts this stays empty.</summary>
     public List<string> CreatedFolderPaths { get; } = new();
 
     public Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
@@ -149,7 +149,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
         => Task.FromResult(!MissingSources.Contains(fullPath));
 
-    /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this — the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
+    /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this - the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
     public Exception? ApplyAndSaveThrow { get; set; }
 
     /// <summary>Per-file <c>RecomputedPath</c> a successful <see cref="ApplyAndSaveAsync"/> returns; a file id absent here echoes its new basename.</summary>

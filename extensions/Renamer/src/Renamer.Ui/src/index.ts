@@ -5,7 +5,7 @@
  *
  * The default export also carries an `actionHandlers` map. The SDK `ExtensionModule`
  * type does not declare `actionHandlers` (see sdk/frontend/dist/types.d.ts), but the host
- * loader reads `mod.default.actionHandlers` untyped. So we attach it via a local cast — not by
+ * loader reads `mod.default.actionHandlers` untyped. So we attach it via a local cast - not by
  * editing the SDK. The handler key `renamerSelected` must match the action's HandlerName.
  */
 import { defineExtension } from "@cove/extension-sdk";
@@ -17,7 +17,7 @@ interface WithActionHandlers {
 }
 
 // `RenamerPage` key must be byte-identical to the C# manifest componentName (Renamer.Api.cs
-// AddSettingsSection) and the host resolveComponent lookup — one literal, three places that must
+// AddSettingsSection) and the host resolveComponent lookup - one literal, three places that must
 // all agree.
 const mod = defineExtension({ components: { RenamerPage: RenamePage } });
 (mod as typeof mod & WithActionHandlers).actionHandlers = { renamerSelected: renameSelected };

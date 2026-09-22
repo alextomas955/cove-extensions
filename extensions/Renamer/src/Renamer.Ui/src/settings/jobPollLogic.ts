@@ -1,7 +1,7 @@
 /**
  * The pure decision the job poller takes on each read of the run's status.
  *
- * Import-free (no React, no request helper, no clock) so it stays L0 — deterministic and testable with
+ * Import-free (no React, no request helper, no clock) so it stays L0 - deterministic and testable with
  * no environment. Elapsed time and the read outcome are parameters rather than things this module
  * reaches for, which is what makes every boundary below exact without fake timers.
  *
@@ -14,7 +14,7 @@
  * How long a job may report no new progress before the UI stops waiting for it, in milliseconds.
  *
  * This bounds unresponsiveness, not the job. A whole-library rename legitimately runs for hours, so a
- * budget measured from the job's start would be a timeout that abandons healthy runs — the specific
+ * budget measured from the job's start would be a timeout that abandons healthy runs - the specific
  * mistake to avoid here. The clock this is compared against restarts every time progress actually
  * moves (see {@link advanceStallClock}), so a job that keeps reporting is never abandoned however long
  * it takes.
@@ -31,7 +31,7 @@ export const JOB_STALL_BUDGET_MS = 10 * 60 * 1000;
  * How many consecutive unanswered status reads are tolerated before the run ends.
  *
  * Counted in polls, not seconds, because this module does not own the poll interval. A transient
- * failure is one or two reads; this many in a row means the id is not coming back — the host
+ * failure is one or two reads; this many in a row means the id is not coming back - the host
  * restarted and lost the job, or it never existed. Tolerating them unconditionally is what made the
  * request-per-second leak reachable.
  */
@@ -46,7 +46,7 @@ export type PollObservation =
 
 /** What the caller measured up to this read. Both bounds are parameters, never read from a clock. */
 export interface PollContext {
-  /** Milliseconds since progress last CHANGED — not since the job started. */
+  /** Milliseconds since progress last CHANGED - not since the job started. */
   msSinceProgress: number;
   /** Consecutive status reads that failed. */
   consecutiveFailures: number;
@@ -59,7 +59,7 @@ export interface PollContext {
  *
  * `expire` is deliberately not `reject`. They mean different things to the person reading the banner:
  * a rejection is the job reporting that the work stopped, while an expiry is the UI giving up on
- * watching — under which the job may still be running and may already have renamed files. Collapsing
+ * watching - under which the job may still be running and may already have renamed files. Collapsing
  * the two would let a banner claim nothing changed when something might have.
  */
 export type PollDecision =
@@ -72,8 +72,8 @@ export type PollDecision =
  * Raised when a poll ends on an `expire` decision rather than on the job's own verdict.
  *
  * A distinct type, so that the {@link PollDecision} split survives into the caller's `catch`: a caller
- * that cannot tell an expiry from a rejection has to guess, and the honest-looking guess — "nothing
- * was changed" — is the false one.
+ * that cannot tell an expiry from a rejection has to guess, and the honest-looking guess - "nothing
+ * was changed" - is the false one.
  */
 export class JobUnresponsiveError extends Error {}
 
@@ -108,7 +108,7 @@ export function nextFailureCount(current: number, readSucceeded: boolean): numbe
  *
  * An unrecognised status is treated as "still going", never as success. This module is handed a
  * status as a plain string, so a vocabulary the caller has not been told about arrives here as one
- * — and that must degrade to an expiry carrying a message rather than to a banner announcing a
+ * - and that must degrade to an expiry carrying a message rather than to a banner announcing a
  * rename that may not have happened.
  */
 export function decidePoll(observation: PollObservation, context: PollContext): PollDecision {

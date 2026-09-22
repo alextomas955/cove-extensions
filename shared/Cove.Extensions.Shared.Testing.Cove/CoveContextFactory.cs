@@ -23,8 +23,8 @@ internal static class CoveContextFactory
 {
     /// <summary>
     /// Opens an in-memory SQLite connection and builds a <see cref="CoveContext"/> over it, then calls
-    /// <c>EnsureCreatedAsync()</c> so the relational schema — including the <c>(ParentFolderId, Basename)</c>
-    /// unique index and real transaction support — is materialized. A null principal accessor is fine in
+    /// <c>EnsureCreatedAsync()</c> so the relational schema - including the <c>(ParentFolderId, Basename)</c>
+    /// unique index and real transaction support - is materialized. A null principal accessor is fine in
     /// the save path.
     ///
     /// The open connection is what keeps the in-memory database alive for the context's lifetime, so the
@@ -39,7 +39,7 @@ internal static class CoveContextFactory
     }
 
     /// <summary>
-    /// The same context over the same in-memory SQLite connection, but with no schema materialized —
+    /// The same context over the same in-memory SQLite connection, but with no schema materialized -
     /// the database is genuinely empty. For a test whose subject is a schema-creating statement: a
     /// context that already carries every table cannot tell a statement that creates one from a
     /// statement that does nothing.
@@ -55,7 +55,7 @@ internal static class CoveContextFactory
             .UseSqlite(connection)
             // Production's own cache-key factory, copied from Cove.Data's AddCoveData. EF's default key
             // ignores CoveContext.ModelGeneration, so whichever context is built first in the process
-            // pins the model for every context after it — and a data extension registered later then
+            // pins the model for every context after it - and a data extension registered later then
             // has its entity types missing from a model that is never rebuilt. The failure is a
             // "cannot create a DbSet for X" that depends on test order, which xUnit's per-class
             // parallelism makes unreproducible. Keyed on the generation, a registration change rebuilds.

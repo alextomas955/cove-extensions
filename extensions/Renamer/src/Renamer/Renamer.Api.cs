@@ -59,7 +59,7 @@ public sealed partial class Renamer
 
     // Upper bound on how many ids a single preview/renamer request may carry. Preview runs the planner
     // (DB hits) per id synchronously on the request thread, and renamer fans the same ids out into one
-    // job — so a caller-supplied array is an unbounded fan-out. The cap rejects a runaway/oversized
+    // job - so a caller-supplied array is an unbounded fan-out. The cap rejects a runaway/oversized
     // request up front with a 400, before any per-id work, while staying far above any realistic
     // selection. A genuinely larger job should be split into batches by the caller.
     private const int MaxEntityIdsPerRequest = 1000;
@@ -169,7 +169,7 @@ public sealed partial class Renamer
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         // NB: this endpoint binds the raw HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
+        // handler can deserialize the body with RenamerOptions.JsonOptions - the host's default
         // minimal-API JsonSerializerOptions has no JsonStringEnumConverter, so a body carrying
         // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
         // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
@@ -184,7 +184,7 @@ public sealed partial class Renamer
             .Accepts<PreviewSampleRequest>("application/json")
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
-        // /undo takes no request body — it operates on "the last batch", so binding no body avoids
+        // /undo takes no request body - it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
             (ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
@@ -399,7 +399,7 @@ public sealed partial class Renamer
     {
         // Resolve the kind first so the permission check below gates on the request's own entity kind
         // (videos/images/audios.read) rather than always videos.read. An unparseable kind is a 400
-        // before the auth check leaks nothing — it carries no ids and reads no data either way.
+        // before the auth check leaks nothing - it carries no ids and reads no data either way.
         if (!TryParseKind(req.EntityType, out var kind))
         {
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
@@ -428,7 +428,7 @@ public sealed partial class Renamer
 
         // Build the RouteLookups the batch builds and route through the routing overload,
         // so the dry-run reflects the routed destination the batch will execute (not the empty-lookups
-        // source-confine fallback). Preview must match execution — the core value.
+        // source-confine fallback). Preview must match execution - the core value.
         var lookups = BuildLookups(options);
 
         var items = new List<RenamerPlanItem>();
@@ -440,7 +440,7 @@ public sealed partial class Renamer
             items.AddRange(plan.Items);
 
             // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
-            // plan item. Load the entity once (AsNoTracking — still zero mutation) and record each
+            // plan item. Load the entity once (AsNoTracking - still zero mutation) and record each
             // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's planning pass.
             var entity = await port.LoadEntityAsync(kind, id, ct);
             if (entity is not null)
@@ -459,7 +459,7 @@ public sealed partial class Renamer
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
         // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
-        // buildConfirmSummary reads as a non-renamer — so the renamer would silently never fire. The
+        // buildConfirmSummary reads as a non-renamer - so the renamer would silently never fire. The
         // string spelling comes from CamelCaseStringEnumConverter declared on RenamerStatus and
         // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
@@ -513,7 +513,7 @@ public sealed partial class Renamer
 
         // Enqueue exclusive (the host's JobService default): a renamer batch mutates disk + DB, so two
         // batches running at once could plan against each other's stale snapshots or target the same
-        // paths. Exclusive serializes them — the second waits for the first to finish.
+        // paths. Exclusive serializes them - the second waits for the first to finish.
         var jobId = jobs.Enqueue(
             $"ext:{Id}:{RenamerJob.JobId}",
             $"[{Name}] Rename selected",
@@ -535,7 +535,7 @@ public sealed partial class Renamer
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
-        // consumed flag only — no paths). A user who can renamer any kind may see it, so gate on holding
+        // consumed flag only - no paths). A user who can renamer any kind may see it, so gate on holding
         // any renamer-read permission rather than videos.read specifically. The summary does not carry
         // the batch kind, so a per-kind gate would require reading the full batch for a metadata probe.
         bool canReadAny = principal.Current is not null
@@ -607,7 +607,7 @@ public sealed partial class Renamer
         // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
         // The tolerant options set OptionsStore uses, so the scan interprets it identically to a saved
         // load; a null/blank/corrupt blob falls back to the persisted options (the original no-body
-        // behavior). Parsed here at enqueue time, then captured into the detached job closure — the job
+        // behavior). Parsed here at enqueue time, then captured into the detached job closure - the job
         // cannot re-read the request, exactly like readableKinds.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
@@ -777,7 +777,7 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewSampleAsync(
         HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // Enforce permission before touching the body — never read/parse for an unauthorized caller.
+        // Enforce permission before touching the body - never read/parse for an unauthorized caller.
         // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
         // selection), so gate on holding any renamer-read permission rather than videos.read specifically.
         bool canReadAny = principal.Current is not null

@@ -14,7 +14,7 @@ namespace Renamer.Tests.Concurrency;
 /// <summary>
 /// Regression locks for the parallel batch. Concurrent-folder lock: many parallel workers
 /// routing multiple items to the same not-yet-created destination folder must end with exactly one
-/// <see cref="Folder"/> row for that path — never a duplicate row (silent disk/DB divergence) and
+/// <see cref="Folder"/> row for that path - never a duplicate row (silent disk/DB divergence) and
 /// never an unhandled throw. The fix pre-creates every distinct destination folder once in the
 /// sequential planning pass and hands the resolved id to each worker, so the parallel execution pass never does a
 /// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
@@ -73,7 +73,7 @@ public sealed class ParallelFolderCreationTests
             // Route every item from the one source folder into the same new "sorted" subfolder under the
             // (allowed) temp root, via an exact source-path rule + a constant folder template. Every
             // acting item therefore has the identical TargetFolderPath = "<root>/sorted", which does not
-            // yet exist in the DB — the exact duplicate-folder race trigger.
+            // yet exist in the DB - the exact duplicate-folder race trigger.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -91,7 +91,7 @@ public sealed class ParallelFolderCreationTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            // exactly one Folder row for the shared destination path — no duplicate rows from a racing
+            // exactly one Folder row for the shared destination path - no duplicate rows from a racing
             // check-then-act create across parallel workers.
             await using var verifyDb = shared.NewContext();
             int folderRows = await verifyDb.Set<Folder>()
@@ -162,7 +162,7 @@ public sealed class ParallelFolderCreationTests
         try
         {
             // The same entity id listed twice in one batch (a caller / host re-enqueue passing a
-            // duplicate id — Decode does not dedupe) plans the same file twice, producing two acting
+            // duplicate id - Decode does not dedupe) plans the same file twice, producing two acting
             // units with the identical OldFullPath. The execution pass builds its move→unit lookup with
             // ToDictionary, which throws ArgumentException on the duplicate key and aborts the whole
             // batch after the journal batch was opened (violating classify-not-throw and masking the

@@ -1,5 +1,5 @@
 // Core harness lifecycle: bring up an isolated Cove instance, wait for it to be ready, install an
-// extension into it, and tear it down. This is the one entry point extension authors need —
+// extension into it, and tear it down. This is the one entry point extension authors need -
 // everything else (compose file, install mechanics, staging) is an implementation detail behind it.
 //
 // Built on Testcontainers (https://node.testcontainers.org/). Its Ryuk sidecar reaps containers,
@@ -56,7 +56,7 @@ export function resolveCoveImage(image) {
   if (image) return image;
   if (process.env.COVE_E2E_IMAGE) return process.env.COVE_E2E_IMAGE;
   // registry and repository, never the `repository` field alone: that one is the host-less path, and a
-  // reference missing its registry host resolves to Docker Hub — a real image, from a registry nobody
+  // reference missing its registry host resolves to Docker Hub - a real image, from a registry nobody
   // named.
   const { registry, repository } = readCoveImageReference();
   return `${registry}/${repository}:${process.env.COVE_E2E_TAG || highestDeclaredFloor()}`;
@@ -95,7 +95,7 @@ function highestDeclaredFloor() {
  * test runs never collide.
  *
  * `env` is passed to the compose invocation, so it reaches any `${VAR:-default}` substitution in
- * docker-compose.yml — e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
+ * docker-compose.yml - e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
  * real authentication.
  *
  * `image` is a complete reference and overrides every other source; see `resolveCoveImage` for what
@@ -196,7 +196,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     /**
-     * Runs a command inside the database container — the one way to ask the database itself whether
+     * Runs a command inside the database container - the one way to ask the database itself whether
      * the host really created an extension's tables, rather than inferring it from the extension
      * having loaded. A failed extension migration is a host log line and the load continues, so an
      * extension can be enabled with no table behind it.
@@ -229,7 +229,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       );
 
       // The host refuses a second bootstrap with a conflict, so reaching one means an owner already
-      // exists under these credentials — an attempt that completed on the server after its
+      // exists under these credentials - an attempt that completed on the server after its
       // client-side bound expired. Signing in finishes what this call promised rather than failing
       // over work that already succeeded.
       if (response?.status === 409) {
@@ -395,7 +395,7 @@ function describeAttempt(response, lastError) {
 
 /**
  * POSTs until the host answers something that is a verdict rather than a symptom of still starting,
- * or the deadline passes. Returns the settled response (null if none arrived) — never throws on a
+ * or the deadline passes. Returns the settled response (null if none arrived) - never throws on a
  * status, so each caller raises an error naming its own operation.
  *
  * Cove seeds its built-in roles on a background task that host startup neither awaits nor covers
@@ -464,7 +464,7 @@ async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}
 }
 
 // Reads an id the host minted, failing with the keys it actually returned rather than handing a
-// caller `undefined` to put in a URL — where it reads as a 404 about a missing entity instead of as
+// caller `undefined` to put in a URL - where it reads as a 404 about a missing entity instead of as
 // a wire-shape mismatch.
 function requireId(payload, field, source) {
   const value = payload?.[field];
@@ -491,7 +491,7 @@ function readToken(response, source) {
 // The restart's own wait strategy is a health check, but that probe runs inside the container and
 // says nothing about the host side, where an ephemeral published port is being re-bound at the same
 // moment. A fetch that lands in that gap rejects rather than answering a status, and every call
-// after the restart is a bare fetch — the first of them inside a per-test fixture, so a single
+// after the restart is a bare fetch - the first of them inside a per-test fixture, so a single
 // rejection there fails every test in the suite while naming neither the restart nor the gap.
 //
 // Any status counts as reachable. The container's health check already gated the app being up, so

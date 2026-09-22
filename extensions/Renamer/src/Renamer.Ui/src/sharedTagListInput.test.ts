@@ -98,7 +98,7 @@ async function press(container: HTMLElement, key: string): Promise<boolean> {
       () => input(container).getAttribute("aria-expanded") === "false",
     );
   }
-  // Enter has no one outcome to wait on — it commits an option, commits free text, or is refused —
+  // Enter has no one outcome to wait on - it commits an option, commits free text, or is refused -
   // so each test waits for the one it is about.
   return event.defaultPrevented;
 }
@@ -117,7 +117,7 @@ async function focus(container: HTMLElement) {
  *
  * jsdom runs no default action for `mousedown`, so the focus move a real browser performs is
  * performed here, and only when the component did not suppress the event. A browser also flushes
- * React's pending work before dispatching the click, so the blur's commit is settled first — which is
+ * React's pending work before dispatching the click, so the blur's commit is settled first - which is
  * what turns "the box lost focus" into "the half-typed query became a chip".
  */
 async function clickOption(container: HTMLElement, label: string): Promise<boolean> {

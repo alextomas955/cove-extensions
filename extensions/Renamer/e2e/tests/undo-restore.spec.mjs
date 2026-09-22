@@ -1,4 +1,4 @@
-// The revert journal, proven against a real host on real Postgres — the one tier that can.
+// The revert journal, proven against a real host on real Postgres - the one tier that can.
 //
 // Every other tier in this repository proves the SQL string or the port behind it. None of them
 // proves that the host runs the migration, and that gap is not academic: a failed extension
@@ -12,7 +12,7 @@
 //
 //   * Whether the database driver executes a multi-statement migration string in one command the way
 //     the command-line client did. That was verified through psql, never through Npgsql. If Npgsql
-//     refused it, the failure would be silent in exactly the way described above — so the first
+//     refused it, the failure would be silent in exactly the way described above - so the first
 //     assertion below is what turns that assumption into a measurement.
 //   * Whether an uninstall/reinstall round trip still loads. Uninstall deletes only the extension's
 //     directory, and nothing anywhere deletes a migration receipt, so a reinstall meets a stale table
@@ -21,7 +21,7 @@
 //
 // Beyond those: a rename that carries a caption and a neighbour file, an undo that brings all three
 // home, and a partial undo that can be retried and acts only on what is left. The panel's own gate
-// over that partial batch is read in a browser in the same test body — whether the destructive
+// over that partial batch is read in a browser in the same test body - whether the destructive
 // control is offered is decided by whether the batch still has work, and only the pair of states
 // distinguishes a gate keyed on that from one keyed on the batch merely existing.
 //
@@ -93,7 +93,7 @@ async function fileExists(container, path) {
   return probe.exitCode === 0;
 }
 
-/** The stem a media path is built on — every companion in this spec shares it. */
+/** The stem a media path is built on - every companion in this spec shares it. */
 function stemOf(path) {
   const name = path.slice(path.lastIndexOf("/") + 1);
   return name.slice(0, name.lastIndexOf("."));
@@ -117,7 +117,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
 
   // ── 1. The host applied the migration ──────────────────────────────────────────────────────────
   //
-  // Asserted against the database, not against the extension being enabled — see the header. This is
+  // Asserted against the database, not against the extension being enabled - see the header. This is
   // also the only place the driver's handling of the multi-statement migration string is exercised.
   expect(
     await countJournalTables(isolatedHarness),

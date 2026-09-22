@@ -4,7 +4,7 @@
  *
  * The hook keeps the last good preview on a failed refresh and raises `previewError`, so after the
  * first request fails there is no preview to keep: `preview` stays null and the error flag is set. That
- * pair is a settled outcome, not a wait — the pane must not also claim a render is still coming.
+ * pair is a settled outcome, not a wait - the pane must not also claim a render is still coming.
  *
  * A DOM is needed because the claim is about what is on screen. A render commits on React's own schedule, so the
  * test waits for the pane to appear rather than for a span.

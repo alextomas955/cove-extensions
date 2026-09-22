@@ -5,7 +5,7 @@ namespace Renamer.Tests.Contracts;
 /// <summary>
 /// Pins what an undo run reports about itself: what the response says about a run larger than anyone
 /// wants described, and which reasons for a row stopping retire it for good. No store, no database
-/// context, no filesystem — neither subject touches one, which is why this suite needs no setup, no
+/// context, no filesystem - neither subject touches one, which is why this suite needs no setup, no
 /// doubles and no running service.
 /// </summary>
 /// <remarks>
@@ -36,7 +36,7 @@ public sealed class UndoRunAccumulatorTests
     public void FoldingNothing_IsZeroTotalsAndEmptySamples()
     {
         // The no-batch answer the endpoint returns before it reads anything, produced by the same type
-        // that produces every other answer — so the two cannot drift into different shapes.
+        // that produces every other answer - so the two cannot drift into different shapes.
         var result = new UndoRunAccumulator().ToResult();
 
         Assert.Equal(0, result.Undone);
@@ -188,8 +188,8 @@ public sealed class UndoRunAccumulatorTests
     }
 
     /// <summary>
-    /// Every stop reason and the classification it was deliberately given: true is terminal — the row is
-    /// retired as unrestorable — and false stays pending to be retried. Transcribed by hand from the
+    /// Every stop reason and the classification it was deliberately given: true is terminal - the row is
+    /// retired as unrestorable - and false stays pending to be retried. Transcribed by hand from the
     /// decision, never generated from the enum.
     /// </summary>
     /// <remarks>

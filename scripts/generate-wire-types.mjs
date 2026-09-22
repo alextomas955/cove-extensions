@@ -4,7 +4,7 @@
 // without is not. The document sits at a fixed place inside the extension, so only the extension's
 // own directory has to be declared.
 //
-// The output is gitignored — it is a deterministic function of a committed document — which makes
+// The output is gitignored - it is a deterministic function of a committed document - which makes
 // this run a prerequisite of every job that builds the UI TypeScript program.
 import fs from "node:fs";
 import path from "node:path";
@@ -37,7 +37,7 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
  * refuses the pair without the root package.json `overrides` entry that forces it. The combination is
  * deliberate and unsupported by the package: it drives the TypeScript compiler API, so a bump on
  * either side can break the emit for reasons the error will not name. 7.13.0 is the newest release
- * and still says ^5.x, so the override cannot be retired by upgrading — check that first when it does
+ * and still says ^5.x, so the override cannot be retired by upgrading - check that first when it does
  * break.
  */
 async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }) {

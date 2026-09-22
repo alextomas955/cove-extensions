@@ -5,7 +5,7 @@ namespace Cove.Extensions.Shared.Testing;
 /// <summary>
 /// A settable <see cref="ICurrentPrincipalAccessor"/> fake so the endpoint permission tests can hand a
 /// principal that has or lacks a given permission key without a request pipeline (extension minimal-API
-/// endpoints enforce permissions themselves — the host's <c>[RequiresPermission]</c> filter is inert on
+/// endpoints enforce permissions themselves - the host's <c>[RequiresPermission]</c> filter is inert on
 /// minimal-API routes).
 /// </summary>
 public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
@@ -32,7 +32,7 @@ public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
         return accessor;
     }
 
-    /// <summary>An accessor whose <see cref="Current"/> is the anonymous principal (no permissions) — the deny path.</summary>
+    /// <summary>An accessor whose <see cref="Current"/> is the anonymous principal (no permissions) - the deny path.</summary>
     public static FakePrincipalAccessor None()
     {
         var accessor = new FakePrincipalAccessor();
@@ -41,7 +41,7 @@ public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
     }
 
     /// <summary>
-    /// An accessor whose <see cref="Current"/> is null — the no-principal arm of the permission gate,
+    /// An accessor whose <see cref="Current"/> is null - the no-principal arm of the permission gate,
     /// distinct from <see cref="None"/>'s non-null anonymous principal.
     /// </summary>
     public static FakePrincipalAccessor NullPrincipal() => new();

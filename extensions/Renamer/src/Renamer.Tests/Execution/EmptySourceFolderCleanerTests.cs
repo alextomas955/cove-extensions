@@ -177,8 +177,8 @@ public sealed class EmptySourceFolderCleanerTests
         try
         {
             // A pure in-place renamer inside one folder: the parent dir does not change, so the trigger
-            // predicate must skip the cleaner outright. We prove the predicate skipped — not merely
-            // that the cleaner no-op'd — by leaving the folder with the renamed file still in it and
+            // predicate must skip the cleaner outright. We prove the predicate skipped - not merely
+            // that the cleaner no-op'd - by leaving the folder with the renamed file still in it and
             // setting RemoveEmptyFolder on: had the cleaner run, it would have found a file and no-op'd
             // too, so the distinguishing observation is that the folder (still holding the renamed file)
             // is intact and the move stayed in-place.
@@ -247,7 +247,7 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
-            // Undo the batch: the original directory is gone, so the restore skips — it is not recreated.
+            // Undo the batch: the original directory is gone, so the restore skips - it is not recreated.
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());

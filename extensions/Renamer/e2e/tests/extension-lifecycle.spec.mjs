@@ -1,10 +1,10 @@
-// Verifies the extension install/enable/disable/uninstall lifecycle — not Renamer's rename logic,
+// Verifies the extension install/enable/disable/uninstall lifecycle - not Renamer's rename logic,
 // but whether the extension itself behaves correctly as an installable/removable unit, and whether
 // its settings panel reflects different states (enabled/disabled) correctly in the real UI.
 //
 // Uses its own harness instance per test (named `isolatedHarness`), unlike every other file in
 // this suite (which shares one `harness` instance per worker for speed). Disable/enable/uninstall
-// mutate the one shared extension install itself — under real parallel execution another test in
+// mutate the one shared extension install itself - under real parallel execution another test in
 // the same worker could be mid-assertion against Renamer while this file disables or uninstalls
 // it. A dedicated instance per test trades a bit of speed (extra container boots) for correctness
 // under parallelism, which matters more here than in the read-mostly/uniquely-seeded-data tests
@@ -68,11 +68,11 @@ test(
 
     const afterDisable = await api.get("/api/extensions");
     const disabledEntry = afterDisable.json.find((e) => e.id === EXTENSION_ID);
-    // A disabled extension either drops off the list or reports enabled:false — assert whichever
+    // A disabled extension either drops off the list or reports enabled:false - assert whichever
     // the real API does, rather than assuming.
     expect(disabledEntry === undefined || disabledEntry.enabled === false).toBe(true);
 
-    // The settings tab must no longer be listed once disabled — proves the UI actually reads live
+    // The settings tab must no longer be listed once disabled - proves the UI actually reads live
     // extension state, not a cached list from before disable. Navigating straight to /settings/extensions/installed
     // (rather than clicking through the sidebar) avoids depending on which sub-section the sidebar
     // last expanded to, which is unrelated UI state this test shouldn't need to know about.
@@ -128,7 +128,7 @@ test("uninstalling the extension removes it entirely; a fresh install brings it 
   ).not.toBe(0);
 
   // Re-install from scratch (the shared harness's own install path) and confirm it comes back
-  // clean — the same test-authoring contract every extension author relies on, proven to survive
+  // clean - the same test-authoring contract every extension author relies on, proven to survive
   // an uninstall/reinstall cycle within one instance, not just a fresh container.
   await isolatedHarness.installExtension(RENAMER_EXTENSION);
 

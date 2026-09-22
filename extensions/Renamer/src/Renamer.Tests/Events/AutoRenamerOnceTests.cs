@@ -7,8 +7,8 @@ namespace Renamer.Tests.Events;
 
 /// <summary>
 /// The "executes once" half of the re-entrancy story: with auto-renamer on and a name that
-/// differs, the first event renames the file once (disk + DB); a second event — standing in for the
-/// re-raised <c>video.updated</c> the executor's save produces — finds an all-NoOp plan and leaves
+/// differs, the first event renames the file once (disk + DB); a second event - standing in for the
+/// re-raised <c>video.updated</c> the executor's save produces - finds an all-NoOp plan and leaves
 /// the terminal state stable with no further churn and no new published event.
 /// </summary>
 public sealed class AutoRenamerOnceTests

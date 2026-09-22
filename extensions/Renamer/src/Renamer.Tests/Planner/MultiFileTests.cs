@@ -5,7 +5,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// Every file of a multi-file item is planned independently — one
+/// Every file of a multi-file item is planned independently - one
 /// <see cref="RenamerPlanItem"/> per file, no first-file-only assumption, none dropped.
 /// </summary>
 public sealed class MultiFileTests

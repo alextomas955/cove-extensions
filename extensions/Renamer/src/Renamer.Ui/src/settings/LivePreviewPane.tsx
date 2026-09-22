@@ -1,5 +1,5 @@
 /**
- * LivePreviewPane — the sticky right-hand "Live preview" column. Presentational only: it renders the
+ * LivePreviewPane - the sticky right-hand "Live preview" column. Presentational only: it renders the
  * old→new samples that useRenamePreview produced (via <PreviewCard>) plus its loading/error states,
  * and never fetches anything itself. Sits in the 1/3 grid cell beside FilenameSection; the inner card
  * is `lg:sticky lg:top-16` under the 64px navbar so it stays visible while the filename card scrolls.

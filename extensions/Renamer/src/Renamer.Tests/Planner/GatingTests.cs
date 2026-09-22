@@ -7,7 +7,7 @@ namespace Renamer.Tests.Planner;
 /// <summary>
 /// Gating: only-organized skips an unorganized item; require-fields skips an
 /// item whose required token projects empty. Gated = <see cref="RenamerStatus.SkipGated"/>
-/// (never <see cref="RenamerStatus.Failed"/>), with a reason — and zero mutation.
+/// (never <see cref="RenamerStatus.Failed"/>), with a reason - and zero mutation.
 /// </summary>
 public sealed class GatingTests
 {
@@ -44,7 +44,7 @@ public sealed class GatingTests
         port.SeedEntity(Entity(title: "", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
         // Default RequiredFields = ["title"]. FilenameAsTitle is forced off so the title-less item
-        // is gated rather than rescued by the basename fallback (which now defaults on) — this case
+        // is gated rather than rescued by the basename fallback (which now defaults on) - this case
         // exercises the require-fields gate, not the fallback.
         var opts = new RenamerOptions { FilenameAsTitle = false };
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
@@ -73,7 +73,7 @@ public sealed class GatingTests
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {
         // With OnlyOrganized on but an UnorganizedDestination configured, an unorganized item must
-        // not be gated out — the unorganized destination takes precedence and the item routes.
+        // not be gated out - the unorganized destination takes precedence and the item routes.
         // Without this carve-out the gate would silently nullify the unorganized route.
         string unorgRoot = OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";
@@ -106,7 +106,7 @@ public sealed class GatingTests
     public async Task OnlyOrganized_NoUnorganizedDestination_StillGates()
     {
         // The complement: with no UnorganizedDestination, the only-organized gate behaves exactly as
-        // before — an unorganized item is skipped.
+        // before - an unorganized item is skipped.
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity("My Film", organized: false, File(1)));
         var planner = new RenamerPlanner(port);

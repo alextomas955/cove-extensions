@@ -5,7 +5,7 @@
  * It owns the walk. Only the rows in view are mounted, and the next page is requested before the
  * viewer reaches the end of the loaded ones, so scrolling does not wait on a request. There is no
  * column sort: a sort needs the whole result set, and the whole result set is exactly what this view
- * does not hold. The order the pager guarantees — kind, then entity id — is stated in the footer
+ * does not hold. The order the pager guarantees - kind, then entity id - is stated in the footer
  * instead of implied by a header that could not honour it.
  *
  * security: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
@@ -77,19 +77,19 @@ function DryRunRow({
   const bucket = classifyItem(item);
   const willChange = bucket === "will-change";
   const oldName = basename(item.oldFullPath);
-  // The new basename and the target folder are not on the wire — they are this split of
+  // The new basename and the target folder are not on the wire - they are this split of
   // newFullPath, which is also how the server's search reads them.
   const newName = basename(item.newFullPath);
   const targetFolder = dirname(item.newFullPath);
   const oldFolder = dirname(item.oldFullPath);
   // A folder-only move (basename unchanged, target folder differs) would look like "no change" in
-  // the name columns — flag it explicitly so the user sees what is happening (moved, not renamed in
+  // the name columns - flag it explicitly so the user sees what is happening (moved, not renamed in
   // place).
   const nameChanged = willChange && newName !== oldName;
   const folderMoved = willChange && targetFolder !== oldFolder;
   // Root-relative Cove detail path for the asset (or null when the id can't resolve). Origin is
   // prepended here, not in the pure helper, so a sub-path deployment links correctly. The href is
-  // id-derived only — never the path.
+  // id-derived only - never the path.
   const assetPath = assetHref(item.kind, item.entityId);
 
   return (

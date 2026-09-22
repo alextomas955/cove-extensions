@@ -13,8 +13,8 @@ namespace Renamer.Tests.Execution.Journal;
 /// retired through the port, and the batch aggregate outlives the rows it counted.
 /// </summary>
 /// <remarks>
-/// Driven through the real EF implementation rather than the fake, because the property under test —
-/// that what remains in the table is the work left — is a property of the storage, and a fake that
+/// Driven through the real EF implementation rather than the fake, because the property under test -
+/// that what remains in the table is the work left - is a property of the storage, and a fake that
 /// reimplements it would only prove the fake agrees with itself.
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
@@ -140,7 +140,7 @@ public sealed class RevertJournalTests
     [Fact]
     public async Task ThePurge_OverAnEmptyJournal_CompletesAndChangesNothing()
     {
-        // It runs on every batch open, so the ordinary case is a journal with nothing expired in it —
+        // It runs on every batch open, so the ordinary case is a journal with nothing expired in it -
         // and on a fresh install, nothing in it at all. That path must be a quiet no-op, not a throw.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
@@ -159,7 +159,7 @@ public sealed class RevertJournalTests
     {
         // The measured failure the shared factory's model-cache-key replacement exists to close. EF
         // caches a built model under a key that, by default, says nothing about which data extensions
-        // are loaded — so once any context has been built, every context after it is handed that same
+        // are loaded - so once any context has been built, every context after it is handed that same
         // cached model, and an extension registered later has its entity types missing from a model
         // that is never rebuilt. Test classes run in parallel, so which context is built first is not
         // controllable: the failure would come and go rather than fail honestly.
@@ -167,7 +167,7 @@ public sealed class RevertJournalTests
         await using var _ = before;
         await using var __ = beforeConn;
 
-        // Building it is the point — this is what populates the cache the next context would inherit.
+        // Building it is the point - this is what populates the cache the next context would inherit.
         Assert.Null(before.Model.FindEntityType(typeof(LateRegistrationProbeEntity)));
 
         using var registration = CoveDataExtensionScope.WithAdditional(new LateRegistrationProbe());

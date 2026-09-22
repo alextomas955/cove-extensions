@@ -117,7 +117,7 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   ).toBe(DEFAULT_FILENAME_TEMPLATE);
 
   // /preview has no UI trigger of its own (it's what "Rename selected" calls internally before
-  // showing its confirm() dialog) — the API is the only way to exercise it in isolation, without
+  // showing its confirm() dialog) - the API is the only way to exercise it in isolation, without
   // also triggering the actual mutation the UI action performs. This one test stays API-driven.
   const preview = await api.post(`/api/extensions/${EXTENSION_ID}/preview`, {
     EntityType: "video",

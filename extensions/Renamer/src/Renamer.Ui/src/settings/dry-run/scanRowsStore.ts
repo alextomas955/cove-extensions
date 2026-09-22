@@ -1,6 +1,6 @@
 /**
  * The walk state behind the Dry Run table's paged row reads: what has been loaded, where the walk
- * resumes, and what the last page said about whether more remains. State only — every request lives in
+ * resumes, and what the last page said about whether more remains. State only - every request lives in
  * `useScanRows.ts`.
  *
  * An instance is created per open modal rather than at module scope, so closing the modal drops the
@@ -11,7 +11,7 @@ import type { DryRunFilter } from "./dryRunLogic";
 
 /** One walk over the dry run's rows under a fixed (query, bucket) pair. */
 export interface ScanRowsWalk {
-  /** The (query, bucket) pair these rows belong to — see {@link walkKey}. */
+  /** The (query, bucket) pair these rows belong to - see {@link walkKey}. */
   key: string;
   rows: ScanRow[];
   /** Where the next page resumes; null once the server has observed the end of the last readable kind. */
@@ -28,7 +28,7 @@ export interface ScanRowsWalk {
 
 /**
  * The identity of a walk. A different query or bucket is a different walk, not a subset of the loaded
- * one — the server re-plans from the start of the library for it — so the key changes and the rows are
+ * one - the server re-plans from the start of the library for it - so the key changes and the rows are
  * discarded. The query is trimmed and lower-cased to match the server's own normalization, so a stray
  * space or a case flip does not throw away rows the same request would return.
  */
@@ -56,7 +56,7 @@ export interface ScanRowsStore {
   retarget: (key: string) => void;
   /**
    * Claims the right to fetch the next page of `key`. False when a fetch is already in flight, the
-   * walk is finished, or `key` is no longer the active walk — which is what makes a virtualizer that
+   * walk is finished, or `key` is no longer the active walk - which is what makes a virtualizer that
    * fires its end-reached condition on consecutive frames issue one request instead of one per frame.
    */
   begin: (key: string) => boolean;

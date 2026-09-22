@@ -6,7 +6,7 @@ namespace Cove.Extensions.Shared.Testing;
 /// <summary>
 /// A thread-safe <see cref="IExtensionStore"/> fake for the concurrency proofs. The single-threaded
 /// <see cref="FakeStore"/> is a bare <see cref="Dictionary{TKey,TValue}"/> with no locking, so using it in
-/// a concurrency test would either throw (a Dictionary race) or silently lose writes — confounding
+/// a concurrency test would either throw (a Dictionary race) or silently lose writes - confounding
 /// the proof. This variant backs every operation with a <see cref="ConcurrentDictionary{TKey,TValue}"/>
 /// so the store is never the source of a race; any torn/lost row in a concurrency test then isolates
 /// the caller's serialization under test, not the store. Same async signatures as <see cref="FakeStore"/>.

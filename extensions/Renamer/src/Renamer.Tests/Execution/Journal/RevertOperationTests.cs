@@ -57,7 +57,7 @@ public sealed class RevertOperationTests
         long ticks = IRevertJournal.FirstBatchTicks;
         string runId = IRevertJournal.FirstBatchRunId;
 
-        // Nothing is retired between the reads, so every batch still holds every row it started with —
+        // Nothing is retired between the reads, so every batch still holds every row it started with -
         // the state in which a visited-set-free walk would re-offer the same batch forever.
         while (await journal.ReadNextBatchAsync("op", ticks, runId) is { } batch)
         {

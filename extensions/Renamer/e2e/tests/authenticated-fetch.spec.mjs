@@ -2,13 +2,13 @@
 // tell an extension request that carries its own credential apart from one that does not. Under the
 // suite's normal `COVE__Auth__Enabled=false` default every request resolves to a bypass principal
 // whatever headers it carries, so neither a header assertion nor a 200 distinguishes fixed from
-// unfixed there — the check would be unfalsifiable. Flipping auth is instance-global, hence the
+// unfixed there - the check would be unfalsifiable. Flipping auth is instance-global, hence the
 // per-test harness rather than the worker-shared one. It stays in the default run regardless: it
 // provisions its own instance and shares no state, and a spec CI does not run guards nothing.
 //
 // what makes it falsifiable, and it is not what it looks like. A logged-in browser holds an
 // `cove_access_token` cookie, and the host's principal middleware falls back to that cookie whenever
-// a request carries no Authorization header — so an extension calling plain `fetch` same-origin is
+// a request carries no Authorization header - so an extension calling plain `fetch` same-origin is
 // authenticated by ambient authority and answers 200 either way. Measured: this spec passed against
 // the unmigrated bundle until the cookie was taken out of the picture. That cookie is also what
 // delivers the extension's own UI bundle (`/api/extensions/assets/...` requires ExtensionsRead and a
@@ -16,8 +16,8 @@
 //
 // Hence the shape below: the panel mounts and reads with the cookie, then the cookie is dropped and
 // the write is exercised on the already-mounted panel. A logged-in session whose access cookie has
-// lapsed is ordinary — the cookie expires with the access token, in minutes, while the refresh
-// session lasts days — and in that state the only credential left is the bearer the app holds, which
+// lapsed is ordinary - the cookie expires with the access token, in minutes, while the refresh
+// session lasts days - and in that state the only credential left is the bearer the app holds, which
 // an extension can reach only through the host's authenticated fetch.
 //
 // Built on `@playwright/test` rather than the shared fixtures: taking their `page` would pull in the
@@ -38,7 +38,7 @@ const test = base.extend({
       await harness.bootstrapOwner();
       // The install reads the id out of the manifest, which is where it is defined; a copy here
       // would go stale silently, because the panel would follow the manifest to the new route while
-      // every response predicate below kept matching the old one — and a predicate that matches
+      // every response predicate below kept matching the old one - and a predicate that matches
       // nothing fails as a bare 30s timeout, naming neither the id nor the mismatch.
       const { id } = await harness.installExtension(RENAMER_EXTENSION);
       await use({ harness, extensionId: id });
@@ -66,7 +66,7 @@ async function putStoredOptions(harness, dataPathname, payload) {
  *
  * The proof is the whole spec: with that cookie in place the host's principal middleware
  * authenticates an extension's plain same-origin `fetch` by ambient authority, so every assertion
- * below passes whether or not the request carries a credential of its own — which is the measured
+ * below passes whether or not the request carries a credential of its own - which is the measured
  * historical behavior of this exact test, not a hypothesis. An unasserted `clearCookies` can stop
  * clearing (its filter semantics are Playwright's to change) or clear a cookie the host has since
  * started setting on a second path, and nothing would say so.
@@ -86,7 +86,7 @@ async function dropAmbientAuthority(page) {
  *
  * Dropping the cookie again first only narrows the window, it does not close it: a 401 on any
  * request in between drives the app's own refresh, and the host re-issues the access cookie on that
- * response — handing the remaining writes back the ambient authority this spec exists to rule out.
+ * response - handing the remaining writes back the ambient authority this spec exists to rule out.
  * A drop asserted at t=drop says nothing about what the request carried at t=put, so the claim is
  * asserted on the exercised request itself. That is what stays red against a bundle calling plain
  * `fetch`, whatever the status says.
@@ -163,7 +163,7 @@ test("the settings panel reads and writes its options through an authenticated r
   await settings.goto();
   await expect(settings.filenameTemplateInput).toHaveValue(seededTemplate, { timeout: 30_000 });
 
-  // Ambient authority gone, session intact — from here only a request carrying the app's own bearer
+  // Ambient authority gone, session intact - from here only a request carrying the app's own bearer
   // can reach the host store. The panel is already mounted, so its bundle (itself cookie-delivered)
   // is not refetched and this isolates the extension's request from how it was delivered.
   await dropAmbientAuthority(page);

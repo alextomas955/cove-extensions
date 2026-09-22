@@ -1,6 +1,6 @@
 /**
  * Per-row status pill. The label set and the derivation live in warningBadgeLogic.ts, which is
- * exhaustive over the wire's status union — so a status the server grows cannot reach a row with no
+ * exhaustive over the wire's status union - so a status the server grows cannot reach a row with no
  * pill saying why it was skipped.
  *
  * Color is never the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and

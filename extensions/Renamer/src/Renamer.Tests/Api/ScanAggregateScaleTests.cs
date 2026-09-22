@@ -9,7 +9,7 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// What a completed scan persists must be bounded by its shape, not by the library: the stored blob's
 /// byte length has to stay under a ceiling computed from the renamable-kind count, the
-/// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> — at ten
+/// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> - at ten
 /// files and again at ten thousand.
 /// <para>
 /// What is asserted here is the persisted size plus how wide each read of the library is: the stored
@@ -174,9 +174,9 @@ public sealed class ScanAggregateScaleTests
     {
         // Folded directly with a synthetic mount table rather than driven through the job: which volume a
         // path is on comes from the runner's real mount table, so a genuinely multi-volume fixture cannot
-        // be produced through the live scan path on an arbitrary machine. The scaling claim under test —
+        // be produced through the live scan path on an arbitrary machine. The scaling claim under test -
         // the stored size stays under the ceiling with the pair list at its cap, while the cross-volume
-        // totals stay exact — is unaffected by which code path fed the fold.
+        // totals stay exact - is unaffected by which code path fed the fold.
         int pairs = ScanSummary.MaxVolumePairsPerKind + 20;
 
         var aggregator = new ScanAggregator(new RenamerOptions().FullPathMax, SynthMounts(pairs + 1));

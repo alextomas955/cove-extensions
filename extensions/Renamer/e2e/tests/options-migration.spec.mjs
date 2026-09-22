@@ -4,8 +4,8 @@
 //
 // Why this exists when the backend suite already covers the conversion: every one of those tests hands
 // a hand-written blob to `OptionsMigration.Scan`/`Convert` or to the initialize seam directly, and none
-// of them starts a host. So none can answer the question a user actually has — "do my settings survive
-// the upgrade?" — because the answer depends on three things those tiers replace with a double:
+// of them starts a host. So none can answer the question a user actually has - "do my settings survive
+// the upgrade?" - because the answer depends on three things those tiers replace with a double:
 //
 //   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
 //   2. that the elevated library read returns real rows through Cove's own authorization filters,
@@ -14,12 +14,12 @@
 //      fields, or the host's "Loading tag..." placeholder.
 //
 // This spec is the only place all three are real at once. entity-id-rules.spec.mjs covers the
-// conversion's two decisive API-level outcomes — one field converting, and the refusal to convert
+// conversion's two decisive API-level outcomes - one field converting, and the refusal to convert
 // against an unreadable library. What is here is the rest of the blob (both groups, the exclusion
 // list, the destination map), the narrowing cases, and the render.
 //
 // What it is not: a test against data a real installation accumulated. The blob below is written by
-// this test, so it is realistic by construction rather than by history — six migrated fields in their
+// this test, so it is realistic by construction rather than by history - six migrated fields in their
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof.
 import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
@@ -54,7 +54,7 @@ async function storedOptions(api) {
 }
 
 /**
- * The root element of a titled `GroupCard` — heading → title box → header row → card root, the hop
+ * The root element of a titled `GroupCard` - heading → title box → header row → card root, the hop
  * count read off `primitives.tsx` rather than matched on a class, which would silently follow a
  * restyle onto the wrong element instead of failing.
  */
@@ -110,7 +110,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     performerKeep: `Qzmig Keep Performer ${stamp}`,
     performerBlock: `Qzmig Block Performer ${stamp}`,
   };
-  // Named by the blob, deliberately never created — a rule pointing at something the library no
+  // Named by the blob, deliberately never created - a rule pointing at something the library no
   // longer has, which every real upgrade carries at least one of.
   const vanishedTag = `Qzmig Vanished Tag ${stamp}`;
 
@@ -155,7 +155,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   // the empty array a real install always emitted (the panel serialized its whole defaults object),
   // and three fields the converter does not model at all, so preservation is proven rather than
   // assumed. The template names $performers and $tags because the panel renders those two token cards
-  // only for tokens the template uses — which makes it an unrelated-field check and a precondition at
+  // only for tokens the template uses - which makes it an unrelated-field check and a precondition at
   // once. The two routing toggles are on because a `ToggleHeaderCard` renders no children while it is
   // off, so a user who wrote these rules had them on.
   const legacyBlob = {

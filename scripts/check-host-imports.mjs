@@ -5,7 +5,7 @@
 // so the bundle never carries it: at runtime the name is resolved against the host's generated re-export
 // shim, not against the version installed here for typechecking. Those two can diverge, and lucide renames
 // icons between releases, so a name that exists only in the local copy typechecks, builds, and passes every
-// check — then throws an ESM SyntaxError at load that kills the whole bundle, so every surface of
+// check - then throws an ESM SyntaxError at load that kills the whole bundle, so every surface of
 // the extension renders "component not found".
 //
 // The host's list is authoritative and generated from its own package exports, so it is read from the
@@ -59,7 +59,7 @@ for (const root of uiRoots) {
       /import\s+(type\s+)?\{([^}]*)\}\s*from\s*["']lucide-react["']/g,
     )) {
       // A type-only import is erased before the module is ever fetched, so it never reaches the host
-      // module and cannot fail at load — in either the whole-clause or the inline-specifier form.
+      // module and cannot fail at load - in either the whole-clause or the inline-specifier form.
       if (m[1]) continue;
       for (const clause of m[2].split(",")) {
         const specifier = clause.trim();

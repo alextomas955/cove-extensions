@@ -5,9 +5,9 @@ namespace Renamer.Tests.Execution;
 
 /// <summary>
 /// A locked/in-use source file (held open with <see cref="FileShare.None"/>)
-/// is caught and reported as a skip — the move does not happen, no exception escapes, the source
+/// is caught and reported as a skip - the move does not happen, no exception escapes, the source
 /// stays at its old path, and the locking process is never touched (the helper references no
-/// <c>System.Diagnostics.Process</c> API — it never tries to force a lock open).
+/// <c>System.Diagnostics.Process</c> API - it never tries to force a lock open).
 /// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
 /// </summary>
 public sealed class LockedFileTests
@@ -66,7 +66,7 @@ public sealed class LockedFileTests
         var result = mover.Move(old, dest);
 
         // The 2-arg File.Move throws when the destination exists; the helper surfaces a skip. The
-        // IOException alone cannot say which cause it met, so the destination decides — and here it is
+        // IOException alone cannot say which cause it met, so the destination decides - and here it is
         // present, which is what separates this case from the locked-source one above.
         Assert.False(result.Moved);
         Assert.Equal(MoveOutcome.TargetExists, result.Outcome);

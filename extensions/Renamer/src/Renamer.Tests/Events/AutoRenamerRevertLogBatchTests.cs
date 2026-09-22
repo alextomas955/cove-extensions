@@ -55,7 +55,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
-            // (b) EntityId is the video id and FileId is the file id, and they differ — a row that
+            // (b) EntityId is the video id and FileId is the file id, and they differ - a row that
             // confused the two would have EntityId == FileId.
             var entry = Assert.Single(batch.Rows);
             Assert.Equal(videoId, entry.EntityId);
@@ -93,7 +93,7 @@ public sealed class AutoRenamerRevertLogBatchTests
 
     /// <summary>
     /// Seeds one throwaway Video so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/> hands back a
-    /// Video id one ahead of its VideoFile id — guaranteeing videoId ≠ fileId.
+    /// Video id one ahead of its VideoFile id - guaranteeing videoId ≠ fileId.
     /// </summary>
     private static async Task SeedDecoyVideoAsync(DbContext db)
     {

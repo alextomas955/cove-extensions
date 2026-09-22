@@ -3,7 +3,7 @@
  *
  * Rows are read a page at a time rather than as one array, because the array is the whole library and
  * a large library's would not fit in the tab. Changing `query` or `bucket` starts a fresh walk from the
- * beginning of the library — the server re-plans for the new filter, so a filtered view is not a subset
+ * beginning of the library - the server re-plans for the new filter, so a filtered view is not a subset
  * of what is already loaded.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -23,14 +23,14 @@ const SCAN_ROWS_PATH = api("scan-rows");
 
 export interface UseScanRows {
   rows: ScanRow[];
-  /** Requests the next page. Safe to call on every scroll frame — overlapping calls collapse into one. */
+  /** Requests the next page. Safe to call on every scroll frame - overlapping calls collapse into one. */
   loadMore: () => void;
   loading: boolean;
   /** True once the walk has reached the end of the library; no further page exists. */
   complete: boolean;
   /**
    * The last page stopped on the server's per-request entity budget. More of the library is
-   * unexamined — asking again continues the search. It is not "no more results".
+   * unexamined - asking again continues the search. It is not "no more results".
    */
   budgetExhausted: boolean;
   /** Entities the server has planned across this walk, which is what the budget is spent on. */
@@ -41,7 +41,7 @@ export interface UseScanRows {
 /**
  * @param optionsBlob The stringified options the scan was enqueued with, captured once at modal open.
  * @param enabled False until the scan job completes; no page is requested before there is a scan.
- * @param query The path search, sent verbatim — the server reproduces the client's old matching rules.
+ * @param query The path search, sent verbatim - the server reproduces the client's old matching rules.
  * @param bucket The active status filter.
  */
 export function useScanRows(

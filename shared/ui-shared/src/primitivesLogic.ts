@@ -1,6 +1,6 @@
 /**
  * Pure, DOM-free logic the primitive components render on top of. Kept free of React and the DOM so
- * it stays L0 — testable with no environment — and so the logic the components render on top of is
+ * it stays L0 - testable with no environment - and so the logic the components render on top of is
  * exactly the logic the suite covers.
  */
 /** The outcome of validating a rule pattern. */
@@ -16,7 +16,7 @@ export interface RegexValidity {
  * whole list (a no-op filter, not an empty result) and input order is preserved.
  *
  * Diacritic-naive on purpose: a plain lowercased substring match mirrors the host's own simple
- * filtering — locale collation would diverge from what Cove does elsewhere.
+ * filtering - locale collation would diverge from what Cove does elsewhere.
  */
 export function filterByText<T>(
   query: string,
@@ -31,7 +31,7 @@ export function filterByText<T>(
 /**
  * Validate a rule pattern as best a browser can: `new RegExp` is the only validator available in the
  * bundle, so it catches obvious parse errors (an unbalanced group, a dangling quantifier) but is not
- * full .NET parity — the rename engine is .NET, so a JS-valid pattern is not a guarantee of .NET
+ * full .NET parity - the rename engine is .NET, so a JS-valid pattern is not a guarantee of .NET
  * validity, and a handful of .NET constructs JS rejects are not actually broken. Treat the result as
  * an early "this is obviously malformed" signal, never as the authoritative verdict.
  *
@@ -49,7 +49,7 @@ export function isRegexValid(pattern: string): RegexValidity {
 
 /**
  * Best-effort, platform-tolerant check for whether a string looks like an absolute path (Windows
- * drive-letter, or POSIX/UNC leading slash). This is an advisory-only hint, not a validator — a
+ * drive-letter, or POSIX/UNC leading slash). This is an advisory-only hint, not a validator - a
  * blank/whitespace-only value is treated as "not implausible" (returns true) so a caller composing
  * this with its own blank-suppresses-the-hint logic never needs a duplicate blank check here too.
  */
@@ -80,7 +80,7 @@ const PRIMARY_MEDIA_EXTENSIONS: ReadonlySet<string> = new Set([
 /**
  * Advisory check for a sidecar extension already normalized (lowercased, dot-stripped) by the
  * caller. Returns null when the value looks like a plausible sidecar extension. Shape rejection
- * takes priority over the primary-media check — a shape-invalid value is never also flagged as a
+ * takes priority over the primary-media check - a shape-invalid value is never also flagged as a
  * media duplicate, since it isn't a valid extension body at all.
  */
 export function extensionShapeAdvisory(value: string): string | null {
@@ -154,7 +154,7 @@ export function nextActiveIndex(current: number, count: number, direction: 1 | -
 /**
  * What a number field puts in its `value`. A field whose zero means "unset" says so with
  * `blankWhenZero`, and renders blank for it so a placeholder can name what the absence means; every
- * other field shows its zero. A non-number is always blank — the field would otherwise render `NaN`.
+ * other field shows its zero. A non-number is always blank - the field would otherwise render `NaN`.
  */
 export function numberInputValue(value: number, blankWhenZero?: boolean): number | "" {
   if (Number.isNaN(value)) return "";

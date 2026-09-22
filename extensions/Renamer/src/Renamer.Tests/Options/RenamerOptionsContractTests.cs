@@ -10,7 +10,7 @@ namespace Renamer.Tests.Options;
 /// <remarks>
 /// The members are enumerated from the model rather than listed here, so one added later is covered
 /// with no edit to this file. The criterion is a non-null value on a fresh instance, which is read
-/// off the defaults and not off the rule the store applies — an expectation computed from the code
+/// off the defaults and not off the rule the store applies - an expectation computed from the code
 /// it checks would agree with that code however wrong both were.
 /// </remarks>
 public sealed class RenamerOptionsContractTests

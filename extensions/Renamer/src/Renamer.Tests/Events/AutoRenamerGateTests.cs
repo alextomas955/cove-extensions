@@ -8,7 +8,7 @@ namespace Renamer.Tests.Events;
 /// <summary>
 /// The opt-in + gating half of auto-renamer: with the flag off (default) the hook does nothing, and
 /// with the flag on but the planner's require-fields gate excluding the item, it still does nothing
-/// — no junk names on incomplete metadata.
+/// - no junk names on incomplete metadata.
 /// </summary>
 public sealed class AutoRenamerGateTests
 {
@@ -57,7 +57,7 @@ public sealed class AutoRenamerGateTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             // FilenameAsTitle forced off so the empty title is not rescued by the basename fallback
-            // (which now defaults on) — this case proves the require-fields gate excludes the item.
+            // (which now defaults on) - this case proves the require-fields gate excludes the item.
             var options = new RenamerOptions
             {
                 AutoRenamerOnUpdate = true,

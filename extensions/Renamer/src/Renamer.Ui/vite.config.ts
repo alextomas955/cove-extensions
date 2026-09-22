@@ -5,7 +5,7 @@ import { createExtensionViteConfig } from "../../../../shared/ui-shared/vite/cre
 
 // The shared UI package is consumed as raw source through a Vite alias rather than installed, so it
 // has no node_modules and cannot host a runner of its own. Its suite runs from here as a second
-// vitest project rooted at that package — one install, one runner, both surfaces.
+// vitest project rooted at that package - one install, one runner, both surfaces.
 const repoRoot = path.resolve(__dirname, "../../../..");
 const sharedUiRoot = path.resolve(repoRoot, "shared/ui-shared");
 
@@ -13,7 +13,7 @@ const base = createExtensionViteConfig({ packageDir: __dirname, reactPlugin: rea
 
 // Cove's import map serves these, and a bundle externalizes them, so nothing resolves them in a test
 // run: a component reaching one fails to transform rather than to render. Declared per test project
-// rather than in `resolve.alias`, which the build reads too — an alias there would defeat the
+// rather than in `resolve.alias`, which the build reads too - an alias there would defeat the
 // externals and bundle a stand-in into the shipped file.
 const hostRuntimeStubs = {
   "@cove/runtime/api": path.resolve(sharedUiRoot, "src/coveRuntimeApiStub.ts"),
@@ -25,7 +25,7 @@ export default defineConfig({
   resolve: {
     ...base.resolve,
     // A bundle externalizes these, so nothing resolves them there. A test run has to, and the shared
-    // package's source — including the JSX runtime the transform injects into it — would otherwise
+    // package's source - including the JSX runtime the transform injects into it - would otherwise
     // resolve them against a node_modules that package does not have.
     dedupe: ["react", "react-dom", "lucide-react"],
   },

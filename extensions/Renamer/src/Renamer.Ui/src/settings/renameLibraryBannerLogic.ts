@@ -1,7 +1,7 @@
 /**
  * The pure composition of the banner a whole-library rename leaves behind.
  *
- * Import-free apart from the counts shape it reads (no React, no request helper) so it stays L0 —
+ * Import-free apart from the counts shape it reads (no React, no request helper) so it stays L0 -
  * deterministic and testable with no environment, and so the sentence a user reads after a destructive
  * operation is the exact sentence the suite covers.
  */

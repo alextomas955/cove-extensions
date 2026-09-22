@@ -4,7 +4,7 @@
 // The filters install only under Npgsql: `CoveContext.OnModelCreating` configures them inside its
 // provider branch, so a SQLite-backed test has no filters to observe at all. The suite's containers
 // run auth off by default, so every request there resolves to a bypass principal whatever it carries
-// — hence the auth-on instance below, which is instance-global and therefore per-test rather than
+// - hence the auth-on instance below, which is instance-global and therefore per-test rather than
 // worker-shared.
 //
 // Which principal discriminates, and why this role holds a write permission and still sees nothing,
@@ -12,7 +12,7 @@
 // this spec's first assertions are that the principal it drives is not the bypass one.
 //
 // `jobs.read` is in the set for one reason only: the host gates its own job-status endpoint on it,
-// so without it the restricted user cannot poll the job it just enqueued (measured — the poll answers
+// so without it the restricted user cannot poll the job it just enqueued (measured - the poll answers
 // 403 naming that key). It grants no entity read of any kind and so cannot weaken anything below.
 // Nothing else was needed; in particular no extensions permission, because an extension endpoint
 // that declares no host authorization metadata stays reachable and does its own in-handler check.
@@ -23,7 +23,7 @@ import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 // Small and fixed. Every assertion below compares two live responses to each other, so nothing here
-// depends on this number — it exists only so the library is provably non-empty for the owner, which
+// depends on this number - it exists only so the library is provably non-empty for the owner, which
 // is what makes the restricted user's empty result mean something.
 const SEEDED_VIDEOS = 3;
 
@@ -35,7 +35,7 @@ const test = base.extend({
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
       await harness.bootstrapOwner();
       // The install reads the id out of the manifest, the one place it is defined, and restarts the
-      // container — which re-mints the owner token. Both the seeding and the restricted user below
+      // container - which re-mints the owner token. Both the seeding and the restricted user below
       // therefore happen after it, never before.
       const { id: extensionId } = await harness.installExtension(RENAMER_EXTENSION);
 

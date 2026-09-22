@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution.Undo;
 /// The write-seam rollback proof. Because <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>
 /// is now on the interface (not just the concrete <c>CoveRenamerDataPort</c>), the executor's
 /// disk-first/DB-second rollback spine can be driven by a pure in-memory <see cref="FakeRenamerDataPort"/>
-/// with a real on-disk move and no live database — the L0 test that was impossible while the executor
+/// with a real on-disk move and no live database - the L0 test that was impossible while the executor
 /// bound the concrete port. The fake makes the save fail after a genuine <see cref="DiskMover"/> move;
 /// the executor must restore the source and classify the item Failed, never leaving the file abandoned
 /// at the new path with the DB unchanged.

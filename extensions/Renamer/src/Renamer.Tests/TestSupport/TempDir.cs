@@ -1,7 +1,7 @@
 namespace Renamer.Tests.TestSupport;
 
 /// <summary>
-/// A per-test, isolated, auto-cleaned real directory under <see cref="Path.GetTempPath"/> —
+/// A per-test, isolated, auto-cleaned real directory under <see cref="Path.GetTempPath"/> -
 /// the real-filesystem tier for move/lock/sidecar tests (deterministic temp-directory disk tests,
 /// rather than mocking the filesystem). Create one per test (or per fixture) and dispose to remove it.
 /// </summary>

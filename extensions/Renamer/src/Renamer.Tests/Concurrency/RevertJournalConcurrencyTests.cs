@@ -53,7 +53,7 @@ public sealed class RevertJournalConcurrencyTests
         Assert.Equal(N, batch.Rows.Select(r => r.Seq).Distinct().Count());
         Assert.Equal(N, batch.Rows.Select(r => r.FileId).Distinct().Count());
 
-        // Every row is whole — a torn write could keep the count right while corrupting a field.
+        // Every row is whole - a torn write could keep the count right while corrupting a field.
         var byFileId = batch.Rows.ToDictionary(r => r.FileId);
         for (int i = 0; i < N; i++)
         {
@@ -63,7 +63,7 @@ public sealed class RevertJournalConcurrencyTests
         }
 
         // The aggregate counted every one of them, since it accrues per append rather than being
-        // declared up front — a race there would leave the panel promising the wrong number.
+        // declared up front - a race there would leave the panel promising the wrong number.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(N, summary.Value.OriginalCount);

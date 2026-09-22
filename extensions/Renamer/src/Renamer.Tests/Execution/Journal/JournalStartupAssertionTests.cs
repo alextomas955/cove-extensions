@@ -13,7 +13,7 @@ namespace Renamer.Tests.Execution.Journal;
 /// </summary>
 /// <remarks>
 /// The refusal is the whole point of the case. The host applies an extension's migrations, logs a
-/// failure, and loads the extension anyway — so without this check a journal that never got created
+/// failure, and loads the extension anyway - so without this check a journal that never got created
 /// costs the user every undo, silently. A throw out of the load is caught per extension and disables
 /// that one extension, which is a failure nobody can read as success.
 /// </remarks>
@@ -46,7 +46,7 @@ public sealed class JournalStartupAssertionTests
     }
 
     /// <summary>
-    /// A database that is valid in every other respect and simply has no journal — the state a
+    /// A database that is valid in every other respect and simply has no journal - the state a
     /// migration that failed and was logged-and-skipped leaves behind.
     /// </summary>
     private static async Task<NoJournalDatabase> LibraryWithNoJournalAsync()
@@ -55,7 +55,7 @@ public sealed class JournalStartupAssertionTests
         await using (db)
         {
             // Dropped rather than never created, because the model this suite runs under contributes
-            // the journal to every EnsureCreated — which is exactly the host's own behaviour, and so
+            // the journal to every EnsureCreated - which is exactly the host's own behaviour, and so
             // the only honest way to reach the missing-table state is to take the table away.
             await db.Database.ExecuteSqlRawAsync("DROP TABLE renamer_revert_rows");
             await db.Database.ExecuteSqlRawAsync("DROP TABLE renamer_revert_batches");

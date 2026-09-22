@@ -7,7 +7,9 @@ namespace Renamer.Execution;
 // same-volume rename has no copy to read back and no cancellation point, so DiskMover never returns
 // VerifyFailed or Cancelled.
 //
-// The ordinals are pinned, so a new member is appended and never inserted.
+// The ordinals are pinned, so a new member is appended and never inserted. The human-readable reason
+// travelling beside an outcome is never matched on: it is prose, and a decision keyed on it changes
+// meaning when someone rewords it.
 public enum MoveOutcome
 {
     // The file moved: on the same volume an atomic rename, across volumes a copy that was verified,
@@ -34,27 +36,19 @@ public enum MoveOutcome
     // the destination name, and the source at its old path.
     //
     // Where the OS raises one IOException for an occupied destination and a locked source alike, the
-    // catching tier tells them apart by testing the destination. The exception message is prose, and a
-    // decision keyed on it changes meaning when someone rewords it.
+    // catching tier tells them apart by testing the destination.
     TargetExists,
 }
 
 // Translates a mover's classification of a move that did not happen into the status that move reports.
 //
-// The human-readable reason travelling beside an outcome is never matched on: it is prose, and a
-// decision keyed on it changes meaning when someone rewords it.
-//
 // Every member is named and there is no discard arm, so the compiler refuses a new MoveOutcome member
-// that has no status of its own. A discard arm would answer for members nobody considered, collapsing
-// a lock, a denial, a failed verify and a clean shutdown into one status an operator cannot act on.
+// that has no status of its own.
 public static class MoveOutcomeClassifier
 {
     // Throws for MoveOutcome.Moved: a move that happened takes the planner's own status for the item,
-    // so there is nothing to translate.
-    //
-    // UndoReplayer.StopFor maps its own unreachable Moved arm to a retryable reason. There a wrong
-    // answer retires a journal row and removes the user's only route back to their file, so it answers
-    // harmlessly. Here nothing is retired and no recovery is at stake.
+    // so there is nothing to translate. Nothing is retired here and no recovery is at stake, unlike
+    // UndoReplayer.StopFor, whose unreachable Moved arm answers harmlessly instead.
     public static RenamerStatus StatusFor(MoveOutcome outcome) => outcome switch
     {
         MoveOutcome.Locked => RenamerStatus.SkipLocked,

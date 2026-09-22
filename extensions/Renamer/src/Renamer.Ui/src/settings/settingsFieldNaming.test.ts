@@ -5,7 +5,7 @@
  *
  * G1: a label element never forwards a click to a button that is one control among several. A
  * `<label>` activates its first labelable descendant, and `button` is labelable, so a heading over a
- * chip row activates a chip — a silent configuration change, or a deletion, from a click on a word.
+ * chip row activates a chip - a silent configuration change, or a deletion, from a click on a word.
  *
  * G2: every text input, select and textarea carries an accessible name, save the one allowance below.
  *
@@ -156,7 +156,7 @@ function activationTarget(label: HTMLLabelElement): Element | null {
   return label.querySelector(LABELABLE);
 }
 
-/** The heading a user reads for this label — the Field's own text, not the control's contents. */
+/** The heading a user reads for this label - the Field's own text, not the control's contents. */
 function headingOf(label: Element): string {
   const first = label.firstElementChild;
   if (first?.tagName === "SPAN") {
@@ -171,8 +171,8 @@ function sectionOf(el: Element): string {
 }
 
 /**
- * The nearest card heading above an element. Two fields share the label "Separator" — one per token
- * group — so a report naming only the section and the label cannot say which of them is broken.
+ * The nearest card heading above an element. Two fields share the label "Separator" - one per token
+ * group - so a report naming only the section and the label cannot say which of them is broken.
  */
 function cardOf(el: Element): string {
   for (let scope = el.parentElement; scope !== null; scope = scope.parentElement) {

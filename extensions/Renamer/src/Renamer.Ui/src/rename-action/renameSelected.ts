@@ -8,7 +8,7 @@
  *   - Cancel               → return { cancelled: true } (no /renamer, host suppresses the toast).
  *   - OK but N == 0         → return { cancelled: true } (nothing to do; no pointless /renamer).
  *   - OK and N >= 1         → POST /renamer → return {} (host shows its queued toast).
- * Request errors are not swallowed (the host's onError alert shows the failure) — except the
+ * Request errors are not swallowed (the host's onError alert shows the failure) - except the
  * SDK's spurious res.json() throw on the empty-200 /renamer response, which is success.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -25,7 +25,7 @@ export async function renameSelected(
 ): Promise<HandlerResult> {
   const requestBody = { EntityType: payload.entityType, EntityIds: payload.entityIds };
 
-  // /preview returns { items, summary } (non-empty body) — parses cleanly.
+  // /preview returns { items, summary } (non-empty body) - parses cleanly.
   const response = await requestJson<PreviewResponse>(api("preview"), {
     method: "POST",
     body: JSON.stringify(requestBody),

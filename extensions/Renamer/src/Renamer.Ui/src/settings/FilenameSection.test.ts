@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * That the save refusal is visible. A dead Save button with no reason reads as the user's own mistake,
- * and the hook's suite can only prove the write was refused — not that anything on screen says so. So
+ * and the hook's suite can only prove the write was refused - not that anything on screen says so. So
  * this renders the real section and reads the rendered text, which is the only form of the claim a
  * user would recognise.
  *

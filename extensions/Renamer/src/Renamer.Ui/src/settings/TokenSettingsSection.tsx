@@ -1,8 +1,8 @@
 /**
- * TokenSettingsSection — the "Token settings" card: per-token formatting for $performers, $tags,
+ * TokenSettingsSection - the "Token settings" card: per-token formatting for $performers, $tags,
  * $date, and $duration. Each group only renders when the current templates actually use that token
  * (so an unused token never shows noise); when none is used, an empty-state offers one-click token
- * insertion. Presentational — edits flow up through set/setMulti/insertToken.
+ * insertion. Presentational - edits flow up through set/setMulti/insertToken.
  */
 import {
   type RenamerOptions,

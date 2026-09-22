@@ -3,7 +3,7 @@
  * is gone.
  *
  * The host's `EntityReferenceValue` resolves an id to a name and falls back to "Loading <kind>…" when
- * it cannot — permanently, for an id nothing answers to, because its own "Unavailable" branch is
+ * it cannot - permanently, for an id nothing answers to, because its own "Unavailable" branch is
  * unreachable while that fallback text is non-empty. A rule whose studio was merged away therefore
  * reads as a stuck spinner rather than as a rule that no longer applies.
  *

@@ -17,7 +17,7 @@ namespace Renamer.Tests.Execution.Journal;
 /// <remarks>
 /// Time is driven through the moment the port already takes as a parameter, never the system clock, so
 /// every case is deterministic and nothing waits. Driven through the real EF implementation because the
-/// property under test — that no row of an expired batch is left behind — is a property of the storage.
+/// property under test - that no row of an expired batch is left behind - is a property of the storage.
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalRetentionTests
@@ -39,7 +39,7 @@ public sealed class RevertJournalRetentionTests
 
         await SeedBatchAsync(db, "run-old", Opened, rows: 3);
 
-        // Opening the next batch is the only trigger — no timer, no scheduler, no second call site.
+        // Opening the next batch is the only trigger - no timer, no scheduler, no second call site.
         await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustOutside);
 
         Assert.Empty(await BatchRunIdsAsync(db, "run-old"));
@@ -69,7 +69,7 @@ public sealed class RevertJournalRetentionTests
     [Fact]
     public async Task APartiallyRestoredBatchOutsideTheWindow_LosesItsRemainingRowsAndItsBatchRow()
     {
-        // Half a batch surviving would make a later undo silently partial, with nothing to say so — so
+        // Half a batch surviving would make a later undo silently partial, with nothing to say so - so
         // the purge keys on the batch, and a batch that is already half spent goes with the same sweep.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;

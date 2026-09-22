@@ -10,13 +10,13 @@ namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
 /// Drives a real rename and then a real undo over one <see cref="CoveContext"/> and one
-/// <see cref="TempDir"/>, to prove undo puts both sidecar kinds back — the database-tracked caption and
-/// the configured same-stem neighbour — and to pin what happens when one of them cannot go back.
+/// <see cref="TempDir"/>, to prove undo puts both sidecar kinds back - the database-tracked caption and
+/// the configured same-stem neighbour - and to pin what happens when one of them cannot go back.
 /// </summary>
 /// <remarks>
 /// Every case asserts on both halves: the file on disk and the row in the database. A case that
 /// checked only one would pass while the two disagreed, which is precisely the failure the
-/// moved-only rule exists to prevent — a caption whose stored filename was rewritten to a name no
+/// moved-only rule exists to prevent - a caption whose stored filename was rewritten to a name no
 /// file on disk has.
 /// <para>
 /// The delta each undo replays is the one the forward run journalled, read back out of the table. It
@@ -116,7 +116,7 @@ public sealed class UndoSidecarRestoreTests
             var run = await RenameThenUndoAsync(db, "stranded-run", videoId, options, betweenRenameAndUndo: () =>
             {
                 // Something took the neighbour's original slot while the rename stood. The reverse move
-                // must refuse to clobber it — and that refusal must not strand the film's recovery on a
+                // must refuse to clobber it - and that refusal must not strand the film's recovery on a
                 // subtitle.
                 File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "someone else's subs");
                 return Task.CompletedTask;
@@ -127,12 +127,12 @@ public sealed class UndoSidecarRestoreTests
             Assert.Empty(run.Skipped);
 
             // The warning names the slot the reverse move refused to clobber, which is the sidecar's
-            // own original path — the one thing that identifies which companion did not come back.
+            // own original path - the one thing that identifies which companion did not come back.
             var warning = Assert.Single(run.Warnings);
             Assert.Equal(fileId, warning.FileId);
             Assert.Contains("clip.srt", warning.Detail, StringComparison.Ordinal);
 
-            // The media file is back and its row agrees — which is exactly what undo promises.
+            // The media file is back and its row agrees - which is exactly what undo promises.
             Assert.True(File.Exists(Path.Combine(dir.Root, "clip.mkv")));
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("clip.mkv", basename);
@@ -203,7 +203,7 @@ public sealed class UndoSidecarRestoreTests
 
             // The one line that makes this case measure the code rather than the fixture. Seeding a
             // caption through this context leaves it in the change tracker, and relationship fix-up
-            // then populates the file's Captions navigation — state production never has, because
+            // then populates the file's Captions navigation - state production never has, because
             // every read the port makes is AsNoTracking and each batch worker saves through a context
             // that has loaded nothing. Every other case here inherits that fixture-supplied state, so
             // a rename whose caption write silently did nothing passed all of them.
@@ -262,7 +262,7 @@ public sealed class UndoSidecarRestoreTests
 
     /// <summary>
     /// Runs a real rename of <paramref name="videoId"/>, optionally disturbs the directory, then
-    /// reverse-replays the batch the rename journalled — reading that batch back out of the table, so
+    /// reverse-replays the batch the rename journalled - reading that batch back out of the table, so
     /// what the replayer acts on is what a production undo would be handed.
     /// </summary>
     private static async Task<UndoReplayer.UndoRunResult> RenameThenUndoAsync(

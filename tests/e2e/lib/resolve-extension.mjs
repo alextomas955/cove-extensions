@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
  * @param {{ srcProject: string }} opts - the extension's .NET project name
  *   (→ `src/<srcProject>/extension.json`).
  * @returns {{ repoRoot: string, publishDir: string, manifestPath: string }} `repoRoot` is where the
- *   package assembler reads `extensions/catalog.json`, which declares the shipped set — so the UI
+ *   package assembler reads `extensions/catalog.json`, which declares the shipped set - so the UI
  *   bundle has no path here.
  */
 export function resolveExtensionPaths(callerUrl, { srcProject }) {

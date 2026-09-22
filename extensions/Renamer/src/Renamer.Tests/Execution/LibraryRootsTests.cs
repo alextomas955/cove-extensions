@@ -32,7 +32,7 @@ public sealed class LibraryRootsTests
 
     [Theory]
     // Trimming a path of nothing but separators would leave the empty string, which is not a spelling
-    // of a root here — it is how a destination says "the file's own library path".
+    // of a root here - it is how a destination says "the file's own library path".
     [InlineData("/")]
     [InlineData(@"\")]
     [InlineData("//")]

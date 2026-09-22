@@ -18,7 +18,7 @@ namespace Renamer.Tests.Concurrency;
 /// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the
 /// free-space sum); and an in-flight free-space drop skips a cross-volume item gracefully. Cove
 /// disables EF thread-safety checks, so every assertion is on observable outcomes (files, DB rows,
-/// the journal rows) — never on an EF exception. The store is a thread-safe
+/// the journal rows) - never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
 [Collection(SubstDriveScope.CollectionName)]
@@ -96,7 +96,7 @@ public sealed class ParallelBatchTests
             Assert.Equal(1d, progress.LastPercent);
 
             // Progress must move during both phases, not jump from 0% to done. The planning pass drives
-            // the bar into (0, 0.5] and the execution pass carries it past 0.5 to 1.0 — so there must be
+            // the bar into (0, 0.5] and the execution pass carries it past 0.5 to 1.0 - so there must be
             // at least one report in each band, every report is in [0,1], and the sequence never regresses.
             Assert.Contains(progress.Reports, r => r.Percent is > 0d and <= 0.5d);
             Assert.Contains(progress.Reports, r => r.Percent is > 0.5d and < 1d);
@@ -133,7 +133,7 @@ public sealed class ParallelBatchTests
                 await seedDb.SaveChangesAsync();
                 await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
                 ids.Add(video.Id);
-                // Write the on-disk source for every id except the fault one — with no source on disk
+                // Write the on-disk source for every id except the fault one - with no source on disk
                 // the executor's source pre-check classifies it as SkipMissingSource (not a mover-level
                 // lock skip) without throwing, so the batch still completes.
                 if (i != faultIndex)
@@ -148,7 +148,7 @@ public sealed class ParallelBatchTests
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
             // Every item whose source existed renamed; the faulting item did not (its target was never
-            // created) and the batch still finished at 1.0 — one bad item never aborts the run.
+            // created) and the batch still finished at 1.0 - one bad item never aborts the run.
             for (int i = 0; i < k; i++)
             {
                 if (i == faultIndex)
@@ -266,7 +266,7 @@ public sealed class ParallelBatchTests
             // Stateful TOCTOU probe: the first reading (the up-front check) reports ample free space
             // so the batch is accepted; the second reading (the in-flight re-check, just before the
             // copy) reports near-zero, modelling a concurrent scanner that filled the destination. The
-            // cross-volume item must then be skipped gracefully — never thrown, batch still completes.
+            // cross-volume item must then be skipped gracefully - never thrown, batch still completes.
             int calls = 0;
             long Probe(string vol) => Interlocked.Increment(ref calls) == 1 ? 1L << 40 : 1L;
 

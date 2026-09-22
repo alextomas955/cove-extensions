@@ -122,7 +122,7 @@ public sealed class UndoOperationTests
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
 
-            // Both kinds' files, summed — not the last kind's batch alone.
+            // Both kinds' files, summed - not the last kind's batch alone.
             Assert.True(summary.HasBatch);
             Assert.Equal(2, summary.Count);
             Assert.Equal(2, summary.RemainingCount);
@@ -213,8 +213,8 @@ public sealed class UndoOperationTests
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "raw.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "dest", "Pic.jpg")));
 
-            // The batch whose rows all stopped still holds them, so the batch cursor — not their
-            // absence — is what ends the loop. A second undo over the same state terminates and acts
+            // The batch whose rows all stopped still holds them, so the batch cursor - not their
+            // absence - is what ends the loop. A second undo over the same state terminates and acts
             // only on what is still outstanding.
             var again = UndoValue(await ext.UndoAsync(WritesBoth, authz, default));
             Assert.Equal(0, again.Undone);

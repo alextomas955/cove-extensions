@@ -9,7 +9,7 @@ import { IN_FLIGHT_OVERFLOW_LABEL, classifyItem } from "./dryRunLogic";
 import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
 
 /**
- * Every status the wire can carry, with the label a row earns for it — transcribed by hand from the
+ * Every status the wire can carry, with the label a row earns for it - transcribed by hand from the
  * `RenamerStatus` declaration in `extensions/Renamer/src/Renamer/Planner/RenamerPlan.cs`, and
  * deliberately not derived from the module's own map, which would agree with itself whatever it said.
  * `null` is a status that earns no badge, and the comment beside each says why it earns none.
@@ -120,7 +120,7 @@ function renderedLabels(node: unknown): string[] {
 /**
  * The wiring, not the module: a pure module with a green suite says nothing about whether the pill
  * calls it. `WarningBadges` reads no hooks, so it can be invoked as the plain function it is and its
- * element tree walked — no DOM, no renderer, no test-only dependency.
+ * element tree walked - no DOM, no renderer, no test-only dependency.
  */
 test("WarningBadges renders exactly the labels this module derives", () => {
   for (const status of Object.keys(EXPECTED_LABEL) as RenamerStatus[]) {

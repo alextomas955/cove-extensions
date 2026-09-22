@@ -9,7 +9,7 @@
 // still validates through the upstream convention path.
 //
 // 2. Drops upstream's floor check on the two package-version properties, because neither has a
-// subject here — the SDK version is $(CoveMinVersion), so the comparison asks whether a value is at
+// subject here - the SDK version is $(CoveMinVersion), so the comparison asks whether a value is at
 // least itself, and no Cove.Core property is declared at all. The per-entry extension.json
 // comparison, which does have a subject, survives.
 //
@@ -32,7 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-// root is the parent of this file's own scripts/ directory — matching upstream's template
+// root is the parent of this file's own scripts/ directory - matching upstream's template
 // exactly. A real extensions/ subfolder lives one level below the repo root and holds
 // catalog.json plus one directory per extension (root/extensions/<Name>), while
 // Directory.Build.props/.targets stay at the repo root alongside scripts/. This single-level
@@ -189,7 +189,7 @@ if (entries.length === 0) errors.push("extensions/catalog.json has no extensions
 let floorComparisons = 0;
 
 // The catalog's optional path fields, as consumed by .github/workflows/build.yml or by this validator
-// — every `matrix.extension.*` value there that names a location on disk and is not already covered by
+// - every `matrix.extension.*` value there that names a location on disk and is not already covered by
 // a check above (path, manifestPath and projectPath are), plus registryManifestPath, which this file
 // reads for the floor comparison below. e2eProject is excluded deliberately: it is a Playwright project
 // name, not a path. Each of these is optional to declare, so an entry declaring none is valid and only a
@@ -205,7 +205,7 @@ let declaredPathChecks = 0;
 
 // Counts every entry that declared a registry manifest, incremented before the file is read, and every
 // row actually compared. The pair is what separates "no entry declares one" from "one was declared and
-// carries no row for the current version" — states a single counter would render identical, and the
+// carries no row for the current version" - states a single counter would render identical, and the
 // second of which is legitimate: releasing.md requires the release asset before the registry pull
 // request, so a version bumped ahead of its row is an ordinary mid-release state, not a defect.
 let registrySubjects = 0;
@@ -256,13 +256,13 @@ for (const entry of entries) {
   }
 
   // A manifestOnly entry declares that it ships no built assembly, while uiPath tells the CI build
-  // several times over to install, generate, type-check and bundle a frontend — for an entry with
+  // several times over to install, generate, type-check and bundle a frontend - for an entry with
   // nothing to load it. The pairing is incoherent in one direction only: a UI on an assembly-bearing
   // entry is ordinary. Refusing it here, where it is a pure catalog fact, is what keeps those build
   // conditions from each needing their own copy of this guard. Placed with the entry-level checks
   // rather than beside the manifest-reading manifestOnly refusals below, because the short-circuits
   // at the end of this block `continue` past those for an entry whose directory or manifest is
-  // missing — which is exactly the malformed entry most likely to carry this defect.
+  // missing - which is exactly the malformed entry most likely to carry this defect.
   if (isManifestOnly && entry.uiPath) {
     errors.push(
       `${entry.id}: declares both manifestOnly and uiPath, so CI would build and bundle a frontend for an entry that ships no assembly to load it`,
@@ -426,7 +426,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-// Counts, unconditionally — never a sentence per check. A zero is a number here, which is the whole
+// Counts, unconditionally - never a sentence per check. A zero is a number here, which is the whole
 // point: a clause that changes its wording when a check has no subject makes "this ran and found
 // nothing wrong" and "this never ran" two readings of the same line, and that collision is what let
 // the self-comparing checks removed in deviation #2 stay invisible. Every counter above is

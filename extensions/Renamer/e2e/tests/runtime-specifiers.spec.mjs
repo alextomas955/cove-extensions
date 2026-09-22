@@ -3,7 +3,7 @@
 //
 // The rest of this suite does not reliably go red when a canonical specifier stops resolving, and
 // that is the reason this test exists rather than a footnote to it. Measured against a released host:
-// a bundle that fails to link — importing a named export the host no longer provides — takes the
+// a bundle that fails to link - importing a named export the host no longer provides - takes the
 // panel down with zero page errors and zero console errors, so a pageerror gate is silent for exactly
 // that failure. What does catch it is every assertion that waits for the settings panel to render,
 // this test's own included. What none of them can do is name the specifier that went missing, or
@@ -12,8 +12,8 @@
 //
 // Nothing else in the repo closes that gap either: `createExtensionViteConfig.ts` declares the two
 // specifiers as rollup externals, which makes them external and says nothing about the built bundle
-// importing them by name. That list is also a hand-mirror of Cove's own — a cross-system contract
-// nothing on the server side checks — so this is the only drift detection it has.
+// importing them by name. That list is also a hand-mirror of Cove's own - a cross-system contract
+// nothing on the server side checks - so this is the only drift detection it has.
 //
 // It reads the installed artifact over HTTP rather than the local dist/, so it covers the
 // build → publish → install → serve path rather than re-asserting a fact about a file the build just
@@ -23,7 +23,7 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 
-// A named import binding, never a bare side-effect `import "@cove/runtime/api";` — an external with
+// A named import binding, never a bare side-effect `import "@cove/runtime/api";` - an external with
 // no live binding degrades to exactly that, which proves the specifier resolves but proves nothing
 // about the named export. `\s*` accepts both the spaced form this build emits and a minified
 // spaceless one.
@@ -32,7 +32,7 @@ const NAMED_EXTENSION_FETCH_IMPORT =
 
 // The components half, identical in shape. It could not be asserted until a consumer existed: the
 // module was declared but unused, and a specifier nothing imports is served without ever being
-// linked. The settings render below is what makes this more than a string match — a named export
+// linked. The settings render below is what makes this more than a string match - a named export
 // missing from a live ESM module is a link-time failure, so the module never evaluates and the
 // whole bundle dies with it, taking every extension's UI on the page down together.
 const NAMED_MULTI_SELECTOR_IMPORT =
@@ -86,7 +86,7 @@ test("the bundle the host serves imports extensionFetch by name, and the setting
   // Having proven the served artifact carries the imports, prove the host resolves them. The
   // visibility assertion is what does that work: an unresolvable specifier kills the bundle before
   // the panel can render, and it does so silently. The pageerror check below is a second, weaker net
-  // for anything that does throw — worth keeping, but it is not what would catch a missing specifier.
+  // for anything that does throw - worth keeping, but it is not what would catch a missing specifier.
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
 

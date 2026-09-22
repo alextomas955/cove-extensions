@@ -14,7 +14,7 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
 /// <see cref="SampleTokenSets"/> + the posted (unsaved) options and returns per-sample old→new + folder
-/// + advisory flags — single-sourcing the naming logic so the React panel never re-implements it. The
+/// + advisory flags - single-sourcing the naming logic so the React panel never re-implements it. The
 /// length-reduced flag is asserted by its named dropped fields (truthful, not a generic boolean),
 /// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
 /// (no HTTP host, no DbContext).
@@ -31,7 +31,7 @@ public sealed class PreviewSampleEndpointTests
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     /// <summary>
-    /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON — the endpoint now binds the
+    /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON - the endpoint now binds the
     /// raw request and parses the body itself (with <see cref="RenamerOptions.JsonOptions"/>), so tests
     /// drive it through a real body stream rather than a pre-bound typed record.
     /// </summary>
@@ -149,7 +149,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_ImageSample_DropsEmptyCodecGroups_NoStrayPunctuation()
     {
-        // {} group with only empty tokens collapses entirely (incl. its inner literals) — the image
+        // {} group with only empty tokens collapses entirely (incl. its inner literals) - the image
         // sample has no codecs/duration, so the bracketed group disappears with no stray "[]".
         var all = Preview(new RenamerOptions
         {
@@ -175,7 +175,7 @@ public sealed class PreviewSampleEndpointTests
         Assert.Contains("length-reduced", video.Flags);
         Assert.NotEmpty(video.DroppedFields);
         // videoCodec/audioCodec/resolution are early in the default DropOrder and present in the
-        // template — they must be among the named dropped fields (A2 wiring, not a string diff).
+        // template - they must be among the named dropped fields (A2 wiring, not a string diff).
         Assert.Contains("videoCodec", video.DroppedFields);
         Assert.Contains("audioCodec", video.DroppedFields);
     }
@@ -218,7 +218,7 @@ public sealed class PreviewSampleEndpointTests
         var ext = NewExtension();
 
         // Hand a body stream that would throw if read, proving the 403 short-circuits before any
-        // body read (permission is enforced before work — including deserialization).
+        // body read (permission is enforced before work - including deserialization).
         var ctx = new DefaultHttpContext();
         ctx.Request.Body = new ThrowingStream();
         ctx.Request.ContentType = "application/json";
@@ -257,7 +257,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_LowerCaseStringEnum_AppliesCaseTransform()
     {
-        // "case":"Lower" must deserialize to CaseTransform.Lower (not 400) and actually lower the name —
+        // "case":"Lower" must deserialize to CaseTransform.Lower (not 400) and actually lower the name -
         // proves the enum value flows through, not just that parsing didn't throw.
         const string body = """{ "Options": { "filenameTemplate": "$title", "case": "Lower" } }""";
 
@@ -294,8 +294,8 @@ public sealed class PreviewSampleEndpointTests
         // and won under System.Text.Json case-insensitive last-write-wins. The real fix is client-side
         // (frontend `normalizeOptions` now sends one canonical key per property). This test documents the
         // backend contract the fix relies on: given a clean single-PascalCase-key body (no camelCase
-        // duplicate — the shape the normalized frontend now always sends), the endpoint renders using that
-        // live template value. No backend normalize is added — the binder is unchanged.
+        // duplicate - the shape the normalized frontend now always sends), the endpoint renders using that
+        // live template value. No backend normalize is added - the binder is unchanged.
         const string body = """
             {
               "Options": {
@@ -310,7 +310,7 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal("The Example LIVE.mp4", video.NewName);
     }
 
-    /// <summary>A read-once stream that throws on any read — proves the 403 path never touches the body.</summary>
+    /// <summary>A read-once stream that throws on any read - proves the 403 path never touches the body.</summary>
     private sealed class ThrowingStream : Stream
     {
         public override bool CanRead => true;

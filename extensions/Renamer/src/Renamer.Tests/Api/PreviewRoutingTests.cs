@@ -13,7 +13,7 @@ namespace Renamer.Tests.Api;
 /// Regression: <c>/preview</c> must route through the same <c>RouteLookups</c> the manual batch
 /// builds, so the dry-run reflects the routed destination the batch will execute. Before the fix
 /// <c>PreviewAsync</c> called the empty-lookups overload and reported every item as an in-place
-/// source-confine renamer even when a destination rule was configured — preview lied about where files
+/// source-confine renamer even when a destination rule was configured - preview lied about where files
 /// would move. This pins that preview now carries the routed <see cref="RenamerPlanItem.ResolvedDestinationRoot"/>
 /// and <see cref="RenamerPlanItem.MatchedRule"/>, and still mutates nothing.
 /// </summary>
@@ -67,13 +67,13 @@ public sealed class PreviewRoutingTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
 
-            // The preview now reflects the routed destination — the same route the batch resolves.
+            // The preview now reflects the routed destination - the same route the batch resolves.
             Assert.Equal(RenamerStatus.Move, item.Status);
             Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Cross-check: the planner (the batch's own path) resolves the identical destination for
-            // the same options + lookups — preview and batch agree.
+            // the same options + lookups - preview and batch agree.
             var port = new CoveRenamerDataPort(db, LibraryPathsFixture.Config(srcFolder, PathRoot));
             var plan = await new RenamerPlanner(port).PlanAsync(
                 RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);

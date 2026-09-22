@@ -36,7 +36,7 @@ const QUOTE = String.fromCodePoint(34);
 //   - The drive marker accepts either separator, behind a word boundary. The boundary is what keeps a
 //     url out: a multi-letter scheme has no word boundary before its last letter, so `https:` is not
 //     a hit while a drive letter following a quote or a space is. A one-letter scheme would be a hit,
-//     and is spelled exactly like a drive letter — there is nothing left to tell them apart by.
+//     and is spelled exactly like a drive letter - there is nothing left to tell them apart by.
 //   - The share marker instead requires its backslash run to begin a value. Doubled backslashes in
 //     the middle of a value are json escaping one separator, which an escaped drive path is full of,
 //     so a share marker without that anchor matches every escaped drive path and stops being a
@@ -48,7 +48,7 @@ const UNC_SHARE_ROOT = new RegExp(
 const UNIX_HOME_PREFIXES = ["/" + "home" + "/", "/" + "Users" + "/"];
 
 // Each class is labelled so a refusal says which one fired. Two markers rather than one widened
-// marker, because a later narrowing of either must be visible as a narrowing of that class alone —
+// marker, because a later narrowing of either must be visible as a narrowing of that class alone -
 // and a message that named neither would hide it.
 const ABSOLUTE_PATH_MARKERS = [
   { label: "drive root", hits: (line) => WINDOWS_DRIVE_ROOT.test(line) },
@@ -234,7 +234,7 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   }
 
   // The declared set is the only source of what ships. An entry that declares nothing, or declares
-  // an empty array, is a hard failure rather than a run that copies nothing and exits 0 — there is
+  // an empty array, is a hard failure rather than a run that copies nothing and exits 0 - there is
   // no narrower field to fall back to and no set to infer.
   const declared = entry.artifacts;
   if (declared == null) {
@@ -313,8 +313,8 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
 
   const uiBundleDir = entry.uiPath ? path.join(absoluteRoot, entry.uiPath, "dist") : null;
 
-  // Ordered source search. The first two rules are exact — a declared name that matches one of them
-  // is resolved from that root or not at all — and the remaining three are tried in order, so
+  // Ordered source search. The first two rules are exact - a declared name that matches one of them
+  // is resolved from that root or not at all - and the remaining three are tried in order, so
   // precedence between roots is stated rather than left to whichever happens to hold the file.
   //
   // The ui-bundle rule covers both bundle fields, because both are output of the same UI build and
@@ -410,7 +410,7 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
         fs.writeFileSync(destination, item.text);
       }
     } catch (error) {
-      // A source resolves on an existence check but is written here, so this is reachable — a
+      // A source resolves on an existence check but is written here, so this is reachable - a
       // directory bearing a declared name, a locked destination, a full disk. The loop stops rather
       // than carrying on: a run that failed one write and wrote the rest would print a count for a
       // package that is not there, which is the shape the count exists to prevent.
@@ -457,7 +457,7 @@ function main(argv) {
   }
 
   // Every other flag is required rather than defaulted, and a flag supplied twice is refused above:
-  // both otherwise let a run exit 0 having assembled from an argument the caller did not choose — one
+  // both otherwise let a run exit 0 having assembled from an argument the caller did not choose - one
   // they forgot, one they did not mean to win.
   if (REQUIRED_FLAGS.some((flag) => !options.get(flag))) {
     usage();
@@ -513,7 +513,7 @@ function main(argv) {
  * @remarks
  * Both sides are realpathed, which is the whole reason this is not a plain `===` on the two strings:
  * Node realpaths the module URL and leaves process.argv[1] as the caller spelled it, so an invocation
- * through a junction or a symlink — the shape this repository's documented worktree workflow uses —
+ * through a junction or a symlink - the shape this repository's documented worktree workflow uses -
  * compares unequal, and the refusal below would then not fire on exactly the runtime and exactly the
  * invocation that need it. False on any answer it cannot establish: a wrong "yes" would break an
  * importer, where a wrong "no" only loses a diagnostic on a runtime this repository does not pin.
@@ -536,7 +536,7 @@ function invokedAsScript() {
 
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
-// would then print nothing and exit 0 — the same silent success the two-file split existed to prevent,
+// would then print nothing and exit 0 - the same silent success the two-file split existed to prevent,
 // arriving through the runtime instead of through a guard. The absent feature is refused by name.
 //
 // Scoped to the CLI on purpose: assemblePackage works fine on an older Node, and refusing at import

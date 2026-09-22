@@ -8,18 +8,18 @@ namespace Cove.Extensions.Shared.Testing;
 /// </summary>
 /// <remarks>
 /// <see cref="SetCallCount"/> is the superset addition (over the plain Dictionary variant): it lets a
-/// test prove a read-only path wrote nothing. Not thread-safe — a concurrency proof must use
+/// test prove a read-only path wrote nothing. Not thread-safe - a concurrency proof must use
 /// <see cref="ConcurrentFakeStore"/> instead, whose store is never itself the source of a race.
 /// </remarks>
 public sealed class FakeStore : IExtensionStore
 {
     private readonly Dictionary<string, string> _d = new();
 
-    /// <summary>Number of <see cref="SetAsync"/> calls — lets a test prove a read-only path wrote nothing.</summary>
+    /// <summary>Number of <see cref="SetAsync"/> calls - lets a test prove a read-only path wrote nothing.</summary>
     public int SetCallCount { get; private set; }
 
     /// <summary>
-    /// Every key passed to <see cref="GetAsync"/>, in order — lets a test prove a key was never read,
+    /// Every key passed to <see cref="GetAsync"/>, in order - lets a test prove a key was never read,
     /// which for a value that can be hundreds of megabytes is the difference between a safe cleanup and
     /// the one operation guaranteed to hurt.
     /// </summary>

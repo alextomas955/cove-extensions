@@ -8,7 +8,7 @@ namespace Renamer.Tests.Engine;
 /// (videoCodec → audioCodec → frameRate → resolution → tags → studioCode → studio →
 /// performers → date) and finally hard-truncate the <c>$title</c> component.
 ///
-/// This class has no test methods of its own — it is shared data.
+/// This class has no test methods of its own - it is shared data.
 /// </summary>
 internal static class LongTemplateFixture
 {

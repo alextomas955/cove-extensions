@@ -1,8 +1,8 @@
 /**
- * The page's footer row — what the last batch was, the extension's id, and the undo control with its
+ * The page's footer row - what the last batch was, the extension's id, and the undo control with its
  * destructive confirm.
  *
- * Reads GET /last-batch on mount (and whenever `refreshKey` bumps — the Review dialog's success
+ * Reads GET /last-batch on mount (and whenever `refreshKey` bumps - the Review dialog's success
  * callback bumps it). Gates POST /undo behind a red destructive confirm. Every sentence the user
  * reads here is composed by `undoLogic.ts`, where the suite covers it.
  *
@@ -38,7 +38,7 @@ type Feedback = UndoFeedback | null;
 export function UndoSection({ refreshKey }: { refreshKey: number }) {
   const [summary, setSummary] = useState<LastBatchSummary | null>(null);
   // The clock is read once, with the summary, rather than on every render. The expiry decision is
-  // then a fact about the moment the data was fetched — which is what the data describes — instead of
+  // then a fact about the moment the data was fetched - which is what the data describes - instead of
   // something that can flip mid-render, and the render stays pure.
   const [loadedAtMs, setLoadedAtMs] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,13 +64,13 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
   useEffect(() => {
     // Data fetch on mount / refresh: loadSummary awaits the server then setState()s the result.
     // This is the canonical "synchronize with an external system" effect, not a render-derived
-    // setState — the react-compiler set-state-in-effect heuristic can't see through the async hop.
+    // setState - the react-compiler set-state-in-effect heuristic can't see through the async hop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSummary();
   }, [loadSummary, refreshKey]);
 
   // The button acts on what is left, not on what the batch started as: a partly restored batch is
-  // still offered, and what it offers is the outstanding work. An expired batch keeps its line —
+  // still offered, and what it offers is the outstanding work. An expired batch keeps its line -
   // saying nothing there would read as "there was never a rename".
   const status = buildUndoStatus(summary, loadedAtMs);
   const remaining = status?.remaining ?? 0;
@@ -80,7 +80,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setUndoing(true);
     setFeedback(null);
     try {
-      // /undo takes no body, and answers every arm with counts — the "nothing open to undo" arm
+      // /undo takes no body, and answers every arm with counts - the "nothing open to undo" arm
       // included. So a bodyless reply is an anomaly rather than an outcome, and `requestJson` raises
       // it as one instead of resolving a success this panel would have to invent a sentence for.
       const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });

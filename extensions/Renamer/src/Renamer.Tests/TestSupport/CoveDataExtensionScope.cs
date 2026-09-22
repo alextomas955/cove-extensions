@@ -13,7 +13,7 @@ namespace Renamer.Tests.TestSupport;
 /// <para>
 /// process-wide because <c>CoveContext.SetDataExtensions</c> is static and xUnit runs test classes in
 /// parallel: registration order across classes is not controllable, so anything that registers per
-/// class is a race. Doing it once, before any context exists, makes every context in the run agree —
+/// class is a race. Doing it once, before any context exists, makes every context in the run agree -
 /// each <c>EnsureCreatedAsync</c> materializes the journal tables exactly as the host's own migration
 /// does, and every model resolves the journal entity types.
 /// </para>

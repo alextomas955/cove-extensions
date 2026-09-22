@@ -1,11 +1,11 @@
 /**
- * DestinationRoutingSection — the "Destination routing" card: the unorganized destination, the
+ * DestinationRoutingSection - the "Destination routing" card: the unorganized destination, the
  * per-studio and per-tag destination maps, advanced allowed-roots + source-path rules, the sidecar-
  * extension list, and the empty-folder cleanup toggle.
  *
  * Card order is presentation only (unorganized first, then per-studio, per-tag, advanced,
  * then sidecar and empty-folder); it does not set the engine's rule-evaluation precedence, which is
- * decided server-side, so reordering these cards is safe. Presentational — every field flows up
+ * decided server-side, so reordering these cards is safe. Presentational - every field flows up
  * through `set`.
  */
 import { useState } from "react";
@@ -38,7 +38,7 @@ import { StudioDestinationsEditor } from "./StudioMap";
 import { RuleKeyLabel } from "./RuleKeyLabel";
 import { useOrphanedRules } from "./useOrphanedRules";
 
-/** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
+/** Strip one leading dot if present, then lowercase - the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
   let v = raw.trim();
   if (v.startsWith(".")) v = v.slice(1);

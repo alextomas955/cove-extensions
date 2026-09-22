@@ -11,10 +11,10 @@ namespace Renamer.Tests.TestSupport;
 /// each open their own context over one shared connection serialize onto a single SQLite connection
 /// and throw "database is locked" the moment two workers query at once. A named
 /// <c>Mode=Memory;Cache=Shared</c> database instead lets each context open its own connection to the
-/// same database — the production shape (every scope gets its own pooled connection) — so the workers
+/// same database - the production shape (every scope gets its own pooled connection) - so the workers
 /// run genuinely in parallel. One kept-open keep-alive connection holds the database alive for the
 /// fixture's lifetime; a per-connection <c>busy_timeout</c> makes a writer that briefly contends wait
-/// rather than fail. Test-support only — never packaged.
+/// rather than fail. Test-support only - never packaged.
 /// </summary>
 internal sealed class SharedCacheSqlite : IAsyncDisposable
 {

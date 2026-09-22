@@ -278,7 +278,7 @@ public sealed partial class Renamer
         // as it found it.
         var planned = new List<BatchUnit>();
 
-        // Planning reports no percentage of its own until the loop starts, so trace it to the log —
+        // Planning reports no percentage of its own until the loop starts, so trace it to the log -
         // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
         LogPlanningStarted(runId, run.Kind, ids.Count);
 
@@ -438,7 +438,7 @@ public sealed partial class Renamer
             acting, u => (u.Move.OldFullPath, u.Move.NewFullPath));
 
         // Serializes every concurrent progress report. The workers call Report from many threads at once,
-        // and nothing establishes that the host's sink is thread-safe — a host that appends to a list or
+        // and nothing establishes that the host's sink is thread-safe - a host that appends to a list or
         // writes a SignalR message without its own lock could corrupt state or interleave messages. The
         // done counter is already interlocked; this guards only the host-facing call itself.
         var progressGate = new object();

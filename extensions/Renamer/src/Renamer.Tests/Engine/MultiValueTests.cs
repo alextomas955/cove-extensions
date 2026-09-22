@@ -314,7 +314,7 @@ public class MultiValueTests
     {
         // Performer sort-by-rating is intentionally not offered: rating is per-user data and the
         // detached renamer job runs without a signed-in user, so there is no defined rating to order
-        // by. This negative assertion documents and guards that deferral — if someone adds a rating
+        // by. This negative assertion documents and guards that deferral - if someone adds a rating
         // sort, they must revisit the no-principal source decision first.
         Assert.False(
             Enum.GetNames<SortOrder>().Any(n => n.Contains("Rating", StringComparison.OrdinalIgnoreCase)),

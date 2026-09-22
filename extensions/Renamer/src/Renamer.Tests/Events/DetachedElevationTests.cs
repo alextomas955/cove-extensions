@@ -13,52 +13,31 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// One assertion per detached entry point in this extension: the database commands its body runs against
+/// One case per detached entry point in this extension: the database commands its body runs against
 /// Cove's own tables execute under the System principal.
 /// </summary>
 /// <remarks>
-/// The assertions are keyed to entry points, not to elevation call sites, because a site count goes
-/// stale the moment a body grows another scope while the set of detached bodies does not. The detached
-/// entry points are the load-time journal assertion, the stored-journal migration, the stored-options
-/// conversion (covered by <c>OptionsMigrationInitializeTests</c>), the shared batch core's three
-/// elevated spans — its planning read, its destination-folder pre-create and its per-worker executor —
-/// the auto-renamer hook, and the two job bodies in
-/// their own partials. Adding a further span inside one of those bodies needs no case here: the case
-/// for that body already asserts over every command it ran.
+/// Cases are keyed to entry points, not to elevation call sites, because a site count goes stale the
+/// moment a body grows another scope. Each case asserts two things, and the second is what makes the
+/// first mean anything: the principal at every command is the expected one, and at least one command
+/// was recorded. A verdict over an empty list is a vacuous pass.
 /// <para>
-/// Each case asserts two things, and the second is what makes the first mean anything: the principal at
-/// every command is the expected one, and at least one command was recorded. A verdict over an empty
-/// list is a vacuous pass, and a body that never reached the database is exactly the mistake that
-/// produces one.
+/// The proof is the principal at the command and never a row count, for two measured reasons.
+/// <c>CoveContext</c> installs its authorization filters only under Npgsql, so SQLite cannot
+/// reproduce the zero-row consequence at all. And Cove starts its exclusive-job queue processor at
+/// host startup while holding the principal in a static <c>AsyncLocal</c>, so a queued body carries
+/// no ambient principal; deleting the elevation from one was measured to change no row count
+/// anywhere, end to end, against a live host under auth.
 /// </para>
 /// <para>
-/// "Detached" is not the same as "elevated", and the batch core is where the difference shows: it also
-/// opens a scope the source states is deliberately not elevated, the one the shared undo journal owns.
-/// See <see cref="AssertEveryCoveReadRanAsSystemAsync"/> for why that makes a flat all-System verdict
-/// wrong over that window, and what replaces it.
+/// Most cases start from <see cref="CovePrincipal.Anonymous"/>, present but unprivileged, because
+/// <c>CoveContext</c> bypasses its filters for a null principal as well as for System: a case
+/// constructing "no principal" and reading its meaning off a row count would prove the safe case.
 /// </para>
 /// <para>
-/// Most cases start from <see cref="CovePrincipal.Anonymous"/> — present but unprivileged. That is the
-/// dangerous case for a row count and the reason the elevation exists: <c>CoveContext</c> bypasses its
-/// authorization filters for a null principal as well as for System, so a case constructing "no
-/// principal" and then reading its meaning off a row count would prove the safe case while reading as
-/// coverage.
-/// </para>
-/// <para>
-/// The two job bodies each have a second case that starts from no ambient principal, and the sentence
-/// above is what makes it evidence instead of the trap it warns of: these assert the principal at the
-/// command, which is what the filters consult, and never a row count. No row count can stand in — the
-/// paragraph below gives the two measured reasons. An absent principal is also the condition the host
-/// really produces on this path, so it is the one under which the elevation has to hold.
-/// </para>
-/// <para>
-/// The proof is the principal at the command rather than a row count, and on the queued-job path it is
-/// the only proof that can fail at any tier. Two measured facts, in the two places the row count fails
-/// for different reasons: <c>CoveContext</c> installs its authorization filters only under Npgsql, so
-/// SQLite cannot reproduce the zero-row consequence at all; and Cove starts its exclusive-job queue
-/// processor at host startup while holding the principal in a static <c>AsyncLocal</c>, so a queued
-/// body carries no ambient principal — deleting the elevation from one was measured to change no row
-/// count anywhere, end to end, against a live host under auth. What that leaves is these assertions.
+/// "Detached" is not "elevated". The batch core also opens a scope the source states is deliberately
+/// not elevated, the one the shared undo journal owns, so a flat all-System verdict is wrong over
+/// that window. See <see cref="AssertEveryCoveReadRanAsSystemAsync"/> for what replaces it.
 /// </para>
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
@@ -310,7 +289,7 @@ public sealed class DetachedElevationTests
     }
 
     /// <summary>
-    /// Every command recorded since the last clear ran as System, and at least one was recorded — plus
+    /// Every command recorded since the last clear ran as System, and at least one was recorded - plus
     /// the caller's own principal is back, because elevation is a span and not a mode.
     /// </summary>
     /// <param name="library">The observed database and its principal accessor.</param>
@@ -337,8 +316,8 @@ public sealed class DetachedElevationTests
     /// ran unelevated reached one.
     /// </summary>
     /// <remarks>
-    /// The batch holds a scope the source states is deliberately not elevated — the one the shared undo
-    /// journal owns — on the grounds that the journal's tables are the extension's own and carry none of
+    /// The batch holds a scope the source states is deliberately not elevated - the one the shared undo
+    /// journal owns - on the grounds that the journal's tables are the extension's own and carry none of
     /// Cove's per-principal query filters, so System has nothing there to unlock. A plain all-System
     /// verdict over this window would therefore assert a property the code does not have, and pass only
     /// until someone noticed. The second assertion is what stops that exception swallowing the rule: a
@@ -371,8 +350,8 @@ public sealed class DetachedElevationTests
     private readonly record struct TablesByOwnership(IReadOnlySet<string> Own, IReadOnlySet<string> Cove);
 
     /// <summary>
-    /// The model's tables split into this extension's own and — as the complement of that same
-    /// enumeration — Cove's, with both sides asserted non-empty before either is handed back.
+    /// The model's tables split into this extension's own and - as the complement of that same
+    /// enumeration - Cove's, with both sides asserted non-empty before either is handed back.
     /// </summary>
     /// <remarks>
     /// Ownership is taken from the model the extension itself configures, so no table name is restated
@@ -409,7 +388,7 @@ public sealed class DetachedElevationTests
     /// <remarks>
     /// This is the question the predicate it replaced was named for and did not ask. That one tested
     /// whether the SQL mentioned at least one table this extension owns, under a name promising it
-    /// mentioned nothing else — so a command reaching an own table and a Cove table satisfied it, which
+    /// mentioned nothing else - so a command reaching an own table and a Cove table satisfied it, which
     /// took the command out of the Cove-read set and, in the same step, excused it from the
     /// unelevated-command clause. It escaped both halves of the verdict, which is exactly the hiding place
     /// the second clause exists to close. Asked about Cove's set directly the question has no such
@@ -484,7 +463,7 @@ public sealed class DetachedElevationTests
 
     /// <summary>
     /// A title-only template so a seeded, height-less row renders a predictable name, and one same-volume
-    /// worker because <see cref="LibraryDatabase"/> hands every scope a context over one SQLite connection —
+    /// worker because <see cref="LibraryDatabase"/> hands every scope a context over one SQLite connection -
     /// production draws a connection per scope, so serializing here removes a harness-only race without
     /// changing the path under test.
     /// </summary>
@@ -584,7 +563,7 @@ public sealed class RunAsSystemContractTests
     {
         // The queued condition at this tier: nothing was set, so nothing is what has to come back.
         // Restoring Anonymous, or leaving System in place, would each be a different bug wearing the
-        // same green — which is why the assertion names null rather than any principal at all.
+        // same green - which is why the assertion names null rather than any principal at all.
         var accessor = new FakePrincipalAccessor();
 
         PrincipalKind? seenInside = null;
@@ -605,7 +584,7 @@ public sealed class RunAsSystemContractTests
     {
         bool ran = false;
 
-        // Nothing to observe from inside, because there is no accessor to observe — so what this case
+        // Nothing to observe from inside, because there is no accessor to observe - so what this case
         // records instead is that the body ran at all, which a silently swallowed body would break.
         int returned = await RunAsSystem.RunAsSystemAsync(
             new ServiceCollection().BuildServiceProvider(),
@@ -621,7 +600,7 @@ public sealed class RunAsSystemContractTests
 
     /// <summary>
     /// A present caller principal: a user holding no permissions. Present rather than absent so the
-    /// restore assertions have an instance to name — the absent prior value is its own case above.
+    /// restore assertions have an instance to name - the absent prior value is its own case above.
     /// </summary>
     private static FakePrincipalAccessor Caller() => FakePrincipalAccessor.WithPermissions();
 

@@ -47,7 +47,7 @@ public sealed class ExtensionManifestFileTests
     {
         var manifest = Load();
 
-        // The extension touches files on disk and the DB only — it makes no network calls and runs no
+        // The extension touches files on disk and the DB only - it makes no network calls and runs no
         // scraper/downloader code, so all three runtime-permission buckets the host models are empty.
         Assert.NotNull(manifest.Permissions);
         Assert.Empty(manifest.Permissions.Network);

@@ -12,7 +12,7 @@ namespace Cove.Extensions.Shared;
 /// </summary>
 /// <remarks>
 /// Takes an <see cref="IExtensionStore"/> directly (not <c>FullExtensionBase.Store</c>) so it is
-/// unit-testable host-free against an in-memory fake. <see cref="IExtensionStore"/> is fully async —
+/// unit-testable host-free against an in-memory fake. <see cref="IExtensionStore"/> is fully async -
 /// these methods never block on the store. Each extension supplies its own <typeparamref name="TOptions"/>
 /// model, its own <see cref="JsonSerializerOptions"/>, and a default-value factory, so serialization
 /// behavior is identical to a per-extension store.
@@ -42,7 +42,7 @@ public class ExtensionOptionsStore<TOptions>(
 
     /// <summary>
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the
-    /// stored blob is corrupt (catches <see cref="JsonException"/>) — a hand-edited/garbage blob never throws.
+    /// stored blob is corrupt (catches <see cref="JsonException"/>) - a hand-edited/garbage blob never throws.
     /// A blob that binds is returned with every member the model declares non-nullable restored to its
     /// default where the blob set it to <c>null</c> (see <see cref="RestoreDeclaredNonNull"/>), and then
     /// passed through the caller's normalizer.
@@ -72,7 +72,7 @@ public class ExtensionOptionsStore<TOptions>(
             // nothing observable happening: defaults are indistinguishable from a correct empty
             // configuration at every layer above, so the symptom is settings that read as unset and a
             // panel, an API response and an end-to-end test that all agree on the wrong answer. The blob
-            // itself is never logged — it is the user's configuration.
+            // itself is never logged - it is the user's configuration.
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
             return defaultFactory();
         }
@@ -94,7 +94,7 @@ public class ExtensionOptionsStore<TOptions>(
     /// to null and the member contradicts its own declaration; the first consumer to dereference it
     /// throws, and <see cref="LoadAsync"/> catches only <see cref="JsonException"/>. The criterion is
     /// the declared nullability, so a member whose null is a real state keeps it and a member added to
-    /// the model later is covered without an edit here — a hand-written member list is a list that
+    /// the model later is covered without an edit here - a hand-written member list is a list that
     /// goes stale.
     /// </remarks>
     private static void RestoreDeclaredNonNull(object loaded, object defaults, NullabilityInfoContext nullability)
@@ -133,7 +133,7 @@ public class ExtensionOptionsStore<TOptions>(
     }
 
     /// <summary>
-    /// True for a member that is itself an options object — one whose own members can carry the same
+    /// True for a member that is itself an options object - one whose own members can carry the same
     /// null. A collection is excluded: its elements have no counterpart in the defaults to restore from.
     /// </summary>
     private static bool IsNestedOptions(Type type)
@@ -143,7 +143,7 @@ public class ExtensionOptionsStore<TOptions>(
 /// <summary>
 /// The source-generated log message for the one failure <see cref="ExtensionOptionsStore{TOptions}"/>
 /// swallows. Non-generic and static because the generator's partial methods are declared per type and a
-/// generic owner buys nothing here — the type being loaded travels as an argument instead.
+/// generic owner buys nothing here - the type being loaded travels as an argument instead.
 /// </summary>
 internal static partial class ExtensionOptionsStoreLog
 {

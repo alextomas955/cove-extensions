@@ -1,27 +1,27 @@
 /**
- * Pure, client-side template advisories. No React, no I/O — these only
+ * Pure, client-side template advisories. No React, no I/O - these only
  * detect authoring mistakes for an inline amber advisory; the engine remains the render-time
  * authority and renders every template leniently (it never throws). Validation is advisory and
  * never blocks Save or moves the caret.
  *
  * Two checks live here (brace balance + unknown tokens); the third advisory (empty-for-sample)
- * is read off the existing debounced /preview-sample `flags` in the panel — there is no new
+ * is read off the existing debounced /preview-sample `flags` in the panel - there is no new
  * request and no engine change.
  *
  * Engine grammar facts these mirror (kept in sync with the C# tokenizer):
  *   - A token is a bare `$` + [A-Za-z0-9_]+  (Tokenizer.cs:65-79). There is no `${token}` form.
- *   - `$$` is the literal-`$` escape (Tokenizer.cs:56-63) — the second `$` must not start a token.
+ *   - `$$` is the literal-`$` escape (Tokenizer.cs:56-63) - the second `$` must not start a token.
  *   - `{` increments depth, `}` decrements; a stray `}` (depth < 0) or a leftover open `{`
  *     (depth > 0) is unbalanced (Tokenizer.cs:81-110).
  *   - Tokens resolve case-insensitively (TemplateEngine.cs:147).
  */
 import { TOKENS } from "./tokens";
 
-/** The canonical known-token set, lower-cased, leading `$` dropped — single-sourced from TOKENS. */
+/** The canonical known-token set, lower-cased, leading `$` dropped - single-sourced from TOKENS. */
 const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /**
- * The bare token names (leading `$` stripped), in tokens declaration order — single-sourced from
+ * The bare token names (leading `$` stripped), in tokens declaration order - single-sourced from
  * the same `TOKENS` constant, no re-listed literals. Offered by the Required fields and Drop order
  * inputs, whose stored values are bare names (`title`), not `$title`. Preserves original case for
  * display; matching is done case-insensitively by {@link isKnownToken} / the engine.
@@ -30,7 +30,7 @@ export const BARE_TOKENS: readonly string[] = TOKENS.map((t) => t.token.slice(1)
 
 /**
  * True when `name` is a known engine token (compared lower-cased against the same `KNOWN` set the
- * template validator uses — so the picker, the token advisory, and `unknownTokens` never drift).
+ * template validator uses - so the picker, the token advisory, and `unknownTokens` never drift).
  * Accepts a bare name (`title`); a leading `$` is tolerated and stripped first.
  */
 export function isKnownToken(name: string): boolean {
@@ -138,7 +138,7 @@ function editDistance(a: string, b: string): number {
 /**
  * Best-effort "Did you mean" for an unknown token name (with or without the leading `$`). Returns
  * the nearest known token (with a leading `$`) only when the edit distance is small (≤ 2);
- * otherwise undefined. Derived purely from the static tokens set — never echoes user markup.
+ * otherwise undefined. Derived purely from the static tokens set - never echoes user markup.
  */
 export function suggestFor(token: string): string | undefined {
   const name = (token.startsWith("$") ? token.slice(1) : token).toLowerCase();

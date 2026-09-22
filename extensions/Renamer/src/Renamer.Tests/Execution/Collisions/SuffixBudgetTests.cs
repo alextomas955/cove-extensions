@@ -10,7 +10,7 @@ namespace Renamer.Tests.Execution.Collisions;
 /// real disk). The loop runs after the plan was measured and lengthens the name to free a taken slot,
 /// so the pair of cases below is the assertion: one budget refuses the suffixed path and leaves the
 /// source where it is, and the same arrangement with the suffix's own length added renames through to
-/// the suffixed name — which is what proves the loop really fires here rather than the refusal coming
+/// the suffixed name - which is what proves the loop really fires here rather than the refusal coming
 /// from the collision.
 /// </summary>
 public sealed class SuffixBudgetTests

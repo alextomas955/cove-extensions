@@ -1,5 +1,5 @@
 /**
- * WhatGetsRenamedSection — the "What gets renamed" card: eligibility toggles (organized-only,
+ * WhatGetsRenamedSection - the "What gets renamed" card: eligibility toggles (organized-only,
  * filename-as-title) and the required-fields token list. Presentational; every edit flows up through
  * the `set` callback the panel threads in from useRenamerOptions.
  */

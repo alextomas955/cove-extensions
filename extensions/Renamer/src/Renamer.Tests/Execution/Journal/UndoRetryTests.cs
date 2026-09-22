@@ -13,7 +13,7 @@ namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
 /// An undo that restores only part of a batch, the retry that finishes it, and the row that can never
-/// come back — read back off the journal table each time, never off an in-memory mirror of it.
+/// come back - read back off the journal table each time, never off an in-memory mirror of it.
 /// </summary>
 /// <remarks>
 /// A partial undo must not spend the whole batch the moment one file comes back, or the rows skipped
@@ -62,7 +62,7 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
-            // The table is the record of what is left — exactly the row that did not come back. The
+            // The table is the record of what is left - exactly the row that did not come back. The
             // previous defect spent the whole batch on the first partial success, which is what made
             // the remaining work unreachable; row presence is the state, so the read that feeds the
             // button must still return this batch.
@@ -108,7 +108,7 @@ public sealed class UndoRetryTests
             Assert.False(File.Exists(stays.NewFull));
             Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
 
-            // Nothing left to offer — and a third call is a clean no-op rather than an error.
+            // Nothing left to offer - and a third call is a clean no-op rather than an error.
             using var journal = new CoveRevertJournal(db);
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
             Assert.Equal(0,
@@ -144,7 +144,7 @@ public sealed class UndoRetryTests
 
             using var journal = new CoveRevertJournal(db);
 
-            // Both rows are gone — the terminal one too, so the batch can reach spent instead of
+            // Both rows are gone - the terminal one too, so the batch can reach spent instead of
             // offering an undo that could never complete.
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
@@ -229,7 +229,7 @@ public sealed class UndoRetryTests
 
     /// <summary>
     /// Seeds one folder holding one video per <paramref name="stems"/> entry, then really renames each
-    /// into one journal batch — so the batch holds one row per file, which is what makes "acts only on
+    /// into one journal batch - so the batch holds one row per file, which is what makes "acts only on
     /// what is left" a statement about rows rather than about batches.
     /// </summary>
     /// <remarks>

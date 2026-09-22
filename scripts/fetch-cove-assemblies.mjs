@@ -146,7 +146,7 @@ export function selectRepoDigest(repoDigests, repository) {
 }
 
 /**
- * Reads the Win32 version-resource strings a .NET assembly carries — `Assembly Version` is the
+ * Reads the Win32 version-resource strings a .NET assembly carries - `Assembly Version` is the
  * managed assembly version and `ProductVersion` the informational one.
  *
  * A diagnostic reader, not the gate: the build's own `GetAssemblyIdentity` task is what asserts the
@@ -244,7 +244,7 @@ const SEMVER =
  *
  * Two tag shapes are not plain versions. A non-semver tag (`nightly`, `latest`) counts as at or
  * above, since those track ahead of the last release. A prerelease (`1.2.0-rc.1`) sorts below its own
- * release per semver, so it reads as lacking the capability even when it carries it — a skip rather
+ * release per semver, so it reads as lacking the capability even when it carries it - a skip rather
  * than a failure.
  *
  * @param {string} image - a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.3.0`.
@@ -350,7 +350,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   // floor boots a host that declines to load the extension, so every route 404s and every browser spec
   // fails with nothing anywhere naming a version. While the floor is itself the newest GA the two
   // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
-  // role is omitted rather than pointed at the nearest thing to it — the same refusal to substitute a
+  // role is omitted rather than pointed at the nearest thing to it - the same refusal to substitute a
   // plausible answer as the throws above.
   const newestGa = ga.findLast((version) => compareSemver(version, parsedFloor) >= 0);
   const newestPrerelease = prerelease.at(-1);
@@ -367,7 +367,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   // Dedupe by resolved tag and merge the role labels. Two roles resolving to the same tag are one
-  // image, and a leg silently duplicating another reads as coverage while providing none — so the leg
+  // image, and a leg silently duplicating another reads as coverage while providing none - so the leg
   // count equals the distinct-image count and the merged label says what collapsed. A merged leg is
   // advisory only when every role on it is: a required role landing on a tag does not become
   // advisory because an advisory one landed there too.
@@ -397,7 +397,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
 /**
  * Reads each catalog entry's declared floor, reaching it through that entry's own manifest.
  *
- * `minCoveVersion` is not a catalog field — it lives in the manifest the catalog's `manifestPath`
+ * `minCoveVersion` is not a catalog field - it lives in the manifest the catalog's `manifestPath`
  * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
  *
  * `select` narrows which entries are read at all, not which results come back: a manifest that is
@@ -470,7 +470,7 @@ export function readExtensionFloors(select, catalogPath = DEFAULT_CATALOG_PATH) 
  * Collects a repository's whole tag list, following the registry's `Link: rel="next"` pages.
  *
  * GHCR emits no `Link` header at today's tag count but does implement pagination, so reading one
- * page is correct today and silently truncating later — and a truncated list yields an older
+ * page is correct today and silently truncating later - and a truncated list yields an older
  * "newest", which is a wrong answer with no error. The page cap makes a runaway an error rather than
  * a hang, and a `next` target that is not a `/v2/` path on the same host is refused rather than
  * followed: the header is registry-supplied and is not trusted to say where to go next.
@@ -585,7 +585,7 @@ function parseArguments(argv) {
         const same = (a, b) =>
           process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
         // A drive root ("I:\") and a POSIX root ("/") already end in the separator, so appending one
-        // yields a doubled prefix that matches nothing — and the root is the most destructive target
+        // yields a doubled prefix that matches nothing - and the root is the most destructive target
         // there is. Normalise to exactly one trailing separator before comparing.
         const asPrefix = (dir) => (dir.endsWith(path.sep) ? dir : dir + path.sep);
         const contains = (ancestor, descendant) =>
@@ -598,7 +598,7 @@ function parseArguments(argv) {
       } else {
         // A tag reaches a registry URL, and --tag is how a CI leg's resolved version arrives. The
         // resolver emits strict semver only, so anything else is refused here rather than encoded
-        // and sent — the floor an extension declares is validated the same way.
+        // and sent - the floor an extension declares is validated the same way.
         if (parseSemver(value) === null) {
           throw new Error(
             `--tag '${value}' is not a strict X.Y.Z semver version. Only a resolved version tag is accepted here; the props-file default covers a moving tag.`,
@@ -690,7 +690,7 @@ export function renderVersionLines(versions) {
  * Refuses an extraction that wrote nothing or left no marker member, returning the marker's path.
  *
  * The failure this exists for is a wrong container source path, which produces an empty output
- * directory rather than a wrong one — and an empty extraction that returned quietly would surface as
+ * directory rather than a wrong one - and an empty extraction that returned quietly would surface as
  * a smaller green test run instead of a failure. fs-only and separated from the copy so both arms are
  * provable without Docker.
  */
@@ -709,7 +709,7 @@ export function assertExtractionNotEmpty(out, written) {
  * Hashes each guarded assembly, refusing if any is absent from the extraction.
  *
  * One missing assembly means the build's output-closure guard would have nothing to compare that
- * assembly against — a gate that silently covers three of four rather than a gate that fails.
+ * assembly against - a gate that silently covers three of four rather than a gate that fails.
  */
 export function readGuardedAssemblies(out) {
   return GUARDED_ASSEMBLIES.map((name) => {
@@ -738,7 +738,7 @@ export function readGuardedAssemblies(out) {
  * Colima and Rancher each place the binary somewhere different across the three operating systems
  * this repo builds on, so hardcoding one would break the script everywhere it does not match. The
  * exposure that buys is path substitution, which requires an attacker who can already write to a
- * directory on path — on a throwaway CI runner or the maintainer's own machine, someone with that
+ * directory on path - on a throwaway CI runner or the maintainer's own machine, someone with that
  * access does not need this script. Revisit if this ever runs somewhere path is not trusted.
  */
 // Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
@@ -754,7 +754,7 @@ function runDocker(args) {
   }
 }
 
-/** Counts the regular files under a directory tree — the extraction's own size, reported for evidence. */
+/** Counts the regular files under a directory tree - the extraction's own size, reported for evidence. */
 function countFiles(directory) {
   let total = 0;
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -794,7 +794,7 @@ async function extract({ out, tag }) {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
 
-  // `docker create` starts nothing, so no entrypoint runs and no database is touched — the container
+  // `docker create` starts nothing, so no entrypoint runs and no database is touched - the container
   // exists only to give `docker cp` a filesystem to read. Removed in a `finally`: an extraction that
   // throws between here and there would otherwise leak one container per run.
   const containerId = runDocker(["create", reference]);
@@ -828,7 +828,7 @@ async function extract({ out, tag }) {
  *
  * Both sides are realpathed rather than compared as resolved strings: Node realpaths the module URL
  * and leaves process.argv[1] as the caller spelled it, so an invocation through a junction or symlink
- * — the shape this repo's worktree workflow uses — compares unequal and the refusal below never
+ * - the shape this repo's worktree workflow uses - compares unequal and the refusal below never
  * fires. Windows drive-letter casing is normalised for the same reason.
  */
 function invokedAsScript() {
@@ -849,7 +849,7 @@ function invokedAsScript() {
 
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
-// then prints nothing and exits 0. That is measured, not theorised — on v22.6.0, a version volta has
+// then prints nothing and exits 0. That is measured, not theorised - on v22.6.0, a version volta has
 // installed, it produced zero bytes and exit 0. A script that does nothing and reports success is
 // worse than one that crashes, so the absent feature is refused by name instead of being tolerated.
 //

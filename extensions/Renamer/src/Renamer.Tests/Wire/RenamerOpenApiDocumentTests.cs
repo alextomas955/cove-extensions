@@ -23,7 +23,7 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
 
     // Registration-time binding only. Minimal-API binding resolves an unregistered complex type as a
     // body parameter, and /preview already has one, so leaving DbContext out throws while the route is
-    // being mapped. Nothing here is ever dereferenced — which is what keeps the emit off CoveContext and
+    // being mapped. Nothing here is ever dereferenced - which is what keeps the emit off CoveContext and
     // therefore on the CI leg that has no cove checkout.
     protected override void ConfigureBindingServices(IServiceCollection services)
     {

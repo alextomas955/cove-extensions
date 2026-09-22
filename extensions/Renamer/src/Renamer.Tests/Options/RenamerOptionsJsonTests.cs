@@ -219,7 +219,7 @@ public sealed class RenamerOptionsJsonTests
     public void StoredOldDefaultBlob_RoundTripsUnchanged_NotOverwrittenByNewDefaults()
     {
         // A blob saved before the default flip carries the old template + both flags off. Loading it
-        // must return those stored values verbatim — the new defaults apply only to an absent field,
+        // must return those stored values verbatim - the new defaults apply only to an absent field,
         // never to a present one, so an existing user's saved options never silently change.
         const string json =
             """{"FilenameTemplate":"$title{ [$resolution]}","PreventConsecutiveSegments":false,"FilenameAsTitle":false}""";
@@ -249,7 +249,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void MissingProperty_Defaults_OnLoad()
     {
-        // JSON that omits FilenameMax / FullPathMax — they must default.
+        // JSON that omits FilenameMax / FullPathMax - they must default.
         const string json = """{"FilenameTemplate":"$title"}""";
 
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);

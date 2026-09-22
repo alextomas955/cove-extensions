@@ -1,6 +1,6 @@
 /**
  * Pure, DOM-free logic behind the fixed-option add control. Kept import-free (no React, no DOM, no
- * SDK) so it stays L0 — testable with no environment — exactly like primitivesLogic.ts. This is the
+ * SDK) so it stays L0 - testable with no environment - exactly like primitivesLogic.ts. This is the
  * subset genuinely shared across bundles; entity-reference picker helpers that only one extension uses
  * stay in that extension.
  */
@@ -14,12 +14,12 @@ export interface ValueOption {
 }
 
 /**
- * The subset of a fixed option set still available to add, given what the user has already picked —
+ * The subset of a fixed option set still available to add, given what the user has already picked -
  * the offer list for a pick-to-add control (order matters, so a value is added at most once). The
  * fixed-set order is preserved so the dropdown always reads top-to-bottom in the canonical order, not
  * in pick order.
  *
- * Exact match, deliberately: the values here are opaque — an entity id, a gender enum name — and two
+ * Exact match, deliberately: the values here are opaque - an entity id, a gender enum name - and two
  * that differ only in case are two, not one. A control over a vocabulary whose consumer folds case
  * carries its own identity rule instead (`suggestionOptions`).
  */

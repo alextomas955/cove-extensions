@@ -7,7 +7,7 @@ namespace Renamer.Tests.Contracts;
 /// </summary>
 /// <remarks>
 /// The undo panel states the batch's actual expiry date, computed from the open timestamp the
-/// <c>/last-batch</c> summary already carries plus the window — and the window deliberately gets no
+/// <c>/last-batch</c> summary already carries plus the window - and the window deliberately gets no
 /// wire field of its own, because it is a constant rather than per-batch data. That decision buys a
 /// smaller wire surface and costs one duplicated number: the panel holds its own copy in
 /// <c>Renamer.Ui/src/settings/undoLogic.ts</c>.
@@ -31,7 +31,7 @@ public sealed class RetentionWindowPinTests
         // Stated in the unit the panel's own constant is written in, so a reader comparing the two
         // files is comparing like with like rather than re-deriving one from the other. Compared as a
         // whole number of milliseconds because that is what the panel's constant is, and because an
-        // exact comparison is the entire point here — a tolerance would let the two sides drift by
+        // exact comparison is the entire point here - a tolerance would let the two sides drift by
         // however much it allowed, which is the opposite of a pin.
         Assert.True(
             (long)CoveRevertJournal.RetentionWindow.TotalMilliseconds == 604_800_000L,

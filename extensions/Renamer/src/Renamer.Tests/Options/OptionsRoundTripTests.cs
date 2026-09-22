@@ -7,7 +7,7 @@ namespace Renamer.Tests.Options;
 /// <summary>
 /// The frontend↔backend store contract: a panel-shaped JSON blob deserializes via
 /// <see cref="RenamerOptions.JsonOptions"/> into the expected <see cref="RenamerOptions"/>, and a
-/// C#-serialized blob deserializes back to the same document — both directions, so the panel can
+/// C#-serialized blob deserializes back to the same document - both directions, so the panel can
 /// read a backend-written blob and write one the backend reads losslessly. Property-name matching is
 /// proven case-insensitive (lowerCamel and PascalCase mixed), and the three enums are matched as
 /// stable strings.
@@ -19,7 +19,7 @@ public sealed class OptionsRoundTripTests
     {
         // Reproduces the live gating bug: a stored blob sets RequiredFields to a single token.
         // System.Text.Json, by default, populates a pre-initialized List<string> ("title") instead of
-        // replacing it, yielding ["title","studioCode"] — so the user's chosen gate silently never
+        // replacing it, yielding ["title","studioCode"] - so the user's chosen gate silently never
         // fires (title is always present). The deserialized list must be exactly what the blob said.
         const string json = """{ "requiredFields": ["studioCode"] }""";
 
@@ -119,7 +119,7 @@ public sealed class OptionsRoundTripTests
     [Fact]
     public void Enums_Bind_From_String_Names_In_Either_Casing()
     {
-        // lowerCamel property names + string enum values — the TS contract is case-insensitive on
+        // lowerCamel property names + string enum values - the TS contract is case-insensitive on
         // property names while enum values are the stable PascalCase strings.
         const string json = """{ "case": "Lower", "performers": { "onOverflow": "KeepFirst" } }""";
 
