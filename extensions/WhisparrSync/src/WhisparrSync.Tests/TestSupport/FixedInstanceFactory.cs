@@ -7,5 +7,14 @@ namespace WhisparrSync.Tests.TestSupport;
 // which a recorder standing in for both cannot.
 internal sealed class FixedInstanceFactory(IWhisparrClient instance) : IWhisparrInstanceFactory
 {
-    public IWhisparrClient Bound(WhisparrBinding binding) => instance;
+    // What each caller asked to be bound to, so a case can read the pair a resolution produced. The
+    // seam answers one recorder whatever it is handed, and the address and key it was built with say
+    // nothing about the ones that were resolved.
+    public List<WhisparrBinding> Bindings { get; } = [];
+
+    public IWhisparrClient Bound(WhisparrBinding binding)
+    {
+        Bindings.Add(binding);
+        return instance;
+    }
 }
