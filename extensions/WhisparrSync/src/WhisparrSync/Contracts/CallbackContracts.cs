@@ -53,11 +53,16 @@ public enum CallbackSecretPosition
 /// what the notification now says rather than what the write answered.
 /// </para>
 /// <para>
-/// <c>RegistrationIsSafe</c> false means registering would sign the operator out of this Cove, so
-/// the surface states that before the gesture rather than after it. Whisparr verifies a webhook by
-/// posting to it, and a Cove that holds an owner account while sign-in is off reads that post as an
-/// instance reachable from outside its own machine and turns sign-in on for good. A Cove with no
-/// owner yet lets the same post through, so it is safe and this reads true.
+/// <c>RegistrationIsSafe</c> false means this Cove could sign the operator out when Whisparr calls
+/// the address, so the surface says so before the gesture rather than after it. Whisparr verifies a
+/// webhook by posting to it, and a Cove holding an owner account while sign-in is off may read that
+/// post as an instance reachable from outside its own machine and turn sign-in on for good.
+/// <para>
+/// Whether it does turn on depends on the address Whisparr calls, its source and the host's own
+/// trusted-host and proxy lists, which this product cannot compute. So this reports the risk and
+/// the registration still goes ahead: a product that refused on it would block the setups where the
+/// host would have allowed the call.
+/// </para>
 /// </para>
 /// </remarks>
 public sealed record CallbackView(

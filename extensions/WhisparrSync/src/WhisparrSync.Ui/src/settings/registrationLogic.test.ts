@@ -5,7 +5,6 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   carriesSecretInAddress,
   describeRegistration,
-  REGISTRATION_WOULD_LOCK_COVE_DOWN,
   LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
   registerRefusal,
@@ -194,34 +193,26 @@ describe("the four-way read the status renders through", () => {
 describe("whether the callback can be registered", () => {
   const AT_REST = { sharedReason: null, registering: false, address: "http://cove:5073/x" };
 
-  it("refuses where registering would lock Cove down", () => {
-    expect(registerRefusal(callback({ registrationIsSafe: false }), AT_REST)).toBe(
-      REGISTRATION_WOULD_LOCK_COVE_DOWN,
+  // Whether the host locks down turns on the address Whisparr calls, where the call comes from and
+  // the host's own trusted-host list. None of that is readable here, so the risk is stated on the
+  // page and the press stays available: refusing on it blocked setups the host would have allowed.
+  // Whether the host locks down turns on the address Whisparr calls, where the call comes from and
+  // the host's own trusted-host list. None of that is readable here, so the risk is stated on the
+  // page and the press stays available: refusing on it blocked setups the host would have allowed.
+  it("never refuses the press over what this Cove might do to itself", () => {
+    expect(registerRefusal(AT_REST)).toBeNull();
+  });
+
+  it("states a reason that does stop the press", () => {
+    expect(registerRefusal({ ...AT_REST, registering: true })).toBe(
+      "This registration is still running.",
+    );
+    expect(registerRefusal({ ...AT_REST, address: "  " })).toBe(
+      "There is no callback address to register.",
     );
   });
 
-  // A reason that clears on its own must not hide one that stands until a Cove setting changes: a
-  // reader who waits out the transient one would press again and be signed out.
-  it("states the lockdown reason ahead of every reason that clears on its own", () => {
-    const view = callback({ registrationIsSafe: false });
-    expect(registerRefusal(view, { ...AT_REST, registering: true })).toBe(
-      REGISTRATION_WOULD_LOCK_COVE_DOWN,
-    );
-    expect(registerRefusal(view, { ...AT_REST, sharedReason: "Something else is running." })).toBe(
-      REGISTRATION_WOULD_LOCK_COVE_DOWN,
-    );
-    expect(registerRefusal(view, { ...AT_REST, address: "  " })).toBe(
-      REGISTRATION_WOULD_LOCK_COVE_DOWN,
-    );
-  });
-
-  it("offers the press where no lockdown would follow", () => {
-    expect(registerRefusal(callback({}), AT_REST)).toBeNull();
-  });
-
-  // A page whose read has not answered knows nothing about the host, and a refusal drawn there
-  // would claim a setting nobody has read.
-  it("offers the press while the status has not been read", () => {
-    expect(registerRefusal(null, AT_REST)).toBeNull();
+  it("offers the press when nothing is in the way", () => {
+    expect(registerRefusal(AT_REST)).toBeNull();
   });
 });
