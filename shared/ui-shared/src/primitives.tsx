@@ -560,6 +560,7 @@ export function TagListInput({
   onReject,
   onLiveChange,
   suggestions,
+  ariaLabel,
 }: {
   values: string[];
   onChange: (values: string[]) => void;
@@ -569,6 +570,8 @@ export function TagListInput({
   onReject?: (candidate: string) => boolean;
   onLiveChange?: (raw: string) => void;
   suggestions?: readonly string[];
+  // A caller with no label element around this control names it here.
+  ariaLabel?: string;
 }) {
   const id = useId();
   const listId = `${id}-suggestions`;
@@ -655,6 +658,7 @@ export function TagListInput({
           type="text"
           placeholder={placeholder}
           className={INPUT_CLASS}
+          aria-label={ariaLabel}
           role={suggestions ? "combobox" : undefined}
           aria-autocomplete={suggestions ? "list" : undefined}
           aria-expanded={suggestions ? listOpen : undefined}
