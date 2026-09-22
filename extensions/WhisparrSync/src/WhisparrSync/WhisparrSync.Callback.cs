@@ -270,14 +270,16 @@ public sealed partial class WhisparrSync
             : await options.LoadAsync(ct).ConfigureAwait(false);
 
         var generation = stored.SelectedGeneration;
-        var connection = stored.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection();
-        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
         var secret = await secrets.EnsureAsync(clock.GetUtcNow(), ct).ConfigureAwait(false);
         var host = CallbackAddress.ResolveHost(stored.CallbackHost, RequestHostOf(http));
 
-        // Refused here rather than by handing an empty pair to the port, so an unconfigured
-        // connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
+        // The address comes from the row that holds the key, so a registration cannot write this
+        // product's secret into the instance a save is moving away from. Refused here rather than by
+        // handing an empty pair to the port, so an unconfigured connection reaches nothing that
+        // could make a request.
+        var resolution = await OutboundPair
+            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+        if (resolution.Binding is not { } binding)
         {
             return TypedResults.Ok(
                 ProjectCallback(
@@ -285,7 +287,7 @@ public sealed partial class WhisparrSync
                     extensionId,
                     secret,
                     host,
-                    missing,
+                    resolution.Missing,
                     null,
                     !await lockdown.WouldLockDownAsync(ct).ConfigureAwait(false)));
         }
@@ -294,7 +296,7 @@ public sealed partial class WhisparrSync
         // two registrations overlapping that pair both find none and both create one.
         var outcome = await registrations.RunAsync(
             token => notifications.RegisterAsync(
-                new WhisparrBinding(generation, baseAddress, apiKey),
+                binding,
                 TravelsOutOfBand(generation)
                     ? CallbackAddress.WithoutSecret(host, extensionId)
                     : CallbackAddress.WithSecret(host, extensionId, secret),
