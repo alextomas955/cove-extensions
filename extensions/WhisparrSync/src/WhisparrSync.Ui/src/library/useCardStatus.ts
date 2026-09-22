@@ -8,6 +8,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import type { LibraryCardKind, LibraryCardReading } from "../wire/api";
 import {
+  cardIsRunning,
   cardStatusSettled,
   readCardStatus,
   requestCardStatus,
@@ -19,6 +20,8 @@ export interface CardStatus {
   readonly reading: LibraryCardReading | null;
   /** Whether the read has answered. False while it is still in flight. */
   readonly settled: boolean;
+  /** Whether a run this browser started is still working through this card. */
+  readonly running: boolean;
 }
 
 export function useCardStatus(kind: LibraryCardKind, coveId: number, enabled: boolean): CardStatus {
@@ -34,10 +37,14 @@ export function useCardStatus(kind: LibraryCardKind, coveId: number, enabled: bo
     enabled ? cardStatusSettled(kind, coveId) : false,
   );
 
+  const running = useSyncExternalStore(subscribe, () =>
+    enabled ? cardIsRunning(kind, coveId) : false,
+  );
+
   useEffect(() => {
     if (!enabled) return undefined;
     return requestCardStatus(kind, coveId);
   }, [enabled, kind, coveId]);
 
-  return { reading, settled };
+  return { reading, settled, running };
 }

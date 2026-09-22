@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { whenRunEnds } from "../common/lib/runCompletion";
 import { onConnectionChanged } from "./connectionChangedStore";
 
 import type { BulkJobStatus, SyncEnqueued, SyncPreviewRead, SyncRunRequest } from "../wire/api";
@@ -183,12 +184,20 @@ export function useSyncLibrary(): UseSyncLibrary {
         }
         setStarted(true);
         readRunning().catch(() => undefined);
+
+        // The run goes on after the enqueue answers. Without this the counts beside it, and the
+        // control's own state, stay at what they were before the run for as long as the page is
+        // open, so a reader is left unable to tell a long run from one that never started.
+        void whenRunEnds(enqueued.jobId).then(() => {
+          setStarted(false);
+          readCounts().catch(() => undefined);
+        });
       })
       .catch(() => {
         setStarting(false);
         setRefused(true);
       });
-  }, [monitorAlso, readRunning, starting]);
+  }, [monitorAlso, readCounts, readRunning, starting]);
 
   return {
     read,

@@ -10,7 +10,7 @@
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { onCardsChanged } from "../common/lib/cardsChanged";
+import { onCardsChanged, onCardsRunning } from "../common/lib/cardsChanged";
 import { api } from "../common/lib/extension";
 import type { LibraryCardKind, LibraryCardReading, LibraryStatusView } from "../wire/api";
 import {
@@ -23,6 +23,9 @@ import type { LibraryPageRefusal } from "./libraryRefusalLogic";
 const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>();
 const refusals = new Map<LibraryCardKind, LibraryPageRefusal>();
 const listeners = new Set<() => void>();
+
+// The cards a run this browser started is still working through, keyed as the coalescers are.
+const running = new Map<LibraryCardKind, Set<string>>();
 
 // What a reader subscribes over. A snapshot of the answers is a fresh array on every read, which a
 // subscription cannot compare and so re-renders forever.
@@ -119,6 +122,27 @@ export function requestCardStatus(kind: LibraryCardKind, coveId: number): () => 
 onCardsChanged((kind, coveIds) => {
   rereadCardStatus(kind, coveIds);
 });
+
+// Subscribed at module scope for the bundle's lifetime, as the change bus is: a run can start and
+// end while no card of that kind is mounted.
+onCardsRunning((kind, coveIds, isRunning) => {
+  const held = running.get(kind) ?? new Set<string>();
+  for (const coveId of coveIds) {
+    if (isRunning) {
+      held.add(String(coveId));
+    } else {
+      held.delete(String(coveId));
+    }
+  }
+
+  running.set(kind, held);
+  emit();
+});
+
+/** Whether a run this browser started is still working through one card. */
+export function cardIsRunning(kind: LibraryCardKind, coveId: number): boolean {
+  return running.get(kind)?.has(String(coveId)) ?? false;
+}
 
 /**
  * Reads the named cards again, for a caller that changed what the instance holds for them.
