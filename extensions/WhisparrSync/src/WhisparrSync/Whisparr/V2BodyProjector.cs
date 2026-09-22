@@ -3,9 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Whisparr2.Net.Model;
 using WhisparrSync.Contracts;
-using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Monitoring;
+namespace WhisparrSync.Whisparr;
 
 // Every flag that suppresses acquisition is set here, from one local, so an edit cannot set one
 // spelling and miss the other. v2's pair is not v3's: a rule stated in v3's spellings leaves every

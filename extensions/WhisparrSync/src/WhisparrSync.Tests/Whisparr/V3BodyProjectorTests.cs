@@ -1,12 +1,10 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
-
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Tests.Monitoring;
+namespace WhisparrSync.Tests.Whisparr;
 
 // The editor bodies are asserted on their key set, not only on their values. Every other field of
 // the v3 editor resource is nullable and an omitted one is not applied, so a key present by

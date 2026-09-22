@@ -1,10 +1,9 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Tests.Monitoring;
+namespace WhisparrSync.Tests.Whisparr;
 
 // v2 publishes no contract document, so every shape asserted here is transcribed from a
 // measurement. The expected values are written out by hand for that reason: one computed from the
