@@ -325,8 +325,6 @@ function answeredPage({ facets = [], sorts = [] } = {}) {
     facets,
     sorts,
     sortInForce: null,
-    statusWasRead: true,
-    statusIsPermanentlyAbsent: false,
     providerName: ANSWERED_SOURCE,
   };
 }

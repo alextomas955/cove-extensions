@@ -53,8 +53,6 @@ function pageOf(cards: MissingCard[], refusal: MissingRefusalKind): MissingPageV
     facets: [],
     sorts: [],
     sortInForce: null,
-    statusWasRead: refusal === "none",
-    statusIsPermanentlyAbsent: refusal === "whisparrKeepsNoSceneRecords",
     providerName: "a source",
   };
 }
