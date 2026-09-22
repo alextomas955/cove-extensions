@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
+using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Scene;
@@ -131,6 +132,14 @@ public sealed partial class WhisparrSync
                 (services, runCt) => ComposeSceneMarkAsync(batch, services, runCt),
                 ct)
             .ConfigureAwait(false);
+
+        // The run wrote to the instance, so what the catalogue held describes a state that has
+        // moved. Left held, the page read after this run draws the flags from before it and the
+        // reader sees their own gesture do nothing.
+        using (var scope = scopes.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<InstanceCatalogueCache>().Forget();
+        }
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
