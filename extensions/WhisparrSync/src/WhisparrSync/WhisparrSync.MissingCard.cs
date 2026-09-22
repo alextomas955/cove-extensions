@@ -25,10 +25,11 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(MissingSceneMonitorRoute,
             (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             IEntityIdentityPort identities, InstanceCatalogueCache cache,
              IServiceScopeFactory scopes, CancellationToken ct)
                 => MonitorMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, client, scopes,
-                    _log, ct))
+                    kind, coveId, providerSceneId, principal, options, credentials, client,
+                    identities, cache, scopes, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -60,6 +61,8 @@ public sealed partial class WhisparrSync
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
+            IEntityIdentityPort identities,
+            InstanceCatalogueCache cache,
             IServiceScopeFactory scopes,
             ILogger log,
             CancellationToken ct)
@@ -70,6 +73,9 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
+        ArgumentNullException.ThrowIfNull(identities);
+        ArgumentNullException.ThrowIfNull(cache);
+
         if (!TryReadEntity(kind, coveId, out var owning) || !IsBoundedSceneId(providerSceneId))
         {
             return TypedResults.BadRequest();
@@ -79,6 +85,16 @@ public sealed partial class WhisparrSync
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
+        }
+
+        // One generation lists a catalogue it already holds a row for every scene of, so marking one
+        // there is a flip of that row. Composing an add would ask it to create what it has.
+        if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
+                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null)
+        {
+            return await MarkHeldSceneRowAsync(
+                owning, coveId, providerSceneId, target, identities, cache, log, ct)
+                .ConfigureAwait(false);
         }
 
         // A generation registering no scene add has no implementation to hand over, so there is
@@ -138,6 +154,169 @@ public sealed partial class WhisparrSync
                 ? new MissingSceneActionResult(
                     MissingSceneState.Monitored, MissingSceneActionRefusal.None)
                 : NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+    }
+
+    // Marks the row the instance already holds for this scene, for a generation whose catalogue is
+    // its own rows rather than a source's listing. The row's id is read from the catalogue this tab
+    // was drawn from, held for a short window, so the mark normally costs one request.
+    private static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>
+        MarkHeldSceneRowAsync(
+            WhisparrEntityKind owning,
+            int coveId,
+            string providerSceneId,
+            MonitoringTarget target,
+            IEntityIdentityPort identities,
+            InstanceCatalogueCache cache,
+            ILogger log,
+            CancellationToken ct)
+    {
+        if (target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
+                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } marking
+            || target.Capabilities.Obtain<IWhisparrEntityCatalogueReading>()
+                .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null) is not { } reading)
+        {
+            return TypedResults.Ok(
+                NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
+        }
+
+        var identity = await identities.ResolveAsync(owning, coveId, target.Generation, ct)
+            .ConfigureAwait(false);
+        if (identity.ForeignId is not { Length: > 0 } foreignId)
+        {
+            return TypedResults.Ok(
+                NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
+        }
+
+        var scenes = cache.Held(target.Generation, owning, foreignId);
+        if (scenes is null)
+        {
+            // The catalogue read answers its own refusals rather than raising, so it is called
+            // directly: there is no contained failure for the shared helper to classify.
+            var answered = await reading.ReadEntityCatalogueAsync(
+                target.BaseAddress, target.ApiKey, target.Generation, owning, foreignId, ct)
+                .ConfigureAwait(false);
+            if (answered.Scenes is not { } listed)
+            {
+                return TypedResults.Ok(
+                    NothingWasSent(
+                        answered.Refusal == WhisparrCatalogueRefusal.EntityNotHeld
+                            ? MissingSceneActionRefusal.WhisparrHasNoEntryForScene
+                            : MissingSceneActionRefusal.DidNotReachWhisparr));
+            }
+
+            cache.Hold(target.Generation, owning, foreignId, listed);
+            scenes = listed;
+        }
+
+        // A scene the catalogue names no row for is one the instance holds no entry for, which is
+        // the same answer the other generation gives when its own add finds nothing.
+        var row = scenes.FirstOrDefault(
+            scene => string.Equals(
+                scene.ProviderSceneId, providerSceneId, StringComparison.Ordinal));
+        if (row is not { InstanceSceneId: > 0 })
+        {
+            return TypedResults.Ok(
+                NothingWasSent(MissingSceneActionRefusal.WhisparrHasNoEntryForScene));
+        }
+
+        // The entity's own flag gates every scene under it on this generation: a release for an
+        // unmonitored entity is turned down before the scene's flag is read at all, so marking the
+        // scene alone would report a state the instance never acts on. Done first, so a mark that
+        // is reported always means something.
+        if (await EntityIsMonitoredForAsync(owning, foreignId, target, log, ct)
+                .ConfigureAwait(false) is not { } alreadyMonitored)
+        {
+            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
+        }
+
+        if (!alreadyMonitored
+            && await MonitorOwningEntityAsync(owning, foreignId, target, log, ct)
+                .ConfigureAwait(false) is not true)
+        {
+            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+        }
+
+        var marked = await ContainedAsync(
+            () => marking.SetSceneMonitoredAsync(
+                target.BaseAddress,
+                target.ApiKey,
+                target.Generation,
+                row.InstanceSceneId,
+                monitored: true,
+                ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        if (marked is null)
+        {
+            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
+        }
+
+        // The flip is a write, so what the instance now holds is its own to state on the next read.
+        cache.Forget();
+
+        return TypedResults.Ok(
+            MonitoringProjector.Accepted(marked) is MonitorRefusalKind.None
+                ? new MissingSceneActionResult(
+                    MissingSceneState.Monitored, MissingSceneActionRefusal.None)
+                : NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+    }
+
+    // Whether the instance monitors the entity these scenes sit under, or null where it was asked
+    // and said nothing.
+    private static async Task<bool?> EntityIsMonitoredForAsync(
+        WhisparrEntityKind owning,
+        string foreignId,
+        MonitoringTarget target,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (ReadingEntity(owning, target) is not { } reading)
+        {
+            return null;
+        }
+
+        var answered = await ContainedAsync(() => reading(foreignId, ct), target, log, ct)
+            .ConfigureAwait(false);
+
+        return answered is null ? null : MonitoringProjector.MonitoredIn(answered.Body);
+    }
+
+    // Sets only the entity's own flag. The per-year flags and the new-item rule travel on no member
+    // of this request, so nothing else under the entity becomes wanted: the scenes the reader marked
+    // are the only ones this leaves monitored.
+    private static async Task<bool?> MonitorOwningEntityAsync(
+        WhisparrEntityKind owning,
+        string foreignId,
+        MonitoringTarget target,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<IWhisparrStudioActing?>(held => held, _ => null) is not { } acting
+            || ReadingEntity(owning, target) is not { } reading)
+        {
+            return null;
+        }
+
+        var held = await ContainedAsync(() => reading(foreignId, ct), target, log, ct)
+            .ConfigureAwait(false);
+        if (held is null || MonitoringProjector.EntityIdIn(held.Body) is not { } entityId)
+        {
+            return null;
+        }
+
+        var answered = await ContainedAsync(
+            () => acting.SetStudioMonitoredAsync(
+                target.BaseAddress, target.ApiKey, target.Generation, entityId, monitored: true, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return answered is null
+            ? null
+            : MonitoringProjector.Accepted(answered) is MonitorRefusalKind.None;
     }
 
     // The one verb on this surface that can make an instance download. The command names the

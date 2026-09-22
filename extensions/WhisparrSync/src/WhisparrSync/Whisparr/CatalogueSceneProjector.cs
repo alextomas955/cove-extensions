@@ -86,11 +86,20 @@ internal static class CatalogueSceneProjector
                 V2Actors(entry),
                 [],
                 Flag(entry, "monitored") ?? false,
-                Flag(entry, "hasFile") ?? false));
+                Flag(entry, "hasFile") ?? false,
+
+                // The instance's own row id. This generation lists a scene it already holds a row
+                // for, so marking one is a flip of that row rather than an add.
+                Number(entry, "id")));
         }
 
         return scenes;
     }
+
+    private static int Number(JsonObject row, string field)
+        => row[field] is JsonValue value && value.TryGetValue<int>(out var number) && number > 0
+            ? number
+            : 0;
 
     private static List<WhisparrCataloguePerformer> V3Performers(JsonObject entry)
     {

@@ -9,6 +9,11 @@ public sealed record WhisparrCataloguePerformer(string ForeignId, string Name, s
 /// <remarks>
 /// Every scene here is one the instance already has an entry for, so both flags are facts it stated
 /// rather than an absence read as false.
+/// <para>
+/// InstanceSceneId is the id the instance addresses its own row by, which is not the number the
+/// metadata source issued. Zero where the answer carried none: one generation lists a catalogue the
+/// instance holds no row for, and a scene there can only be added rather than marked.
+/// </para>
 /// </remarks>
 public sealed record WhisparrCatalogueScene(
     string ProviderSceneId,
@@ -20,7 +25,8 @@ public sealed record WhisparrCatalogueScene(
     IReadOnlyList<WhisparrCataloguePerformer> Performers,
     IReadOnlyList<string> Tags,
     bool Monitored,
-    bool HasFile);
+    bool HasFile,
+    int InstanceSceneId = 0);
 
 /// <summary>Why an entity's catalogue could not be read from the instance.</summary>
 public enum WhisparrCatalogueRefusal
