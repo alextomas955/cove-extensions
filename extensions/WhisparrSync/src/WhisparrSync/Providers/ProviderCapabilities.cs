@@ -18,6 +18,7 @@ public enum ProviderCapability
     LookUpByName,
     ResolveNumericSceneId,
     ResolveNumericSiteId,
+    ReadSceneCover,
 }
 
 public interface ISortsByTitle;
@@ -59,6 +60,16 @@ public interface IResolvesNumericSceneId;
 /// </remarks>
 public interface IResolvesNumericSiteId;
 
+/// <summary>A scene's cover picture can be read from the provider by its stored identifier.</summary>
+/// <remarks>
+/// The member is declared here and not on <see cref="IProviderCatalogue"/>, so a provider holding
+/// no cover picture has nothing to write.
+/// </remarks>
+public interface IReadsSceneCover
+{
+    Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct);
+}
+
 internal static class ProviderCapabilities
 {
     // Ordering by title is StashDB's alone: ThePornDB's ordering vocabulary declares no title value
@@ -91,6 +102,7 @@ internal static class ProviderCapabilities
         ProviderCapability.LookUpByName,
         ProviderCapability.ResolveNumericSceneId,
         ProviderCapability.ResolveNumericSiteId,
+        ProviderCapability.ReadSceneCover,
     ];
 
     internal static ProviderCapabilitySet ForStashDb(object source)
@@ -160,6 +172,7 @@ public sealed class ProviderCapabilitySet
         [typeof(ILooksUpByName)] = ProviderCapability.LookUpByName,
         [typeof(IResolvesNumericSceneId)] = ProviderCapability.ResolveNumericSceneId,
         [typeof(IResolvesNumericSiteId)] = ProviderCapability.ResolveNumericSiteId,
+        [typeof(IReadsSceneCover)] = ProviderCapability.ReadSceneCover,
     };
 
     private readonly Dictionary<ProviderCapability, object> _roles;

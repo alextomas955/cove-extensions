@@ -107,8 +107,11 @@ internal sealed class MissingPagePlanner(
             ? []
             : InstanceCatalogueLogic.FacetsOf(remaining);
 
+        List<MissingCard> cards = [.. page.Scenes.Select(scene => CardFor(scene, catalogue))];
+        await FillCoversAsync(cards, catalogue, ct).ConfigureAwait(false);
+
         return new MissingPageView(
-            [.. page.Scenes.Select(scene => CardFor(scene, catalogue))],
+            cards,
             page.CatalogueSize,
             // The instance listed its whole catalogue for the entity, so the figure is a count and
             // never a floor the source would not serve past.
@@ -124,6 +127,42 @@ internal sealed class MissingPagePlanner(
                 sort => new MissingSortOption(sort.Value, sort.Label))],
             request.Sort is { Length: > 0 } sort ? sort : InstanceCatalogueLogic.NewestFirst,
             catalogue.Capabilities.Provider);
+    }
+
+    // A card the instance named no cover for takes the source's own picture. The reads are issued
+    // for the composed page alone, so a page costs at most one read per card whatever the size of
+    // the catalogue behind it, and the shared pacer still holds the minute's total. A source
+    // holding no cover role leaves the list as composed.
+    private static async Task FillCoversAsync(
+        List<MissingCard> cards, IProviderCatalogue catalogue, CancellationToken ct)
+    {
+        var reading = catalogue.Capabilities
+            .Obtain<IReadsSceneCover>()
+            .Match<IReadsSceneCover?>(role => role, _ => null);
+        if (reading is null)
+        {
+            return;
+        }
+
+        var bare = Enumerable.Range(0, cards.Count)
+            .Where(at => cards[at].CoverUrl is null)
+            .ToArray();
+        if (bare.Length == 0)
+        {
+            return;
+        }
+
+        var covers = await Task.WhenAll(
+                bare.Select(at => reading.ReadSceneCoverAsync(cards[at].ProviderSceneId, ct)))
+            .ConfigureAwait(false);
+
+        for (var at = 0; at < bare.Length; at++)
+        {
+            if (covers[at] is { Length: > 0 } cover)
+            {
+                cards[bare[at]] = cards[bare[at]] with { CoverUrl = cover };
+            }
+        }
     }
 
     // The instance's own list for one entity, held briefly so the count beside the tab and the page
