@@ -48,7 +48,11 @@ internal static class CatalogueSceneProjector
                 V3Performers(entry),
                 Strings(entry["genres"]),
                 Flag(entry, "monitored") ?? false,
-                Flag(entry, "hasFile") ?? false));
+                Flag(entry, "hasFile") ?? false,
+
+                // The instance's own row id, where it holds one. A works listing carries a catalogue
+                // item the instance may hold no entry for, and such a row carries none.
+                Number(entry, "id")));
         }
 
         return scenes;

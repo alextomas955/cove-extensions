@@ -8,10 +8,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
-/// <summary>Which scenes one enqueued selection is about.</summary>
-/// <remarks>A null kind, a zero id or an empty list means the parameter map carried none.</remarks>
+/// <summary>Which scenes one enqueued selection is about, and what to do with them.</summary>
+/// <remarks>
+/// A null kind, a zero id or an empty list means the parameter map carried none. A verb it carried
+/// none of reads as monitoring, which is the gesture every run enqueued before the verb existed.
+/// </remarks>
 public sealed record MissingBulkBatch(
-    WhisparrEntityKind? Kind, int CoveId, IReadOnlyList<string> ProviderSceneIds);
+    WhisparrEntityKind? Kind,
+    int CoveId,
+    IReadOnlyList<string> ProviderSceneIds,
+    MissingBulkVerb Verb = MissingBulkVerb.Monitor);
 
 internal enum MissingBulkRunOutcome
 {
@@ -25,7 +31,7 @@ internal enum MissingBulkRunOutcome
 
 // Counts only: a member listing the identifiers would grow with the selection.
 internal sealed record MissingBulkRun(
-    MissingBulkRunOutcome Outcome, int MarkedWanted, int AlreadyHeld, int Refused);
+    MissingBulkRunOutcome Outcome, int Marked, int AlreadyHeld, int Refused);
 
 /// <summary>
 /// The bulk marking job's id, its (de)serialization onto the host's string-only parameter map, and
@@ -42,14 +48,19 @@ public static class MissingBulkJob
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
     private const string SceneIdsKey = "providerSceneIds";
+    private const string VerbKey = "verb";
 
     public static Dictionary<string, string> Encode(
-        WhisparrEntityKind kind, int coveId, IReadOnlyList<string> providerSceneIds)
+        WhisparrEntityKind kind,
+        int coveId,
+        IReadOnlyList<string> providerSceneIds,
+        MissingBulkVerb verb)
         => new(StringComparer.Ordinal)
         {
             [KindKey] = kind.ToString(),
             [CoveIdKey] = coveId.ToString(CultureInfo.InvariantCulture),
             [SceneIdsKey] = JsonSerializer.Serialize(providerSceneIds),
+            [VerbKey] = verb.ToString(),
         };
 
     /// <summary>Reads one selection's run back off the host's parameter map.</summary>
@@ -75,7 +86,16 @@ public static class MissingBulkJob
                 ? parsed
                 : 0;
 
-        return new MissingBulkBatch(kind, coveId, SceneIdsIn(Read(parameters, SceneIdsKey)));
+        // A map carrying no verb, or one it cannot read, is a run enqueued to monitor: that is
+        // what every run meant before the verb existed, and it is the gesture that adds rather than
+        // retracts.
+        var verb = Enum.TryParse<MissingBulkVerb>(
+            Read(parameters, VerbKey), ignoreCase: true, out var named2) && Enum.IsDefined(named2)
+                ? named2
+                : MissingBulkVerb.Monitor;
+
+        return new MissingBulkBatch(
+            kind, coveId, SceneIdsIn(Read(parameters, SceneIdsKey)), verb);
     }
 
     // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
@@ -107,7 +127,8 @@ public static class MissingBulkJob
     }
 
     // Counts, never a list of scenes: the sentence must not grow with the selection.
-    internal static string SummaryOf(MissingBulkRun run)
+    /// <summary>The one line the run reports, naming the verb it carried out.</summary>
+    internal static string SummaryOf(MissingBulkRun run, MissingBulkVerb verb)
     {
         ArgumentNullException.ThrowIfNull(run);
 
@@ -117,10 +138,11 @@ public static class MissingBulkJob
         }
 
         var ending = run.Outcome == MissingBulkRunOutcome.Cancelled ? ", then stopped" : string.Empty;
+        var did = verb == MissingBulkVerb.Monitor ? "monitored" : "unmonitored";
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{run.MarkedWanted} marked wanted, {run.AlreadyHeld} already marked, {run.Refused} refused{ending}.");
+            $"{run.Marked} {did}, {run.AlreadyHeld} already {did}, {run.Refused} refused{ending}.");
     }
 
     // Repeats are dropped before any request: a page's selection can carry one identifier twice,

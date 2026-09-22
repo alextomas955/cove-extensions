@@ -11,13 +11,14 @@
  * emits no `focus-visible` ring utility.
  */
 import { useMemo } from "react";
-import { Bookmark, Loader2 } from "lucide-react";
+import { Bookmark, BookmarkX, Loader2 } from "lucide-react";
 
 import { WAITING_FOR_WHISPARR, selectionCount } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import { useKeySequence } from "./hostComponents";
 import {
   MONITOR_SELECTION_LABEL,
+  UNMONITOR_SELECTION_LABEL,
   selectionActionsFor,
   selectionOutcomeLine,
   type SelectionOutcome,
@@ -50,6 +51,7 @@ export function MissingSelectionBar({
   outcome,
   onSelect,
   onMonitorSelection,
+  onUnmonitorSelection,
 }: {
   /** The scenes on screen, in the order they are drawn. */
   loadedPageIds: readonly string[];
@@ -58,6 +60,7 @@ export function MissingSelectionBar({
   /** The ids are always a subset of the loaded page. */
   onSelect: (ids: readonly string[]) => void;
   onMonitorSelection: () => void;
+  onUnmonitorSelection: () => void;
 }) {
   const actions = selectionActionsFor(loadedPageIds, selected);
   const refusal = selectionOutcomeLine(outcome);
@@ -112,6 +115,21 @@ export function MissingSelectionBar({
                 <Bookmark className="h-3 w-3" aria-hidden="true" />
               )}
               {MONITOR_SELECTION_LABEL}
+              {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
+            </button>
+            <button
+              type="button"
+              className={VERB_CLASS}
+              title={inFlight ? WAITING_FOR_WHISPARR : undefined}
+              disabled={inFlight}
+              onClick={onUnmonitorSelection}
+            >
+              {inFlight ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <BookmarkX className="h-3 w-3" aria-hidden="true" />
+              )}
+              {UNMONITOR_SELECTION_LABEL}
               {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
             </button>
           </div>

@@ -99,7 +99,7 @@ describe("no server-side re-derivation runs before a bulk action", () => {
     expect(afterThePress[0].path).toContain("/missing/bulk-monitor");
     // The scenes the one loaded page answered with, and no page was read to find them.
     expect(afterThePress[0].body).toBe(
-      JSON.stringify({ providerSceneIds: ["scene-a", "scene-b"] }),
+      JSON.stringify({ providerSceneIds: ["scene-a", "scene-b"], verb: "monitor" }),
     );
   });
 });

@@ -2647,8 +2647,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "verb": {
+            "$ref": "#/components/schemas/MissingBulkVerb"
           }
         }
+      },
+      "MissingBulkVerb": {
+        "enum": [
+          "monitor",
+          "unmonitor"
+        ],
+        "default": "monitor"
       },
       "MissingCard": {
         "required": [

@@ -20,7 +20,7 @@ public sealed class MissingBulkJobTests
     public void ARunRoundTripsItsEntityAndItsTickedScenes()
     {
         var decoded = MissingBulkJob.Decode(
-            MissingBulkJob.Encode(WhisparrEntityKind.Performer, 41, [FirstScene, SecondScene]));
+            MissingBulkJob.Encode(WhisparrEntityKind.Performer, 41, [FirstScene, SecondScene], MissingBulkVerb.Monitor));
 
         Assert.Equal(WhisparrEntityKind.Performer, decoded.Kind);
         Assert.Equal(41, decoded.CoveId);
@@ -51,7 +51,7 @@ public sealed class MissingBulkJobTests
         // the four answers above are about those maps rather than about the reader.
         Assert.Equal(
             WhisparrEntityKind.Studio,
-            MissingBulkJob.Decode(MissingBulkJob.Encode(WhisparrEntityKind.Studio, 4, [FirstScene]))
+            MissingBulkJob.Decode(MissingBulkJob.Encode(WhisparrEntityKind.Studio, 4, [FirstScene], MissingBulkVerb.Monitor))
                 .Kind);
     }
 
@@ -104,7 +104,7 @@ public sealed class MissingBulkJobTests
         PrincipalKind? seen = null;
         var run = await MissingBulkJob.RunAsync(
             MissingBulkJob.Decode(
-                MissingBulkJob.Encode(WhisparrEntityKind.Studio, 4, [FirstScene])),
+                MissingBulkJob.Encode(WhisparrEntityKind.Studio, 4, [FirstScene], MissingBulkVerb.Monitor)),
             services.GetRequiredService<IServiceScopeFactory>(),
             (IServiceProvider scoped, CancellationToken _) =>
             {
@@ -119,5 +119,20 @@ public sealed class MissingBulkJobTests
 
         // Restored after the run, so the elevation is the run's own span rather than the process's.
         Assert.Null(principals.Current);
+    }
+
+    // Reported as monitoring either way, a reader who unmonitored a page would read that the run
+    // had done the opposite of what they asked for.
+    [Fact]
+    public void TheRunsOneLineNamesTheVerbItCarriedOut()
+    {
+        var run = new MissingBulkRun(MissingBulkRunOutcome.Completed, 2, 1, 0);
+
+        Assert.Equal(
+            "2 monitored, 1 already monitored, 0 refused.",
+            MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor));
+        Assert.Equal(
+            "2 unmonitored, 1 already unmonitored, 0 refused.",
+            MissingBulkJob.SummaryOf(run, MissingBulkVerb.Unmonitor));
     }
 }

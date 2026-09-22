@@ -87,6 +87,7 @@ function MissingTabFor({
     monitorScene,
     searchScene,
     monitorSelection,
+    unmonitorSelection,
     monitorAll,
     trackEntity,
     track,
@@ -130,6 +131,9 @@ function MissingTabFor({
         selected={selectedIds}
         outcome={state.bulk}
         onSelect={onSelect}
+        onUnmonitorSelection={() => {
+          unmonitorSelection([...selectedIds]);
+        }}
         onMonitorSelection={() => {
           monitorSelection([...selectedIds]);
         }}
