@@ -134,7 +134,7 @@ export function FilenameSection({
 
         <CardSection
           title="Where files go"
-          description="Folder path template. Moves files on rename, and applies to every kind. Used when no tag, studio, source-path or unorganized rule matches the item."
+          description="Folder path template. Moves files on rename, and applies to every kind. Used when no routing rule matches."
           divided
         >
           <DestinationField
@@ -144,7 +144,7 @@ export function FilenameSection({
               set("folderTemplate", destination.template);
             }}
             library={library}
-            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio/$year."
+            helper="Blank renames in place, without moving the file."
             templateRef={folderRef}
             onTemplateFocus={() => (activeTemplateRef.current = "folder")}
           />

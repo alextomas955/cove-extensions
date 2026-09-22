@@ -114,12 +114,11 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           </Field>
         </div>
         <Toggle
-          label="ASCII transliterate"
+          label="Convert accents to plain ASCII"
           checked={options.asciiTransliterate}
           onChange={(v) => {
             set("asciiTransliterate", v);
           }}
-          helper="Convert accented characters to plain ASCII."
         />
         <Toggle
           label="Normalize punctuation to ASCII"
@@ -220,10 +219,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             These are evaluated before any routing rule; a matching item is dropped from the batch
             entirely (neither renamed nor moved), so they are the safest way to fence off items you
             never want this extension to touch. All three flow through set() like every other control. */}
-      <CollapsibleSection
-        title="Excludes"
-        summary="Skip items by tag, studio, or source path — evaluated before any routing"
-      >
+      <CollapsibleSection title="Excludes" summary="Skip items by tag, studio, or source path">
         <GroupCard title="Exclude by tag">
           <EntitySelectField
             entityType="tag"
@@ -367,7 +363,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         </GroupCard>
 
         <Toggle
-          label="Squeeze studio names"
+          label="Remove spaces from studio names"
           checked={options.squeezeStudioNames}
           onChange={(v) => {
             set("squeezeStudioNames", v);

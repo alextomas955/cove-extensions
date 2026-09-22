@@ -236,7 +236,7 @@ test("a dry run of unsaved settings will not start the rename", async () => {
   await sleep(SETTLE_MS);
 
   expect(modal.renameButton()?.disabled).toBe(true);
-  expect(modal.text()).toContain("a rename runs the saved ones");
+  expect(modal.text()).toContain("A rename runs the saved ones.");
   modal.unmount();
 }, 30_000);
 

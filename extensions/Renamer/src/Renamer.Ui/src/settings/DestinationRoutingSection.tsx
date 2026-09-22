@@ -71,11 +71,11 @@ export function DestinationRoutingSection({
   return (
     <SectionCard
       title="Destination routing"
-      description="Per-studio and per-tag rules override the default."
+      description="First match wins: excludes → unorganized → tag → studio → source path. An item no rule matches takes its kind's own folder, then the default in Where files go."
     >
       <GroupCard
         title="Unorganized destination"
-        description="Where un-curated items go instead of being skipped."
+        description="Where unorganized items go instead of being skipped."
       >
         <Toggle
           label="Route unorganized items to their own destination"
@@ -204,7 +204,7 @@ export function DestinationRoutingSection({
 
       <GroupCard
         title="Sidecar files"
-        description="A file sharing the primary's basename moves and renames with it; an existing target is never overwritten. Cove-tracked captions always move."
+        description="A file sharing the primary's basename moves and renames with it; an existing target is never overwritten."
       >
         <Field label="Also move sidecar files with these extensions">
           <TagListInput

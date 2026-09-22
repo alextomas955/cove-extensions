@@ -68,9 +68,8 @@ export function TokenLegend({ onInsert }: { onInsert: (token: string) => void })
   return (
     <div>
       <p className="mb-1 text-xs text-muted">
-        Click a token to insert it. <span className="text-foreground">Optional tokens</span> (marked{" "}
-        <span className="font-mono">{"{ }"}</span>) insert wrapped so they vanish — with their
-        punctuation — when empty. <span className="text-foreground">Core tokens</span> insert as-is.
+        <span className="font-mono">{"{ }"}</span> tokens drop out with their punctuation when
+        empty.
       </p>
       <div className="flex flex-wrap gap-1">
         {TOKENS.map((t) => (

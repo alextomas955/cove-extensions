@@ -35,6 +35,7 @@ import {
   isAbsolutePathShape,
   listEditors,
   nextActiveIndex,
+  numberInputValue,
   suggestionOptions,
 } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
@@ -165,16 +166,19 @@ export function NumberInput({
   onChange,
   min,
   max,
+  placeholder,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  placeholder?: string;
 }) {
   return (
     <input
       type="number"
-      value={Number.isNaN(value) ? "" : value}
+      value={numberInputValue(value, placeholder)}
+      placeholder={placeholder}
       min={min}
       max={max}
       onChange={(e) => {

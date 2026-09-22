@@ -202,43 +202,43 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── The surviving rules render as entity names ──────────────────────────────────────────────────
   const tagsCard = groupCard(page, "Tags");
-  const tagWhitelist = field(tagsCard, "Whitelist");
+  const tagOnlyInclude = field(tagsCard, "Only include");
   await expect(
-    tagWhitelist.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
+    tagOnlyInclude.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
     `the tag whitelist rule stored as the name "${names.tagKeep}" is not on the panel as a chip carrying that name`,
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    tagWhitelist.getByRole("button", { name: /^Remove / }),
+    tagOnlyInclude.getByRole("button", { name: /^Remove / }),
     "the one stored tag whitelist name must land as exactly one chip",
   ).toHaveCount(1);
   await expect(
-    field(tagsCard, "Blacklist").getByRole("button", { name: /^Remove / }),
+    field(tagsCard, "Never include").getByRole("button", { name: /^Remove / }),
     "the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
   const performersCard = groupCard(page, "Performers");
-  const performerWhitelist = field(performersCard, "Whitelist");
+  const performerOnlyInclude = field(performersCard, "Only include");
   await expect(
-    performerWhitelist.getByRole("button", {
+    performerOnlyInclude.getByRole("button", {
       name: `Remove ${names.performerKeep}`,
       exact: true,
     }),
     "the performer whitelist rule did not survive as a named chip",
   ).toBeVisible();
   await expect(
-    performerWhitelist.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
+    performerOnlyInclude.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
     "the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling",
   ).toBeVisible();
   await expect(
-    performerWhitelist.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
+    performerOnlyInclude.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
     "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one performer where it covered two, and that narrowing is what the changelog discloses",
   ).toHaveCount(0);
   await expect(
-    performerWhitelist.getByRole("button", { name: /^Remove / }),
+    performerOnlyInclude.getByRole("button", { name: /^Remove / }),
     "three stored names must land as exactly two chips: the keep performer, plus one survivor of the case-variant pair",
   ).toHaveCount(2);
   await expect(
-    field(performersCard, "Blacklist").getByRole("button", {
+    field(performersCard, "Never include").getByRole("button", {
       name: `Remove ${names.performerBlock}`,
       exact: true,
     }),

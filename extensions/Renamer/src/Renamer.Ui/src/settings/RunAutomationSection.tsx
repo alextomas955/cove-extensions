@@ -30,10 +30,7 @@ export function RunAutomationSection({
   onRenameAll,
 }: RunAutomationSectionProps) {
   return (
-    <SectionCard
-      title="Run & automation"
-      description="When renames happen — on metadata update, or on demand."
-    >
+    <SectionCard title="Run & automation">
       <Toggle
         label="Auto-rename on update"
         checked={options.autoRenamerOnUpdate}

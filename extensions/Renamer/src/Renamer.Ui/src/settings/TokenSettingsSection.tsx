@@ -130,10 +130,11 @@ export function TokenSettingsSection({
             />
           </Field>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count" helper="0 = unlimited">
+            <Field label="Max count">
               <NumberInput
                 value={mv("performers").maxCount}
                 min={0}
+                placeholder="No limit"
                 onChange={(v) => {
                   setMulti("performers", { maxCount: v });
                 }}
@@ -161,7 +162,7 @@ export function TokenSettingsSection({
             </Field>
             <Field
               label="Ignore genders"
-              helper="Removed before the max-count cap. Performers with no gender are always kept. None = off."
+              helper="Removed before the max-count cap. Performers with no gender are always kept."
             >
               <ChipMultiSelect
                 options={GENDER_OPTIONS}
@@ -172,7 +173,7 @@ export function TokenSettingsSection({
               />
             </Field>
           </div>
-          <Field label="Gender order" helper="Most-preferred first. Empty = off.">
+          <Field label="Gender order" helper="Most-preferred first.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
               values={mv("performers").genderOrder}
@@ -184,8 +185,7 @@ export function TokenSettingsSection({
           </Field>
           <EntitySelectField
             entityType="performer"
-            label="Whitelist"
-            helper="If set, only these performers are kept."
+            label="Only include"
             values={mv("performers").whitelistIds}
             onChange={(v) => {
               setMulti("performers", { whitelistIds: v });
@@ -194,8 +194,7 @@ export function TokenSettingsSection({
           />
           <EntitySelectField
             entityType="performer"
-            label="Blacklist"
-            helper="These performers are removed."
+            label="Never include"
             values={mv("performers").blacklistIds}
             onChange={(v) => {
               setMulti("performers", { blacklistIds: v });
@@ -218,10 +217,11 @@ export function TokenSettingsSection({
             />
           </Field>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count" helper="0 = unlimited">
+            <Field label="Max count">
               <NumberInput
                 value={mv("tags").maxCount}
                 min={0}
+                placeholder="No limit"
                 onChange={(v) => {
                   setMulti("tags", { maxCount: v });
                 }}
@@ -248,8 +248,7 @@ export function TokenSettingsSection({
           </Field>
           <EntitySelectField
             entityType="tag"
-            label="Whitelist"
-            helper="If set, only these tags are kept."
+            label="Only include"
             values={mv("tags").whitelistIds}
             onChange={(v) => {
               setMulti("tags", { whitelistIds: v });
@@ -258,8 +257,7 @@ export function TokenSettingsSection({
           />
           <EntitySelectField
             entityType="tag"
-            label="Blacklist"
-            helper="These tags are removed."
+            label="Never include"
             values={mv("tags").blacklistIds}
             onChange={(v) => {
               setMulti("tags", { blacklistIds: v });

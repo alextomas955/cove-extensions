@@ -221,7 +221,7 @@ export function DryRunModal({
       {dirty || scanIsStale ? (
         <p className="mt-6 text-sm text-amber-400">
           {dirty
-            ? "These rows preview your unsaved settings, but a rename runs the saved ones. Save, then run the dry run again."
+            ? "These rows preview your unsaved settings. A rename runs the saved ones."
             : "Your settings changed after these rows were scanned. Run the dry run again."}
         </p>
       ) : null}

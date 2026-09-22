@@ -144,3 +144,14 @@ export function nextActiveIndex(current: number, count: number, direction: 1 | -
   if (current < 0 || current >= count) return direction === 1 ? 0 : count - 1;
   return (current + direction + count) % count;
 }
+
+/**
+ * What a number field puts in its `value`. A blank is the only state that lets a placeholder read,
+ * so a field carrying one treats zero as the absent value it stands for; a field with no placeholder
+ * shows its zero. A non-number is always blank — the field would otherwise render `NaN`.
+ */
+export function numberInputValue(value: number, placeholder?: string): number | "" {
+  if (Number.isNaN(value)) return "";
+  if (placeholder !== undefined && value === 0) return "";
+  return value;
+}
