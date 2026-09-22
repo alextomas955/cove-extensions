@@ -49,6 +49,11 @@ public sealed class MonitorPathTests
         Assert.Equal(WhisparrGeneration.V3, view.Generation);
         Assert.Equal(WhisparrEntityKind.Studio, view.Kind);
 
+        // v3 marks the existing scenes wanted when the wider scope is taken and leaves them wanted
+        // after it is narrowed, which is what the browser warns about before the wider scope is
+        // pressed.
+        Assert.False(view.ScopeChangeIsRetroactive);
+
         // The entity is read first, because an entity the instance already holds keeps its own
         // defaults and reading them would only invite sending them.
         Assert.Equal(

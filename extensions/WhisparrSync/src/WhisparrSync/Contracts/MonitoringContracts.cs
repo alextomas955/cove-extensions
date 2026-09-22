@@ -267,16 +267,19 @@ public enum MonitorRefusalKind
 /// <para>
 /// <c>Generation</c> null with <c>Configured</c> false is nothing connected. Capabilities are what
 /// the browser reads its menu from, rather than a generation table of its own, so a capability that
-/// is absent is refused in one place.
+/// is absent is refused in one place. <c>ScopeChangeIsRetroactive</c> is stated here for the same
+/// reason: the selection bar warns before a whole selection's back catalogue is marked wanted, and
+/// null is nothing connected rather than a claim either way.
 /// </para>
 /// </remarks>
 public sealed record WhisparrConnectionOffer(
     WhisparrGeneration? Generation,
     IReadOnlyList<WhisparrCapability> Capabilities,
-    bool Configured)
+    bool Configured,
+    bool? ScopeChangeIsRetroactive)
 {
     /// <summary>No address and key are stored, so the connection can be asked for nothing.</summary>
-    public static WhisparrConnectionOffer NotConfigured { get; } = new(null, [], false);
+    public static WhisparrConnectionOffer NotConfigured { get; } = new(null, [], false, null);
 }
 
 /// <summary>What one entity's monitoring looks like, as the entity page reads it.</summary>
@@ -293,6 +296,9 @@ public sealed record WhisparrConnectionOffer(
 /// it says the answer this read carried named none, so the browser must mark no scope at all rather
 /// than fall back to a default. <c>Capabilities</c> is what the browser reads its menu from, rather
 /// than a generation table of its own, so a capability that is absent is refused in one place.
+/// <c>ScopeChangeIsRetroactive</c> null is distinct from false: false is a wider scope that cannot
+/// be taken back, and null is a read that named no instance and so settled the question neither
+/// way.
 /// </para>
 /// </remarks>
 public sealed record EntityMonitoringView(
@@ -302,19 +308,29 @@ public sealed record EntityMonitoringView(
     bool Monitored,
     MonitorRefusalKind Refusal,
     IReadOnlyList<WhisparrCapability> Capabilities,
-    MonitorScope? Scope)
+    MonitorScope? Scope,
+    bool? ScopeChangeIsRetroactive)
 {
     /// <summary>A refusal taken before any instance was contacted, with nothing configured.</summary>
     public static EntityMonitoringView NotConfigured(WhisparrEntityKind kind)
-        => new(kind, null, null, false, MonitorRefusalKind.NotConfigured, [], null);
+        => new(kind, null, null, false, MonitorRefusalKind.NotConfigured, [], null, null);
 
     /// <summary>A refusal naming <paramref name="refusal"/>, with the entity left unmonitored.</summary>
     public static EntityMonitoringView Refused(
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
         IReadOnlyList<WhisparrCapability> capabilities,
-        MonitorRefusalKind refusal)
-        => new(kind, generation, null, false, refusal, capabilities, null);
+        MonitorRefusalKind refusal,
+        bool scopeChangeIsRetroactive)
+        => new(
+            kind,
+            generation,
+            null,
+            false,
+            refusal,
+            capabilities,
+            null,
+            scopeChangeIsRetroactive);
 
     /// <summary>The entity's state as the instance reports it.</summary>
     /// <remarks>
@@ -328,6 +344,15 @@ public sealed record EntityMonitoringView(
         IReadOnlyList<WhisparrCapability> capabilities,
         bool? present,
         bool monitored,
-        MonitorScope? scope)
-        => new(kind, generation, present, monitored, MonitorRefusalKind.None, capabilities, scope);
+        MonitorScope? scope,
+        bool scopeChangeIsRetroactive)
+        => new(
+            kind,
+            generation,
+            present,
+            monitored,
+            MonitorRefusalKind.None,
+            capabilities,
+            scope,
+            scopeChangeIsRetroactive);
 }

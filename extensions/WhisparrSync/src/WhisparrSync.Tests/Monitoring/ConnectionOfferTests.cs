@@ -41,6 +41,22 @@ public sealed class ConnectionOfferTests
             offer.Capabilities.Order());
     }
 
+    // The selection bar warns before a whole selection's back catalogue is marked wanted, and reads
+    // the fact from here rather than from a generation table of its own. The expected values are
+    // written out: reading them from the declaration would agree with it whatever it said.
+    [Theory]
+    [InlineData(WhisparrGeneration.V3, false)]
+    [InlineData(WhisparrGeneration.V2, true)]
+    public async Task TheOfferStatesWhetherAScopeChangeCarriesBack(
+        WhisparrGeneration generation, bool retroactive)
+    {
+        await using var host = await MonitorHost.CreateAsync(generation: generation);
+
+        var offer = await ReadAsync(host);
+
+        Assert.Equal(retroactive, offer.ScopeChangeIsRetroactive);
+    }
+
     // Nothing stored is a fact about the connection, so the menu reads it here rather than from a
     // read of an entity that would have refused for the same reason.
     [Fact]
@@ -53,6 +69,7 @@ public sealed class ConnectionOfferTests
         Assert.False(offer.Configured);
         Assert.Null(offer.Generation);
         Assert.Empty(offer.Capabilities);
+        Assert.Null(offer.ScopeChangeIsRetroactive);
     }
 
     [Fact]

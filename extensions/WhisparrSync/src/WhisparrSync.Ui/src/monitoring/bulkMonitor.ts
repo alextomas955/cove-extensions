@@ -189,5 +189,6 @@ function asMonitoringView(
     monitored: false,
     refusal: connection.configured ? "none" : "notConfigured",
     scope: null,
+    scopeChangeIsRetroactive: connection.scopeChangeIsRetroactive,
   };
 }

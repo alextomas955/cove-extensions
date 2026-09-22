@@ -340,7 +340,8 @@ public sealed partial class WhisparrSync
             kind,
             target.Binding.Generation,
             GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
-            refusal);
+            refusal,
+            GenerationCapabilities.AScopeChangeIsRetroactiveOn(target.Binding.Generation));
 
     private static EntityMonitoringView State(
         WhisparrEntityKind kind,
@@ -354,7 +355,8 @@ public sealed partial class WhisparrSync
             GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
             present,
             monitored,
-            scope);
+            scope,
+            GenerationCapabilities.AScopeChangeIsRetroactiveOn(target.Binding.Generation));
 
     // The instance's own answer is the only source of the scope. Neither acting path may substitute
     // the scope it asked for: this generation answers a body whose fields it dropped with a success.
