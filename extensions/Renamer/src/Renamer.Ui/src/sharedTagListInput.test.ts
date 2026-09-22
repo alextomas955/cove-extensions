@@ -111,6 +111,31 @@ async function focus(container: HTMLElement) {
   );
 }
 
+/**
+ * Picks a suggestion with the mouse, as a browser drives it: `mousedown`, then `click`. Reports
+ * whether the list suppressed the `mousedown`, which is what keeps the caret in the box.
+ *
+ * jsdom runs no default action for `mousedown`, so the focus move a real browser performs is
+ * performed here, and only when the component did not suppress the event. A browser also flushes
+ * React's pending work before dispatching the click, so the blur's commit is settled first — which is
+ * what turns "the box lost focus" into "the half-typed query became a chip".
+ */
+async function clickOption(container: HTMLElement, label: string): Promise<boolean> {
+  const option = [...container.querySelectorAll('[role="option"]')].find(
+    (o) => o.textContent.trim() === label,
+  );
+  if (!option) throw new Error(`no option ${label}`);
+
+  const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+  option.dispatchEvent(down);
+  if (!down.defaultPrevented) {
+    input(container).blur();
+    await waitFor("the blur to commit what was in the box", () => chips(container).length > 0);
+  }
+  option.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  return down.defaultPrevented;
+}
+
 async function blur(container: HTMLElement) {
   input(container).blur();
   await waitFor(
@@ -248,6 +273,24 @@ test("a token already picked is not offered again in a different case", async ()
   await waitFor("the token to leave the offer list", () => offered(view.container).length === 3);
 
   expect(offered(view.container)).toEqual(["title", "performers", "resolution"]);
+
+  view.unmount();
+});
+
+test("clicking a suggestion adds that option and not the half-typed query", async () => {
+  const view = await render();
+  await focus(view.container);
+  type(view.container, "stu");
+  await waitFor("the list to narrow to one option", () => offered(view.container).length === 1);
+
+  const suppressed = await clickOption(view.container, "studio");
+  await waitFor("the option to become a chip", () => chips(view.container).length > 0);
+
+  expect(suppressed, "the list let the mousedown take the caret out of the box").toBe(true);
+  // Exactly one chip, and the option's own spelling: "stu" alongside it would be the query committed
+  // by a blur the click caused.
+  expect(chips(view.container)).toEqual(["studio"]);
+  expect(input(view.container).value).toBe("");
 
   view.unmount();
 });
