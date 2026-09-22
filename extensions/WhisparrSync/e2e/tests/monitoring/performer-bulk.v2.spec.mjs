@@ -44,8 +44,13 @@ const cardToggles = (page) => page.getByRole("button", { name: "Select item" });
 
 const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL, exact: true });
 
-/** The host's own selection bar, which it draws whatever any extension registered. */
-const selectionBar = (page) => page.getByRole("button", { name: "Clear selection" });
+/**
+ * The host's own count of what is selected, which it draws whatever any extension registered.
+ *
+ * Read instead of the bar itself: every locator for the bar in this suite filters on a control an
+ * extension put there, and this spec exists because there is no such control to filter on.
+ */
+const selectedCount = (page) => page.getByText(/^\d+ selected$/);
 
 test("v2 puts no Whisparr control on the performers selection bar", async ({
   page,
@@ -80,7 +85,7 @@ test("v2 puts no Whisparr control on the performers selection bar", async ({
   // The bar first. Read before it renders, an absent button says only that the page had not caught
   // up, which passes on a build that registers the action it should not.
   await expect(
-    selectionBar(page),
+    selectedCount(page),
     "the host drew no selection bar, so what it carries cannot be read",
   ).toBeVisible({ timeout: SELECTION_BAR_BUDGET_MS });
 

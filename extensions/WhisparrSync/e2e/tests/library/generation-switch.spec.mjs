@@ -266,6 +266,7 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     ).toEqual(
       [
         "performer-card-footer",
+        "performer-detail-actions",
         "performers-list-toolbar-end",
         "performers-list-row",
         "video-card-content",
