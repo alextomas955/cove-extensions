@@ -79,10 +79,7 @@ public sealed partial class WhisparrSync
         // A generation that neither adds a catalogue item nor flips a row it already holds has no
         // implementation to hand over, so there is nothing to compose and no run to start. One that
         // can do either is enough: the run picks between them per generation and per verb.
-        if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null
-            && target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
-                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is null)
+        if (target.Reads is not (IWhisparrMissingSceneActing or IWhisparrSceneMonitorActing))
         {
             return TypedResults.Ok(
                 new MissingBulkEnqueued(null, MissingRefusalKind.WhisparrKeepsNoSceneRecords));
@@ -165,8 +162,7 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        var adds = target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-            .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not null;
+        var adds = target.Reads is IWhisparrMissingSceneActing;
 
         return batch.Verb == MissingBulkVerb.Monitor && adds
             ? await ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt)
@@ -190,10 +186,8 @@ public sealed partial class WhisparrSync
     {
         // A run over no one entity has no catalogue to read the instance's own row ids from.
         if (owningKind is not { } owning
-            || target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
-                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } marking
-            || target.Capabilities.Obtain<IWhisparrEntityCatalogueReading>()
-                .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null) is not { } reading)
+            || target.Reads is not IWhisparrSceneMonitorActing marking
+            || target.Reads is not IWhisparrEntityCatalogueReading reading)
         {
             return null;
         }
@@ -251,8 +245,7 @@ public sealed partial class WhisparrSync
                 services.GetRequiredService<ICredentialPort>(),
                 services.GetRequiredService<IWhisparrInstanceFactory>(),
                 runCt).ConfigureAwait(false) is not { } target
-            || target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not { } acting)
+            || target.Reads is not IWhisparrMissingSceneActing acting)
         {
             return null;
         }

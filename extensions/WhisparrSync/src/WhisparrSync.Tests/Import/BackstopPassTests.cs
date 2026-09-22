@@ -450,7 +450,7 @@ public sealed class BackstopPassTests
     public async Task AnAnswerThatIsNotAPageRefusesThePass(string body)
     {
         var pass = new Pass(mark: Noon.AddMinutes(-30));
-        pass.Answering(RecordingWhisparrClient.Json(200, body));
+        pass.Answering(RecordingWhisparrCore.Json(200, body));
 
         var result = await pass.RunAsync();
 
@@ -687,7 +687,7 @@ public sealed class BackstopPassTests
                 });
         }
 
-        return RecordingWhisparrClient.Json(
+        return RecordingWhisparrCore.Json(
             200, new JsonObject { ["records"] = page }.ToJsonString());
     }
 
@@ -715,7 +715,7 @@ public sealed class BackstopPassTests
                 });
         }
 
-        return RecordingWhisparrClient.Json(
+        return RecordingWhisparrCore.Json(
             200, new JsonObject { ["records"] = records }.ToJsonString());
     }
 
@@ -733,7 +733,7 @@ public sealed class BackstopPassTests
             [entity] = new JsonObject { [member] = SceneIdentifier },
         };
 
-        return RecordingWhisparrClient.Json(
+        return RecordingWhisparrCore.Json(
             200, new JsonObject { ["records"] = new JsonArray(record) }.ToJsonString());
     }
 
@@ -754,7 +754,7 @@ public sealed class BackstopPassTests
                 });
         }
 
-        return RecordingWhisparrClient.Json(
+        return RecordingWhisparrCore.Json(
             200, new JsonObject { ["records"] = records }.ToJsonString());
     }
 
@@ -776,8 +776,8 @@ public sealed class BackstopPassTests
             _requestBudget = requestBudget;
             // A case that leaves the address empty is one where nothing is sent, so the recorder
             // answers for the address the fixture normally carries.
-            Client = new RecordingWhisparrClient(
-                RecordingWhisparrClient.Json(200, """{"records":[]}"""),
+            Client = new RecordingWhisparrV3Client(
+                RecordingWhisparrCore.Json(200, """{"records":[]}"""),
                 new WhisparrBinding(
                     generation,
                     new Uri(string.IsNullOrWhiteSpace(address) ? Address : address),
@@ -803,7 +803,7 @@ public sealed class BackstopPassTests
 
         public OptionsWriteGate Gate { get; } = new();
 
-        public RecordingWhisparrClient Client { get; }
+        public RecordingWhisparrCore Client { get; }
 
         public FollowUpScanCoalescer FollowUp { get; } = new(new FixedClock(Now), NullLogger.Instance);
 
@@ -927,7 +927,7 @@ public sealed class BackstopPassTests
     // The raise is of a kind the walk classifies as neither unreachable nor cancelled, so it leaves the
     // pass instead of being recorded as a refusal. That is what makes a non-terminating walk a failing
     // case rather than a hanging one.
-    private sealed class BoundedClient(RecordingWhisparrClient inner, int budget) : IWhisparrClient
+    private sealed class BoundedClient(RecordingWhisparrCore inner, int budget) : IWhisparrClient
     {
         private int _reads;
 

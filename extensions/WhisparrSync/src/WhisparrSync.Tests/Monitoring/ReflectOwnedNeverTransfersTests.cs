@@ -131,7 +131,7 @@ public sealed class ReflectOwnedNeverTransfersTests
     public async Task TheAutomaticRunAddsNoReadToTheClickThatStartsIt()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client
             .Answering(
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),

@@ -45,17 +45,6 @@ internal static class MonitoringProjector
         Refused,
     }
 
-    // Throws on an unexpressed kind: a kind resolving to a default capability would report the
-    // wrong generation gap.
-    internal static WhisparrCapability CapabilityFor(WhisparrEntityKind kind)
-        => kind switch
-        {
-            WhisparrEntityKind.Studio => WhisparrCapability.MonitorStudio,
-            WhisparrEntityKind.Performer => WhisparrCapability.MonitorPerformer,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind), kind, "This is not an entity kind this product expresses."),
-        };
-
     internal readonly record struct EntityAnswer(EntityReading Reading, MonitorRefusalKind Refusal);
 
     // A refusal the answering seam established wins over the status. On v2 a site nothing could be

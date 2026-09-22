@@ -171,7 +171,7 @@ public sealed class AddAllMissingRouteTests
     public async Task TheEnqueuedRunOffersEachIdentifiedSceneOnceAndRefreshesTheCatalogueOnce()
     {
         await using var host = await HoldingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.RefreshCatalogueAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.RefreshCatalogueAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrMissingSceneActing.AddSceneAsync), MonitorHost.Json(201, """{"id":31}"""));
         var studioId = await SeededStudio(host);
@@ -202,7 +202,7 @@ public sealed class AddAllMissingRouteTests
     public async Task AnIdentifierACallerPutInABodyReachesNoOutboundRequest()
     {
         await using var host = await HoldingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.RefreshCatalogueAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.RefreshCatalogueAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrMissingSceneActing.AddSceneAsync), MonitorHost.Json(201, """{"id":31}"""));
         var studioId = await SeededStudio(host);

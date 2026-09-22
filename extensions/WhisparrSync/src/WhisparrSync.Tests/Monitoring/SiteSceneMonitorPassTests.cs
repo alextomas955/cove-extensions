@@ -299,7 +299,7 @@ public sealed class SiteSceneMonitorPassTests
             ct.ThrowIfCancellationRequested();
             Flagged.Add(rowId);
             return Task.FromResult<WhisparrResponse?>(
-                rowId == Declining ? null : RecordingWhisparrClient.Json(202, "{}"));
+                rowId == Declining ? null : RecordingWhisparrCore.Json(202, "{}"));
         }
     }
 }
