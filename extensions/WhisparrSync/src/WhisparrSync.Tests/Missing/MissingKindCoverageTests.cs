@@ -3,6 +3,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
@@ -101,9 +102,7 @@ public sealed class MissingKindCoverageTests
 
     private static MissingPageContext Context(StubInstanceCatalogue? instance = null)
         => new(
-            SomeInstance,
-            SomeKey,
-            WhisparrGeneration.V3,
+            new WhisparrBinding(WhisparrGeneration.V3, SomeInstance, SomeKey),
             new ResolvedProvider(StashDb, "a-key", 240),
             ExclusionReading: null,
             instance ?? new StubInstanceCatalogue());

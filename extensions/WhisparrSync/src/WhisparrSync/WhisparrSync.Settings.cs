@@ -262,8 +262,7 @@ public sealed partial class WhisparrSync
                     FolderAgreementRefusal.InstanceCannotBeAsked));
         }
 
-        var aimed = new FolderAddressTarget(
-            target.Generation, target.BaseAddress, target.ApiKey, role);
+        var aimed = new FolderAddressTarget(target.Binding, role);
         var addressed = await addressing
             .AddressAsync(aimed, coveRoot, request.InstancePath, ct).ConfigureAwait(false);
 

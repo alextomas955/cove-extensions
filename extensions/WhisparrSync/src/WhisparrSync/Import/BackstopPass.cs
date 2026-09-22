@@ -45,7 +45,10 @@ internal sealed class BackstopPass(
         // instance.
         var walkedAddress = connection!.Address;
 
-        var walk = await WalkAsync(generation, baseAddress, apiKey, connection.BackstopWatermarkUtc, ct)
+        var walk = await WalkAsync(
+            new WhisparrBinding(generation, baseAddress, apiKey),
+            connection.BackstopWatermarkUtc,
+            ct)
             .ConfigureAwait(false);
 
         // A refused pass leaves the mark where it was. Moving it over pages the walk declined to
@@ -91,12 +94,12 @@ internal sealed class BackstopPass(
 
     // Nothing held across an iteration grows with the walk: counters, instants, and one page's ids.
     private async Task<BackstopPassResult> WalkAsync(
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
+        WhisparrBinding binding,
         DateTimeOffset? mark,
         CancellationToken ct)
     {
+        var generation = binding.Generation;
+
         var page = 1;
         var taken = 0;
         var imported = 0;
@@ -116,7 +119,8 @@ internal sealed class BackstopPass(
             try
             {
                 answer = await client
-                    .ReadHistoryAsync(baseAddress, apiKey, generation, page, PageSize, ct)
+                    .ReadHistoryAsync(
+                        binding.BaseAddress, binding.ApiKey, generation, page, PageSize, ct)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)

@@ -552,8 +552,7 @@ public sealed partial class WhisparrSync
                     Array.Empty<string>()));
         }
 
-        var aimed = new FolderAddressTarget(
-            target.Generation, target.BaseAddress, target.ApiKey, role);
+        var aimed = new FolderAddressTarget(target.Binding, role);
 
         return (coveRoot, ct) => addressing.AgreedRootAsync(aimed, coveRoot, ct);
     }
