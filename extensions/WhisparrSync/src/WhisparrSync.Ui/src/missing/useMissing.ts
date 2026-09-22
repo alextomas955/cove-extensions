@@ -223,10 +223,17 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
         .then((answered) => {
           store.bulkSettled(entity, selectionOutcomeIn(answered));
 
+          // Only a run that started has an end to wait for. A refusal names no job, and taking the
+          // path below over one would put the selection back at rest and wipe the reason the press
+          // just stated; what was under way is already cleared by settling the refusal.
+          if (answered.jobId === null || answered.jobId === "") {
+            return;
+          }
+
           // The run marks the ticked scenes one at a time, so the pills it changes are read again
           // once it has stopped rather than painted from what was asked for. Until then the cards
           // it covers say they are being worked through.
-          void whenRunEnds(answered.jobId ?? undefined).then(() => {
+          void whenRunEnds(answered.jobId).then(() => {
             refresh();
             store.runEnded(entity);
           });
