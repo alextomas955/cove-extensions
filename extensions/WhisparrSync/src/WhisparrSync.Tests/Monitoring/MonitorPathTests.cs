@@ -232,7 +232,7 @@ public sealed class MonitorPathTests
     [Fact]
     public async Task AnAnswerPastTheBoundOnV2ReadKeepsItsOwnReason()
     {
-        var past = $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]";
+        var past = $"[\"{new string('a', (int)WhisparrTransport.MaxResponseBytes)}\"]";
         var handler = BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.OK, past));
         using var http = new HttpClient(handler);
 

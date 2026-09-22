@@ -225,16 +225,7 @@ public sealed class SecondaryVerbTests
     public void TheBatchedAddFormIsNotComposableAnywhereInThisProduct()
         => Assert.DoesNotContain(
             "movie/import",
-            string.Join(
-                '\n',
-                typeof(WhisparrClient)
-                    .GetFields(
-                        System.Reflection.BindingFlags.NonPublic
-                        | System.Reflection.BindingFlags.Public
-                        | System.Reflection.BindingFlags.Static)
-                    .Where(field => field.IsLiteral && field.FieldType == typeof(string))
-                    .Select(field => (string?)field.GetRawConstantValue())
-                    .OfType<string>()),
+            string.Join('\n', OutboundSeamTypes.DeclaredLiterals()),
             StringComparison.Ordinal);
 
     // The folder travels as a query value and never as a route segment, so a folder name cannot

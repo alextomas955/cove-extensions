@@ -18,11 +18,11 @@ internal static class TestWhisparrClient
         ISiteNumberPort? siteNumbers = null)
     {
         Func<HttpMessageHandler> primary =
-            handler is null ? WhisparrClient.CreateHandler : () => handler;
+            handler is null ? WhisparrTransport.CreateHandler : () => handler;
         void Timeout(HttpClient client) => client.Timeout = http.Timeout;
 
         return new WhisparrClient(
-            http,
+            new WhisparrTransport(http, log ?? NullLogger.Instance),
             new Whisparr3Gateway(primary, Timeout),
             new Whisparr2Gateway(primary, Timeout),
             siteNumbers ?? new TestSiteNumbers(),
@@ -33,7 +33,7 @@ internal static class TestWhisparrClient
         HttpMessageHandler handler, ILogger? log = null, ISiteNumberPort? siteNumbers = null)
     {
         var http = new HttpClient(handler);
-        WhisparrClient.Configure(http);
+        WhisparrTransport.Configure(http);
         return Over(http, handler, log, siteNumbers);
     }
 }

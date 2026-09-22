@@ -15,7 +15,7 @@ namespace WhisparrSync.Tests.Invariants;
 // code does.
 public sealed class AbsentCapabilityTests
 {
-    // The routes the outbound client composes itself, transcribed by hand from its own constants.
+    // The routes this product composes itself, transcribed by hand from the seam's own constants.
     // The exclusions route string is also composed by the generated client for the two exclusion
     // writes, so it appears in both sets.
     private static readonly string[] DeclaredRoutes =
@@ -103,7 +103,7 @@ public sealed class AbsentCapabilityTests
             ],
             Enum.GetValues<WhisparrVerbClass>());
 
-        Assert.Equal(DeclaredRoutes.Order().ToList(), RoutesDeclaredByTheClient().Order().ToList());
+        Assert.Equal(DeclaredRoutes.Order().ToList(), RoutesDeclaredByTheSeam().Order().ToList());
     }
 
     // Driven rather than read off a constant, because the generated client composes the route and
@@ -246,6 +246,7 @@ public sealed class AbsentCapabilityTests
                 nameof(Whisparr3Apis),
                 nameof(Whisparr3Gateway),
                 nameof(WhisparrClient),
+                nameof(WhisparrTransport),
             ],
             TypesHoldingAnHttpClient().Order().ToList());
 
@@ -359,12 +360,8 @@ public sealed class AbsentCapabilityTests
         return opened == 0 && closed > 1 ? emitted[1..closed] : null;
     }
 
-    private static IEnumerable<string> RoutesDeclaredByTheClient()
-        => typeof(WhisparrClient)
-            .GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
-            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
-            .Select(field => (string?)field.GetRawConstantValue())
-            .OfType<string>()
+    private static IEnumerable<string> RoutesDeclaredByTheSeam()
+        => OutboundSeamTypes.DeclaredLiterals()
             .Where(value => value.StartsWith("api/", StringComparison.Ordinal));
 
     // Reachable members only: a private helper taking one of the type's own constants is not a call

@@ -491,7 +491,7 @@ public sealed class ThePornDbCatalogueTests
             string.IsNullOrWhiteSpace(key), "no ThePornDB credential is present on this machine");
 
         var catalogue = new ThePornDbCatalogue(
-            new HttpClient { Timeout = WhisparrClient.RequestTimeout },
+            new HttpClient { Timeout = WhisparrTransport.RequestTimeout },
             new ProviderEndpointPort(Configured(key!)),
             new OptionsStore(new FakeStore()),
             new ProviderPacer(),

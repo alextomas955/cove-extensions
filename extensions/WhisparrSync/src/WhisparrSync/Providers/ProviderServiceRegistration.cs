@@ -22,9 +22,9 @@ internal static class ProviderServiceRegistration
         services.AddSingleton<ProviderPacer>();
 
         // Each provider carries its own timeout and handler rather than sharing the instance
-        // client's. The bound is read off that client so one setting bounds one attempt everywhere.
+        // transport's. The bound is read off it so one setting bounds one attempt everywhere.
         services
-            .AddHttpClient<StashDbCatalogue>(client => client.Timeout = WhisparrClient.RequestTimeout)
+            .AddHttpClient<StashDbCatalogue>(client => client.Timeout = WhisparrTransport.RequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(Handler)
             .AddTypedClient((client, provider) => new StashDbCatalogue(
                 client,
@@ -35,7 +35,7 @@ internal static class ProviderServiceRegistration
 
         services
             .AddHttpClient<ThePornDbCatalogue>(client =>
-                client.Timeout = WhisparrClient.RequestTimeout)
+                client.Timeout = WhisparrTransport.RequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(Handler)
             .AddTypedClient((client, provider) => new ThePornDbCatalogue(
                 client,
@@ -59,6 +59,6 @@ internal static class ProviderServiceRegistration
         => new()
         {
             AllowAutoRedirect = true,
-            MaxAutomaticRedirections = WhisparrClient.MaxRedirects,
+            MaxAutomaticRedirections = WhisparrTransport.MaxRedirects,
         };
 }
