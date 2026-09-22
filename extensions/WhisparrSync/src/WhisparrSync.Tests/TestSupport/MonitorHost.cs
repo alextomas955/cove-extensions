@@ -66,7 +66,7 @@ internal sealed class MonitorHost : IAsyncDisposable
     private SqliteConnection _connection = null!;
     private int _seeded;
 
-    public RecordingWhisparrClient Client { get; private set; } = null!;
+    public RecordingWhisparrCore Client { get; private set; } = null!;
 
     public OptionsStore Options { get; private set; } = null!;
 
@@ -127,7 +127,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         // acting on the add between the two reads, and it is what the monitor path's own read-back
         // then classifies the outcome from. A single answer would describe an instance that took the
         // add and never held the entity, which is the refused case rather than the ordinary one.
-        host.Client = new RecordingWhisparrClient(Json(200, "{}")) { RequireConfiguredResponses = true }
+        host.Client = Recorder(generation)
             .Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, UnsortedProfiles))
             .Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, OneRootFolder))
             .Answering(
@@ -270,7 +270,14 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     public static WhisparrResponse Json(int status, string body)
-        => RecordingWhisparrClient.Json(status, body);
+        => RecordingWhisparrCore.Json(status, body);
+
+    // A case naming no generation drives v3, which most do. The recorder declares exactly the roles
+    // that generation's instance declares, so a v2 case cannot reach a role v2 does not hold.
+    private static RecordingWhisparrCore Recorder(WhisparrGeneration generation)
+        => generation == WhisparrGeneration.V2
+            ? new RecordingWhisparrV2Client(Json(200, "{}")) { RequireConfiguredResponses = true }
+            : new RecordingWhisparrV3Client(Json(200, "{}")) { RequireConfiguredResponses = true };
 
     public string RouteFor(string kind, int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");

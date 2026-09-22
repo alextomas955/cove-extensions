@@ -170,13 +170,10 @@ public sealed partial class WhisparrSync
                 SyncRegisters.Scenes => new SyncPreviewAiming(
                     target.Binding.Generation,
                     SyncRegisters.Scenes,
-                    (asked, batchCt) => target.Capabilities
-                        .Obtain<IWhisparrSceneStatusReading>()
-                        .Match(
-                            reads => reads.ReduceHeldScenesAsync(
-                                asked, batchCt),
-                            _ => throw new InvalidOperationException(
-                                "A scene count reached a target holding no scene-status read.")),
+                    (asked, batchCt) => target.Reads is IWhisparrSceneStatusReading reads
+                        ? reads.ReduceHeldScenesAsync(asked, batchCt)
+                        : throw new InvalidOperationException(
+                            "A scene count reached a target holding no scene-status read."),
                     HeldSites: null),
 
                 SyncRegisters.Sites => new SyncPreviewAiming(
@@ -186,13 +183,10 @@ public sealed partial class WhisparrSync
                     (asked, batchCt) => ReduceHeldSitesAsync(
                         services.GetRequiredService<ISiteNumberPort>(),
                         target.Binding,
-                        (numbers, numbersCt) => target.Capabilities
-                            .Obtain<IWhisparrHeldSiteReading>()
-                            .Match(
-                                reads => reads.ReduceHeldSitesAsync(
-                                    numbers, numbersCt),
-                                _ => throw new InvalidOperationException(
-                                    "A site count reached a target holding no held-site read.")),
+                        (numbers, numbersCt) => target.Reads is IWhisparrHeldSiteReading reads
+                            ? reads.ReduceHeldSitesAsync(numbers, numbersCt)
+                            : throw new InvalidOperationException(
+                                "A site count reached a target holding no held-site read."),
                         asked,
                         batchCt)),
 
@@ -421,10 +415,8 @@ public sealed partial class WhisparrSync
                 services.GetRequiredService<ICredentialPort>(),
                 services.GetRequiredService<IWhisparrInstanceFactory>(),
                 runCt).ConfigureAwait(false) is not { } target
-            || target.Capabilities.Obtain<IWhisparrSiteRegistrationActing>()
-                .Match<IWhisparrSiteRegistrationActing?>(held => held, _ => null) is not { } acting
-            || target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<IWhisparrStudioActing?>(held => held, _ => null) is not { } studios)
+            || target.Reads is not IWhisparrSiteRegistrationActing acting
+            || target.Reads is not IWhisparrStudioActing studios)
         {
             return null;
         }
@@ -565,10 +557,8 @@ public sealed partial class WhisparrSync
             IServiceProvider services, SyncLibraryBatch batch, MonitoringTarget target)
     {
         if (!batch.AlsoMonitor
-            || target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
-                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } monitoring
-            || target.Capabilities.Obtain<IWhisparrSiteSceneReading>()
-                .Match<IWhisparrSiteSceneReading?>(held => held, _ => null) is not { } rows)
+            || target.Reads is not IWhisparrSceneMonitorActing monitoring
+            || target.Reads is not IWhisparrSiteSceneReading rows)
         {
             return null;
         }
@@ -606,14 +596,12 @@ public sealed partial class WhisparrSync
         SyncLibraryBatch batch, MonitoringTarget target)
     {
         if (!batch.AlsoMonitor
-            || target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
-                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } monitoring)
+            || target.Reads is not IWhisparrSceneMonitorActing monitoring)
         {
             return null;
         }
 
-        var reading = target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-            .Match<IWhisparrSceneStatusReading?>(held => held, _ => null);
+        var reading = target.Reads as IWhisparrSceneStatusReading;
 
         return async (identity, offered, ct) => SceneMonitorTally.For(
             await MonitorOfferedSceneAsync(target, monitoring, reading, identity, offered, ct)
@@ -692,14 +680,12 @@ public sealed partial class WhisparrSync
     // library holds, and a site entry stands in only where no per-scene entry exists.
     private static SyncRegisters? SyncPassFor(MonitoringTarget target)
     {
-        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-            .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not null)
+        if (target.Reads is IWhisparrSceneStatusReading)
         {
             return SyncRegisters.Scenes;
         }
 
-        return target.Capabilities.Obtain<IWhisparrSiteRegistrationActing>()
-            .Match<IWhisparrSiteRegistrationActing?>(held => held, _ => null) is not null
+        return target.Reads is IWhisparrSiteRegistrationActing
                 ? SyncRegisters.Sites
                 : null;
     }

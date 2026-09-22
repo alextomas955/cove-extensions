@@ -176,11 +176,9 @@ public sealed partial class WhisparrSync
             return (null, refusal);
         }
 
-        var capabilities = resolved.Target.Capabilities;
-        if (capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading
-            || capabilities.Obtain<TActing>().Match<TActing?>(held => held, _ => null)
-                is not { } acting)
+        var instance = resolved.Target.Reads;
+        if (instance is not IWhisparrSceneStatusReading reading
+            || instance is not TActing acting)
         {
             return (null, SceneRefusalKind.CapabilityAbsentOnThisGeneration);
         }
@@ -212,11 +210,9 @@ public sealed partial class WhisparrSync
             return (null, refusal);
         }
 
-        var capabilities = resolved.Target.Capabilities;
-        if (capabilities.Obtain<IWhisparrSceneExclusionReading>()
-                .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null) is not { } reading
-            || capabilities.Obtain<IWhisparrSceneExclusionActing>()
-                .Match<IWhisparrSceneExclusionActing?>(held => held, _ => null) is not { } acting)
+        var instance = resolved.Target.Reads;
+        if (instance is not IWhisparrSceneExclusionReading reading
+            || instance is not IWhisparrSceneExclusionActing acting)
         {
             return (null, SceneRefusalKind.CapabilityAbsentOnThisGeneration);
         }

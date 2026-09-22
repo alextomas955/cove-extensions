@@ -651,9 +651,9 @@ public sealed class NonGrabbingBodyTests
         foreach (var verb in nonGrabbing)
         {
             await using var host = await MonitorHost.CreateAsync();
-            host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
-            host.Client.Answering(nameof(RecordingWhisparrClient.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
-            host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrCore.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
             host.Client
                 .Answering(
                     nameof(IWhisparrStudioActing.ReadStudioAsync),
@@ -707,32 +707,17 @@ public sealed class NonGrabbingBodyTests
                 generation => GenerationCapabilities.CapabilitiesOf(generation).Contains(grabbing)));
     }
 
-    // Both generations hold the capability, so absence is not what keeps a monitoring path from
-    // grabbing. What does is that the member lives on that role alone and no monitoring path
-    // obtains it, which the whole-gesture case above asserts behaviourally. A generation this
-    // product does not manage holds nothing, and is what a refusal is asserted over.
+    // Both instances declare the role, so absence is not what keeps a monitoring path from
+    // grabbing. What does is that the member lives on that role alone and no monitoring path asks
+    // for it, which the whole-gesture case above asserts behaviourally.
     [Fact]
     public void TheGrabbingRoleIsReachedOnlyByAskingForItByName()
     {
         Assert.All(
-            ComposedAdds.Generations,
-            generation =>
-            {
-                var capabilities = GenerationCapabilities.For(
-                    generation,
-                    new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
+            new[] { typeof(WhisparrV3Instance), typeof(WhisparrV2Instance) },
+            instance => Assert.Contains(typeof(IWhisparrSearchGrabbing), instance.GetInterfaces()));
 
-                Assert.NotNull(
-                    capabilities.Obtain<IWhisparrSearchGrabbing>()
-                        .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
-            });
-
-        var unmanaged = GenerationCapabilities.For((WhisparrGeneration)(-1));
-
-        Assert.Empty(unmanaged.Held);
-        Assert.Null(
-            unmanaged.Obtain<IWhisparrSearchGrabbing>()
-                .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
+        Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
     }
 
     // The same rule as the entity-verb case above, over the per-scene routes.
@@ -756,7 +741,7 @@ public sealed class NonGrabbingBodyTests
         foreach (var verb in nonGrabbing)
         {
             await using var host = await MonitorHost.CreateAsync();
-            host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
             var studioId = await host.SeedStudioAsync(
                 MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 

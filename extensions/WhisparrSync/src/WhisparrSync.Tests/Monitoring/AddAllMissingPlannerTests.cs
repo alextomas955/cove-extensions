@@ -54,8 +54,8 @@ public sealed class AddAllMissingPlannerTests
     [Fact]
     public async Task ASceneTheInstanceAlreadyHoldsIsCountedAsHeldRatherThanRefused()
     {
-        var client = new RecordingWhisparrClient(
-            RecordingWhisparrClient.Json(400, ProbeFixtures.Read(AlreadyHeldFixture)));
+        var client = new RecordingWhisparrV3Client(
+            RecordingWhisparrCore.Json(400, ProbeFixtures.Read(AlreadyHeldFixture)));
 
         var run = await RunOver(client, [FirstScene, SecondScene]);
 
@@ -69,8 +69,8 @@ public sealed class AddAllMissingPlannerTests
     [Fact]
     public async Task ARunThatRegisteredNothingStillRefreshesTheCatalogue()
     {
-        var client = new RecordingWhisparrClient(
-            RecordingWhisparrClient.Json(400, ProbeFixtures.Read(AlreadyHeldFixture)));
+        var client = new RecordingWhisparrV3Client(
+            RecordingWhisparrCore.Json(400, ProbeFixtures.Read(AlreadyHeldFixture)));
 
         await RunOver(client, [FirstScene]);
 
@@ -80,8 +80,8 @@ public sealed class AddAllMissingPlannerTests
     [Fact]
     public async Task AnIdentifierTheInstanceDoesNotRecogniseIsRefusedRatherThanHeld()
     {
-        var client = new RecordingWhisparrClient(
-            RecordingWhisparrClient.Json(400, ProbeFixtures.Read(UnknownIdentifierFixture)));
+        var client = new RecordingWhisparrV3Client(
+            RecordingWhisparrCore.Json(400, ProbeFixtures.Read(UnknownIdentifierFixture)));
 
         var run = await RunOver(client, [FirstScene]);
 
@@ -252,11 +252,11 @@ public sealed class AddAllMissingPlannerTests
             StringComparison.Ordinal);
     }
 
-    private static RecordingWhisparrClient Accepting()
-        => new(RecordingWhisparrClient.Json(201, "{\"id\":31}"));
+    private static RecordingWhisparrV3Client Accepting()
+        => new(RecordingWhisparrCore.Json(201, "{\"id\":31}"));
 
     private static Task<AddAllMissingRun> RunOver(
-        RecordingWhisparrClient client, IReadOnlyList<string> identities)
+        RecordingWhisparrCore client, IReadOnlyList<string> identities)
         => AddAllMissingPlanner.RunAsync(
             Identities(identities),
             (identity, ct) => Register(client, identity, ct),
@@ -264,10 +264,10 @@ public sealed class AddAllMissingPlannerTests
             TestCt);
 
     private static async Task<WhisparrResponse?> Register(
-        RecordingWhisparrClient client, string identity, CancellationToken ct)
+        RecordingWhisparrCore client, string identity, CancellationToken ct)
         => await client.AddSceneAsync(identity, Defaults, ct);
 
-    private static async Task Refresh(RecordingWhisparrClient client, CancellationToken ct)
+    private static async Task Refresh(RecordingWhisparrCore client, CancellationToken ct)
         => await client.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 31, ct);
 
     // Asynchronous between items rather than a list dressed as one, so the run is driven through

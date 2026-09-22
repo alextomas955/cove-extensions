@@ -66,9 +66,7 @@ public sealed partial class WhisparrSync
                 new MissingTrackResult(MissingTrackOutcome.NoInstanceConnected));
         }
 
-        if (target.Capabilities.Obtain<IWhisparrEntityTrackingActing>()
-                .Match<IWhisparrEntityTrackingActing?>(acting => acting, _ => null)
-            is not { } tracking)
+        if (target.Reads is not IWhisparrEntityTrackingActing tracking)
         {
             return TypedResults.Ok(
                 new MissingTrackResult(MissingTrackOutcome.GenerationCannotTrackThisKind));

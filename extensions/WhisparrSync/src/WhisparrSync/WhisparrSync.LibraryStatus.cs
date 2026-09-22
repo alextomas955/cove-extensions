@@ -102,7 +102,7 @@ public sealed partial class WhisparrSync
             ? await cards
                 .ReadEntityCardsAsync(
                     reading,
-                    target.Capabilities.Obtain<IWhisparrEntityBatchReading>(),
+                    target.Reads as IWhisparrEntityBatchReading,
                     entityKind,
                     target.Binding,
                     coveIds,
@@ -120,9 +120,7 @@ public sealed partial class WhisparrSync
             IReadOnlyList<int> coveIds,
             CancellationToken ct)
     {
-        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(reading => reading, _ => null)
-            is not { } sceneStatus)
+        if (target.Reads is not IWhisparrSceneStatusReading sceneStatus)
         {
             return (null, false);
         }
@@ -132,8 +130,8 @@ public sealed partial class WhisparrSync
 
         var answered = await cards.ReadSceneCardsAsync(
                 sceneStatus,
-                target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
-                target.Capabilities.Obtain<IWhisparrSceneBatchReading>(),
+                target.Reads as IWhisparrSceneExclusionReading,
+                target.Reads as IWhisparrSceneBatchReading,
                 target.Binding,
                 identities,
                 ct)

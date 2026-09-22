@@ -124,7 +124,7 @@ public sealed class RegistrationIdempotencyTests
         var client = ClientAnswering(
             listBefore: ListHolding(Address), listAfter: ListHolding(Address));
         client.Answering(
-            nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrClient.Json(202, "{}"));
+            nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrCore.Json(202, "{}"));
 
         var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
             .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
@@ -143,7 +143,7 @@ public sealed class RegistrationIdempotencyTests
         var client = ClientAnswering(listBefore: "[]", listAfter: "[]");
         client.Answering(
             nameof(IWhisparrClient.CreateNotificationAsync),
-            RecordingWhisparrClient.Json(
+            RecordingWhisparrCore.Json(
                 400,
                 """
                 [{"formattedMessageArguments":[],"severity":"error","errorCode":"PredicateValidator",
@@ -208,7 +208,7 @@ public sealed class RegistrationIdempotencyTests
         var client = ClientAnswering(listBefore: "[]", listAfter: ListHolding(Address));
         client.Answering(
             nameof(IWhisparrClient.ReadNotificationSchemaAsync),
-            RecordingWhisparrClient.Json(
+            RecordingWhisparrCore.Json(
                 200,
                 """
                 [{"implementation":"Webhook","implementationName":"An Echoed Name",
@@ -230,7 +230,7 @@ public sealed class RegistrationIdempotencyTests
     [Fact]
     public async Task AnInstanceHoldingNoRegistrationReadsAsNotRegistered()
     {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"));
 
         var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
             .ReadAsync(Bound(client), TestCt);
@@ -239,27 +239,30 @@ public sealed class RegistrationIdempotencyTests
         Assert.Null(outcome.StoredAddress);
     }
 
-    private static RecordingWhisparrClient ClientAnswering(
+    // The recorder for the generation, because the fields a registration carries come off the role
+    // the instance declares and the two generations declare different ones.
+    private static RecordingWhisparrCore ClientAnswering(
         string listBefore, string listAfter, WhisparrGeneration generation = WhisparrGeneration.V3)
     {
-        var client = new RecordingWhisparrClient(
-            RecordingWhisparrClient.Json(200, "[]"),
-            new WhisparrBinding(generation, Instance, ApiKey));
+        var binding = new WhisparrBinding(generation, Instance, ApiKey);
+        RecordingWhisparrCore client = generation == WhisparrGeneration.V2
+            ? new RecordingWhisparrV2Client(RecordingWhisparrCore.Json(200, "[]"), binding)
+            : new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"), binding);
         client.Answering(
             nameof(IWhisparrClient.ReadNotificationSchemaAsync),
-            RecordingWhisparrClient.Json(200, Schema));
+            RecordingWhisparrCore.Json(200, Schema));
         client.Answering(
             nameof(IWhisparrClient.ListNotificationsAsync),
-            RecordingWhisparrClient.Json(200, listBefore),
-            RecordingWhisparrClient.Json(200, listAfter));
+            RecordingWhisparrCore.Json(200, listBefore),
+            RecordingWhisparrCore.Json(200, listAfter));
         client.Answering(
-            nameof(IWhisparrClient.CreateNotificationAsync), RecordingWhisparrClient.Json(201, "{}"));
+            nameof(IWhisparrClient.CreateNotificationAsync), RecordingWhisparrCore.Json(201, "{}"));
         client.Answering(
-            nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrClient.Json(202, "{}"));
+            nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrCore.Json(202, "{}"));
         return client;
     }
 
-    private static WhisparrBinding Bound(RecordingWhisparrClient client) => client.Binding;
+    private static WhisparrBinding Bound(RecordingWhisparrCore client) => client.Binding;
 
     private static string? UrlFieldOf(JsonNode body)
         => ((JsonArray)body["fields"]!)

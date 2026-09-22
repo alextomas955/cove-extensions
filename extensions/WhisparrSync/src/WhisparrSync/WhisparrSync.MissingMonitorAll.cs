@@ -77,8 +77,7 @@ public sealed partial class WhisparrSync
 
         // A generation registering no scene add has no implementation to hand over, so there is
         // nothing to compose and no run to start.
-        if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null)
+        if (target.Reads is not IWhisparrMissingSceneActing)
         {
             return TypedResults.Ok(
                 new MissingBulkEnqueued(null, MissingRefusalKind.WhisparrKeepsNoSceneRecords));

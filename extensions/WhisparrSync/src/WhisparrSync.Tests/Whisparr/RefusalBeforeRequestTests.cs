@@ -41,22 +41,21 @@ public sealed class RefusalBeforeRequestTests
         Assert.Equal(StoredKey, call.ApiKey);
     }
 
-    // Taken against a real generation gap rather than a set built holding nothing: no route on v2
-    // adds a catalogue item, so its set holds no missing-scene role.
+    // Taken against a real generation gap: no route on v2 adds a catalogue item, so the v2 instance
+    // declares no missing-scene role and the v2 recorder declares none either.
     [Fact]
-    public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
+    public async Task ACapabilityTheGenerationDoesNotHoldIsRefusedWithNothingSent()
     {
-        var client = RecordingWhisparrClient.Reporting(V2StatusFixture);
+        var client = RecordingWhisparrCore.ReportingV2(V2StatusFixture);
         var sent = new StatusRecordingHandler(V2StatusFixture);
         var runner = await RunnerOverAsync(sent, V2Address, StoredKey, WhisparrGeneration.V2);
 
-        var refusal = GenerationCapabilities.For(WhisparrGeneration.V2, client)
-            .Obtain<IWhisparrMissingSceneActing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+        Assert.IsNotAssignableFrom<IWhisparrMissingSceneActing>(client);
+        Assert.DoesNotContain(
+            typeof(IWhisparrMissingSceneActing), typeof(WhisparrV2Instance).GetInterfaces());
+        Assert.DoesNotContain(
+            WhisparrCapability.RegisterMissingScenes,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(client.Verbs);
         Assert.Empty(sent.Calls);
 
@@ -113,7 +112,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
-            GenerationCapabilities.For(WhisparrGeneration.V3).Held);
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
             [
                 WhisparrCapability.OutOfBandCallbackSecret,
@@ -129,7 +128,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
-            GenerationCapabilities.For(WhisparrGeneration.V2).Held);
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
     [Theory]
@@ -171,7 +170,7 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task ABurstAgainstAnUnreachableInstanceProbesItOnce()
     {
-        var unreachable = new UnreachableRootFolders(RecordingWhisparrClient.Reporting(V3StatusFixture));
+        var unreachable = new UnreachableRootFolders(RecordingWhisparrCore.Reporting(V3StatusFixture));
         var roots = await RootPortOverAsync(unreachable, StoredAddress, StoredKey, new MovableClock(Midnight));
 
         for (var delivery = 0; delivery < Burst; delivery++)
@@ -185,7 +184,7 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task ABurstAgainstAnUnconfiguredConnectionSendsNothing()
     {
-        var client = RecordingWhisparrClient.Reporting(V3StatusFixture);
+        var client = RecordingWhisparrCore.Reporting(V3StatusFixture);
         var unconfigured = await RootPortOverAsync(client, "", null, new MovableClock(Midnight));
 
         for (var delivery = 0; delivery < Burst; delivery++)
@@ -206,7 +205,7 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task AnUnreachableInstanceIsAskedAgainOnceTheHeldReadingRunsOut()
     {
-        var unreachable = new UnreachableRootFolders(RecordingWhisparrClient.Reporting(V3StatusFixture));
+        var unreachable = new UnreachableRootFolders(RecordingWhisparrCore.Reporting(V3StatusFixture));
         var clock = new MovableClock(Midnight);
         var roots = await RootPortOverAsync(unreachable, StoredAddress, StoredKey, clock);
 
@@ -226,9 +225,9 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task AnInstanceDeclaringNoRootIsHeldApartFromOneThatCouldNotBeRead()
     {
-        var declaring = RecordingWhisparrClient.Reporting(V3StatusFixture);
+        var declaring = RecordingWhisparrCore.Reporting(V3StatusFixture);
         declaring.Answering(
-            nameof(IWhisparrClient.ReadRootFoldersAsync), RecordingWhisparrClient.Json(200, "[]"));
+            nameof(IWhisparrClient.ReadRootFoldersAsync), RecordingWhisparrCore.Json(200, "[]"));
         var roots = await RootPortOverAsync(
             declaring, StoredAddress, StoredKey, new MovableClock(Midnight));
 
@@ -271,7 +270,7 @@ public sealed class RefusalBeforeRequestTests
             NullLogger.Instance);
     }
 
-    private sealed class UnreachableRootFolders(RecordingWhisparrClient inner) : IWhisparrClient
+    private sealed class UnreachableRootFolders(RecordingWhisparrCore inner) : IWhisparrClient
     {
         public int Attempts { get; private set; }
 

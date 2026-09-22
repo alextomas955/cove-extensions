@@ -36,36 +36,21 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
     public JsonNode? Body { get; init; }
 }
 
+// Every role member takes the cancellation token its signature declares and records nothing from
+// it, and the members sit here rather than on the two types that declare the roles.
+#pragma warning disable IDE0060, S1172 // The member this stands in for takes it.
+
 // Stands in for the one seam every outbound request leaves through, so a path that reaches no call
 // here contacted the instance not at all. The arguments are recorded rather than a count: a count
 // answers whether a request was made, and the question a refusal has to answer is what would have
 // been sent. No network and no timing behaviour, so an empty log is a fact about the path under
 // test.
-// It implements the whole outbound surface rather than the read half, so an empty Verbs list is
-// evidence about every verb the product can issue, not only about the ones on the read-and-configure
-// interface. One class rather than a second recorder beside it: two logs with independent
-// ordering would let an assertion that a path issued nothing be read off a list that could never
-// have held the call in question.
-internal sealed class RecordingWhisparrClient(WhisparrResponse answer, WhisparrBinding? binding = null)
-    : IWhisparrClient,
-        IWhisparrStudioActing,
-        IWhisparrPerformerActing,
-        IWhisparrMissingSceneActing,
-        IWhisparrSiteRegistrationActing,
-        IWhisparrReflectOwnedActing,
-        IWhisparrSearchGrabbing,
-        IWhisparrSceneSearchGrabbing,
-        IWhisparrSceneStatusReading,
-        IWhisparrSceneExclusionReading,
-        IWhisparrSceneMonitorActing,
-        IWhisparrSceneExclusionActing,
-        IWhisparrSiteSceneReading,
-        IWhisparrHeldSiteReading,
-        IWhisparrEntityBatchReading,
-        IWhisparrSceneBatchReading,
-        IWhisparrEntityCatalogueReading,
-        IWhisparrEntityTrackingActing,
-        IWhisparrInstanceFilesystemReading
+// Every member of every role lives here and every call is appended to one ordered log, so an
+// assertion that a path issued nothing reads a list that could have held the call in question.
+// Which roles a case can reach is the interface list its generation's type declares below, so a v2
+// path cannot obtain a role v2 does not hold.
+internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrBinding? binding = null)
+    : IWhisparrClient
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -394,7 +379,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer, WhisparrB
         => RecordActing(
             new ActingCall(nameof(SearchSceneAsync), Binding.BaseAddress, Binding.ApiKey) { EntityId = sceneId });
 
-    public RecordingWhisparrClient Answering(string verb, params WhisparrResponse[] answers)
+    public RecordingWhisparrCore Answering(string verb, params WhisparrResponse[] answers)
     {
         NotificationAnswers[verb] = new Queue<WhisparrResponse>(answers);
         return this;
@@ -403,7 +388,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer, WhisparrB
     public static WhisparrResponse Json(int status, string body)
         => new(status, JsonContentType, body);
 
-    public static RecordingWhisparrClient Reporting(string fixtureFileName)
+    public static RecordingWhisparrV3Client Reporting(string fixtureFileName)
+        => new(new WhisparrResponse(200, JsonContentType, ProbeFixtures.Read(fixtureFileName)));
+
+    public static RecordingWhisparrV2Client ReportingV2(string fixtureFileName)
         => new(new WhisparrResponse(200, JsonContentType, ProbeFixtures.Read(fixtureFileName)));
 
     private Task<WhisparrResponse> Record(string verb, int? id, JsonNode? body)
@@ -637,6 +625,54 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer, WhisparrB
 
         return queued.Count == 1 ? queued.Peek() : queued.Dequeue();
     }
+}
+
+
+#pragma warning restore IDE0060, S1172
+
+// The role list of WhisparrV3Instance, and nothing beyond it.
+internal sealed class RecordingWhisparrV3Client(
+    WhisparrResponse answer, WhisparrBinding? binding = null)
+    : RecordingWhisparrCore(answer, binding),
+        IWhisparrStudioActing,
+        IWhisparrPerformerActing,
+        IWhisparrMissingSceneActing,
+        IWhisparrReflectOwnedActing,
+        IWhisparrSearchGrabbing,
+        IWhisparrSceneSearchGrabbing,
+        IWhisparrSceneStatusReading,
+        IWhisparrSceneExclusionReading,
+        IWhisparrEntityBatchReading,
+        IWhisparrSceneBatchReading,
+        IWhisparrEntityCatalogueReading,
+        IWhisparrEntityTrackingActing,
+        IWhisparrSceneMonitorActing,
+        IWhisparrSceneExclusionActing,
+        IWhisparrInstanceFilesystemReading,
+        IOutOfBandSecretRegistration
+{
+    public OutOfBandSecretField Carry(string secret) => new V3HeaderSecretRegistration().Carry(secret);
+}
+
+// The role list of WhisparrV2Instance, and nothing beyond it.
+internal sealed class RecordingWhisparrV2Client(
+    WhisparrResponse answer, WhisparrBinding? binding = null)
+    : RecordingWhisparrCore(answer, binding),
+        IWhisparrStudioActing,
+        IWhisparrSiteRegistrationActing,
+        IWhisparrReflectOwnedActing,
+        IWhisparrSearchGrabbing,
+        IWhisparrEntityBatchReading,
+        IWhisparrEntityCatalogueReading,
+        IWhisparrEntityTrackingActing,
+        IWhisparrSceneMonitorActing,
+        IWhisparrSiteSceneReading,
+        IWhisparrHeldSiteReading,
+        IWhisparrInstanceFilesystemReading,
+        IOutOfBandSecretRegistration
+{
+    public OutOfBandSecretField Carry(string secret)
+        => new V2BasicAuthSecretRegistration().Carry(secret);
 }
 
 // Kind and ForeignId are set for an entity probe, RemoteId for a per-scene read.

@@ -79,7 +79,7 @@ public sealed class LibraryStatusBatchTests
         var read = await new LibraryStatusPort(Resolving, NullLogger.Instance)
             .ReadEntityCardsAsync(
                 perCard.AnswerAsync,
-                new Capability<IWhisparrEntityBatchReading>(batch, null),
+                batch,
                 WhisparrEntityKind.Studio,
                 Bound(WhisparrGeneration.V3),
                 [1, 2],
@@ -98,7 +98,7 @@ public sealed class LibraryStatusBatchTests
         var read = await new LibraryStatusPort(Unmatched, NullLogger.Instance)
             .ReadEntityCardsAsync(
                 new CountingRead().AnswerAsync,
-                new Capability<IWhisparrEntityBatchReading>(batch, null),
+                batch,
                 WhisparrEntityKind.Studio,
                 Bound(WhisparrGeneration.V3),
                 [1],
@@ -139,7 +139,7 @@ public sealed class LibraryStatusBatchTests
         => (await new LibraryStatusPort(Resolving, NullLogger.Instance)
             .ReadEntityCardsAsync(
                 perCard.AnswerAsync,
-                new Capability<IWhisparrEntityBatchReading>(batch, null),
+                batch,
                 WhisparrEntityKind.Studio,
                 Bound(WhisparrGeneration.V3),
                 coveIds,
@@ -150,9 +150,8 @@ public sealed class LibraryStatusBatchTests
         => (await new LibraryStatusPort(Unmatched, NullLogger.Instance)
             .ReadSceneCardsAsync(
                 new RefusingSceneReading(),
-                GenerationCapabilities.For(WhisparrGeneration.V2)
-                    .Obtain<IWhisparrSceneExclusionReading>(),
-                new Capability<IWhisparrSceneBatchReading>(batch, null),
+                exclusions: null,
+                batch,
                 Bound(WhisparrGeneration.V3),
                 [.. remoteIds.Select((id, index) => new LibraryCardIdentity(index + 1, id))],
                 TestCt)).Readings;

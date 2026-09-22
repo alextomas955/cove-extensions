@@ -135,7 +135,7 @@ internal sealed class ConnectionTester(WhisparrTransport transport, ILogger<Conn
         return new ConnectionTestView(
             kind,
             connected,
-            connected is { } generation ? GenerationCapabilities.For(generation).Held : null,
+            connected is { } generation ? GenerationCapabilities.CapabilitiesOf(generation) : null,
             BoundedText.Shorten(
                 reading.Version, WhisparrSyncGenerationConnection.RecordedVersionMaxLength),
             BoundedText.Shorten(reading.Branch, ReportedNameMaxLength),

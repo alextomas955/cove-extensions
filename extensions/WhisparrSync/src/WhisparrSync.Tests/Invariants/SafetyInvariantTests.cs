@@ -598,11 +598,11 @@ public sealed class SafetyInvariantTests
 
     // What one instance answered a scene it took, and one it already held.
     private static WhisparrResponse SceneAccepted
-        => RecordingWhisparrClient.Json(
+        => RecordingWhisparrCore.Json(
             201, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-accepted.json"));
 
     private static WhisparrResponse SceneAlreadyHeld
-        => RecordingWhisparrClient.Json(
+        => RecordingWhisparrCore.Json(
             400, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-already-held.json"));
 
     // The v2 identifiers are the ones that generation's own lookup was measured answering, because
@@ -666,12 +666,12 @@ public sealed class SafetyInvariantTests
 
         public Ingest()
         {
-            Client = new RecordingWhisparrClient(
-                RecordingWhisparrClient.Json(200, "[]"),
+            Client = new RecordingWhisparrV3Client(
+                RecordingWhisparrCore.Json(200, "[]"),
                 new WhisparrBinding(WhisparrGeneration.V3, Ingest.BaseAddress, ApiKey));
             Client.Answering(
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
-                RecordingWhisparrClient.Json(
+                RecordingWhisparrCore.Json(
                     200, new JsonArray(new JsonObject { ["path"] = WhisparrRoot }).ToJsonString()));
             Client.Answering(nameof(IWhisparrClient.ReadHistoryAsync), HistoryNaming(BackstopTail));
 
@@ -703,7 +703,7 @@ public sealed class SafetyInvariantTests
 
         public FakeStore Store { get; } = new();
 
-        public RecordingWhisparrClient Client { get; }
+        public RecordingWhisparrCore Client { get; }
 
         public RecordingLibrary Library { get; } =
             new(reached: true, [FirstLibraryRoot, SecondLibraryRoot]);
@@ -744,7 +744,7 @@ public sealed class SafetyInvariantTests
 
         // One page holding one import record, naming a file below the reporting root.
         private static WhisparrResponse HistoryNaming(string tail)
-            => RecordingWhisparrClient.Json(
+            => RecordingWhisparrCore.Json(
                 200,
                 new JsonObject
                 {

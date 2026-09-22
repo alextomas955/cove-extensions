@@ -168,7 +168,7 @@ public sealed class EndpointPermissionTests
         var (store, options) = NewStore();
         var credentials = new RecordingCredentialPort();
         var identities = new RecordingCardIdentities();
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"));
 
         var refused = await global::WhisparrSync.WhisparrSync.SceneDetailAsync(
             1,
@@ -215,7 +215,7 @@ public sealed class EndpointPermissionTests
         var (store, options) = NewStore();
         var credentials = new RecordingCredentialPort();
         var identities = new RecordingCardIdentities();
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"));
 
         var refused = await SceneWriteAsync(
             verb,

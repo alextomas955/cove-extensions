@@ -44,7 +44,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task AHeldStudioIsSearchedOnceWithTheInstancesOwnIdentifier()
     {
         await using var host = await HoldingHost(HeldAndMonitored);
-        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
 
         var answered = await SearchAsync(host, "studio", studioId);
@@ -69,7 +69,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task OnePressIssuesOneGrabbingClassVerbAndNoSecond()
     {
         await using var host = await HoldingHost(HeldAndMonitored);
-        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
 
         Assert.Equal(MonitorRefusalKind.None, (await SearchViewAsync(host, "studio", studioId)).Refusal);
@@ -137,13 +137,13 @@ public sealed class SearchGrabbingRouteTests
     }
 
     // Read out of the shipped source, so the count is asserted by something that runs. The role is
-    // the boundary: a call site that never asks for it by name has no implementation to express the
-    // request through. A directory that cannot be found throws, because an assertion over no files
-    // would report the guarantee as held whatever the product does.
+    // the boundary: a call site that never reaches for it by name has no implementation to express
+    // the request through. A directory that cannot be found throws, because an assertion over no
+    // files would report the guarantee as held whatever the product does.
     [Fact]
-    public void ExactlyOneProductionCallSiteObtainsTheGrabbingRole()
+    public void ExactlyOneProductionCallSiteReachesForTheGrabbingRole()
     {
-        var sites = ObtainingTheGrabbingRole();
+        var sites = ReachingForTheGrabbingRole();
 
         Assert.Single(sites);
         Assert.StartsWith(
@@ -162,9 +162,9 @@ public sealed class SearchGrabbingRouteTests
     public async Task NoOtherMountedGestureReachesAGrabbingVerbAtAnyPosition()
     {
         await using var host = await HoldingHost(HeldNotMonitored, HeldAndMonitored);
-        host.Client.Answering(nameof(RecordingWhisparrClient.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
         await host.SeedStudioFileAsync(studioId, "/library/vixen/2026");
 
@@ -193,7 +193,7 @@ public sealed class SearchGrabbingRouteTests
     {
         await using var host = await AnsweringStudioReads(
             Held(HeldAndMonitored), Held(SecondHeldAndMonitored));
-        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var first = await SeededStudio(host);
         var second = await SeededStudio(host);
         var progress = new RecordingJobProgress();
@@ -218,7 +218,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task AnEntityTheInstanceDoesNotHoldIsLeftOutAndTheRestAreStillSearched()
     {
         await using var host = await AnsweringStudioReads(NotHeld, Held(HeldAndMonitored));
-        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var absent = await SeededStudio(host);
         var held = await SeededStudio(host);
         var progress = new RecordingJobProgress();
@@ -324,9 +324,16 @@ public sealed class SearchGrabbingRouteTests
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
     }
 
-    private static IReadOnlyList<string> ObtainingTheGrabbingRole()
+    // A role is reached by testing an instance for it or casting to it. A base list naming the
+    // interface is a declaration, not a reach, and matches none of these.
+    private static IReadOnlyList<string> ReachingForTheGrabbingRole()
     {
-        var obtaining = "Obtain<" + nameof(IWhisparrSearchGrabbing) + ">";
+        string[] reaching =
+        [
+            " as " + nameof(IWhisparrSearchGrabbing),
+            " is " + nameof(IWhisparrSearchGrabbing),
+            "(" + nameof(IWhisparrSearchGrabbing) + ")",
+        ];
 
         return
         [
@@ -335,7 +342,8 @@ public sealed class SearchGrabbingRouteTests
                 .OrderBy(file => file, StringComparer.Ordinal)
                 .SelectMany(file => File.ReadLines(file)
                     .Select((text, index) => (File: file, Number: index + 1, Text: text))
-                    .Where(line => line.Text.Contains(obtaining, StringComparison.Ordinal))
+                    .Where(line => reaching.Any(
+                        token => line.Text.Contains(token, StringComparison.Ordinal)))
                     .Select(line => $"{Path.GetFileName(line.File)}:{line.Number}"))
         ];
     }

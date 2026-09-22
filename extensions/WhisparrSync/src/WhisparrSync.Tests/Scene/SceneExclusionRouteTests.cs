@@ -36,7 +36,7 @@ public sealed class SceneExclusionRouteTests
     public async Task ExcludingASceneTheListDoesNotNameSendsTheSceneIdentifier()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneExclusionAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneExclusionAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host);
 
         var result = await host.SceneActionAsync(coveId, Exclude);
@@ -51,7 +51,7 @@ public sealed class SceneExclusionRouteTests
     public async Task RemovingAnExclusionTheListNamesSendsTheExclusionsOwnIdentifier()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.RemoveSceneExclusionAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.RemoveSceneExclusionAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host);
         host.Client.ExclusionIdByScene[SceneId] = ExclusionOnTheInstance;
 
@@ -103,7 +103,7 @@ public sealed class SceneExclusionRouteTests
     public async Task TheReadReportsWhetherTheInstancesListNamesTheScene(bool onTheList)
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host);
         if (onTheList)
         {
@@ -123,7 +123,7 @@ public sealed class SceneExclusionRouteTests
     public async Task AListReadThatDidNotCompleteRefusesTheRead()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host);
         host.Client.ExclusionReadCompletes = false;
 
@@ -140,7 +140,7 @@ public sealed class SceneExclusionRouteTests
     public async Task NeitherHalfReportsASearch(string verb)
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.RemoveSceneExclusionAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.RemoveSceneExclusionAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host);
         host.Client.ExclusionIdByScene[SceneId] = ExclusionOnTheInstance;
 

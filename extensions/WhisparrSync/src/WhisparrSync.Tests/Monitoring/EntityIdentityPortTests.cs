@@ -68,8 +68,8 @@ public sealed class EntityIdentityPortTests
     public async Task EveryActionRouteSendsWhenTheEntityCarriesOneIdentity(string verb)
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, MonitorHost.AddedStudio));
@@ -278,7 +278,7 @@ public sealed class EntityIdentityPortTests
     public async Task UnmonitoringAMonitoredStudioSendsTheFlagFalseOnce()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, MonitorHost.AddedStudio));
@@ -316,7 +316,7 @@ public sealed class EntityIdentityPortTests
     public async Task AScopeChangeSendsTheScopeAskedForAndLeavesTheFlagAsTheInstanceReportsIt()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, MonitorHost.AddedStudio));
