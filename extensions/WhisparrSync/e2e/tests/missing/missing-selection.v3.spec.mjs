@@ -274,7 +274,15 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
   // CASE 6. A run refused before it starts states the reason in a live region, keeps the ticks, and
   // leaves focus where it was, so the reader can fix the named cause and press again.
   //
+  // The ticks are the premise of this case. Read before the press, because a bar that is not on
+  // screen makes the refusal below unobservable and the failure then names the notice rather than
+  // the selection that was supposed to raise it.
   const before = await selectedCount(page);
+  expect(
+    before,
+    `nothing is ticked going into a refused run, so no run can be started to refuse. The page reads "${String(await page.getByRole("status").first().textContent())}"`,
+  ).toBeGreaterThan(0);
+
   await page.route(/\/missing\/bulk-monitor$/, async (route) => {
     await route.fulfill({
       status: 200,

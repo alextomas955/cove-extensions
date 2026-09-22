@@ -141,10 +141,11 @@ test("the grid never blanks between reads, and the pager offers no page that rep
 
   // The scenes the tab lists. A studio the instance holds with no works answers an empty catalogue,
   // which draws the same blank region as a studio it does not hold at all.
-  // More than one page of them, because this spec reads the pager: a catalogue that fits on one page
-  // draws no next-page control and the paging assertions below have nothing to stand on. Numbered so
-  // a title sorts the way the row does, which is what makes "no page repeats another" readable.
-  const catalogue = Array.from({ length: PAGE_CAP + 5 }, (_, index) => ({
+  // More than two pages of them, because this spec pages forward once and then asks for the last
+  // page: with exactly two, that step is already on the last page and its control is correctly
+  // disabled. Numbered so a title sorts the way the row does, which is what makes "no page repeats
+  // another" readable.
+  const catalogue = Array.from({ length: PAGE_CAP * 3 + 5 }, (_, index) => ({
     foreignId: `${BRAZZERS_EXXTRA}-${String(index).padStart(3, "0")}`,
     title: `Catalogue Scene ${String(index).padStart(3, "0")} ${studio.name}`,
   }));
@@ -232,6 +233,14 @@ test("the grid never blanks between reads, and the pager offers no page that rep
       message: "the second page never replaced the first",
     })
     .not.toBe(firstPageTop);
+
+  // The control has to be offered before it can be pressed. Read first, because a pager with one
+  // page leaves it disabled and a press on a disabled control spends the whole test budget waiting
+  // for it to become pressable, reporting a timeout that names nothing.
+  await expect(
+    page.getByRole("button", { name: "Last page" }).first(),
+    `the catalogue does not span pages, so there is no last page to offer. The tab reports "${String(await page.getByRole("status").first().textContent())}" over ${String(catalogue.length)} seeded scenes`,
+  ).toBeEnabled({ timeout: REGION_BUDGET_MS });
 
   // The last page the pager offers carries rows of its own. A provider that clamps a page number
   // past its own last page re-serves that page, so a pager sized from a reported total would offer
