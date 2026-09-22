@@ -145,25 +145,20 @@ internal static class MonitoringProjector
                 ? files
                 : null;
 
-    // The date gate's presence is the whole reading. Its value is never read and never compared
-    // against a clock: what a scope covers on either side of that date is the instance's to decide.
-    // An absent gate is the wider scope on this generation, which MonitorBodyPinTests transcribes.
-    //
     // Null is not a scope. It says which one is in force is unknown, so a caller paints no state
-    // rather than a default. The gate exists on v3's studio resource only, so a performer, v2 and
-    // an unmonitored entity all answer null.
+    // rather than a default. An unmonitored entity answers null, and so does a generation whose
+    // reader holds no scope reading at all.
     internal static MonitorScope? ScopeIn(
         WhisparrEntityKind kind, WhisparrGeneration generation, bool monitored, string? body)
     {
-        if (kind != WhisparrEntityKind.Studio
-            || generation != WhisparrGeneration.V3
-            || !monitored
-            || AsObject(body) is not { } entity)
+        if (!monitored || AsObject(body) is not { } entity)
         {
             return null;
         }
 
-        return entity["afterDate"] is null ? MonitorScope.AllScenes : MonitorScope.FutureScenes;
+        return WhisparrInstanceFactory.ReadingFor(generation) is IWhisparrScopeReading reading
+            ? reading.ScopeIn(kind, entity)
+            : null;
     }
 
     internal static JsonObject? AsObject(string? body)

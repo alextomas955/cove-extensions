@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
 
@@ -110,22 +111,13 @@ internal static class HistoryProjector
         return new HistoryReading(
             HistoryProjectionOutcome.Projected,
             eventType,
-            new ImportCandidate(generation, eventType, path, null, RemoteIdOf(generation, record)));
+            new ImportCandidate(
+                generation,
+                eventType,
+                path,
+                null,
+                WhisparrInstanceFactory.ReadingFor(generation).HistoryRemoteId(record)));
     }
-
-    // Each generation names its own entity and identifier member, matching what the live channel
-    // reads for that generation, so an arrival through either channel is the same scene. A record
-    // with no embedded entity yields no identifier and is imported without one.
-    private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject record)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => IdentifierOn(record, "movie", "stashId"),
-            WhisparrGeneration.V2 => IdentifierOn(record, "episode", "tvdbId"),
-            _ => null,
-        };
-
-    private static string? IdentifierOn(JsonObject record, string entity, string member)
-        => RemoteIdGuard.Identifying(ValueOf(record[entity] as JsonObject, member));
 
     private static DateTimeOffset? InstantOf(JsonObject? record)
         => ValueOf(record, "date") is { } rendered
