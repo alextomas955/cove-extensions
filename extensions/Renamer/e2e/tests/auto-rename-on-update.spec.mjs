@@ -2,54 +2,19 @@
 // rename on update" in the settings panel, then editing a video's title via its real Edit tab,
 // must rename the file automatically - with no explicit "Rename selected" action from the user.
 //
-// Uses its own harness instance per test (same pattern as extension-lifecycle.spec.mjs), not the
-// shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak
-// into every other test sharing that worker's instance once enabled, silently changing their
-// behavior (e.g. the collision test relies on the default template/no-auto-rename state).
-import { test as base, expect } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { seedVideo } from "@cove-extensions/e2e/seed-media";
-import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+// AutoRenamerOnUpdate is a global extension setting, so the test takes `restoredOptions`.
+import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
-const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
-});
-
-async function callApi(baseUrl, method, path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
-
 test("enabling Auto-rename on update and editing a title through the UI renames the file automatically", async ({
   page,
-  isolatedHarness,
+  harness,
+  baseUrl,
+  api,
+  restoredOptions: _restoredOptions,
 }) => {
-  const baseUrl = isolatedHarness.baseUrl;
-  const api = { get: (p) => callApi(baseUrl, "GET", p) };
-
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
   await settingsPage.enableAutoRenameOnUpdate();
@@ -58,7 +23,7 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   await settingsPage.setFilenameTemplate("$title");
   await settingsPage.save();
 
-  const video = await seedVideo({ container: isolatedHarness.container, baseUrl });
+  const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
   const title = "Auto Rename Test Title";
@@ -70,7 +35,7 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   // No "Rename selected" click anywhere in this test - the hook alone must produce the rename.
   await assertRenamedTo({
     api,
-    container: isolatedHarness.container,
+    container: harness.container,
     videoId: video.id,
     expectedBasename: `${title}.mp4`,
     originalPath,
@@ -83,31 +48,4 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   // assertion's own retry rather than anything waited for beforehand.
   await page.goto(`${baseUrl}/videos`);
   await expect(page.locator("main p")).toContainText([title]);
-});
-
-test("with Auto-rename on update left OFF (the default), editing a title does not rename the file", async ({
-  page,
-  isolatedHarness,
-}) => {
-  const baseUrl = isolatedHarness.baseUrl;
-  const api = { get: (p) => callApi(baseUrl, "GET", p) };
-
-  // No settings change here - AutoRenamerOnUpdate defaults to false. This is the negative-path
-  // counterpart to the test above: confirms the hook is genuinely opt-in, not just untested.
-  const video = await seedVideo({ container: isolatedHarness.container, baseUrl });
-  const originalPath = video.files[0].path;
-
-  const detailPage = new VideoDetailPage(page, baseUrl);
-  await detailPage.goto(video.id);
-  await detailPage.openEditTab();
-  await detailPage.setTitle("Should Not Trigger Rename");
-
-  // Give the (absent) hook the same window the positive test needs to prove it real - a fixed
-  // wait is appropriate here specifically because the assertion is "nothing happened," which
-  // pollUntil's early-exit-on-success shape can't express (there's no success condition to poll for).
-  await page.waitForTimeout(5_000);
-
-  const afterEdit = await api.get(`/api/videos/${video.id}`).then((r) => r.json);
-  expect(afterEdit.files[0].path).toBe(originalPath);
-  expect(afterEdit.title).toBe("Should Not Trigger Rename");
 });

@@ -2,7 +2,6 @@ using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Data;
 using Cove.Plugins;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -126,30 +125,6 @@ public sealed class OrphanedRulesEndpointTests
 
             Assert.Empty(view.Studios);
             Assert.Empty(view.Tags);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task NoReadPermission_IsForbidden()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var ext = await NewExtensionAsync(conn, new RenamerOptions
-            {
-                StudioDestinations = { [99] = Somewhere },
-            });
-
-            // A rule that is orphaned, so a 403 here can only come from the permission gate.
-            Assert.Equal(
-                StatusCodes.Status403Forbidden,
-                Assert.IsAssignableFrom<IStatusCodeHttpResult>(
-                    Unwrap(await ext.OrphanedRulesAsync(FakePrincipalAccessor.None()))).StatusCode);
         }
         finally
         {

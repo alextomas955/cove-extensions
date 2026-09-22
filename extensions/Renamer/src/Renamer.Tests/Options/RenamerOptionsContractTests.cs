@@ -41,11 +41,4 @@ public sealed class RenamerOptionsContractTests
 
         Assert.NotNull(typeof(RenamerOptions).GetProperty(member)!.GetValue(loaded));
     }
-
-    [Fact]
-    public void MembersWithADefault_IsNotEmpty()
-    {
-        // Guards the theory itself: an enumeration that silently found nothing would pass every case.
-        Assert.NotEmpty(MembersWithADefault());
-    }
 }

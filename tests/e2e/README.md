@@ -94,6 +94,9 @@ each against its own isolated Cove instance. This is safe because:
   instead (see `extension-lifecycle.spec.mjs`'s own `isolatedHarness` fixture). Toggling or
   removing the one shared extension install would otherwise race against any other test in the
   same worker that's mid-assertion against it.
+- A test that only saves an extension setting stays on the shared harness and puts the stored
+  document back when it ends, since a worker's tests run one at a time. Renamer's `restoredOptions`
+  fixture in `extensions/Renamer/e2e/lib/renamer-fixtures.mjs` does this.
 
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
 than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
@@ -306,9 +309,10 @@ falsifiable there. The flag is instance-global, hence
 `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` per test rather than per worker;
 `createRestrictedUser()` then mints the non-owner principal Cove's row-level filters actually apply
 to, which the owner's own token bypasses - pass its token to `createApiClient` to drive a spec as
-that user while the harness handle keeps the owner's. Renamer's `auth-enabled.spec.mjs` is the worked
-example of the instance setup, including the anonymous-read assertion that keeps such a spec from
-passing for the trivial reason that authentication was never on.
+that user while the harness handle keeps the owner's. Renamer's `authorization-filters.spec.mjs` is the
+worked example of the instance setup, including the assertion that keeps such a spec from passing for
+the trivial reason that authentication was never on: the restricted principal must not hold the
+wildcard permission the bypass principal carries.
 
 It does not (yet):
 

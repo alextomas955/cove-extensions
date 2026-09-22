@@ -6,10 +6,8 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// Regression for the auto-renamer hook: a matched routing rule must relocate the just-edited
-/// item to its configured destination - the same on-disk outcome the manual batch and <c>/preview</c>
-/// produce. Before the fix the hook called the empty-lookups overload, so auto-renames silently never
-/// relocated even when a matching destination rule was configured.
+/// The auto-renamer hook resolves destinations as <c>/preview</c> and the manual batch do: a matched
+/// routing rule relocates the just-edited item, and an unmatched one takes the default destination.
 /// </summary>
 public sealed class AutoRenamerRoutingTests
 {
@@ -66,32 +64,41 @@ public sealed class AutoRenamerRoutingTests
     }
 
     [Fact]
-    public async Task FlagOn_UnmatchedItem_NoDefaultDestination_StaysInPlace()
+    public async Task UnmatchedItem_TakesTheDefaultDestination_LikeThePreviewAndTheBatch()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string srcFolder = dir.Root;
+            // The item matches no explicit (tag/studio/path) rule, so it takes the default destination.
+            string srcFolder = Path.Combine(dir.Root, "incoming");
+            string defaultRoot = Path.Combine(dir.Root, "overflow");
+            Directory.CreateDirectory(srcFolder);
+
             string srcPathFwd = srcFolder.Replace('\\', '/');
+            string defaultRootFwd = defaultRoot.Replace('\\', '/');
+
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
-            // No matching rule, and a default destination naming neither a root nor a folder
-            // template → the item is renamed where it stands.
             var options = new RenamerOptions
             {
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
+                FolderRoot = defaultRootFwd,
             };
-            var (ext, _, _) = await EventTestHarness.BuildAsync(db, options, srcPathFwd);
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(
+                db, options, srcPathFwd, defaultRootFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            Assert.True(File.Exists(Path.Combine(srcFolder, "My Film.mkv")));
+            Assert.True(File.Exists(Path.Combine(defaultRoot, "My Film.mkv")));
+            Assert.False(File.Exists(Path.Combine(srcFolder, "raw.mkv")));
+
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.EndsWith("My Film.mkv", pathAfter.Replace('\\', '/'));
+            Assert.Contains("overflow/My Film.mkv", pathAfter.Replace('\\', '/'));
+            Assert.Single(bus.Published); // one acting move → one re-raised event
         }
         finally
         {

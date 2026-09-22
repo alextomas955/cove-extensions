@@ -30,6 +30,7 @@ public sealed class TransportHost : IAsyncDisposable
     private readonly WebApplication _app;
     private readonly SqliteConnection _conn;
     private readonly DbContext _db;
+    private readonly StubJobService _jobs;
 
     /// <summary>A client bound to the in-process server; request paths start at <see cref="BaseRoute"/>.</summary>
     public HttpClient Client { get; }
@@ -40,18 +41,29 @@ public sealed class TransportHost : IAsyncDisposable
     /// </summary>
     public IReadOnlyList<(string Method, string Pattern)> MountedRoutes { get; }
 
+    /// <summary>Every endpoint the extension mounted, carrying the metadata its registration attached.</summary>
+    public IReadOnlyList<RouteEndpoint> Endpoints { get; }
+
+    /// <summary>How many jobs the handlers enqueued.</summary>
+    public int EnqueuedJobs => _jobs.EnqueuedCount;
+
     private TransportHost(
         WebApplication app,
         HttpClient client,
         SqliteConnection conn,
         DbContext db,
-        IReadOnlyList<(string Method, string Pattern)> mountedRoutes)
+        StubJobService jobs,
+        IReadOnlyList<RouteEndpoint> endpoints)
     {
         _app = app;
         Client = client;
         _conn = conn;
         _db = db;
-        MountedRoutes = mountedRoutes;
+        _jobs = jobs;
+        Endpoints = endpoints;
+        MountedRoutes = [.. endpoints.SelectMany(endpoint =>
+            (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? Array.Empty<string>())
+                .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))];
     }
 
     /// <summary>Boots a server serving the extension's routes as the given principal.</summary>
@@ -69,7 +81,8 @@ public sealed class TransportHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(principal);
         builder.Services.AddSingleton<DbContext>(db);
-        builder.Services.AddSingleton<IJobService>(new StubJobService());
+        var jobs = new StubJobService();
+        builder.Services.AddSingleton<IJobService>(jobs);
         builder.Services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         builder.Services.AddRouting();
@@ -84,15 +97,12 @@ public sealed class TransportHost : IAsyncDisposable
         ext.MapEndpoints(app);
         await app.StartAsync();
 
-        var mountedRoutes = ((IEndpointRouteBuilder)app).DataSources
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .SelectMany(endpoint =>
-                (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? Array.Empty<string>())
-                    .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))
             .ToArray();
 
-        return new TransportHost(app, app.GetTestClient(), conn, db, mountedRoutes);
+        return new TransportHost(app, app.GetTestClient(), conn, db, jobs, endpoints);
     }
 
     public async ValueTask DisposeAsync()
@@ -103,11 +113,16 @@ public sealed class TransportHost : IAsyncDisposable
         await _conn.DisposeAsync();
     }
 
-    /// <summary>Accepts any enqueue and never runs it; all other members are unused and throw.</summary>
+    /// <summary>Counts every enqueue and never runs it; all other members are unused and throw.</summary>
     private sealed class StubJobService : IJobService
     {
+        public int EnqueuedCount { get; private set; }
+
         public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-            => "job-1";
+        {
+            EnqueuedCount++;
+            return "job-1";
+        }
 
         public bool Cancel(string jobId) => throw new NotSupportedException();
         public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotSupportedException();

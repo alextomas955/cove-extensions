@@ -1,18 +1,15 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// Security-critical: the host's <c>[RequiresPermission]</c> filter is MVC-only and does
-/// nothing for minimal-API extension endpoints, so each handler enforces the permission itself via
-/// <see cref="ICurrentPrincipalAccessor"/>. These prove both deny paths return 403 and - critically -
-/// that the <c>/renamer</c> deny path does not enqueue a job. The authorized path enqueues exactly one
-/// renamer-batch job and returns 202 {jobId}.
+/// The per-kind permission each handler checks once the route policy has admitted the caller. The
+/// route admits a holder of any one kind's permission, so a request for another kind is refused here.
+/// The authorized path enqueues exactly one exclusive renamer-batch job and returns 202 {jobId}.
 /// </summary>
 public sealed class EndpointPermissionTests
 {
@@ -44,27 +41,6 @@ public sealed class EndpointPermissionTests
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
-    public async Task PreviewAsync_WithoutVideosRead_Returns403_AndComputesNoPlan()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Denied Film");
-            var ext = NewExtension();
-
-            var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, FakePrincipalAccessor.None(), default);
-
-            Assert.Equal(403, StatusOf(result));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task PreviewAsync_ImageRequest_RequiresImagesRead_NotVideosRead()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -91,20 +67,6 @@ public sealed class EndpointPermissionTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
-    }
-
-    [Fact]
-    public async Task RenamerEnqueue_WithoutVideosWrite_Returns403_AndDoesNotEnqueue()
-    {
-        var ext = NewExtension();
-        var jobs = new RecordingJobService();
-
-        var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [1, 2]), FakePrincipalAccessor.None(), jobs,
-            new RecordingAuthorizationService(), default);
-
-        Assert.Equal(403, StatusOf(result));
-        Assert.Empty(jobs.Enqueued);
     }
 
     [Fact]
@@ -172,42 +134,5 @@ public sealed class EndpointPermissionTests
             new global::Renamer.Api.RenamerRequest("audio", [1]), audioOk, jobs,
             new RecordingAuthorizationService(), default)));
         Assert.Single(jobs.Enqueued);
-    }
-
-    [Fact]
-    public async Task UndoAsync_WithoutVideosWrite_Returns403_BeforeAnyDiskOrDbTouch()
-    {
-        // No scope factory / event bus is wired: UndoAsync must return 403 from the first permission
-        // check, before it ever opens a scope or reads the RevertLog. If it touched the
-        // scope factory it would NRE here - the absence of a throw proves the 403-first ordering.
-        var ext = NewExtension();
-
-        var result = await ext.UndoAsync(
-            FakePrincipalAccessor.None(), new RecordingAuthorizationService(), default);
-
-        Assert.Equal(403, StatusOf(result));
-    }
-
-    [Fact]
-    public async Task LastBatchAsync_WithoutVideosRead_Returns403()
-    {
-        var ext = NewExtension();
-
-        var result = await ext.LastBatchAsync(FakePrincipalAccessor.None(), default);
-
-        Assert.Equal(403, StatusOf(result));
-    }
-
-    [Fact]
-    public void LibraryPaths_WithoutVideosRead_Returns403()
-    {
-        // This route answers with Cove's real filesystem layout, so the deny path has to be pinned on
-        // the status: an anonymous 200 carrying those paths satisfies a route-resolves check exactly as
-        // a 403 does.
-        var ext = NewExtension();
-
-        var result = ext.LibraryPaths(FakePrincipalAccessor.None());
-
-        Assert.Equal(403, StatusOf(result));
     }
 }

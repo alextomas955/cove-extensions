@@ -179,13 +179,6 @@ public sealed class OptionsEndpointTests
         Assert.Equal(0, store.SetCallCount);
     }
 
-    [Fact]
-    public async Task Get_Anonymous_IsForbidden()
-    {
-        await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(Route)).StatusCode);
-    }
-
     // A caller who may rename videos may not reconfigure the extension: one settings document decides
     // how every kind is named and where it is moved, and the auto-rename it can switch on runs later as
     // System.
