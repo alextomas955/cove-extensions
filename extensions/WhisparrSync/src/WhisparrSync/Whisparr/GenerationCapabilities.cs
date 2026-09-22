@@ -71,6 +71,20 @@ public static class GenerationCapabilities
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
+    // Whether widening the scope of something already monitored rewrites what that monitoring
+    // already covers. v2 applies the scope it is given to the whole catalogue it holds, so a
+    // narrower scope taken later withdraws the back catalogue again. v3 marks the existing scenes
+    // wanted at the moment the wider scope is taken and leaves them wanted afterwards, so there the
+    // wider scope is a one-way door.
+    //
+    // Not a capability: it describes how a route this product already calls behaves, not whether
+    // the route is there. So it joins neither the enum nor either array.
+    private static readonly Dictionary<WhisparrGeneration, bool> ScopeChangeIsRetroactive = new()
+    {
+        [WhisparrGeneration.V3] = false,
+        [WhisparrGeneration.V2] = true,
+    };
+
     // The authoritative list per generation. An unrecognised generation declares nothing.
     internal static IReadOnlyList<WhisparrCapability> CapabilitiesOf(WhisparrGeneration generation)
         => generation switch
@@ -79,4 +93,13 @@ public static class GenerationCapabilities
             WhisparrGeneration.V2 => V2Capabilities,
             _ => [],
         };
+
+    // Throws on a generation that declared nothing, rather than answering one of the two: a false
+    // here drops the warning a reader sees before a back catalogue is marked wanted, and a true
+    // states that a scope taken back will undo it.
+    internal static bool AScopeChangeIsRetroactiveOn(WhisparrGeneration generation)
+        => ScopeChangeIsRetroactive[generation];
+
+    internal static IReadOnlyCollection<WhisparrGeneration> GenerationsDeclaringScopeBehaviour
+        => ScopeChangeIsRetroactive.Keys;
 }

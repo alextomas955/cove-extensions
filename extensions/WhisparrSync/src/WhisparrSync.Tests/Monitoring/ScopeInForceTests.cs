@@ -2,6 +2,7 @@ using System.Reflection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
@@ -150,7 +151,8 @@ public sealed class ScopeInForceTests
             WhisparrEntityKind.Studio,
             WhisparrGeneration.V3,
             [],
-            MonitorRefusalKind.NoIdentityInThisNamespace).Scope);
+            MonitorRefusalKind.NoIdentityInThisNamespace,
+            GenerationCapabilities.AScopeChangeIsRetroactiveOn(WhisparrGeneration.V3)).Scope);
     }
 
     // Driven through the mounted route, because every other case here calls the projection. The

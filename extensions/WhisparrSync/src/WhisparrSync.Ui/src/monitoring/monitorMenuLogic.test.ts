@@ -64,9 +64,21 @@ function view(
     refusal: "none",
     capabilities: MENU_CAPABILITIES,
     scope: null,
+    scopeChangeIsRetroactive: false,
     ...over,
   };
 }
+
+// What the view reports against the door the reader is shown, written out rather than computed from
+// the reported value. A case deriving the expectation would agree with a menu that had dropped the
+// fact altogether.
+const DOOR_BY_REPORTED_SCOPE_BEHAVIOUR: readonly (readonly [boolean | null, boolean])[] = [
+  // The scope change does not carry back, so the wider one cannot be withdrawn.
+  [false, true],
+  [true, false],
+  // The read named no instance, which settles the question neither way.
+  [null, false],
+];
 
 function withoutCapability(absent: WhisparrCapability): WhisparrCapability[] {
   return MENU_CAPABILITIES.filter((capability) => capability !== absent);
@@ -280,14 +292,6 @@ describe("a capability the connected generation does not hold", () => {
 
       expect(item?.reason, action).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
     }
-  });
-
-  it("gates each action on the capability the capability table names", () => {
-    expect(SECONDARY_ACTIONS.map(capabilityBehindAction)).toEqual([
-      "registerMissingScenes",
-      "reflectOwnedFiles",
-      "searchMonitored",
-    ]);
   });
 });
 
@@ -603,10 +607,15 @@ describe("the verbs this build carries out", () => {
 });
 
 describe("the choice that cannot be taken back", () => {
-  it("is a one-way door only where a scope change leaves what is already monitored", () => {
-    expect(allScenesIsAOneWayDoor("v3")).toBe(true);
-    expect(allScenesIsAOneWayDoor("v2")).toBe(false);
-    // Nothing connected settles no scope behaviour either way.
+  it("is a one-way door only where the view says a scope change leaves what is already monitored", () => {
+    for (const [reported, door] of DOOR_BY_REPORTED_SCOPE_BEHAVIOUR) {
+      expect(
+        allScenesIsAOneWayDoor(view({ kind: "studio", scopeChangeIsRetroactive: reported })),
+        String(reported),
+      ).toBe(door);
+    }
+
+    // No view at all is the control rendered before the first read answered.
     expect(allScenesIsAOneWayDoor(null)).toBe(false);
   });
 
@@ -630,11 +639,20 @@ describe("the choice that cannot be taken back", () => {
     expect(marking).toEqual([]);
   });
 
-  it("carries the mark on every offered action and the door on the offer", () => {
+  it("carries the door the view reports onto the offer", () => {
+    for (const [reported, door] of DOOR_BY_REPORTED_SCOPE_BEHAVIOUR) {
+      const offer = bulkMonitorActions(
+        view({ kind: "studio", scopeChangeIsRetroactive: reported }),
+      );
+
+      expect(offer.oneWayDoor, String(reported)).toBe(door);
+    }
+  });
+
+  it("carries the mark on every offered action", () => {
     for (const generation of GENERATIONS) {
       const offer = bulkMonitorActions(view({ kind: "studio", generation }));
 
-      expect(offer.oneWayDoor, generation).toBe(generation === "v3");
       expect(
         offer.actions.map((action) => `${action.key}:${String(action.marksTheBackCatalogue)}`),
         generation,

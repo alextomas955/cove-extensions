@@ -151,7 +151,9 @@ public sealed partial class WhisparrSync
                     new WhisparrConnectionOffer(
                         target.Binding.Generation,
                         GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
-                        true));
+                        true,
+                        GenerationCapabilities.AScopeChangeIsRetroactiveOn(
+                            target.Binding.Generation)));
     }
 
     // The request carries a scope and nothing else. Which entity the instance is asked about comes

@@ -23,6 +23,7 @@ function view(monitored: boolean): EntityMonitoringView {
     refusal: "none",
     capabilities: ["monitorStudio"],
     scope: null,
+    scopeChangeIsRetroactive: false,
   };
 }
 

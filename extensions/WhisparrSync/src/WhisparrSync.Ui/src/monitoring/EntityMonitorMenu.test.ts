@@ -43,6 +43,7 @@ function viewOf(overrides: Partial<EntityMonitoringView>): EntityMonitoringView 
     refusal: "none",
     capabilities: ["monitorStudio"],
     scope: null,
+    scopeChangeIsRetroactive: false,
     ...overrides,
   };
 }

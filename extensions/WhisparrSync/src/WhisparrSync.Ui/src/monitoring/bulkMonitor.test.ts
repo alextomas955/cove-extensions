@@ -113,6 +113,7 @@ function offerOf(over: Partial<WhisparrConnectionOffer> = {}): WhisparrConnectio
     generation: "v3",
     capabilities: MENU_CAPABILITIES,
     configured: true,
+    scopeChangeIsRetroactive: false,
     ...over,
   };
 }
@@ -257,7 +258,13 @@ test("a failed capability read states the reason, offers nothing and posts nothi
 });
 
 test("a verb absent from the held list is not offered", async () => {
-  answering(offerOf({ generation: "v2", capabilities: ["monitorStudio"] }));
+  answering(
+    offerOf({
+      generation: "v2",
+      capabilities: ["monitorStudio"],
+      scopeChangeIsRetroactive: true,
+    }),
+  );
 
   const { running } = await open("performers", [7]);
 
