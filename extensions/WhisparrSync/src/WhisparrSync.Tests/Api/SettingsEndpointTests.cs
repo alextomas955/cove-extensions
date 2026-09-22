@@ -218,13 +218,12 @@ public sealed class SettingsEndpointTests
         Assert.Equal(CallbackSecretPosition.Address, view.LastEventSecretPosition);
     }
 
-    // Whisparr checks a webhook by posting to it, and that post arrives from wherever Whisparr runs.
-    // A Cove holding an owner account while sign-in is off reads a request from anywhere but its own
-    // machine as an instance that needs protecting, turns sign-in on for good and signs out whoever
-    // was configuring it. So the registration is refused before the instance is contacted, and the
-    // port throws if it is reached, so this passes only when Whisparr was never asked.
+    // Whether the host locks itself down turns on the address Whisparr calls, where the call comes
+    // from and the host's own trusted-host list, none of which this product can read. So the risk is
+    // reported and the registration still goes ahead: refusing on it blocked the setups the host
+    // would have allowed, including every containerised one.
     [Fact]
-    public async Task ARegistrationIsRefusedWhereItWouldLockCoveDown()
+    public async Task ARegistrationGoesAheadAndReportsThatCoveMightLockItselfDown()
     {
         var (_, options) = await SeededAsync();
         using var gate = new OptionsWriteGate();
@@ -233,15 +232,11 @@ public sealed class SettingsEndpointTests
             options,
             gate,
             new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
-            new UncontactableNotificationPort(),
+            new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
             wouldLockDown: true);
 
         Assert.False(view.RegistrationIsSafe);
-
-        // Nothing was recorded as registered either, so the page does not report a registration that
-        // this instance was never told about.
-        var stored = await options.LoadAsync(TestCt);
-        Assert.NotEqual(RegistrationStatus.Registered, stored.V3?.CallbackRegistration);
+        Assert.Equal(RegistrationStatus.Registered, view.Status);
     }
 
     // A Cove with sign-in off and no owner account yet is one nobody can be locked out of: the host
