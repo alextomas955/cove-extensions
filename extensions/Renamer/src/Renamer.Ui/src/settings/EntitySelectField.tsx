@@ -23,6 +23,7 @@ import { Field, INPUT_CLASS } from "@cove-extensions/ui-shared";
 export function EntitySelectField({
   entityType,
   label,
+  labelStyle,
   helper,
   values,
   onChange,
@@ -31,6 +32,7 @@ export function EntitySelectField({
 }: Readonly<{
   entityType: EntityReferenceType;
   label: string;
+  labelStyle?: "micro" | "group";
   helper?: string;
   /** The stored stable ids. Controlled: persistence stays with the panel. */
   values: number[];
@@ -40,7 +42,7 @@ export function EntitySelectField({
   excludeIds?: Iterable<number>;
 }>) {
   return (
-    <Field label={label} helper={helper}>
+    <Field label={label} labelStyle={labelStyle} helper={helper}>
       <EntityReferenceMultiSelector
         entityType={entityType}
         values={values}

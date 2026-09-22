@@ -108,20 +108,26 @@ export function Chip({
 /** Sentinel `value` for the "Custom…" option in {@link ExampleSelect}. */
 const CUSTOM_SENTINEL = "__custom__";
 
+const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wide text-muted";
+// Names a group of controls, so it stays quieter than the section title containing it.
+const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
+
 /** Label + control + optional helper. Matches Cove `SettingsField`. */
 export function Field({
   label,
   helper,
+  labelStyle = "micro",
   children,
 }: {
   label: string;
   helper?: string;
+  labelStyle?: "micro" | "group";
   children: ReactNode;
 }) {
   return (
     <label className="block text-sm" title={helper}>
       {label ? (
-        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
+        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
           {label}
         </span>
       ) : null}

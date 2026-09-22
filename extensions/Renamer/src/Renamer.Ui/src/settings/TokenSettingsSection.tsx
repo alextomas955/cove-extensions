@@ -173,7 +173,7 @@ export function TokenSettingsSection({
               />
             </Field>
           </div>
-          <Field label="Gender order" helper="Most-preferred first.">
+          <Field label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
               values={mv("performers").genderOrder}

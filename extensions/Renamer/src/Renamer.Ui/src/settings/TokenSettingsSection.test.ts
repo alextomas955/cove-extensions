@@ -1,24 +1,63 @@
+// @vitest-environment jsdom
 /**
- * The format examples this section shows beside each option.
+ * The format examples this section shows beside each option, and the one sentence ranking genders.
  *
- * They are the only thing telling a user what a format string will produce, so a wrong one sends them
- * to a naming scheme they did not choose. Nothing in the panel computes them — they are hand-authored
- * strings — so nothing but a pin can catch one that is wrong.
+ * The examples are the only thing telling a user what a format string will produce, so a wrong one
+ * sends them to a naming scheme they did not choose. Nothing in the panel computes them — they are
+ * hand-authored strings — so nothing but a pin can catch one that is wrong.
  *
  * Every expectation below was produced by running the engine's own formatter over the reference value
  * (`TimeSpan.ToString(format, InvariantCulture)`, as `MetadataProjector.FormatDuration` calls it) and
  * transcribed by hand. None is derived from the module under test, which would only prove it agrees
  * with itself. The whole list is pinned rather than each entry, so an option added with no example
  * checked here fails too.
+ *
+ * The gender-order sentence is checked by rendering, because it says what `MultiValue.GenderRank`
+ * does with a gender the user left out and a claim about the engine has to be read off the screen a
+ * user sees. The shared primitives stand in, because their `react` import resolves only inside a
+ * consuming bundle, and the entity adapter stands in whole because `@cove/runtime/*` resolves only
+ * inside a running Cove. React arrives as its production build, which has no `act`, so the render is
+ * flushed by waiting.
  */
-import { test, vi } from "vitest";
+import { test, expect, vi } from "vitest";
 import assert from "node:assert/strict";
+import { createElement, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 
-// The section reaches the host's entity selector transitively, and `@cove/runtime/*` resolves only
-// inside a running Cove. Nothing here renders, so the stand-in only has to make the import resolve.
-vi.mock("@cove/runtime/components", () => ({ EntityReferenceMultiSelector: () => null }));
+import { someOptions } from "./testOptions";
 
-const { DATE_FORMAT_OPTIONS, DURATION_FORMAT_OPTIONS } = await import("./TokenSettingsSection");
+vi.mock("./EntitySelectField", () => ({ EntitySelectField: () => null }));
+
+vi.mock("@cove-extensions/ui-shared", async () => {
+  const { createElement: h } = await import("react");
+  const text = (v: unknown) => (typeof v === "string" ? v : null);
+  const box = (stub: string) => (p: { children?: ReactNode }) =>
+    h("div", { "data-stub": stub }, p.children);
+
+  return {
+    SectionCard: box("SectionCard"),
+    GroupCard: box("GroupCard"),
+    Badge: box("Badge"),
+    Chip: box("Chip"),
+    Field: (p: { label?: string; helper?: string; children?: ReactNode }) =>
+      h(
+        "label",
+        { "data-stub": "Field" },
+        h("span", null, text(p.label)),
+        p.children,
+        h("span", null, text(p.helper)),
+      ),
+    NumberInput: () => h("input", { type: "number" }),
+    Select: () => h("select", null),
+    ExampleSelect: () => h("select", null),
+    SeparatorChips: () => h("div", null),
+    ChipMultiSelect: () => h("div", null),
+    OrderedPickToAdd: () => h("div", null),
+  };
+});
+
+const { DATE_FORMAT_OPTIONS, DURATION_FORMAT_OPTIONS, TokenSettingsSection } =
+  await import("./TokenSettingsSection");
 
 const pairs = (options: readonly { value: string; example: string }[]) =>
   options.map((o) => [o.value, o.example]);
@@ -40,4 +79,45 @@ test("every date example is what the engine's formatter renders for 2026-03-12",
     ["dd.MM.yyyy", "12.03.2026"],
     ["yyyy.MM.dd", "2026.03.12"],
   ]);
+});
+
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/** Long enough for React to commit a render on the default lane without `act` to force it. */
+const COMMIT_MS = 50;
+
+function textNodes(container: HTMLElement, text: string): number {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let found = 0;
+  let node = walker.nextNode();
+  while (node) {
+    if ((node.nodeValue ?? "").trim() === text) found += 1;
+    node = walker.nextNode();
+  }
+  return found;
+}
+
+test("the gender order says where a gender the user left out ends up", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  root.render(
+    createElement(TokenSettingsSection, {
+      // The performers group renders only for a template that uses the token.
+      options: { ...someOptions(), filenameTemplate: "$performers - $title" },
+      set: () => undefined,
+      setMulti: () => undefined,
+      insertToken: () => undefined,
+    }),
+  );
+  await sleep(COMMIT_MS);
+
+  expect(textNodes(container, "Most-preferred first. Anyone else sorts last.")).toBe(1);
+  expect(textNodes(container, "Most-preferred first.")).toBe(0);
+
+  root.unmount();
+  container.remove();
 });

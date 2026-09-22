@@ -247,7 +247,9 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: /^Excludes/ }).click();
-  const excludeTagCard = groupCard(page, "Exclude by tag");
+  // The tag exclude names itself through its own `Field` label rather than a card heading, so the
+  // label element is the narrowest scope that holds its chips.
+  const excludeTagCard = field(page, "Exclude by tag");
   await expect(
     excludeTagCard.getByRole("button", { name: `Remove ${names.tagExclude}`, exact: true }),
     'the exclusion that DID resolve is missing, so nothing below distinguishes "the vanished name was dropped" from "the whole field was emptied"',
