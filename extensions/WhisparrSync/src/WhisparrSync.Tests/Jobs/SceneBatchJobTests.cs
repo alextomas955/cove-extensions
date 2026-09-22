@@ -229,7 +229,7 @@ public sealed class SceneBatchJobTests
     {
         var progress = new RecordingJobProgress();
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
         var coveId = await SeedSceneAsync(host, NoSceneRow);
 
         await EnqueueAsync(host, "add", coveId);

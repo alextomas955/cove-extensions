@@ -80,10 +80,8 @@ internal sealed class NotificationPort(IWhisparrInstanceFactory instances, ILogg
                 RegistrationStatus.NotCheckedYet, null, false, "the instance declared no Webhook connection");
         }
 
-        // A generation holding no carrier role registers the address and no field for a secret.
-        var carried = GenerationCapabilities.For(generation)
-            .Obtain<IOutOfBandSecretRegistration>()
-            .Match<OutOfBandSecretField?>(role => role.Carry(secret), _ => null);
+        // An instance declaring no carrier role registers the address and no field for a secret.
+        var carried = instance is IOutOfBandSecretRegistration carrier ? carrier.Carry(secret) : null;
 
         var listed = await FindRegistrationAsync(instance, ct).ConfigureAwait(false);
         var created = listed is null;

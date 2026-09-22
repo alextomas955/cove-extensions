@@ -20,7 +20,7 @@ internal sealed class RecordingConnectionTester(ConnectionTestView answer) : IWh
         => new(new ConnectionTestView(
             ConnectionFailureKind.Connected,
             WhisparrGeneration.V3,
-            GenerationCapabilities.For(WhisparrGeneration.V3).Held,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3),
             version,
             "master",
             true,

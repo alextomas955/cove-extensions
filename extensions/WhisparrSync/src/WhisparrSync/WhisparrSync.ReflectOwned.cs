@@ -205,12 +205,10 @@ public sealed partial class WhisparrSync
     }
 
     private static IWhisparrInstanceFilesystemReading? FilesystemReadingOn(MonitoringTarget target)
-        => target.Capabilities.Obtain<IWhisparrInstanceFilesystemReading>()
-            .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null);
+        => target.Reads as IWhisparrInstanceFilesystemReading;
 
     private static IWhisparrReflectOwnedActing? ReflectOwnedActingOn(MonitoringTarget target)
-        => target.Capabilities.Obtain<IWhisparrReflectOwnedActing>()
-            .Match<IWhisparrReflectOwnedActing?>(acting => acting, _ => null);
+        => target.Reads as IWhisparrReflectOwnedActing;
 
     // Read on the route and again when the run starts. The two are minutes apart, and the value
     // decides whether every matched file is linked or duplicated in full.

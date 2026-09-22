@@ -20,7 +20,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AThreeStudioSelectionLinksEachStudiosOwnFolders()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 3);
         var progress = new RecordingJobProgress();
 
@@ -35,7 +35,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AThreeStudioSelectionProducesExactlyOneEnqueue()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 3);
 
         await host.PostBulkAsync(MonitorBody(seeded.Ids));
@@ -49,7 +49,7 @@ public sealed class BulkReflectOwnedTests
     public async Task TheHardLinkSettingIsReadOnceForTheWholeSelection()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 3);
 
         await host.PostBulkAsync(MonitorBody(seeded.Ids));
@@ -84,7 +84,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AnEntityWhoseMonitorWasRefusedHasNoLinkStepRunForIt()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 1);
         var unidentified = await host.SeedStudioAsync(null, null);
         await host.SeedStudioFileAsync(unidentified, "/library/unidentified");
@@ -99,7 +99,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AnUnmonitorSelectionRunsNoLinkStepOfAnyKind()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 2);
 
         await host.PostBulkAsync(BodyOf("unmonitor", seeded.Ids));
@@ -118,7 +118,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AStoppedSelectionKeepsWhatItLinkedAndReachesNoLaterEntity()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 3);
         var kept = new RecordingJobProgress();
         using var stopping = new CancellationTokenSource();
@@ -141,7 +141,7 @@ public sealed class BulkReflectOwnedTests
     public async Task TheRunsOwnSummaryReportsTheLinkWorkApartFromTheMonitorOutcomes()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 3);
         var progress = new RecordingJobProgress();
 
@@ -170,7 +170,7 @@ public sealed class BulkReflectOwnedTests
     public async Task AnUnmonitorSelectionsSummaryNamesNoLinkWorkAtAll()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         var seeded = await SeedAsync(host, 2);
         var progress = new RecordingJobProgress();
 

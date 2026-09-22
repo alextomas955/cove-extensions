@@ -168,9 +168,9 @@ public sealed class MissingMonitorAllTests
     public async Task TheRunOffersTheScenesTheGridDrawsForTheSameNarrowing()
     {
         await using var host = await HostOverAsync(PagedCatalogue());
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
         var studioId = await host.SeedStudioAsync(
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
@@ -189,9 +189,9 @@ public sealed class MissingMonitorAllTests
     public async Task AnUnnarrowedRunReachesEveryPage()
     {
         await using var host = await HostOverAsync(PagedCatalogue());
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
         var studioId = await host.SeedStudioAsync(
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
@@ -206,9 +206,9 @@ public sealed class MissingMonitorAllTests
     public async Task TheRunIssuesTheSceneAddAndNoOtherVerb()
     {
         await using var host = await HostOverAsync(PagedCatalogue());
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
         var studioId = await host.SeedStudioAsync(
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 

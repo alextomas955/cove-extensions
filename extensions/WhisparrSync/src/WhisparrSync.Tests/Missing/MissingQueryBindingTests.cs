@@ -108,7 +108,7 @@ public sealed class MissingQueryBindingTests
             new OptionsStore(new FakeStore()),
             new RecordingCredentialPort(),
             new FixedInstanceFactory(
-                new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]"))),
+                new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
             NullLogger.Instance,
@@ -128,7 +128,7 @@ public sealed class MissingQueryBindingTests
             new OptionsStore(new FakeStore()),
             new RecordingCredentialPort(),
             new FixedInstanceFactory(
-                new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]"))),
+                new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
             NullLogger.Instance,

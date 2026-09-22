@@ -127,7 +127,7 @@ public sealed class SyncLibraryJobTests
     }
 
     private static WhisparrResponse Accepted
-        => RecordingWhisparrClient.Json(201, ProbeFixtures.Read(AcceptedFixture));
+        => RecordingWhisparrCore.Json(201, ProbeFixtures.Read(AcceptedFixture));
 
     // The sub-task carries the summary because the host copies one over the other when it
     // finalizes successful work.

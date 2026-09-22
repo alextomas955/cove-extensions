@@ -43,7 +43,7 @@ public sealed class MissingSceneActionTests
     public async Task TheMonitorVerbRegistersTheSceneAndIssuesNoGrabbingRequest()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
         var studioId = await StudioIn(host);
 
         var result = await ReadResultAsync(
@@ -94,7 +94,7 @@ public sealed class MissingSceneActionTests
     public async Task TheSceneIdentifierArrivesFromTheRoutePathAndNotFromABody()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
         var studioId = await StudioIn(host);
 
         await ReadResultAsync(
@@ -389,8 +389,8 @@ public sealed class MissingSceneActionTests
     public async Task TheSearchVerbIsClassedGrabbingAndTheMonitorVerbIsNot()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SearchSceneAsync), MonitorHost.Json(200, "{}"));
-        host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SearchSceneAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
         var studioId = await StudioIn(host);
         host.Client.Answering(
             nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),

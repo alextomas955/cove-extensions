@@ -38,8 +38,14 @@ internal sealed class WhisparrV2Instance(
         IWhisparrSceneMonitorActing,
         IWhisparrSiteSceneReading,
         IWhisparrHeldSiteReading,
-        IWhisparrInstanceFilesystemReading
+        IWhisparrInstanceFilesystemReading,
+        IOutOfBandSecretRegistration
 {
+    // This generation carries the secret in the basic-auth pair on the Webhook connection. The shape
+    // is its own type, which has its own tests.
+    public OutOfBandSecretField Carry(string secret)
+        => new V2BasicAuthSecretRegistration().Carry(secret);
+
     // The one status composed rather than received. Whisparr v2 answers "do you hold this site" only
     // as a row inside its own list, so an absent row is reported in the spelling a caller already
     // classifies.

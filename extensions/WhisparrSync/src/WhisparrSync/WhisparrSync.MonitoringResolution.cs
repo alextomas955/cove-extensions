@@ -15,11 +15,10 @@ public sealed partial class WhisparrSync
 {
     // The generation, the address and the key are read off the one binding rather than stored
     // beside each other, so a caller cannot take a generation from one instance and an address from
-    // another. Reads is the instance bound to that same binding, and every role obtained from the
-    // capability set is one of its own members.
+    // another. Reads is the instance bound to that same binding, and a caller reaching for a role
+    // tests it for the interface that role names.
     private sealed record MonitoringTarget(
         WhisparrBinding Binding,
-        WhisparrCapabilitySet Capabilities,
         IWhisparrClient Reads,
         MonitorScope DefaultMonitorScope);
 
@@ -77,13 +76,9 @@ public sealed partial class WhisparrSync
         }
 
         var binding = new WhisparrBinding(generation, baseAddress, apiKey);
-        var instance = instances.Bound(binding);
 
         return new MonitoringTarget(
-            binding,
-            GenerationCapabilities.For(generation, instance),
-            instance,
-            stored.DefaultMonitorScope);
+            binding, instances.Bound(binding), stored.DefaultMonitorScope);
     }
 
     private sealed record KindActing(
@@ -199,64 +194,44 @@ public sealed partial class WhisparrSync
             ct);
     }
 
+    // A kind no arm names reads nothing, as a kind whose instance declares no acting role does.
     private static Func<string, CancellationToken, Task<WhisparrResponse>>? ReadingEntity(
         WhisparrEntityKind kind, MonitoringTarget target)
         => kind switch
         {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
-                    acting => (foreignId, readCt) => acting.ReadStudioAsync(foreignId, readCt),
-                    _ => null),
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
-                    acting => (foreignId, readCt) => acting.ReadPerformerAsync(foreignId, readCt),
-                    _ => null),
-            _ => NoArmFor<Func<string, CancellationToken, Task<WhisparrResponse>>>(kind, target),
+            WhisparrEntityKind.Studio when target.Reads is IWhisparrStudioActing acting
+                => (foreignId, readCt) => acting.ReadStudioAsync(foreignId, readCt),
+            WhisparrEntityKind.Performer when target.Reads is IWhisparrPerformerActing acting
+                => (foreignId, readCt) => acting.ReadPerformerAsync(foreignId, readCt),
+            _ => null,
         };
 
     private static Func<string, KindActing>? ActingFor(
         WhisparrEntityKind kind, MonitoringTarget target, MonitorScope scope)
         => kind switch
         {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<Func<string, KindActing>?>(
-                    acting => foreignId => ActingOn(acting, foreignId, scope), _ => null),
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match<Func<string, KindActing>?>(
-                    acting => foreignId => ActingOn(acting, foreignId), _ => null),
-            _ => NoArmFor<Func<string, KindActing>>(kind, target),
+            WhisparrEntityKind.Studio when target.Reads is IWhisparrStudioActing acting
+                => foreignId => ActingOn(acting, foreignId, scope),
+            WhisparrEntityKind.Performer when target.Reads is IWhisparrPerformerActing acting
+                => foreignId => ActingOn(acting, foreignId),
+            _ => null,
         };
 
-    // The only place the search role is obtained. A generation holding no search hands over no
+    // The only place the search role is obtained. An instance declaring no search hands over no
     // implementation, so the refusal is at the caller rather than inside a member that declines.
     private static IWhisparrSearchGrabbing? SearchGrabbingOn(MonitoringTarget target)
-        => target.Capabilities.Obtain<IWhisparrSearchGrabbing>()
-            .Match<IWhisparrSearchGrabbing?>(held => held, _ => null);
+        => target.Reads as IWhisparrSearchGrabbing;
 
     private static Func<string, HeldActing>? HeldActingFor(
         WhisparrEntityKind kind, MonitoringTarget target)
         => kind switch
         {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<Func<string, HeldActing>?>(
-                    acting => foreignId => HeldOn(acting, foreignId), _ => null),
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match<Func<string, HeldActing>?>(
-                    acting => foreignId => HeldOn(acting, foreignId), _ => null),
-            _ => NoArmFor<Func<string, HeldActing>>(kind, target),
+            WhisparrEntityKind.Studio when target.Reads is IWhisparrStudioActing acting
+                => foreignId => HeldOn(acting, foreignId),
+            WhisparrEntityKind.Performer when target.Reads is IWhisparrPerformerActing acting
+                => foreignId => HeldOn(acting, foreignId),
+            _ => null,
         };
-
-    // A generation that holds the capability while no route can act on it is a fault, not a
-    // refusal: a capability is registered with the member that honours it, never ahead of it.
-    private static T? NoArmFor<T>(WhisparrEntityKind kind, MonitoringTarget target)
-        where T : class
-    {
-        var capability = MonitoringProjector.CapabilityFor(kind);
-        return target.Capabilities.Held.Contains(capability)
-            ? throw new InvalidOperationException(
-                $"{target.Binding.Generation} holds {capability}, but no route has an arm acting on a {kind}.")
-            : null;
-    }
 
     // A failure is contained rather than propagated, because the route's declared results hold no
     // failure. A shutdown rethrows: it is not a verdict about the instance.

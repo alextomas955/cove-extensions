@@ -318,15 +318,15 @@ public sealed class SyncLibraryPlannerTests
     }
 
     private static WhisparrResponse Accepted
-        => RecordingWhisparrClient.Json(201, ProbeFixtures.Read(AcceptedFixture));
+        => RecordingWhisparrCore.Json(201, ProbeFixtures.Read(AcceptedFixture));
 
     private static WhisparrResponse AlreadyHeld
-        => RecordingWhisparrClient.Json(400, ProbeFixtures.Read(AlreadyHeldFixture));
+        => RecordingWhisparrCore.Json(400, ProbeFixtures.Read(AlreadyHeldFixture));
 
     private static WhisparrResponse Refused
-        => RecordingWhisparrClient.Json(400, ProbeFixtures.Read(RefusedFixture));
+        => RecordingWhisparrCore.Json(400, ProbeFixtures.Read(RefusedFixture));
 
-    private static WhisparrResponse Monitored => RecordingWhisparrClient.Json(202, "{}");
+    private static WhisparrResponse Monitored => RecordingWhisparrCore.Json(202, "{}");
 
     private static async Task<(SyncLibraryRun Run, RecordingJobProgress Progress, OrderedProgress Ordered)>
         RunOver(string[] identities, Func<string, WhisparrResponse?> answers)

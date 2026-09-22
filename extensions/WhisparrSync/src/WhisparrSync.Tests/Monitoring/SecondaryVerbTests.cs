@@ -114,30 +114,23 @@ public sealed class SecondaryVerbTests
     // differently. Redefining it there as a catalogue refresh would read as an action that did
     // nothing.
     [Fact]
-    public void V2RefusesTheSceneRegistrationRoleByName()
+    public void V2DeclaresNoSceneRegistrationRole()
     {
-        var refusal = CapabilitiesOn(WhisparrGeneration.V2, Recorder())
-            .Obtain<IWhisparrMissingSceneActing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+        Assert.DoesNotContain(
+            typeof(IWhisparrMissingSceneActing), typeof(WhisparrV2Instance).GetInterfaces());
         Assert.DoesNotContain(
             WhisparrCapability.RegisterMissingScenes,
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
     [Fact]
-    public void V3HandsOutTheSceneRegistrationRole()
+    public void V3DeclaresTheSceneRegistrationRole()
     {
-        var client = Recorder();
-
-        Assert.Same(
-            client,
-            CapabilitiesOn(WhisparrGeneration.V3, client)
-                .Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null));
+        Assert.Contains(
+            typeof(IWhisparrMissingSceneActing), typeof(WhisparrV3Instance).GetInterfaces());
+        Assert.Contains(
+            WhisparrCapability.RegisterMissingScenes,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
     }
 
     // Neither generation offers an import mode that only links, so the two cases the verb decides
@@ -189,17 +182,13 @@ public sealed class SecondaryVerbTests
     public async Task AWholeAddAllMissingRunHoldsNoGrabbingVerbAtAnyPosition()
     {
         var client = Recorder();
-        var acting = CapabilitiesOn(WhisparrGeneration.V3, client)
-            .Obtain<IWhisparrMissingSceneActing>()
-            .Match<IWhisparrMissingSceneActing?>(held => held, _ => null);
 
-        Assert.NotNull(acting);
         foreach (var scene in new[] { SceneForeignId, "5b1f7c33-0000-4000-8000-0000000000ab" })
         {
-            await acting.AddSceneAsync(scene, Defaults, TestCt);
+            await client.AddSceneAsync(scene, Defaults, TestCt);
         }
 
-        await acting.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 1, TestCt);
+        await client.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 1, TestCt);
 
         Assert.Contains(
             client.Verbs, verb => OutboundSeam.VerbClassByMember[verb] == WhisparrVerbClass.Act);
@@ -209,8 +198,13 @@ public sealed class SecondaryVerbTests
 
         // One bounded call per scene, driven by the set handed in rather than by anything the library
         // holds, plus the one refresh that makes the registrations visible.
-        Assert.Equal(2, client.Acting.Count(call => call.Verb == nameof(acting.AddSceneAsync)));
-        Assert.Single(client.Acting, call => call.Verb == nameof(acting.RefreshCatalogueAsync));
+        Assert.Equal(
+            2,
+            client.Acting.Count(
+                call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync)));
+        Assert.Single(
+            client.Acting,
+            call => call.Verb == nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync));
     }
 
     // Read off a stub below the client rather than off the role double.
@@ -341,29 +335,26 @@ public sealed class SecondaryVerbTests
                 http, handler, generation: (WhisparrGeneration)(-1)));
     }
 
-    // The refusal is taken over a lineage this product does not manage. Both managed generations
-    // hold the capability, so a refusal over a set built without the role would assert a
-    // construction fault instead.
+    // Both managed generations declare the role, so absence is not what keeps a monitoring path
+    // from grabbing. A lineage this product does not manage declares nothing at all.
     [Fact]
-    public void TheSearchVerbIsReachedThroughItsOwnRoleAndAnAbsentOneIsARefusal()
+    public void TheSearchVerbIsReachedThroughItsOwnRoleAndAnUnmanagedLineageDeclaresNone()
     {
         var client = Recorder();
 
-        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        foreach (var instance in new[] { typeof(WhisparrV3Instance), typeof(WhisparrV2Instance) })
         {
-            Assert.Same(
-                client,
-                CapabilitiesOn(generation, client)
-                    .Obtain<IWhisparrSearchGrabbing>()
-                    .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
+            Assert.Contains(typeof(IWhisparrSearchGrabbing), instance.GetInterfaces());
         }
 
-        var refusal = GenerationCapabilities.For((WhisparrGeneration)(-1))
-            .Obtain<IWhisparrSearchGrabbing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        {
+            Assert.Contains(
+                WhisparrCapability.SearchMonitored,
+                GenerationCapabilities.CapabilitiesOf(generation));
+        }
 
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.SearchMonitored, refusal.Capability);
+        Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
         Assert.Empty(client.Verbs);
     }
 
@@ -432,6 +423,9 @@ public sealed class SecondaryVerbTests
     // The instance answers the held read as not holding the entity. The stored 404 is the instance's
     // own answer rather than one this product composed, which is what makes the reading a fact read
     // off the wire.
+    private static RecordingWhisparrV3Client Recorder()
+        => new(RecordingWhisparrCore.Json(201, """{"id":11}"""));
+
     private static async Task<MonitorHost> AbsentEntityHost()
     {
         var host = await MonitorHost.CreateAsync();
@@ -440,10 +434,4 @@ public sealed class SecondaryVerbTests
         return host;
     }
 
-    private static RecordingWhisparrClient Recorder()
-        => new(RecordingWhisparrClient.Json(201, """{"id":11}"""));
-
-    private static WhisparrCapabilitySet CapabilitiesOn(
-        WhisparrGeneration generation, RecordingWhisparrClient client)
-        => GenerationCapabilities.For(generation, client);
 }

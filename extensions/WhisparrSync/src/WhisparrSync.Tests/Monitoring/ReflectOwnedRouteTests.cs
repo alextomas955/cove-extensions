@@ -172,7 +172,7 @@ public sealed class ReflectOwnedRouteTests
     public async Task TheEnqueuedRunReadsEachFolderOnceAndAttachesWhatItParsed()
     {
         await using var host = await LinkingHost();
-        host.Client.Answering(nameof(RecordingWhisparrClient.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync),
             MonitorHost.Json(200, AttachableRow));

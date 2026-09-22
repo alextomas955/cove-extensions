@@ -260,7 +260,7 @@ public sealed class LibraryStatusPortTests
             async () => await new LibraryStatusPort(Nothing, NullLogger.Instance)
                 .ReadSceneCardsAsync(
                     reading,
-                    new Capability<IWhisparrSceneExclusionReading>(reading, null),
+                    reading,
                     NoSceneBatch,
                     Bound(WhisparrGeneration.V3),
                     SceneIdentities(1),
@@ -279,10 +279,8 @@ public sealed class LibraryStatusPortTests
     private static IReadOnlyList<LibraryCardIdentity> SceneIdentities(params int[] coveIds)
         => [.. coveIds.Select(coveId => new LibraryCardIdentity(coveId, SceneIdentifier(coveId)))];
 
-    // V2 registers no exclusion role at all.
-    private static Capability<IWhisparrSceneExclusionReading> NoExclusionRole
-        => GenerationCapabilities.For(WhisparrGeneration.V2)
-            .Obtain<IWhisparrSceneExclusionReading>();
+    // The v2 instance declares no exclusion role at all.
+    private static IWhisparrSceneExclusionReading? NoExclusionRole => null;
 
     // Every entity is named by one identifier.
     private static IEntityIdentityPort Resolving => new FakeIdentities(IdentityResolution.At(ForeignId));
@@ -336,13 +334,11 @@ public sealed class LibraryStatusPortTests
 
     private static string ApiKey => "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
-    // The generation registers no batch role, so every card is asked about on its own. What the
+    // The instance declares no batch role, so every card is asked about on its own. What the
     // batch path does instead has tests of its own.
-    private static Capability<IWhisparrEntityBatchReading> NoEntityBatch { get; } = new(
-        null, new CapabilityRefusal(WhisparrCapability.ReadEntityCardsInBatch, WhisparrGeneration.V2));
+    private static IWhisparrEntityBatchReading? NoEntityBatch => null;
 
-    private static Capability<IWhisparrSceneBatchReading> NoSceneBatch { get; } = new(
-        null, new CapabilityRefusal(WhisparrCapability.ReadSceneCardsInBatch, WhisparrGeneration.V2));
+    private static IWhisparrSceneBatchReading? NoSceneBatch => null;
 
     private static async Task<IReadOnlyList<LibraryStatusRow>> ReadAsync(
         RecordingEntityReading reading,
@@ -358,16 +354,16 @@ public sealed class LibraryStatusPortTests
                 coveIds,
                 TestCt)).Rows;
 
-    private static Capability<IWhisparrSceneExclusionReading> Excluding(
+    private static RecordingSceneReading Excluding(
         RecordingSceneReading reading, params string[] excluded)
     {
         reading.Excludes(excluded);
-        return new Capability<IWhisparrSceneExclusionReading>(reading, null);
+        return reading;
     }
 
     private static async Task<IReadOnlyDictionary<int, LibraryCardReading>> ReadScenesAsync(
         RecordingSceneReading reading,
-        Capability<IWhisparrSceneExclusionReading> exclusions,
+        IWhisparrSceneExclusionReading? exclusions,
         IReadOnlyList<LibraryCardIdentity> identities,
         ILogger? log = null)
         => (await new LibraryStatusPort(Nothing, log ?? NullLogger.Instance).ReadSceneCardsAsync(

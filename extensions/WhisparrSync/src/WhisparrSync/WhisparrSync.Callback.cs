@@ -389,10 +389,11 @@ public sealed partial class WhisparrSync
             registrationIsSafe);
     }
 
+    // Read off the declared capabilities rather than off an instance: the page states what the
+    // selected generation offers before any connection is made.
     private static bool TravelsOutOfBand(WhisparrGeneration generation)
-        => GenerationCapabilities.For(generation)
-            .Obtain<IOutOfBandSecretRegistration>()
-            .Match(_ => true, _ => false);
+        => GenerationCapabilities.CapabilitiesOf(generation)
+            .Contains(WhisparrCapability.OutOfBandCallbackSecret);
 
     // The host the browser reached Cove at, which Whisparr cannot necessarily reach. That is why the
     // address is editable.

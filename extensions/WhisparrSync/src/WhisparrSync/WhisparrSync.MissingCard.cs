@@ -89,8 +89,7 @@ public sealed partial class WhisparrSync
 
         // One generation lists a catalogue it already holds a row for every scene of, so marking one
         // there is a flip of that row. Composing an add would ask it to create what it has.
-        if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null)
+        if (target.Reads is not IWhisparrMissingSceneActing)
         {
             return await MarkHeldSceneRowAsync(
                 owning, coveId, providerSceneId, target, identities, cache, log, ct)
@@ -99,9 +98,7 @@ public sealed partial class WhisparrSync
 
         // A generation registering no scene add has no implementation to hand over, so there is
         // nothing to compose and nothing was sent.
-        if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null)
-            is not { } acting)
+        if (target.Reads is not IWhisparrMissingSceneActing acting)
         {
             return TypedResults.Ok(
                 NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
@@ -170,10 +167,8 @@ public sealed partial class WhisparrSync
             ILogger log,
             CancellationToken ct)
     {
-        if (target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
-                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } marking
-            || target.Capabilities.Obtain<IWhisparrEntityCatalogueReading>()
-                .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null) is not { } reading)
+        if (target.Reads is not IWhisparrSceneMonitorActing marking
+            || target.Reads is not IWhisparrEntityCatalogueReading reading)
         {
             return TypedResults.Ok(
                 NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
@@ -290,8 +285,7 @@ public sealed partial class WhisparrSync
         ILogger log,
         CancellationToken ct)
     {
-        if (target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<IWhisparrStudioActing?>(held => held, _ => null) is not { } acting
+        if (target.Reads is not IWhisparrStudioActing acting
             || ReadingEntity(owning, target) is not { } reading)
         {
             return null;
@@ -351,10 +345,8 @@ public sealed partial class WhisparrSync
 
         // A generation registering neither role has no implementation to hand over, so there is
         // nothing to compose and nothing was sent.
-        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading
-            || target.Capabilities.Obtain<IWhisparrSceneSearchGrabbing>()
-                .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null) is not { } searching)
+        if (target.Reads is not IWhisparrSceneStatusReading reading
+            || target.Reads is not IWhisparrSceneSearchGrabbing searching)
         {
             return TypedResults.Ok(
                 NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));

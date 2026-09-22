@@ -245,7 +245,7 @@ public sealed class AddDefaultsProjectorTests
     public async Task AnEntityTheInstanceAlreadyHoldsIsNeverReadForDefaults()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, """{"id":1,"foreignId":"x","monitored":false}"""),

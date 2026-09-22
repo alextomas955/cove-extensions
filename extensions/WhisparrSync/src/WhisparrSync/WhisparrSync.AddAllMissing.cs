@@ -105,8 +105,7 @@ public sealed partial class WhisparrSync
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
-        var acting = target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-            .Match<IWhisparrMissingSceneActing?>(held => held, _ => null);
+        var acting = target.Reads as IWhisparrMissingSceneActing;
         var reading = HeldActingFor(kind, target);
 
         if (acting is null || reading is not { } actingFor || identity.ForeignId is not { } named)

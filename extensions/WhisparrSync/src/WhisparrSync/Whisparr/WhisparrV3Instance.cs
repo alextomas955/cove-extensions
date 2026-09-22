@@ -39,8 +39,13 @@ internal sealed class WhisparrV3Instance(
         IWhisparrEntityTrackingActing,
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
-        IWhisparrInstanceFilesystemReading
+        IWhisparrInstanceFilesystemReading,
+        IOutOfBandSecretRegistration
 {
+    // This generation carries the secret in a headers field on the Webhook connection. The shape is
+    // its own type, which has its own tests.
+    public OutOfBandSecretField Carry(string secret) => new V3HeaderSecretRegistration().Carry(secret);
+
     // Relative, so they compose onto a base address carrying a URL base (a reverse-proxy subpath).
     // Both generations serve the v3 route family; the version in the path is not the generation.
     //

@@ -134,11 +134,8 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(identity.Refusal));
         }
 
-        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading
-            || target.Capabilities.Obtain<IWhisparrSceneExclusionReading>()
-                .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null)
-                is not { } exclusions)
+        if (target.Reads is not IWhisparrSceneStatusReading reading
+            || target.Reads is not IWhisparrSceneExclusionReading exclusions)
         {
             return TypedResults.Ok(
                 NothingWasSent(SceneRefusalKind.CapabilityAbsentOnThisGeneration));
