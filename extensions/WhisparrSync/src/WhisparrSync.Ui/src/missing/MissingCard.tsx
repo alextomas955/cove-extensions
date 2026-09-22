@@ -17,6 +17,7 @@ import { StatusText } from "@cove-extensions/ui-shared";
 
 import type { RowIcon } from "../common/ui/ChoiceOverlay";
 import { StateChip } from "../common/ui/StateChip";
+import { WorkingChip } from "../common/ui/WorkingChip";
 import {
   monitorSceneName,
   nameWhileWaiting,
@@ -46,12 +47,6 @@ import {
   CARD_SELECTED_CLASS,
   CARD_TITLE_CLASS,
 } from "./missingClasses";
-
-// What a card says while a run is still working through it. Not a state: the instance has not
-// answered yet, and what it ends up holding is read when the run stops.
-const RUNNING_LABEL = "Working";
-const RUNNING_PILL_CLASS =
-  "inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-secondary";
 
 // `focus:` and not `focus-visible:`, which is the spelling the host stylesheet emits.
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
@@ -120,14 +115,7 @@ export function MissingCard({
         </h3>
         <CardBodyRows rows={rows} />
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          {inARun ? (
-            <span className={RUNNING_PILL_CLASS} title={WAITING_FOR_WHISPARR}>
-              <Loader className="h-3 w-3 animate-spin" aria-hidden="true" />
-              {RUNNING_LABEL}
-            </span>
-          ) : (
-            <StateChip state={pillState} />
-          )}
+          {inARun ? <WorkingChip /> : <StateChip state={pillState} />}
           {onMonitor === undefined || onSearch === undefined ? null : (
             <div className="flex shrink-0 items-center gap-1.5">
               <CardAction
