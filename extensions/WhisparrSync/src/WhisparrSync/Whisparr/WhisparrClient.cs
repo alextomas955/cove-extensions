@@ -665,40 +665,25 @@ internal sealed class WhisparrClient(
     private async Task<WhisparrEntityCatalogue> ReadV2SiteScenesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
-            .ConfigureAwait(false);
-        if (numbered.Number is not { } siteNumber)
-        {
-            return WhisparrEntityCatalogue.Refused(
-                numbered.WasReached
-                    ? WhisparrCatalogueRefusal.EntityNotHeld
-                    : WhisparrCatalogueRefusal.NotReached);
-        }
-
-        var site = await GeneratedV2ReadAsync(
+        // The lookup answers the site from the instance's own row where it holds that site, so the
+        // id its scenes are listed under arrives with it. Asking the site list for that id instead
+        // would cost a pass over every site the instance holds.
+        var answered = await GeneratedV2ReadAsync(
                 baseAddress,
                 apiKey,
-                api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
-                    tvdbId: siteNumber, cancellationToken: ct),
-                LibraryReadTimeout)
+                api => api.Api<V2Api.ISeriesLookupApi>()
+                    .ListSeriesLookupAsync(HeldCardProjector.SiteLookupTerm(foreignId), ct))
             .ConfigureAwait(false);
 
-        if (Refused(site))
+        if (Refused(answered))
         {
             return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
         }
 
-        var held = V2ListProjector.HeldEntry(site.Body, siteNumber);
-        if (held is null)
-        {
-            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld);
-        }
-
-        // The site's own row carries the instance-side id its scenes are listed under, which is not
-        // the number the metadata source issued.
-        if (held["id"] is not JsonValue identified
-            || !identified.TryGetValue<int>(out var seriesId)
-            || seriesId < 1)
+        // A lookup naming no site, and a row carrying no id of the instance's own, are both the
+        // instance holding no site under the identifier the library holds.
+        if (V2ListProjector.LookupEntry(answered.Body) is not { } site
+            || V2ListProjector.InstanceRowIdIn(site) is not (> 0 and var seriesId))
         {
             return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld);
         }
@@ -718,7 +703,7 @@ internal sealed class WhisparrClient(
             return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
         }
 
-        var siteName = held["title"] is JsonValue titled && titled.TryGetValue<string>(out var title)
+        var siteName = site["title"] is JsonValue titled && titled.TryGetValue<string>(out var title)
             ? title
             : null;
 
