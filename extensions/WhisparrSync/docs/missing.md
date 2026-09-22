@@ -82,9 +82,8 @@ The cover and the title are links. Follow either and the scene opens at your met
 new tab. Nothing else on the card is a link, so the checkbox and the two buttons act on the card
 where they are.
 
-This works on StashDB, which is the source Whisparr v3 (Eros) reads from. On ThePornDB the cover and
-the title are plain, because the identifier the source hands Cove does not address a page on that
-site and a link built from it would lead nowhere.
+This works on both sources. Each one shows its scenes only to a reader signed in to it, so follow a
+link without an account there and you land on that site's sign-in page instead of the scene.
 
 A cover is drawn where Whisparr holds one for the scene. Whisparr v2 often holds none for an
 episode, and those cards carry the placeholder tile.
