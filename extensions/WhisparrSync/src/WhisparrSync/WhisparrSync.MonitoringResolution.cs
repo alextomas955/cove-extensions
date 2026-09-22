@@ -54,12 +54,18 @@ public sealed partial class WhisparrSync
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var generation = stored.SelectedGeneration;
-        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
+        var held = await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false);
+        var apiKey = held?.ApiKey;
+        // The address comes from the row that holds the key, so the two cannot be observed from
+        // either side of a save that changed both. A row written before the address was stored there
+        // carries none, and the stored options answer for that installation until its next save.
+        var address = string.IsNullOrWhiteSpace(held?.Address)
+            ? stored.ConnectionFor(generation)?.Address
+            : held.Address;
 
         // Refused here rather than by handing an empty pair to the client, so an unconfigured
         // connection reaches nothing that could make a request.
-        return ConnectionTester.TryReadConnection(
-                stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _)
+        return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _)
             ? new MonitoringTarget(
                 generation,
                 baseAddress,

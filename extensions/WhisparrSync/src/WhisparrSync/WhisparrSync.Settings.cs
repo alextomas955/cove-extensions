@@ -137,16 +137,25 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(clock);
 
-        // The key is written before the options blob. They are separate stores with no transaction
-        // between them, so a save interrupted between the two leaves the new key beside the stored
-        // address, which the next save corrects. Only a request changing both at once opens that
-        // window: a request leaving one of them alone writes to one store.
+        // The address is written with the key, in one row, before the options blob. An outbound
+        // request is built from that row alone, so a reader running during this save sees one whole
+        // pair or the other and never the new key beside the instance the old address named. The
+        // blob that follows carries the same address for the page to read.
         var now = clock.GetUtcNow();
+        var before = await options.LoadAsync(ct).ConfigureAwait(false);
         await credentials.ApplyAsync(
-            WhisparrGeneration.V3, SettingsProjector.CredentialWriteFor(request.V3), now, ct)
+            WhisparrGeneration.V3,
+            SettingsProjector.CredentialWriteFor(request.V3),
+            SettingsProjector.AddressFor(request.V3, before.ConnectionFor(WhisparrGeneration.V3)),
+            now,
+            ct)
             .ConfigureAwait(false);
         await credentials.ApplyAsync(
-            WhisparrGeneration.V2, SettingsProjector.CredentialWriteFor(request.V2), now, ct)
+            WhisparrGeneration.V2,
+            SettingsProjector.CredentialWriteFor(request.V2),
+            SettingsProjector.AddressFor(request.V2, before.ConnectionFor(WhisparrGeneration.V2)),
+            now,
+            ct)
             .ConfigureAwait(false);
 
         var persisted = await gate
