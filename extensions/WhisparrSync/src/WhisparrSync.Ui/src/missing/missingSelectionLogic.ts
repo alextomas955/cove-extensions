@@ -34,6 +34,8 @@ const INVERT_SELECTION_LABEL = "Invert";
 
 export const MONITOR_SELECTION_LABEL = "Monitor";
 
+export const UNMONITOR_SELECTION_LABEL = "Unmonitor";
+
 export function invertSelection(
   loadedPageIds: readonly string[],
   selected: ReadonlySet<string>,
