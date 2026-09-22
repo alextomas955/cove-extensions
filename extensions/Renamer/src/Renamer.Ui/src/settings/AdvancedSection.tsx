@@ -23,7 +23,6 @@ import {
   ObjectArrayEditor,
   RegexValidity,
   SegmentedReplace,
-  TokenPicker,
   ExampleSelect,
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
@@ -163,17 +162,8 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               set("dropOrder", v);
             }}
             ordered
-            placeholder="Add field, press Enter"
-          />
-          <TokenPicker
-            tokens={BARE_TOKENS}
-            values={options.dropOrder}
-            onAdd={(name) => {
-              set(
-                "dropOrder",
-                options.dropOrder.includes(name) ? options.dropOrder : [...options.dropOrder, name],
-              );
-            }}
+            suggestions={BARE_TOKENS}
+            placeholder="Add a token — type to search"
           />
           <TokenAdvisory values={options.dropOrder} />
         </Field>

@@ -30,7 +30,13 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
-import { isRegexValid, isAbsolutePathShape, listEditors } from "./primitivesLogic";
+import {
+  isRegexValid,
+  isAbsolutePathShape,
+  listEditors,
+  nextActiveIndex,
+  suggestionOptions,
+} from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
 /**
@@ -536,6 +542,10 @@ export function Toggle({
 /**
  * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
  * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
+ *
+ * `suggestions` turns the same input into a combobox offering that set as a filtered list. The set
+ * is never closed: free text still commits, because a value outside the set is a legitimate entry
+ * the caller warns about rather than refuses.
  */
 export function TagListInput({
   values,
@@ -545,6 +555,7 @@ export function TagListInput({
   normalize,
   onReject,
   onLiveChange,
+  suggestions,
 }: {
   values: string[];
   onChange: (values: string[]) => void;
@@ -553,8 +564,14 @@ export function TagListInput({
   normalize?: (raw: string) => string;
   onReject?: (candidate: string) => boolean;
   onLiveChange?: (raw: string) => void;
+  suggestions?: readonly string[];
 }) {
   const id = useId();
+  const listId = `${id}-suggestions`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
 
   function addFrom(input: HTMLInputElement) {
     const v = (normalize ? normalize(input.value) : input.value).trim();
@@ -563,6 +580,19 @@ export function TagListInput({
     if (!values.includes(v)) onChange([...values, v]);
     input.value = "";
   }
+
+  function commit(option: string) {
+    if (!values.includes(option)) onChange([...values, option]);
+    if (inputRef.current) inputRef.current.value = "";
+    setQuery("");
+    setActive(-1);
+    onLiveChange?.("");
+  }
+
+  const offered = suggestions ? suggestionOptions(suggestions, values, query) : [];
+  const listOpen = suggestions !== undefined && focused && offered.length > 0;
+  const activeId =
+    listOpen && active >= 0 && active < offered.length ? `${listId}-${active}` : undefined;
 
   const { move, remove } = listEditors(values, onChange);
 
@@ -614,24 +644,85 @@ export function TagListInput({
           ))}
         </div>
       ) : null}
-      <input
-        id={id}
-        type="text"
-        placeholder={placeholder}
-        className={INPUT_CLASS}
-        onChange={(e) => {
-          onLiveChange?.(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
+      <div className="relative">
+        <input
+          id={id}
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          className={INPUT_CLASS}
+          role={suggestions ? "combobox" : undefined}
+          aria-autocomplete={suggestions ? "list" : undefined}
+          aria-expanded={suggestions ? listOpen : undefined}
+          aria-controls={suggestions ? listId : undefined}
+          aria-activedescendant={activeId}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(-1);
+            onLiveChange?.(e.target.value);
+          }}
+          onFocus={() => {
+            setFocused(true);
+          }}
+          onKeyDown={(e) => {
+            if (listOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+              e.preventDefault();
+              setActive(nextActiveIndex(active, offered.length, e.key === "ArrowDown" ? 1 : -1));
+              return;
+            }
+            if (e.key === "Escape" && listOpen) {
+              e.preventDefault();
+              setFocused(false);
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const chosen = listOpen && active >= 0 ? offered[active] : undefined;
+              if (chosen === undefined) addFrom(e.currentTarget);
+              else commit(chosen);
+            }
+          }}
+          onBlur={(e) => {
+            setFocused(false);
             addFrom(e.currentTarget);
-          }
-        }}
-        onBlur={(e) => {
-          addFrom(e.currentTarget);
-        }}
-      />
+          }}
+        />
+        {listOpen ? (
+          <ul
+            id={listId}
+            role="listbox"
+            className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 list-none overflow-auto rounded-xl border border-border bg-card py-1 shadow-lg"
+            // The blur handler commits whatever the input holds, so without this a click would first
+            // blur (adding the half-typed query) and then add the option too.
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
+          >
+            {offered.map((option, i) => (
+              <li
+                key={option}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                onClick={(e) => {
+                  // The enclosing Field is a <label>, whose activation behaviour forwards a click
+                  // inside it to the first labelable descendant — a chip's Remove button. Picking an
+                  // option would then delete a chip.
+                  e.preventDefault();
+                  commit(option);
+                }}
+                className={
+                  i === active
+                    ? "cursor-pointer px-3 py-1 font-mono text-sm text-foreground bg-card-hover"
+                    : "cursor-pointer px-3 py-1 font-mono text-sm text-foreground hover:bg-card-hover"
+                }
+              >
+                {option}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -794,59 +885,6 @@ export function OrderedPickToAdd({
           ))}
         </select>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * A bespoke "Add token" affordance opening a `flex flex-wrap gap-1` click-to-add chip menu
- * of bare token names (not a dropdown, not autocomplete). It is purely additive UI around a
- * {@link TagListInput} (it does not replace it). The host has no equivalent, so this is bespoke;
- * it reuses the selectable chip class verbatim (host-compiled classes only — no arbitrary
- * `[…]` values). Clicking a chip calls `onAdd(name)`; tokens already in `values` render
- * de-emphasized (existing `text-muted`) and skip the callback, mirroring TagListInput.addFrom de-dupe.
- * Every chip label is a React text node (auto-escaped, so token names can't inject markup).
- */
-export function TokenPicker({
-  tokens,
-  values,
-  onAdd,
-}: {
-  tokens: readonly string[];
-  values: string[];
-  onAdd: (name: string) => void;
-}) {
-  return (
-    <div className="mt-1">
-      <span className="mb-1 block text-xs text-muted">Add a token:</span>
-      <div className="flex flex-wrap gap-1">
-        {tokens.map((name) => {
-          const present = values.includes(name);
-          return present ? (
-            // Already-added tokens render a distinct muted/disabled treatment (text-muted, no hover),
-            // not the standard unselected chip — so this branch stays direct markup rather than <Chip>.
-            <button
-              key={name}
-              type="button"
-              disabled
-              className={`${CHIP_BASE} border-border bg-card text-muted font-mono`}
-            >
-              {name}
-            </button>
-          ) : (
-            <Chip
-              key={name}
-              selected={false}
-              mono
-              onClick={() => {
-                onAdd(name);
-              }}
-            >
-              {name}
-            </Chip>
-          );
-        })}
-      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 /**
- * Pure, DOM-free logic the primitive components render on top of. Kept import-free (no React, no DOM)
- * so it stays L0 — testable with no environment — and so the logic the components render on top of is
+ * Pure, DOM-free logic the primitive components render on top of. Kept free of React and the DOM so
+ * it stays L0 — testable with no environment — and so the logic the components render on top of is
  * exactly the logic the suite covers.
  */
+import { availableOptions } from "./entityPickerLogic";
 
 /** The outcome of validating a rule pattern. */
 export interface RegexValidity {
@@ -112,4 +113,34 @@ export function listEditors<T>(
       onChange(values.filter((_, idx) => idx !== i));
     },
   };
+}
+
+/**
+ * What a type-to-search control still has to offer: the fixed suggestion set minus what is already a
+ * chip, narrowed by the typed query. Composed from the two existing pure helpers so the offer rule
+ * and the match rule each live in one place. Result order is the suggestion set's, never the match's,
+ * and an empty result is the caller's signal to render no list at all rather than an empty box.
+ */
+export function suggestionOptions(
+  suggestions: readonly string[],
+  picked: readonly string[],
+  query: string,
+): string[] {
+  const remaining = availableOptions(
+    suggestions.map((value) => ({ value, label: value })),
+    picked,
+  );
+  return filterByText(query, remaining, (option) => option.label).map((option) => option.value);
+}
+
+/**
+ * Where the keyboard moves the active option, wrapping at both ends. `-1` means no selection, which
+ * is what an empty list always yields and what an Enter must fall through to the free-text commit
+ * on. A `current` outside the list counts as no selection, because the list shrinks as the user types
+ * and the index it held can outlive the option it pointed at.
+ */
+export function nextActiveIndex(current: number, count: number, direction: 1 | -1): number {
+  if (count <= 0) return -1;
+  if (current < 0 || current >= count) return direction === 1 ? 0 : count - 1;
+  return (current + direction + count) % count;
 }

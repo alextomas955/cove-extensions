@@ -4,7 +4,7 @@
  * the `set` callback the panel threads in from useRenamerOptions.
  */
 import { type RenamerOptions } from "./options";
-import { Field, Toggle, TagListInput, SectionCard, TokenPicker } from "@cove-extensions/ui-shared";
+import { Field, Toggle, TagListInput, SectionCard } from "@cove-extensions/ui-shared";
 import { BARE_TOKENS } from "./templateValidation";
 import { TokenAdvisory } from "./templateAdvisories";
 
@@ -40,19 +40,8 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
           onChange={(v) => {
             set("requiredFields", v);
           }}
-          placeholder="Add token, press Enter"
-        />
-        <TokenPicker
-          tokens={BARE_TOKENS}
-          values={options.requiredFields}
-          onAdd={(name) => {
-            set(
-              "requiredFields",
-              options.requiredFields.includes(name)
-                ? options.requiredFields
-                : [...options.requiredFields, name],
-            );
-          }}
+          suggestions={BARE_TOKENS}
+          placeholder="Add a token — type to search"
         />
         <TokenAdvisory values={options.requiredFields} />
       </Field>

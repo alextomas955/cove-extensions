@@ -22,9 +22,9 @@ const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /**
  * The bare token names (leading `$` stripped), in tokens declaration order — single-sourced from
- * the same `TOKENS` constant, no re-listed literals. Used by the TokenPicker menu, whose
- * fields (RequiredFields / DropOrder) take bare names (`title`), not `$title`. Preserves original
- * case for display; matching is done case-insensitively by {@link isKnownToken} / the engine.
+ * the same `TOKENS` constant, no re-listed literals. Offered by the Required fields and Drop order
+ * inputs, whose stored values are bare names (`title`), not `$title`. Preserves original case for
+ * display; matching is done case-insensitively by {@link isKnownToken} / the engine.
  */
 export const BARE_TOKENS: readonly string[] = TOKENS.map((t) => t.token.slice(1));
 
