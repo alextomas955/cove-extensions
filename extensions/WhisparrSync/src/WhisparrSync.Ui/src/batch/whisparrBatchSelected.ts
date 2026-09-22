@@ -14,6 +14,8 @@ import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { presentOverlay } from "@cove-extensions/ui-shared/overlay";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
+import { announceWhenRunEnds } from "../common/lib/cardsChanged";
+
 import { errorCodeIn } from "../common/lib/errorCodeLogic";
 import { api } from "../common/lib/extension";
 import {
@@ -50,10 +52,11 @@ export async function sceneBatchSelected(
     return { cancelled: true };
   }
 
+  let started: { jobId?: string } = {};
   try {
     // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
     // are camelCase, so the casing is read from the server per direction.
-    await postAction(api("scenes/batch"), {
+    started = await postAction<{ jobId?: string }>(api("scenes/batch"), {
       EntityType: payload.entityType,
       Verb: chosen.verb,
       CoveIds: payload.entityIds,
@@ -64,6 +67,10 @@ export async function sceneBatchSelected(
     await stated(refusalSentenceFor(refusal), payload.entityIds.length);
     return { cancelled: true };
   }
+
+  // Not awaited: the run is the host's job drawer's to report, and the badges under the selection
+  // bar are this bundle's to repaint once it has finished.
+  void announceWhenRunEnds("video", payload.entityIds, started.jobId);
 
   return {};
 }
