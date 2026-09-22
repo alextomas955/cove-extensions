@@ -267,7 +267,6 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           entityType="studio"
           label="Exclude by studio"
           labelStyle="group"
-          helper="A child studio counts too."
           values={options.excludeStudioIds}
           onChange={(v) => {
             set("excludeStudioIds", v);

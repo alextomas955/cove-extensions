@@ -268,10 +268,10 @@ test("no superseded label or sentence survives", async () => {
   view.unmount();
 });
 
-test("the studio exclude keeps the cascade it is the only warning of", async () => {
+test("neither exclude selector carries a helper below its control", async () => {
   const view = await renderAdvanced();
 
-  expect(textNodes(view.container, "A child studio counts too.")).toBe(1);
+  expect(textNodes(view.container, "A child studio counts too.")).toBe(0);
 
   view.unmount();
 });

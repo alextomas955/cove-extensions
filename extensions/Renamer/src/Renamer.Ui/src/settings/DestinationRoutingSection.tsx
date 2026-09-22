@@ -79,7 +79,7 @@ export function DestinationRoutingSection({
       >
         <Toggle
           label="Route unorganized items to their own destination"
-          helper="Off, the only-organized setting decides whether they're skipped."
+          helper="When off, Only rename organized items decides whether they are skipped."
           checked={options.unorganizedDestination !== null}
           onChange={(on) => {
             // Off is the absent destination, not one naming nothing: only the absent one falls
