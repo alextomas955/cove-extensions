@@ -13,8 +13,7 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import { errorCodeIn } from "../common/lib/errorCodeLogic";
 import { api } from "../common/lib/extension";
-import { announceCardsChanged } from "../common/lib/cardsChanged";
-import { pollDelayMs, runHasStopped } from "./bulkRunCompletionLogic";
+import { announceWhenRunEnds } from "../common/lib/cardsChanged";
 import {
   allScenesConfirmation,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
@@ -23,7 +22,6 @@ import {
   searchAllMonitoredConfirmation,
 } from "../common/ui/copy";
 import type {
-  BulkJobStatus,
   EntityMonitoringView,
   LibraryCardKind,
   WhisparrConnectionOffer,
@@ -95,38 +93,9 @@ export async function monitorSelected(
 
   // Not awaited: the run is the host's job drawer's to report, and the badges are this bundle's to
   // repaint once it has finished. Awaiting it would hold the selection bar for the length of the run.
-  void repaintWhenRunEnds(kind, payload.entityIds, started.jobId);
+  void announceWhenRunEnds(CARD_KIND_OF_ENTITY[kind], payload.entityIds, started.jobId);
 
   return {};
-}
-
-/**
- * Reads every card on screen again once the run has stopped.
- *
- * The run changes what the instance holds, and the badges were painted before it. Nothing is read
- * while it is still going: a card read mid-run reports a state the next entity is about to leave.
- */
-async function repaintWhenRunEnds(
-  kind: WhisparrEntityKind,
-  coveIds: readonly number[],
-  jobId: string | undefined,
-): Promise<void> {
-  if (jobId === undefined) return;
-
-  for (let asked = 1; asked <= POLLS_BEFORE_GIVING_UP; asked++) {
-    await new Promise((settle) => setTimeout(settle, pollDelayMs(asked)));
-
-    try {
-      const status = await requestJson<BulkJobStatus>(api(`job-status/${jobId}`));
-      if (!runHasStopped(status.status)) continue;
-    } catch {
-      // The run itself is reported in the host's job drawer, so a poll that failed says nothing a
-      // reader needs. The badges are read again anyway: the run may well have carried out its work.
-    }
-
-    announceCardsChanged(CARD_KIND_OF_ENTITY[kind], coveIds);
-    return;
-  }
 }
 
 // One card kind per entity kind, so a run over studios repaints studio cards and nothing else.
@@ -135,10 +104,6 @@ const CARD_KIND_OF_ENTITY: Record<WhisparrEntityKind, LibraryCardKind> = {
   performer: "performer",
   tag: "studio",
 };
-
-// A run of a thousand entities is one outbound request per entity, so the polls give up well after
-// the longest run this route accepts and leave the badges as the reader last saw them.
-const POLLS_BEFORE_GIVING_UP = 600;
 
 // Only the two rows that spend something the reader cannot take back are confirmed: the wider
 // scope marks a whole back catalogue wanted, and the search downloads.
