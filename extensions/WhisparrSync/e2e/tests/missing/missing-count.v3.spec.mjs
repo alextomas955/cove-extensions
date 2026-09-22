@@ -87,7 +87,7 @@ test("the grid never blanks between reads, and the pager offers no page that rep
 }) => {
   // The fixture holds the instance the read establishes a status against: with nothing connected the
   // route answers a whole-grid refusal rather than a catalogue.
-  const { api: coveApi } = connected;
+  const { api: coveApi, whisparr } = connected;
 
   // The catalogue comes from a stub answering to the service's own name on this network, so this
   // spec reads a real captured page and needs no credential on the machine running it.
@@ -126,6 +126,15 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   const studio = await seedCoveStudio(coveApi, {
     name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
     remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: BRAZZERS_EXXTRA }],
+  });
+
+  // The instance is what lists a studio's scenes now, so one it does not hold lists none and
+  // the tab states that instead of drawing a grid. Seeded under the identifier the library
+  // carries, which is what the extension resolves the Cove studio to.
+  await whisparr.seedEntity("v3", {
+    kind: "studio",
+    foreignId: BRAZZERS_EXXTRA,
+    title: studio.name,
   });
 
   await visit(

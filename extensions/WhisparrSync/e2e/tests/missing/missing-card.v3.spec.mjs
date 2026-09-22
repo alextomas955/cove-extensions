@@ -130,11 +130,21 @@ test("missing card: the three controls, the keyboard walk through them and what 
   connected,
 }) => {
   // The fixture holds the connected instance the Search case below reaches.
-  const { api: coveApi } = connected;
+  const { api: coveApi, whisparr } = connected;
 
+  const studioRemoteId = randomUUID();
   const studio = await seedCoveStudio(coveApi, {
     name: `Card studio ${randomUUID().slice(0, 8)}`,
-    remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
+    remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: studioRemoteId }],
+  });
+
+  // The instance is what lists a studio's scenes now, so one it does not hold lists none and
+  // the tab states that instead of drawing a grid. Seeded under the identifier the library
+  // carries, which is what the extension resolves the Cove studio to.
+  await whisparr.seedEntity("v3", {
+    kind: "studio",
+    foreignId: studioRemoteId,
+    title: studio.name,
   });
 
   const drawn = [
