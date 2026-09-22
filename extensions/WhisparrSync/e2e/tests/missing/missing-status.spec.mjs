@@ -117,6 +117,15 @@ test("the two reasons a status is unknown are different answers, in a real host"
       name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
       remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: BRAZZERS_EXXTRA }],
     });
+
+    // The instance is what lists a studio's scenes now, so one it does not hold lists none and the
+    // tab states that instead of drawing a grid. Seeded under the identifier the library carries,
+    // which is what the extension resolves the Cove studio to.
+    await whisparr.seedEntity("v3", {
+      kind: "studio",
+      foreignId: BRAZZERS_EXXTRA,
+      title: studio.name,
+    });
     const performer = await seedCovePerformer(coveApi, {
       name: `Performer ${randomUUID().slice(0, 8)}`,
       remoteIds: [],
