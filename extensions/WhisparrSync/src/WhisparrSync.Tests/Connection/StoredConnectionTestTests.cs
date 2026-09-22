@@ -11,6 +11,7 @@ namespace WhisparrSync.Tests.Connection;
 public sealed class StoredConnectionTestTests
 {
     private const string StoredAddress = "http://whisparr-v3:6969";
+    private const string HeldAddress = "http://whisparr-moved:6969";
     private const string StoredKey = "3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f";
     private static readonly DateTimeOffset Verified = new(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
@@ -26,13 +27,31 @@ public sealed class StoredConnectionTestTests
 
         Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
         var call = Assert.Single(tester.Calls);
-        Assert.Equal(StoredAddress, call.Address);
+        // The rebuilt form, which is what drops any credentials embedded in the stored address.
+        Assert.Equal(StoredAddress + "/", call.Address);
         Assert.Equal(StoredKey, call.ApiKey);
 
         var stored = await ConnectionAsync(options);
         Assert.Equal("3.3.8.1097", stored.RecordedVersion);
         Assert.Equal(Now, stored.VersionVerifiedAtUtc);
         Assert.Equal(Now, stored.LastReachableAtUtc);
+    }
+
+    // Every outbound request resolves its address from the row that holds the key, so the stored
+    // test has to probe that address as well. A blob address left behind by a save that moved the
+    // instance names a connection nothing sends to, and a success against it would be read as one.
+    [Fact]
+    public async Task TheStoredTestProbesTheAddressHeldWithTheKey()
+    {
+        var options = await SeededAsync(recordedVersion: null, verifiedAt: null, lastReachableAt: null);
+        var tester = RecordingConnectionTester.Connected("3.3.8.1097");
+        var held = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, HeldAddress, StoredKey);
+
+        await NewRunner(tester, options, held).TestStoredAsync(TestCt);
+
+        var call = Assert.Single(tester.Calls);
+        Assert.Equal(HeldAddress + "/", call.Address);
+        Assert.Equal(StoredKey, call.ApiKey);
     }
 
     // A transient test describes an instance the user may only be considering, so a success there
