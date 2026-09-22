@@ -20,6 +20,17 @@ public sealed class WhisparrCredentialEntity
     public string ApiKey { get; set; } = "";
 
     /// <summary>
+    /// The instance this key belongs to, as the operator supplied it, or empty where none is stored.
+    /// </summary>
+    /// <remarks>
+    /// Held beside the key rather than read from the options blob when a request is built. The two
+    /// are one secret-bearing value: a reader that took the address from one store and the key from
+    /// another can observe a pair from either side of a save that changed both, and post the new key
+    /// to the instance the old address names.
+    /// </remarks>
+    public string Address { get; set; } = "";
+
+    /// <summary>
     /// Server UTC ticks at which this row was last written. Ticks in an integer column, because the
     /// same statements run on the provider production uses and on the one the tests use.
     /// </summary>
@@ -63,5 +74,22 @@ public static class WhisparrCredentialSchema
             updated_at_utc_ticks BIGINT NOT NULL,
             PRIMARY KEY (generation)
         );
+        """;
+
+    /// <summary>The migration that adds the address, frozen as the one above is.</summary>
+    public const string Migration003Name = "003_add_whisparrsync_credential_address";
+
+    /// <summary>
+    /// Adds the address column beside the key, so an outbound request is built from one row.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted to the empty string rather than backfilled from the options blob, which this
+    /// statement cannot read. An installation upgrading carries no address here until its next
+    /// settings save, and a resolution finding none falls back to the stored options so that
+    /// installation keeps working. See <c>ICredentialPort</c>.
+    /// </remarks>
+    public const string Migration003UpSql =
+        """
+        ALTER TABLE whisparrsync_credentials ADD COLUMN address TEXT NOT NULL DEFAULT '';
         """;
 }

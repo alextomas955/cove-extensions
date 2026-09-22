@@ -8,6 +8,7 @@ namespace WhisparrSync.Tests.TestSupport;
 internal sealed class RecordingCredentialPort : ICredentialPort
 {
     private readonly Dictionary<WhisparrGeneration, string> _keys = [];
+    private readonly Dictionary<WhisparrGeneration, string> _addresses = [];
 
     public List<(WhisparrGeneration Generation, CredentialWriteKind Kind, string? ApiKey)> Writes { get; } = [];
 
@@ -16,6 +17,15 @@ internal sealed class RecordingCredentialPort : ICredentialPort
     public RecordingCredentialPort Holding(WhisparrGeneration generation, string apiKey)
     {
         _keys[generation] = apiKey;
+        return this;
+    }
+
+    /// <summary>Holds the pair an outbound request is built from.</summary>
+    public RecordingCredentialPort Holding(
+        WhisparrGeneration generation, string address, string apiKey)
+    {
+        _keys[generation] = apiKey;
+        _addresses[generation] = address;
         return this;
     }
 
@@ -28,11 +38,28 @@ internal sealed class RecordingCredentialPort : ICredentialPort
     public Task<bool> HasKeyAsync(WhisparrGeneration generation, CancellationToken ct)
         => Task.FromResult(_keys.ContainsKey(generation));
 
+    public Task<WhisparrStoredConnection?> ReadConnectionAsync(
+        WhisparrGeneration generation, CancellationToken ct)
+    {
+        Reads.Add(generation);
+        return Task.FromResult(
+            _keys.TryGetValue(generation, out var apiKey)
+                ? new WhisparrStoredConnection(_addresses.GetValueOrDefault(generation, ""), apiKey)
+                : null);
+    }
+
     public Task ApplyAsync(
-        WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc, CancellationToken ct)
+        WhisparrGeneration generation,
+        CredentialWrite write,
+        string address,
+        DateTimeOffset nowUtc,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(write);
         Writes.Add((generation, write.Kind, write.ApiKey));
+        // Written whatever the key write does, as production writes it: the address and the key are
+        // one row, so a double that kept them apart could not show a torn pair being impossible.
+        _addresses[generation] = address;
 
         switch (write.Kind)
         {

@@ -16,6 +16,7 @@ public sealed partial class WhisparrSync
             credential.HasKey(c => c.Generation);
             credential.Property(c => c.Generation).HasColumnName("generation");
             credential.Property(c => c.ApiKey).HasColumnName("api_key");
+            credential.Property(c => c.Address).HasColumnName("address");
             credential.Property(c => c.UpdatedAtUtcTicks).HasColumnName("updated_at_utc_ticks");
         });
 
@@ -33,5 +34,6 @@ public sealed partial class WhisparrSync
     {
         Migration(WhisparrCredentialSchema.Migration001Name, WhisparrCredentialSchema.Migration001UpSql);
         Migration(WhisparrSecretSchema.Migration002Name, WhisparrSecretSchema.Migration002UpSql);
+        Migration(WhisparrCredentialSchema.Migration003Name, WhisparrCredentialSchema.Migration003UpSql);
     }
 }

@@ -55,6 +55,17 @@ public static class SettingsProjector
     /// to <see cref="CredentialWrite.FromSubmitted"/>, so the rule that a submitted blank keeps the
     /// stored key stays in one place.
     /// </remarks>
+    /// <summary>The address this save leaves stored for a generation, normalised as the blob holds it.</summary>
+    /// <remarks>
+    /// Read from the same request the blob is projected from, so the row written beside the key and
+    /// the blob the page reads cannot name different instances.
+    /// </remarks>
+    public static string AddressFor(
+        WhisparrSyncGenerationSaveRequest? save, WhisparrSyncGenerationConnection? stored)
+        => save is null
+            ? stored?.Address ?? ""
+            : ConnectionTester.NormaliseAddress(save.Address);
+
     public static CredentialWrite CredentialWriteFor(WhisparrSyncGenerationSaveRequest? save)
         => save?.KeyWrite switch
         {
