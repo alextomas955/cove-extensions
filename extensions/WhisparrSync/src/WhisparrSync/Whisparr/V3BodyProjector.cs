@@ -3,9 +3,8 @@ using System.Text.Json.Nodes;
 using Whisparr3.Net.Client;
 using Whisparr3.Net.Model;
 using WhisparrSync.Contracts;
-using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Monitoring;
+namespace WhisparrSync.Whisparr;
 
 // Every flag that suppresses acquisition is set here, from one constant, so an edit cannot set one
 // and miss another. Each resource an add can name declares exactly one such flag and they differ:
