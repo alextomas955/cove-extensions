@@ -100,16 +100,18 @@ test("a badge sends nothing at all until a reader asks for the badges", async ()
   expect(container.textContent).toBe("");
 });
 
-test("the answered reading is drawn on the card, and a row with none draws nothing", async () => {
+test("the answered reading is drawn on the card, and a row with none says it is not linked", async () => {
   answering([{ coveId: 7, reading: { excluded: false, present: true, monitored: true } }]);
   showBadges();
 
   const drawn = await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
   expect(drawn.textContent).not.toBe("");
 
+  // The library holds no id the connected generation could name the studio by, so the instance was
+  // never asked. Left blank, the card could not be told from one whose read is still in flight.
   answering([{ coveId: 8, reading: null }]);
-  const silent = await render(
+  const unlinked = await render(
     createElement(WhisparrStudioCardBadge, { studio: { ...HOST_OBJECT, id: 8 } }),
   );
-  expect(silent.textContent).toBe("");
+  expect(unlinked.textContent).toContain("Not linked");
 });

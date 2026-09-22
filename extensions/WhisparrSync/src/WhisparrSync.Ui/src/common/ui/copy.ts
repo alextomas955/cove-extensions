@@ -324,6 +324,26 @@ export const WHISPARR_STATUS_NOT_READ =
 export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
   "The connected Whisparr keeps no per-scene records, so Cove cannot read a status for these. The catalogue below is still complete.";
 
+/**
+ * What a surface says while a run this browser started is still working through something.
+ *
+ * Names no outcome: the run is still going, and what the instance ends up holding is read when it
+ * stops.
+ */
+export const WORKING_IN_WHISPARR = "Working";
+
+/**
+ * What a card says where the library holds no link the connected Whisparr could name the entity by.
+ *
+ * Neither source is named: which one answers follows the connected generation, so a name written
+ * here is wrong on the other one.
+ */
+export const NOT_LINKED = "Not linked";
+
+/** Why the card was never asked about, for the chip's own title. */
+export const NOT_LINKED_REASON =
+  "No id Whisparr could name this by, so it was never asked. Identify it in Cove first.";
+
 /** The catalogue tab's own name, drawn at the left of its toolbar. */
 export const MISSING_TAB_HEADING = "Missing";
 
