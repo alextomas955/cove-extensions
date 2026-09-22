@@ -13,7 +13,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-const { announceCardsChanged, announceWhenRunEnds, onCardsChanged } =
+const { announceCardsChanged, announceWhenRunEnds, onCardsChanged, onCardsRunning } =
   await import("./cardsChanged");
 
 test("an announcement reaches every listener and carries what changed", () => {
@@ -74,6 +74,44 @@ test("a poll that failed still announces", async () => {
   await waiting;
 
   expect(heard).toEqual(["studio"]);
+  stop();
+  vi.useRealTimers();
+});
+
+// The press settles in milliseconds and the run goes on. A surface told only at the end cannot tell
+// a slow run from a press that never registered.
+test("the run is announced as under way before it is waited on, and cleared after", async () => {
+  vi.useFakeTimers();
+  reads.length = 0;
+  answers = [{ status: "completed" }];
+  const heard: string[] = [];
+  const stop = onCardsRunning((kind, coveIds, running) =>
+    heard.push(`${kind}:${coveIds.join(",")}:${String(running)}`),
+  );
+
+  const waiting = announceWhenRunEnds("studio", [7, 8], "job-4");
+  expect(heard).toEqual(["studio:7,8:true"]);
+
+  await vi.advanceTimersByTimeAsync(600);
+  await waiting;
+
+  expect(heard).toEqual(["studio:7,8:true", "studio:7,8:false"]);
+  stop();
+  vi.useRealTimers();
+});
+
+// Left set, a card would say it was being worked through for as long as the page stayed open.
+test("a run whose wait failed still clears what it said was under way", async () => {
+  vi.useFakeTimers();
+  answers = [];
+  const heard: boolean[] = [];
+  const stop = onCardsRunning((_kind, _coveIds, running) => heard.push(running));
+
+  const waiting = announceWhenRunEnds("video", [4], "job-5");
+  await vi.advanceTimersByTimeAsync(600);
+  await waiting;
+
+  expect(heard).toEqual([true, false]);
   stop();
   vi.useRealTimers();
 });
