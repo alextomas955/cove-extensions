@@ -35,8 +35,12 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       );
     };
 
+  // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
+  const fieldStub = (p: { label?: string; children: (controlId: string) => ReactNode }) =>
+    h("label", { "data-stub": "Field" }, p.label, p.children("stub-control"));
+
   return {
-    Field: stub("Field"),
+    Field: fieldStub,
     TextInput: stub("TextInput"),
     SectionCard: stub("SectionCard"),
     CardSection: stub("CardSection"),

@@ -117,16 +117,19 @@ export function FilenameSection({
             }}
           />
           <Field label="Filename template">
-            <TextInput
-              value={options.filenameTemplate}
-              onChange={(v) => {
-                set("filenameTemplate", v);
-              }}
-              onFocus={() => (activeTemplateRef.current = "filename")}
-              inputRef={filenameRef}
-              mono
-              placeholder="$title"
-            />
+            {(id) => (
+              <TextInput
+                id={id}
+                value={options.filenameTemplate}
+                onChange={(v) => {
+                  set("filenameTemplate", v);
+                }}
+                onFocus={() => (activeTemplateRef.current = "filename")}
+                inputRef={filenameRef}
+                mono
+                placeholder="$title"
+              />
+            )}
           </Field>
           <TemplateValidation value={options.filenameTemplate} emptySamples={emptySamples} />
           <TokenLegend

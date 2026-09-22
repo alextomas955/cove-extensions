@@ -27,8 +27,13 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   const { isAbsolutePathShape } =
     await import("../../../../../../shared/ui-shared/src/primitivesLogic");
   return {
-    Field: (props: { label?: string; helper?: string; children?: ReactNode }) =>
-      h("div", { "data-stub": "Field" }, props.label, props.helper, props.children),
+    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
+    Field: (props: {
+      label?: string;
+      helper?: string;
+      children: (controlId: string) => ReactNode;
+    }) =>
+      h("div", { "data-stub": "Field" }, props.label, props.helper, props.children("stub-control")),
     Select: (props: { options?: { label: string }[] }) =>
       h(
         "div",

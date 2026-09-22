@@ -112,7 +112,14 @@ const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wid
 // Names a group of controls, so it stays quieter than the section title containing it.
 const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
 
-/** Label + control + optional helper. Matches Cove `SettingsField`. */
+/**
+ * Label + one control + optional helper. Matches Cove `SettingsField`.
+ *
+ * The label is paired to its control by an id this component owns and hands to `children`, so a
+ * caller that does not put the id on a control fails to type-check. Nesting alone would work for a
+ * single control and silently pick the wrong one for anything else; {@link FieldGroup} is what a
+ * block of several controls takes.
+ */
 export function Field({
   label,
   helper,
@@ -122,16 +129,17 @@ export function Field({
   label: string;
   helper?: string;
   labelStyle?: "micro" | "group";
-  children: ReactNode;
+  children: (controlId: string) => ReactNode;
 }) {
+  const controlId = useId();
   return (
-    <label className="block text-sm" title={helper}>
+    <label className="block text-sm" htmlFor={controlId} title={helper}>
       {label ? (
         <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
           {label}
         </span>
       ) : null}
-      {children}
+      {children(controlId)}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
     </label>
   );
@@ -190,6 +198,7 @@ export function TextInput({
   mono = false,
   inputRef,
   ariaLabel,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -199,10 +208,12 @@ export function TextInput({
   inputRef?: React.Ref<HTMLInputElement>;
   // For an input inside a group rather than under a label of its own: a group's name does not reach it.
   ariaLabel?: string;
+  id?: string;
 }) {
   return (
     <input
       ref={inputRef}
+      id={id}
       type="text"
       value={value}
       placeholder={placeholder}
@@ -223,6 +234,7 @@ export function NumberInput({
   max,
   placeholder,
   blankWhenZero,
+  id,
 }: {
   value: number;
   onChange: (value: number) => void;
@@ -231,9 +243,11 @@ export function NumberInput({
   placeholder?: string;
   /** Set where zero is the field's "unset", so it renders blank and the placeholder names it. */
   blankWhenZero?: boolean;
+  id?: string;
 }) {
   return (
     <input
+      id={id}
       type="number"
       value={numberInputValue(value, blankWhenZero)}
       placeholder={placeholder}
@@ -260,6 +274,7 @@ export function Select<T extends string>({
   options,
   disabled = false,
   ariaLabel,
+  id,
 }: {
   value: T;
   onChange: (value: T) => void;
@@ -267,9 +282,11 @@ export function Select<T extends string>({
   disabled?: boolean;
   // A native <select> has no visible label of its own; a caller with no adjacent label names it here.
   ariaLabel?: string;
+  id?: string;
 }) {
   return (
     <select
+      id={id}
       value={value}
       disabled={disabled}
       aria-label={ariaLabel}
@@ -585,10 +602,12 @@ export function Toggle({
   helper?: string;
   ariaLabel?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="flex items-center gap-2 text-sm text-secondary" title={helper}>
+      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
         <button
+          id={id}
           type="button"
           role="switch"
           aria-checked={checked}

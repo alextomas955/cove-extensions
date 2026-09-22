@@ -65,51 +65,61 @@ export function DestinationField({
 
   const rootField = (
     <Field label="Under" helper={rootHelper}>
-      <Select
-        // The matched path, so a root stored in Cove's own platform spelling selects the library
-        // path it names rather than falling off the list. The stored value is left as it is: it
-        // names the right folder, and rewriting it on load would be an edit the user did not make.
-        value={chosen ?? value.root}
-        onChange={(root) => {
-          onChange({ ...value, root });
-        }}
-        options={options}
-      />
-      {stale ? (
-        <StatusText kind="error">
-          This root is no longer one of Cove&apos;s library paths, so the rule is skipped. Pick
-          another.
-        </StatusText>
-      ) : null}
+      {(id) => (
+        <>
+          <Select
+            id={id}
+            // The matched path, so a root stored in Cove's own platform spelling selects the library
+            // path it names rather than falling off the list. The stored value is left as it is: it
+            // names the right folder, and rewriting it on load would be an edit the user did not make.
+            value={chosen ?? value.root}
+            onChange={(root) => {
+              onChange({ ...value, root });
+            }}
+            options={options}
+          />
+          {stale ? (
+            <StatusText kind="error">
+              This root is no longer one of Cove&apos;s library paths, so the rule is skipped. Pick
+              another.
+            </StatusText>
+          ) : null}
+        </>
+      )}
     </Field>
   );
 
   const templateField = (
     <Field label={label} helper={helper}>
-      <TextInput
-        value={value.template}
-        onChange={(template) => {
-          onChange({ ...value, template });
-        }}
-        onFocus={onTemplateFocus}
-        inputRef={templateRef}
-        mono
-        placeholder={templatePlaceholder}
-      />
-      {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about to
-          become literal folder names, and this is the only line that says so — while naming a
-          control that is not on screen leaves the user nothing to act on. */}
-      <PathShapeHint
-        value={value.template}
-        message={
-          showPicker
-            ? "This is a folder template, not a path — pick the root beside it instead."
-            : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
-        }
-      />
-      {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by the
-          one editor they all use, so a new destination cannot ship without it. */}
-      <TemplateValidation value={value.template} />
+      {(id) => (
+        <>
+          <TextInput
+            id={id}
+            value={value.template}
+            onChange={(template) => {
+              onChange({ ...value, template });
+            }}
+            onFocus={onTemplateFocus}
+            inputRef={templateRef}
+            mono
+            placeholder={templatePlaceholder}
+          />
+          {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about
+              to become literal folder names, and this is the only line that says so — while naming a
+              control that is not on screen leaves the user nothing to act on. */}
+          <PathShapeHint
+            value={value.template}
+            message={
+              showPicker
+                ? "This is a folder template, not a path — pick the root beside it instead."
+                : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+            }
+          />
+          {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by
+              the one editor they all use, so a new destination cannot ship without it. */}
+          <TemplateValidation value={value.template} />
+        </>
+      )}
     </Field>
   );
 

@@ -120,22 +120,28 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             />
           </FieldGroup>
           <Field label="Remove characters" helper="Deleted from the name.">
-            <TextInput
-              value={options.removeCharacters}
-              onChange={(v) => {
-                set("removeCharacters", v);
-              }}
-              placeholder="e.g. ,#"
-            />
+            {(id) => (
+              <TextInput
+                id={id}
+                value={options.removeCharacters}
+                onChange={(v) => {
+                  set("removeCharacters", v);
+                }}
+                placeholder="e.g. ,#"
+              />
+            )}
           </Field>
           <Field label="Case">
-            <Select
-              value={options.case}
-              onChange={(v) => {
-                set("case", v);
-              }}
-              options={CASE_OPTIONS}
-            />
+            {(id) => (
+              <Select
+                id={id}
+                value={options.case}
+                onChange={(v) => {
+                  set("case", v);
+                }}
+                options={CASE_OPTIONS}
+              />
+            )}
           </Field>
         </div>
         <Toggle
@@ -161,22 +167,28 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Filename max length">
-            <NumberInput
-              value={options.filenameMax}
-              min={1}
-              onChange={(v) => {
-                set("filenameMax", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.filenameMax}
+                min={1}
+                onChange={(v) => {
+                  set("filenameMax", v);
+                }}
+              />
+            )}
           </Field>
           <Field label="Full-path max length">
-            <NumberInput
-              value={options.fullPathMax}
-              min={1}
-              onChange={(v) => {
-                set("fullPathMax", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.fullPathMax}
+                min={1}
+                onChange={(v) => {
+                  set("fullPathMax", v);
+                }}
+              />
+            )}
           </Field>
         </div>
         <div>
@@ -225,27 +237,33 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             label="Cross-volume concurrency"
             helper="Files copied across drives at once. 2 for hard drives; 4–8 if both are SSDs. Higher isn't always faster."
           >
-            <NumberInput
-              value={options.crossVolumeConcurrency}
-              min={1}
-              max={16}
-              onChange={(v) => {
-                set("crossVolumeConcurrency", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.crossVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("crossVolumeConcurrency", v);
+                }}
+              />
+            )}
           </Field>
           <Field
             label="Same-volume concurrency"
             helper="Same-drive renames are instant; the default is fine."
           >
-            <NumberInput
-              value={options.sameVolumeConcurrency}
-              min={1}
-              max={16}
-              onChange={(v) => {
-                set("sameVolumeConcurrency", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.sameVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("sameVolumeConcurrency", v);
+                }}
+              />
+            )}
           </Field>
         </div>
       </CollapsibleSection>
@@ -290,14 +308,17 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
-                  <TextInput
-                    value={row.pattern}
-                    onChange={(v) => {
-                      update({ pattern: v });
-                    }}
-                    mono
-                    placeholder="Exact path or regex"
-                  />
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      value={row.pattern}
+                      onChange={(v) => {
+                        update({ pattern: v });
+                      }}
+                      mono
+                      placeholder="Exact path or regex"
+                    />
+                  )}
                 </Field>
                 <Toggle
                   label="Match as a regex"
@@ -345,31 +366,40 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               return (
                 <>
                   <Field label="Target token">
-                    <Select
-                      value={row.targetToken}
-                      onChange={(v) => {
-                        update({ targetToken: v });
-                      }}
-                      options={tokenOptions}
-                    />
+                    {(id) => (
+                      <Select
+                        id={id}
+                        value={row.targetToken}
+                        onChange={(v) => {
+                          update({ targetToken: v });
+                        }}
+                        options={tokenOptions}
+                      />
+                    )}
                   </Field>
                   <Field label="Find" helper="Literal text to match. Empty does nothing.">
-                    <TextInput
-                      value={row.find}
-                      onChange={(v) => {
-                        update({ find: v });
-                      }}
-                      placeholder="Text to find"
-                    />
+                    {(id) => (
+                      <TextInput
+                        id={id}
+                        value={row.find}
+                        onChange={(v) => {
+                          update({ find: v });
+                        }}
+                        placeholder="Text to find"
+                      />
+                    )}
                   </Field>
                   <Field label="Replace with">
-                    <TextInput
-                      value={row.replace}
-                      onChange={(v) => {
-                        update({ replace: v });
-                      }}
-                      placeholder="Replacement (blank to remove)"
-                    />
+                    {(id) => (
+                      <TextInput
+                        id={id}
+                        value={row.replace}
+                        onChange={(v) => {
+                          update({ replace: v });
+                        }}
+                        placeholder="Replacement (blank to remove)"
+                      />
+                    )}
                   </Field>
                 </>
               );

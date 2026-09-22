@@ -172,14 +172,17 @@ export function DestinationRoutingSection({
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
-                  <TextInput
-                    value={row.pattern}
-                    onChange={(v) => {
-                      update({ pattern: v });
-                    }}
-                    mono
-                    placeholder="Exact path or regex"
-                  />
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      value={row.pattern}
+                      onChange={(v) => {
+                        update({ pattern: v });
+                      }}
+                      mono
+                      placeholder="Exact path or regex"
+                    />
+                  )}
                 </Field>
                 <Toggle
                   label="Match as a regex"

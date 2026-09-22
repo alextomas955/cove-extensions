@@ -133,35 +133,44 @@ export function TokenSettingsSection({
           </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count">
-              <NumberInput
-                value={mv("performers").maxCount}
-                min={0}
-                placeholder="No limit"
-                blankWhenZero
-                onChange={(v) => {
-                  setMulti("performers", { maxCount: v });
-                }}
-              />
+              {(id) => (
+                <NumberInput
+                  id={id}
+                  value={mv("performers").maxCount}
+                  min={0}
+                  placeholder="No limit"
+                  blankWhenZero
+                  onChange={(v) => {
+                    setMulti("performers", { maxCount: v });
+                  }}
+                />
+              )}
             </Field>
             <Field label="On overflow">
-              <Select
-                value={mv("performers").onOverflow}
-                onChange={(v) => {
-                  setMulti("performers", { onOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("performers").onOverflow}
+                  onChange={(v) => {
+                    setMulti("performers", { onOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              )}
             </Field>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Sort" helper="The id and favorite orders apply to performers only.">
-              <Select
-                value={mv("performers").sort}
-                onChange={(v) => {
-                  setMulti("performers", { sort: v });
-                }}
-                options={PERFORMER_SORT_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("performers").sort}
+                  onChange={(v) => {
+                    setMulti("performers", { sort: v });
+                  }}
+                  options={PERFORMER_SORT_OPTIONS}
+                />
+              )}
             </Field>
             <FieldGroup
               label="Ignore genders"
@@ -223,34 +232,43 @@ export function TokenSettingsSection({
           </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count">
-              <NumberInput
-                value={mv("tags").maxCount}
-                min={0}
-                placeholder="No limit"
-                blankWhenZero
-                onChange={(v) => {
-                  setMulti("tags", { maxCount: v });
-                }}
-              />
+              {(id) => (
+                <NumberInput
+                  id={id}
+                  value={mv("tags").maxCount}
+                  min={0}
+                  placeholder="No limit"
+                  blankWhenZero
+                  onChange={(v) => {
+                    setMulti("tags", { maxCount: v });
+                  }}
+                />
+              )}
             </Field>
             <Field label="On overflow">
-              <Select
-                value={mv("tags").onOverflow}
-                onChange={(v) => {
-                  setMulti("tags", { onOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("tags").onOverflow}
+                  onChange={(v) => {
+                    setMulti("tags", { onOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              )}
             </Field>
           </div>
           <Field label="Sort">
-            <Select
-              value={mv("tags").sort}
-              onChange={(v) => {
-                setMulti("tags", { sort: v });
-              }}
-              options={TAG_SORT_OPTIONS}
-            />
+            {(id) => (
+              <Select
+                id={id}
+                value={mv("tags").sort}
+                onChange={(v) => {
+                  setMulti("tags", { sort: v });
+                }}
+                options={TAG_SORT_OPTIONS}
+              />
+            )}
           </Field>
           <EntitySelectField
             entityType="tag"

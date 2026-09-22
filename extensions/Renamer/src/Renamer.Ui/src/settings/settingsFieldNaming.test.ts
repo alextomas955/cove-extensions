@@ -297,6 +297,39 @@ test("every text input, select and textarea is named, save the recorded host-sel
   view.unmount();
 });
 
+test("every label names exactly one control, by an id that resolves", async () => {
+  const view = await renderPanel();
+
+  const unpaired: string[] = [];
+  const notOne: string[] = [];
+  for (const label of view.container.querySelectorAll("label")) {
+    const forId = label.getAttribute("for");
+    const resolved =
+      forId === null
+        ? []
+        : [...view.container.ownerDocument.querySelectorAll(`[id="${CSS.escape(forId)}"]`)];
+    if (resolved.length !== 1) {
+      unpaired.push(`${sectionOf(label)} / ${cardOf(label)} / "${headingOf(label)}"`);
+    }
+    const labelable = label.querySelectorAll(LABELABLE).length;
+    if (labelable !== 1) {
+      notOne.push(
+        `${sectionOf(label)} / ${cardOf(label)} / "${headingOf(label)}" wraps ${String(labelable)}`,
+      );
+    }
+  }
+
+  console.log(`G3 labels with no resolving for: ${String(unpaired.length)}`);
+  for (const u of unpaired) console.log(`  ${u}`);
+  console.log(`G3 labels not wrapping exactly one control: ${String(notOne.length)}`);
+  for (const n of notOne) console.log(`  ${n}`);
+
+  expect(unpaired, "a label whose for names no single control").toEqual([]);
+  expect(notOne, "a label wrapping other than one control").toEqual([]);
+
+  view.unmount();
+});
+
 /**
  * The selector `extensions/Renamer/e2e/tests/options-migration.spec.mjs` addresses a field block
  * with, copied verbatim. Both shapes are candidates and a candidate containing another is not one.

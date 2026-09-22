@@ -35,12 +35,13 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     GroupCard: box("GroupCard"),
     Badge: box("Badge"),
     Chip: box("Chip"),
-    Field: (p: { label?: string; helper?: string; children?: ReactNode }) =>
+    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
+    Field: (p: { label?: string; helper?: string; children: (controlId: string) => ReactNode }) =>
       h(
         "label",
         { "data-stub": "Field" },
         h("span", null, text(p.label)),
-        p.children,
+        p.children("stub-control"),
         h("span", null, text(p.helper)),
       ),
     FieldGroup: (p: { label?: string; helper?: string; children?: ReactNode }) =>

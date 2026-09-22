@@ -4,7 +4,7 @@
  * and that the control still carries a name of its own.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. `Field` stands in with its real order — label, children, helper.
+ * bundle.
  *
  * React arrives as its production build, which has no `act`, so the render is flushed by waiting.
  */
@@ -24,15 +24,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   return {
     SectionCard: function SectionCard(props: Record<string, unknown>) {
       return h("div", { "data-stub": "SectionCard" }, props.children as ReactNode);
-    },
-    Field: function Field(props: Record<string, unknown>) {
-      return h(
-        "label",
-        { "data-stub": "Field" },
-        h("span", { "data-stub": "Field-label" }, props.label as string),
-        props.children as ReactNode,
-        h("span", { "data-stub": "Field-helper" }, props.helper as string),
-      );
     },
     Toggle: function Toggle(props: Record<string, unknown>) {
       return h(
