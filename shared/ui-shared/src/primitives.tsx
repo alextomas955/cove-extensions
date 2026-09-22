@@ -117,22 +117,51 @@ export function Field({
   label,
   helper,
   labelStyle = "micro",
+  controlNamesItself = false,
   children,
 }: {
   label: string;
   helper?: string;
   labelStyle?: "micro" | "group";
+  /**
+   * Set where the control takes its own accessible name. The host entity selector draws each chip's
+   * Remove button ahead of its input, so a label element around it names that button, and a click
+   * on the heading activates it.
+   */
+  controlNamesItself?: boolean;
   children: ReactNode;
 }) {
-  return (
-    <label className="block text-sm" title={helper}>
+  const labelId = useId();
+  const body = (
+    <>
       {label ? (
-        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
+        <span
+          id={controlNamesItself ? labelId : undefined}
+          className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}
+        >
           {label}
         </span>
       ) : null}
       {children}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
+    </>
+  );
+
+  if (controlNamesItself) {
+    return (
+      <div
+        className="block text-sm"
+        title={helper}
+        role="group"
+        aria-labelledby={label ? labelId : undefined}
+      >
+        {body}
+      </div>
+    );
+  }
+  return (
+    <label className="block text-sm" title={helper}>
+      {body}
     </label>
   );
 }

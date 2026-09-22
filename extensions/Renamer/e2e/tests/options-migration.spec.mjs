@@ -67,13 +67,21 @@ function toggleCard(page, title) {
   return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
 }
 
+// A `Field` renders a `<label>`, except where its control carries its own accessible name, where it
+// renders a `role="group"` block instead. Either shape is a candidate, and a candidate containing
+// another candidate is not one: `hasText` matches an ancestor as readily as a leaf, and `PerKindRows`
+// wraps fields of its own in a `role="group"` row.
+const FIELD_SELECTOR =
+  'label:not(:has(label, [role="group"])), [role="group"]:not(:has(label, [role="group"]))';
+
 /**
  * One `Field` within a scope. Two selector fields share the Performers card and two share the Tags
- * card, so the card alone cannot separate a whitelist chip from a blacklist chip; `Field` renders a
- * `<label>` whose first span is the field name, which is the narrowest scope that can.
+ * card, so the card alone cannot separate a whitelist chip from a blacklist chip. The exclusion in
+ * {@link FIELD_SELECTOR}, not the absence of a second match, is what keeps this the narrowest scope
+ * that can; resolving strictly is what says so when it stops being true.
  */
 function field(scope, label) {
-  return scope.locator("label").filter({ hasText: label }).first();
+  return scope.locator(FIELD_SELECTOR).filter({ hasText: label });
 }
 
 test("a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names", async ({
@@ -247,8 +255,8 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: /^Excludes/ }).click();
-  // The tag exclude names itself through its own `Field` label rather than a card heading, so the
-  // label element is the narrowest scope that holds its chips.
+  // The tag exclude names itself through its own `Field` rather than through a card heading, so that
+  // block is the narrowest scope that holds its chips.
   const excludeTagCard = field(page, "Exclude by tag");
   await expect(
     excludeTagCard.getByRole("button", { name: `Remove ${names.tagExclude}`, exact: true }),
@@ -266,6 +274,22 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     excludeText,
     "a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like — the conversion wrote an id the library does not have",
   ).not.toContain("Loading tag...");
+
+  // A `<label>` forwards a click anywhere inside it to the first labelable descendant, and the host
+  // selector renders each chip's Remove button ahead of its input.
+  await expect(
+    excludeTagCard,
+    "the exclusion field no longer resolves to exactly one block, so everything scoped to it below is being read off some other part of the page",
+  ).toHaveCount(1);
+  await excludeTagCard.getByText("Exclude by tag", { exact: true }).click();
+  await expect(
+    excludeTagCard.getByRole("button", { name: /^Remove / }),
+    "clicking the field's heading text deleted a configured exclusion — the rule is gone with no message shown and nothing to put it back",
+  ).toHaveCount(1);
+  await expect(
+    excludeTagCard,
+    "the field's block carries no accessible name, so the heading a user reads names nothing and the control is announced by whatever its own contents happen to say",
+  ).toHaveAccessibleName("Exclude by tag");
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
   const tagDestinations = toggleCard(page, "Per-tag destinations");
@@ -319,6 +343,14 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     field(advancedRouting, "Folder template").getByRole("textbox"),
     "the source-path rule's destination root survived but the folder under it did not",
   ).toHaveValue("archive");
+
+  // The label element's own behaviour, kept on every field whose control does not name itself.
+  const sourcePathField = field(advancedRouting, "Source path");
+  await sourcePathField.getByText("Source path", { exact: true }).click();
+  await expect(
+    sourcePathField.getByRole("textbox"),
+    "clicking a plain field's heading text no longer put the cursor in its input, so the label element was taken off every Field rather than off the entity selectors alone",
+  ).toBeFocused();
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

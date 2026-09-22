@@ -58,6 +58,8 @@ declare module "@cove/runtime/components" {
     excludeIds?: Iterable<number>;
     allowCreate?: boolean;
     inputClassName?: string;
+    /** Accessible name for the search input when no external label is associated. */
+    inputAriaLabel?: string;
   }) => never;
 
   export const EntityReferenceValue: (props: {

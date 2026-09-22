@@ -23,8 +23,8 @@ import { someOptions } from "./testOptions";
 
 // The host selector's module specifier resolves only inside a running Cove, and a jsdom run resolves
 // it against browser conditions rather than leaving it external, so the adapter stands in whole. Its
-// stand-in keeps the shape its own header records as load-bearing: the host control accepts no label
-// of its own, so it stays wrapped in a `Field` that carries the name.
+// stand-in keeps the shape its own header records as load-bearing: the host control takes the name
+// itself, and its `Field` is therefore not a label element.
 vi.mock("./EntitySelectField", async () => {
   const { createElement: h } = await import("react");
   const { Field } = await import("@cove-extensions/ui-shared");
@@ -39,7 +39,12 @@ vi.mock("./EntitySelectField", async () => {
         label: p.label,
         helper: p.helper,
         labelStyle: p.labelStyle,
-        children: h("input", { "data-stub": "EntitySelector", placeholder: p.placeholder }),
+        controlNamesItself: true,
+        children: h("input", {
+          "data-stub": "EntitySelector",
+          "aria-label": p.label,
+          placeholder: p.placeholder,
+        }),
       }),
   };
 });
@@ -68,10 +73,20 @@ vi.mock("@cove-extensions/ui-shared", async () => {
         h("p", null, text(p.description)),
         p.children,
       ),
-    Field: (p: { label?: string; helper?: string; labelStyle?: string; children?: ReactNode }) =>
+    Field: (p: {
+      label?: string;
+      helper?: string;
+      labelStyle?: string;
+      controlNamesItself?: boolean;
+      children?: ReactNode;
+    }) =>
       h(
-        "label",
-        { "data-stub": "Field", "data-label-style": p.labelStyle ?? "micro" },
+        p.controlNamesItself ? "div" : "label",
+        {
+          "data-stub": "Field",
+          "data-label-style": p.labelStyle ?? "micro",
+          role: p.controlNamesItself ? "group" : undefined,
+        },
         h("span", { "data-stub": "Field-label" }, text(p.label)),
         p.children,
         h("span", { "data-stub": "Field-helper" }, text(p.helper)),
@@ -289,7 +304,7 @@ test("the chip controls are named by their own heading, not by a placeholder", a
   view.unmount();
 });
 
-test("each exclude names its control once, through a group-styled label", async () => {
+test("each exclude names its control once, on a block its control does not depend on", async () => {
   const view = await renderAdvanced();
 
   const excludeLabels = [...view.container.querySelectorAll('[data-stub="Field-label"]')]
@@ -302,6 +317,11 @@ test("each exclude names its control once, through a group-styled label", async 
       (f) => f.querySelector('[data-stub="Field-label"]')?.textContent.trim() === label,
     );
     expect(field?.getAttribute("data-label-style"), label).toBe("group");
+    expect(field?.tagName, label).not.toBe("LABEL");
+    expect(
+      field?.querySelector('[data-stub="EntitySelector"]')?.getAttribute("aria-label"),
+      label,
+    ).toBe(label);
   }
 
   expect(textNodes(view.container, "Exclude by source path")).toBe(1);

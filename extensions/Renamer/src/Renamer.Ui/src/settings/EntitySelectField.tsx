@@ -10,8 +10,11 @@
  * The input class is the shared one so an embedded host control matches every other input in the
  * panel. It is imported, never retyped.
  *
- * The host input accepts no label, no id and no aria-label, so its accessible name comes only from
- * the wrapping label element, which is why the selector stays inside {@link Field} at every instance.
+ * The wrapper is deliberately not a label element. The host draws each chip's Remove button ahead of
+ * its input, so a label around it names that button and a click on the heading removes a chip. The
+ * block carries the name instead, and the input is handed the same string through the host's own
+ * `inputAriaLabel`. There is no input id to point `htmlFor` at, and a host predating `inputAriaLabel`
+ * drops the prop, leaving that input on its placeholder.
  *
  * No state, no searching, no filtering, no results list and no chip rendering live here. All of that
  * is the host's.
@@ -42,7 +45,7 @@ export function EntitySelectField({
   excludeIds?: Iterable<number>;
 }>) {
   return (
-    <Field label={label} labelStyle={labelStyle} helper={helper}>
+    <Field label={label} labelStyle={labelStyle} helper={helper} controlNamesItself>
       <EntityReferenceMultiSelector
         entityType={entityType}
         values={values}
@@ -51,6 +54,7 @@ export function EntitySelectField({
         excludeIds={excludeIds}
         allowCreate={false}
         inputClassName={INPUT_CLASS}
+        inputAriaLabel={label}
       />
     </Field>
   );
