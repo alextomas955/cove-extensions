@@ -210,6 +210,9 @@ function carries(page: MissingPageView | null, providerSceneId: string): boolean
 }
 
 // Drops every entry for a scene the page no longer carries.
+// The press's own reporting is kept and its state is not: a reader who pressed and was refused
+// still needs the reason, while the state a page carries was read from the instance and outranks
+// the one the press's own answer claimed.
 function onlyOnScreen(
   actions: Readonly<Record<string, CardActionState>>,
   page: MissingPageView,
@@ -217,7 +220,8 @@ function onlyOnScreen(
   const kept: Record<string, CardActionState> = {};
   for (const card of page.cards) {
     if (Object.hasOwn(actions, card.providerSceneId)) {
-      kept[card.providerSceneId] = actions[card.providerSceneId];
+      const held = actions[card.providerSceneId];
+      kept[card.providerSceneId] = held.inFlight === null ? { ...held, optimistic: null } : held;
     }
   }
   return kept;
