@@ -10,6 +10,11 @@ import type {
   MissingTrackOutcome,
   MissingTrackResult,
 } from "../wire/api";
+import {
+  announceEntityChanged,
+  isTheSameEntity,
+  onEntityChanged,
+} from "../common/lib/entityChanged";
 import { api } from "../common/lib/extension";
 import { whenRunEnds } from "../common/lib/runCompletion";
 import type { WhisparrEntityKind } from "../wire/api";
@@ -144,6 +149,16 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     read({ kind, coveId }, { page, sort, q, filters });
   }, [read, kind, coveId, page, sort, q, filters]);
 
+  // The control in this page's action row acts on the same entity, and what it does changes what
+  // this grid lists. Narrowed to this entity, so a page showing another one reads nothing.
+  useEffect(
+    () =>
+      onEntityChanged((announced) => {
+        if (isTheSameEntity(announced, { kind, coveId })) refresh();
+      }),
+    [kind, coveId, refresh],
+  );
+
   const act = useCallback(
     (verb: CardVerb, providerSceneId: string) => {
       const entity: MissingEntity = { kind, coveId };
@@ -215,8 +230,12 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
         setTrack(outcome === "added" ? { kind: "added" } : { kind: "refused", outcome });
 
         // The instance now holds the entity, so the page is read again rather than left on the
-        // reason the add cleared.
-        if (outcome === "added") refresh();
+        // reason the add cleared, and the control beside this grid is told: it was drawing the
+        // entity as one the instance has no entry for.
+        if (outcome === "added") {
+          refresh();
+          announceEntityChanged({ kind, coveId });
+        }
       })
       .catch(() => {
         setTrack({ kind: "refused", outcome: "notStarted" });
