@@ -4,11 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Drives the <see cref="TemplateEngine.Render"/> orchestrator: full core token set
-/// (CoreTokens*), {} optional-group collapse incl. no-dangling-punctuation (OptionalGroup*),
-/// and independent filename/folder rendering with correct '/' handling (FolderTemplate*).
-/// </summary>
 public class TemplateEngineTests
 {
     private static IReadOnlyDictionary<string, string> NoTokens => new Dictionary<string, string>();
@@ -88,8 +83,7 @@ public class TemplateEngineTests
     public void TrailingResolution_InTitle_NotDoubled_WhenTemplateAppendsResolution()
     {
         // The library-migration case: the title was imported from a filename that already ends in
-        // "[1080p]", and the template also appends { [$resolution]}. The trailing tag on the title is
-        // stripped so the rendered name carries the resolution exactly once.
+        // "[1080p]", and the template also appends { [$resolution]}.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
@@ -103,7 +97,6 @@ public class TemplateEngineTests
     [Fact]
     public void TrailingResolution_InTitle_Kept_WhenTemplateHasNoResolution()
     {
-        // No $resolution in the template → the title's own tag is the only resolution and must survive.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
@@ -117,8 +110,7 @@ public class TemplateEngineTests
     [Fact]
     public void TrailingResolution_MidTitle_Untouched()
     {
-        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone (and
-        // the real appended resolution still renders).
+        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Shot in [1080p] Glory",
@@ -420,7 +412,6 @@ public class TemplateEngineTests
     public void OptionalGroup_AllEmpty_RemovesEntireSpanIncludingInnerLiterals()
     {
         var tokens = new Dictionary<string, string> { ["studio"] = "Acme" };
-        // performers empty -> the whole {...} (incl. " - " inside) is removed; no dangling separator.
         var r = Render("$studio{ - $performers}", tokens);
         Assert.Equal("Acme", r.Filename);
     }
@@ -454,8 +445,6 @@ public class TemplateEngineTests
     [Fact]
     public void OptionalGroup_OneEmptyOneNonEmpty_RendersWithEmptyCollapsed()
     {
-        // studio empty, performers present -> group renders; the empty studio token contributes
-        // nothing but the inner literals stay (the engine collapses empties).
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
             ["performers"] = new[] { "Alice" },
@@ -482,8 +471,7 @@ public class TemplateEngineTests
     public void DefaultGroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
         // $height is the raw numeric token (1080), distinct from the derived $resolution bucket
-        // (which would render "1080p"); a date/height absent from the dict resolves empty so its
-        // {} group collapses without leaving a dangling separator or empty brackets.
+        // (which would render "1080p").
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
         if (date.Length > 0)
         {
@@ -576,7 +564,6 @@ public class TemplateEngineTests
     [Fact]
     public void Squeeze_TwoStudioVariants_RenderToOneStableFolder()
     {
-        // Regression through the full engine: both spacing variants render one folder key.
         var o = new RenamerOptions
         {
             FilenameTemplate = "$title",
@@ -598,7 +585,6 @@ public class TemplateEngineTests
     [Fact]
     public void DefaultOptions_RenderByteIdentical_ToPrePhaseEngine()
     {
-        // gate: with no field-rewrite settings, output must be byte-identical to the v1.3 engine.
         // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>
         {
@@ -626,9 +612,6 @@ public class TemplateEngineTests
     [Fact]
     public void FieldRewrites_FlowThroughRender_TitleArticleAndStudioSqueeze()
     {
-        // Combined: prepositions_removal strips the leading article from $title and squeeze_studio_names
-        // the $studio spaces — both flow through the existing BuildResolvedMap -> render ->
-        // sanitize pipeline via the extended RewriteScalar (no new wiring).
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Matrix",
@@ -795,8 +778,6 @@ public class TemplateEngineTests
     [Fact]
     public void Performers_RecordPath_DefaultOptions_RendersSameNamesAsNamePath()
     {
-        // Regression guard: feeding the records with default performer options renders the same
-        // joined names as the name-only path (no records) would.
         var tokens = new Dictionary<string, string> { ["title"] = "Film" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -848,7 +829,6 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, multi, o, performers: records);
 
-        // Eve is dropped (named in the title), leaving Bob + Carol, name-ordered.
         Assert.Equal("Bob, Carol", r.Filename);
     }
 
@@ -879,16 +859,12 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, multi, o, performers: records);
 
-        // Bob is dropped (named in the title); both Alex records survive, in order.
         Assert.Equal("Alex, Alex", r.Filename);
     }
 
     [Fact]
     public void DropPerformersInTitleRecords_DropsOnlyTitleMatchedPositions_KeepsDuplicates()
     {
-        // Per-position proof: filtering the records (not a name-keyed set) keeps a surviving duplicate.
-        // Two performers named "Alex" plus one "Eve"; only "Eve" is in the title, so both Alex records
-        // remain — exactly the case a name-keyed all-or-nothing rejoin could not express.
         var records = new[]
         {
             new RenamerPerformer(1, "Alex", false, "Female"),

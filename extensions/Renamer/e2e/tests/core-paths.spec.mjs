@@ -48,10 +48,6 @@ test("editing the filename template updates the live preview and enables Save", 
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
-  // Drives the actual template textbox and asserts the debounced live-preview panel
-  // (POST /preview-sample) and dirty-state save bar both reflect the edit — a "no console error"
-  // check alone would miss a stale/duplicated fetch overwriting the preview with wrong data,
-  // since that failure mode doesn't throw.
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
 
@@ -169,8 +165,6 @@ test(
     expect(setTitle.ok).toBe(true);
 
     const dialogMessages = await videosPage.renameSelected();
-    // The confirm() dialog shows the real computed preview — assert on it, not just that a dialog
-    // fired, so this test would catch a regression in what the preview text itself says.
     expect(dialogMessages[0]).toContain(originalFilename);
 
     await assertRenamedTo({
@@ -186,9 +180,7 @@ test(
 
     await assertRestoredTo({ api, container: harness.container, videoId: video.id, originalPath });
 
-    // Confirm the item still renders in the grid after the undo round-trip — a real user driving the
-    // UI sees the card come back (labeled by its title, which the grid shows once one is set). The
-    // restored filename itself is proven on disk and in the DB by assertRestoredTo above.
+    // The grid labels a card by its title once one is set.
     await videosPage.goto();
     await expect(page.getByRole("link", { name: `Open video ${title}` })).toBeVisible();
 
