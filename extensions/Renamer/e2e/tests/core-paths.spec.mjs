@@ -85,10 +85,14 @@ test(
       // this worker shares, so without this reset the marker template renders the filenames every
       // later test asserts on. This route replaces the stored document rather than merging it, so
       // the write restores the whole options record to its defaults.
-      await api.put(
+      const reset = await api.put(
         `/api/extensions/${EXTENSION_ID}/data/options`,
         JSON.stringify({ FilenameTemplate: DEFAULT_FILENAME_TEMPLATE }),
       );
+      expect(
+        reset.ok,
+        `resetting the filename template returned ${reset.status}; every later test on this worker renders with the marker template`,
+      ).toBe(true);
     }
   },
 );
