@@ -25,7 +25,12 @@ const MIGRATION_NAME = "001_create_whisparrsync_credentials";
 
 // Transcribed from WhisparrSync.Data.cs's column names, in the order the query sorts them. Written
 // out by hand rather than derived, so a rename on either side has to be made in both places.
-const COLUMNS = "api_key,generation,updated_at_utc_ticks";
+//
+// The address is here because an outbound request is built from one row: reading it from the
+// options blob and the key from this table lets a caller pair them from either side of a save that
+// moved both. It arrives by a migration of its own, so this list also states that the host applied
+// more than the first one.
+const COLUMNS = "address,api_key,generation,updated_at_utc_ticks";
 
 const test = base.extend({
   isolatedHarness: isolatedCoveFixture(),
