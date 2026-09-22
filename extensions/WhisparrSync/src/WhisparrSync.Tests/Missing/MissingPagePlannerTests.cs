@@ -115,8 +115,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(
             [MissingSceneState.Monitored, MissingSceneState.Unmonitored],
             view.Cards.Select(card => card.State));
-        Assert.True(view.StatusWasRead);
-        Assert.False(view.StatusIsPermanentlyAbsent);
     }
 
     [Fact]
@@ -272,7 +270,6 @@ public sealed class MissingPagePlannerTests
             "0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
-            StatusReading: null,
             ExclusionReading: null,
             instance);
 

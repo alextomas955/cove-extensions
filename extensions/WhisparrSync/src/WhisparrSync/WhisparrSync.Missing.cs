@@ -265,9 +265,6 @@ public sealed partial class WhisparrSync
         }
 
         var capabilities = GenerationCapabilities.For(generation, WhisparrRoleSet.From(client));
-        var reading = capabilities
-            .Obtain<IWhisparrSceneStatusReading>()
-            .Match<IWhisparrSceneStatusReading?>(held => held, _ => null);
         var exclusions = capabilities
             .Obtain<IWhisparrSceneExclusionReading>()
             .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null);
@@ -280,7 +277,6 @@ public sealed partial class WhisparrSync
             apiKey,
             generation,
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
-            reading,
             exclusions,
             catalogue);
     }
@@ -304,8 +300,6 @@ public sealed partial class WhisparrSync
             Facets: [],
             Sorts: [],
             SortInForce: null,
-            StatusWasRead: false,
-            StatusIsPermanentlyAbsent: false,
             await planner.ProviderNameAsync(ct).ConfigureAwait(false));
 
     private static string? Blank(string? value)

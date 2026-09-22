@@ -141,7 +141,6 @@ public sealed class MissingAbstentionTests
             SomeKey,
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
-            StatusReading: null,
             ExclusionReading: null,
             reading);
 
