@@ -69,8 +69,7 @@ that would change before anything touches disk.
   filter buttons already carry them. A button whose outcome has no rows is no longer shown at all,
   where it used to be shown greyed out and unclickable.
 - **A row that will not be renamed shows no new name, and its badge says why.** The badges drop the
-  _Skipped_ prefix the column already implies, and a rename stopped by a full destination drive now
-  has a badge of its own - it used to leave the row saying nothing at all.
+  _Skipped_ prefix the column already implies.
 - **The search box says how many rows it filters**, and the line under the table states the total in
   one clause once your whole library has been read.
 - **The Save bar no longer covers the dry-run dialog.** It sat over the dialog with a clickable Save
