@@ -5,7 +5,7 @@ import { test, expect, vi, afterEach } from "vitest";
 import { act } from "react";
 
 import { press as pressControl } from "../common/lib/testRender";
-import type { EntityMonitoringView, WhisparrCapability } from "../wire/api";
+import type { WhisparrCapability, WhisparrConnectionOffer } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
   // The real builder, because the route the handler reads from is one of the things under test.
@@ -108,21 +108,17 @@ const MENU_CAPABILITIES: WhisparrCapability[] = [
   "searchMonitored",
 ];
 
-function viewOf(over: Partial<EntityMonitoringView> = {}): EntityMonitoringView {
+function offerOf(over: Partial<WhisparrConnectionOffer> = {}): WhisparrConnectionOffer {
   return {
-    kind: "studio",
     generation: "v3",
-    present: false,
-    monitored: false,
-    refusal: "none",
     capabilities: MENU_CAPABILITIES,
-    scope: null,
+    configured: true,
     ...over,
   };
 }
 
-function answering(view: EntityMonitoringView): void {
-  readAnswer = () => Promise.resolve(view);
+function answering(offer: WhisparrConnectionOffer): void {
+  readAnswer = () => Promise.resolve(offer);
 }
 
 function buttons(): HTMLButtonElement[] {
@@ -171,22 +167,25 @@ const OVER_THE_BOUND = '{"code":"TOO_MANY_IDS","max":1000}';
 const A_REFUSAL_CARRYING_THE_INSTANCES_WORDS =
   '{"code":"SOMETHING_ELSE","message":"System.InvalidOperationException: at Whisparr.Api.V3"}';
 
-test("the read names the first selected entity, on the route the entity page uses", async () => {
-  answering(viewOf());
+// The menu describes the connection, so the read names no entity at all: a selection holds many,
+// and the one that happened to be first shapes nothing.
+test("the read names the connection and no entity in the selection", async () => {
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8, 9]);
   await press(BULK_CANCEL);
   await running;
 
   expect(sent[0]).toEqual({
-    path: "/extensions/com.alextomas955.whisparrsync/entity/studio/7/monitoring",
+    path: "/extensions/com.alextomas955.whisparrsync/connection/offer",
     method: "GET",
     body: undefined,
   });
+  expect(sent.filter((call) => call.path.includes("/entity/"))).toEqual([]);
 });
 
 test("leaving without choosing returns the cancelled result and posts nothing", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
   expect(document.body.textContent).toContain(selectionMenuHeader(1));
@@ -197,7 +196,7 @@ test("leaving without choosing returns the cancelled result and posts nothing", 
 });
 
 test("the chosen verb and scope reach the body", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8]);
   // The confirm button carries the chosen row's label, so the same label is pressed twice.
@@ -216,7 +215,7 @@ test("the chosen verb and scope reach the body", async () => {
 });
 
 test("unmonitoring sends its own verb and no scope", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
   await press(MENU_UNMONITOR);
@@ -234,7 +233,7 @@ test("unmonitoring sends its own verb and no scope", async () => {
 // Requests bind case-insensitively while responses are camelCase. The expected keys are
 // hand-written from the C# record.
 test("the posted body's keys are PascalCase", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
   await press(SCOPE_FUTURE_SCENES);
@@ -258,7 +257,7 @@ test("a failed capability read states the reason, offers nothing and posts nothi
 });
 
 test("a verb absent from the held list is not offered", async () => {
-  answering(viewOf({ kind: "performer", generation: "v2", capabilities: ["monitorStudio"] }));
+  answering(offerOf({ generation: "v2", capabilities: ["monitorStudio"] }));
 
   const { running } = await open("performers", [7]);
 
@@ -274,7 +273,7 @@ test("a verb absent from the held list is not offered", async () => {
 // every capability held. The search reaches one, and reads last because it is the only row here
 // that downloads.
 test("offers the search row last and neither of the other two secondary actions", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
 
@@ -290,7 +289,7 @@ test("offers the search row last and neither of the other two secondary actions"
 });
 
 test("a selection type this product does not address opens nothing and posts nothing", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const running = monitorSelected(null, { entityType: "tags", entityIds: [7] });
 
@@ -299,7 +298,7 @@ test("a selection type this product does not address opens nothing and posts not
 });
 
 test("an empty selection opens nothing and posts nothing", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const running = monitorSelected(null, { entityType: "studios", entityIds: [] });
 
@@ -308,7 +307,7 @@ test("an empty selection opens nothing and posts nothing", async () => {
 });
 
 test("a selection over the route's bound resolves rather than rejecting", async () => {
-  answering(viewOf());
+  answering(offerOf());
   postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
 
   const { running } = await open("studios", [7, 8]);
@@ -319,7 +318,7 @@ test("a selection over the route's bound resolves rather than rejecting", async 
 });
 
 test("a selection over the bound is refused in this product's own sentence", async () => {
-  answering(viewOf());
+  answering(offerOf());
   postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
 
   const { running } = await open("studios", [7, 8]);
@@ -332,7 +331,7 @@ test("a selection over the bound is refused in this product's own sentence", asy
 });
 
 test("no part of the refusal body reaches the sentence the reader is shown", async () => {
-  answering(viewOf());
+  answering(offerOf());
   postAnswer = () => Promise.reject(new FakeApiError(500, A_REFUSAL_CARRYING_THE_INSTANCES_WORDS));
 
   const { running } = await open("studios", [7]);
@@ -348,7 +347,7 @@ test("no part of the refusal body reaches the sentence the reader is shown", asy
 });
 
 test("any other refusal of the whole gesture returns the cancelled result", async () => {
-  answering(viewOf());
+  answering(offerOf());
   postAnswer = () => Promise.reject(new FakeApiError(500, A_REFUSAL_CARRYING_THE_INSTANCES_WORDS));
 
   const { running } = await open("studios", [7]);
@@ -359,7 +358,7 @@ test("any other refusal of the whole gesture returns the cancelled result", asyn
 });
 
 test("a selection the route accepts returns the success result and opens no second overlay", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
   await press(SCOPE_FUTURE_SCENES);
@@ -369,7 +368,7 @@ test("a selection the route accepts returns the success result and opens no seco
 });
 
 test("choosing All Scenes posts nothing until the confirmation is answered", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8]);
   await press(SCOPE_ALL_SCENES);
@@ -384,7 +383,7 @@ test("choosing All Scenes posts nothing until the confirmation is answered", asy
 });
 
 test("cancelling the All-Scenes confirmation posts nothing at all", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8]);
   await press(SCOPE_ALL_SCENES);
@@ -395,7 +394,7 @@ test("cancelling the All-Scenes confirmation posts nothing at all", async () => 
 });
 
 test("choosing the search posts nothing until the confirmation is answered", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8]);
   await press(ACTION_SEARCH_ALL_MONITORED);
@@ -417,7 +416,7 @@ test("choosing the search posts nothing until the confirmation is answered", asy
 });
 
 test("cancelling the search confirmation posts nothing at all", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8]);
   await press(ACTION_SEARCH_ALL_MONITORED);
@@ -428,7 +427,7 @@ test("cancelling the search confirmation posts nothing at all", async () => {
 });
 
 test("the narrower scope and the unmonitor row are posted with no confirmation at all", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7]);
   await press(SCOPE_FUTURE_SCENES);
@@ -438,7 +437,7 @@ test("the narrower scope and the unmonitor row are posted with no confirmation a
 });
 
 test("heads the panel with the product's name and the count, and draws no paragraph", async () => {
-  answering(viewOf());
+  answering(offerOf());
 
   const { running } = await open("studios", [7, 8, 9]);
 

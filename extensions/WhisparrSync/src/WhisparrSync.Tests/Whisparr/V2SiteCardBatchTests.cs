@@ -65,6 +65,23 @@ public sealed class V2SiteCardBatchTests
         Assert.Empty(cards.NotAnswered);
     }
 
+    // Recorded from the pinned build for a site it holds nothing under. The metadata row it maps
+    // instead carries monitored true, so a reading taken without the instance's own id would draw
+    // every unheld site as one the instance is monitoring.
+    [Fact]
+    public async Task AMonitoredFlagOnARowTheInstanceHoldsNothingUnderIsNotRead()
+    {
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK,
+            ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-lookup-not-held.json"));
+        using var http = new HttpClient(handler);
+
+        var cards = await ReadAsync(http, handler, [StudioUuid]);
+
+        Assert.Empty(cards.Held);
+        Assert.Empty(cards.NotAnswered);
+    }
+
     // Reported apart from an absence: an absence states the instance holds no such site, which no
     // instance said here.
     [Fact]
