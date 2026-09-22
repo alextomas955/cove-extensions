@@ -18,12 +18,12 @@ import { useCardStatus } from "./useCardStatus";
 
 export function CardStatusBadge({ kind, coveId }: { kind: LibraryCardKind; coveId: number }) {
   const on = useLibraryStatusOn();
-  const { reading, settled, running } = useCardStatus(kind, coveId, on);
+  const { reading, settled, running, pageRefused } = useCardStatus(kind, coveId, on);
 
   const state: WhisparrEntityState | null = reading === null ? null : deriveState(reading);
   const drawn = state === "statusUnknown" ? null : state;
 
-  const chip = badgeChipFor({ running, settled, state: drawn });
+  const chip = badgeChipFor({ running, settled, state: drawn, pageRefused });
 
   const region = deriveAsyncRegionState({
     reading: on && !settled,

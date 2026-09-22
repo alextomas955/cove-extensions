@@ -5,7 +5,7 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   carriesSecretInAddress,
   describeRegistration,
-  HOST_AUTHENTICATION_REQUIRED,
+  REGISTRATION_WOULD_LOCK_COVE_DOWN,
   LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
   registerRefusal,
@@ -33,9 +33,8 @@ function callback(overrides: Partial<CallbackView>): CallbackView {
     lastEventSecretPosition: null,
     missingSetting: null,
     refusal: null,
-    // The state a registration is attempted from. A view built with this false is the refusal case,
-    // which the tests below set explicitly.
-    hostAuthenticationRequired: true,
+    // A Cove registering would not lock down. The tests below set this false for the refusal case.
+    registrationIsSafe: true,
     ...overrides,
   };
 }
@@ -195,26 +194,28 @@ describe("the four-way read the status renders through", () => {
 describe("whether the callback can be registered", () => {
   const AT_REST = { sharedReason: null, registering: false, address: "http://cove:5073/x" };
 
-  it("refuses while Cove lets callers in without signing in", () => {
-    expect(registerRefusal(callback({ hostAuthenticationRequired: false }), AT_REST)).toBe(
-      HOST_AUTHENTICATION_REQUIRED,
+  it("refuses where registering would lock Cove down", () => {
+    expect(registerRefusal(callback({ registrationIsSafe: false }), AT_REST)).toBe(
+      REGISTRATION_WOULD_LOCK_COVE_DOWN,
     );
   });
 
   // A reason that clears on its own must not hide one that stands until a Cove setting changes: a
   // reader who waits out the transient one would press again and be signed out.
-  it("states the sign-in reason ahead of every reason that clears on its own", () => {
-    const view = callback({ hostAuthenticationRequired: false });
+  it("states the lockdown reason ahead of every reason that clears on its own", () => {
+    const view = callback({ registrationIsSafe: false });
     expect(registerRefusal(view, { ...AT_REST, registering: true })).toBe(
-      HOST_AUTHENTICATION_REQUIRED,
+      REGISTRATION_WOULD_LOCK_COVE_DOWN,
     );
     expect(registerRefusal(view, { ...AT_REST, sharedReason: "Something else is running." })).toBe(
-      HOST_AUTHENTICATION_REQUIRED,
+      REGISTRATION_WOULD_LOCK_COVE_DOWN,
     );
-    expect(registerRefusal(view, { ...AT_REST, address: "  " })).toBe(HOST_AUTHENTICATION_REQUIRED);
+    expect(registerRefusal(view, { ...AT_REST, address: "  " })).toBe(
+      REGISTRATION_WOULD_LOCK_COVE_DOWN,
+    );
   });
 
-  it("offers the press once Cove makes callers sign in", () => {
+  it("offers the press where no lockdown would follow", () => {
     expect(registerRefusal(callback({}), AT_REST)).toBeNull();
   });
 

@@ -1,3 +1,4 @@
+using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Cove.Sdk;
@@ -81,8 +82,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
         services.AddScoped<IConnectionTestRunner, ConnectionTestRunner>();
         services.AddScoped<ICredentialPort, CredentialPort>();
-        services.AddScoped<IHostAuthenticationPort>(
-            services => new HostAuthenticationPort(services.GetService<CoveConfiguration>()));
+        services.AddScoped<IHostLockdownPort>(services => new HostLockdownPort(
+            services.GetService<CoveConfiguration>(), services.GetService<IUserService>()));
         services.AddScoped<ICallbackSecretPort>(
             services => new CallbackSecretPort(services.GetRequiredService<DbContext>(), _log));
         services.AddScoped<IWhisparrNotificationPort>(
