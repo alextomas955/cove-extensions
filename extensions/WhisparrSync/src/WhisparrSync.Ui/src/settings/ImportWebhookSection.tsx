@@ -16,8 +16,10 @@ import { READ_IS_STALE } from "../common/ui/copy";
 import type { CopyResult } from "./useRegistration";
 import {
   describeRegistration,
+  HOST_AUTHENTICATION_REQUIRED,
   LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
+  registerRefusal,
   registrationRead,
   shouldShowLessPrivateFormNote,
 } from "./registrationLogic";
@@ -48,13 +50,7 @@ export function ImportWebhookSection({
   onCopy,
   onRegister,
 }: ImportWebhookSectionProps) {
-  const registerReason =
-    sharedReason ??
-    (registering
-      ? "This registration is still running."
-      : address.trim() === ""
-        ? "There is no callback address to register."
-        : null);
+  const registerReason = registerRefusal(view, { sharedReason, registering, address });
 
   return (
     <SectionCard
@@ -68,6 +64,12 @@ export function ImportWebhookSection({
         >
           <TextInput value={address} onChange={onAddressChange} mono />
         </Field>
+
+        {view !== null && !view.hostAuthenticationRequired ? (
+          <div role="note">
+            <StatusText kind="warning">{HOST_AUTHENTICATION_REQUIRED}</StatusText>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-3" aria-busy={registering}>
           <OptionallyDisabled

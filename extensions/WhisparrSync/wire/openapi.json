@@ -2003,7 +2003,8 @@
           "secretTravelsOutOfBand",
           "lastEventSecretPosition",
           "missingSetting",
-          "refusal"
+          "refusal",
+          "hostAuthenticationRequired"
         ],
         "type": "object",
         "properties": {
@@ -2047,6 +2048,9 @@
               "null",
               "string"
             ]
+          },
+          "hostAuthenticationRequired": {
+            "type": "boolean"
           }
         }
       },

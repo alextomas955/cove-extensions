@@ -81,6 +81,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
         services.AddScoped<IConnectionTestRunner, ConnectionTestRunner>();
         services.AddScoped<ICredentialPort, CredentialPort>();
+        services.AddScoped<IHostAuthenticationPort>(
+            services => new HostAuthenticationPort(services.GetService<CoveConfiguration>()));
         services.AddScoped<ICallbackSecretPort>(
             services => new CallbackSecretPort(services.GetRequiredService<DbContext>(), _log));
         services.AddScoped<IWhisparrNotificationPort>(
