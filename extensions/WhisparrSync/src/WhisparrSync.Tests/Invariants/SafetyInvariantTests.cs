@@ -911,9 +911,10 @@ public sealed class SafetyInvariantTests
                 Filters: new Dictionary<string, string>(),
                 MenusAlreadyHeld: true),
             new MissingPageContext(
-                new Uri("http://whisparr.invalid:6969"),
-                "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
-                WhisparrGeneration.V3,
+                new WhisparrBinding(
+                    WhisparrGeneration.V3,
+                    new Uri("http://whisparr.invalid:6969"),
+                    "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e"),
                 new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
                 exclusionReading,
                 new StubInstanceCatalogue(

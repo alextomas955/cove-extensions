@@ -273,9 +273,7 @@ public sealed partial class WhisparrSync
             .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null);
 
         return new MissingPageContext(
-            baseAddress,
-            apiKey,
-            generation,
+            new WhisparrBinding(generation, baseAddress, apiKey),
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
             exclusions,
             catalogue);

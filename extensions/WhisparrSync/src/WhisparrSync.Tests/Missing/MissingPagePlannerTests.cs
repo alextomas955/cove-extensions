@@ -266,9 +266,8 @@ public sealed class MissingPagePlannerTests
     private static MissingPageContext Context(
         IWhisparrEntityCatalogueReading instance, bool withProvider = true)
         => new(
-            new Uri("http://whisparr.invalid:6969"),
-            "0e2e0e2e0e2e0e2e",
-            WhisparrGeneration.V3,
+            new WhisparrBinding(
+                WhisparrGeneration.V3, new Uri("http://whisparr.invalid:6969"), "0e2e0e2e0e2e0e2e"),
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
             ExclusionReading: null,
             instance);

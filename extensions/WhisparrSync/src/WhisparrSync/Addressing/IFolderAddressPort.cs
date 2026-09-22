@@ -5,9 +5,7 @@ namespace WhisparrSync.Addressing;
 
 /// <summary>Which instance a folder is being addressed on, and how to ask it.</summary>
 public sealed record FolderAddressTarget(
-    WhisparrGeneration Generation,
-    Uri BaseAddress,
-    string ApiKey,
+    WhisparrBinding Binding,
     IWhisparrInstanceFilesystemReading Filesystem);
 
 /// <summary>How one folder is spelled on the connected instance, or why it is not.</summary>

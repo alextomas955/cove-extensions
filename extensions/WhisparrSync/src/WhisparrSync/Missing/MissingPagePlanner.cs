@@ -23,9 +23,7 @@ internal sealed record MissingFacetSearchRequest(
     WhisparrEntityKind Kind, int CoveId, string FacetKey, string Fragment);
 
 internal sealed record MissingPageContext(
-    Uri? BaseAddress,
-    string ApiKey,
-    WhisparrGeneration Generation,
+    WhisparrBinding Binding,
     ResolvedProvider? Provider,
     IWhisparrSceneExclusionReading? ExclusionReading,
     IWhisparrEntityCatalogueReading? CatalogueReading);
@@ -65,7 +63,7 @@ internal sealed class MissingPagePlanner(
         }
 
         var identity = await identities
-            .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
+            .ResolveAsync(request.Kind, request.CoveId, context.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         // A lookup that did not reach the source states nothing about which entity it holds, so it
@@ -138,12 +136,12 @@ internal sealed class MissingPagePlanner(
         ILogger log,
         CancellationToken ct)
     {
-        if (context.CatalogueReading is not { } reading || context.BaseAddress is not { } baseAddress)
+        if (context.CatalogueReading is not { } reading)
         {
             return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
         }
 
-        if (cache.Held(context.Generation, kind, providerEntityId) is { } held)
+        if (cache.Held(context.Binding.Generation, kind, providerEntityId) is { } held)
         {
             return WhisparrEntityCatalogue.Listing(held);
         }
@@ -153,7 +151,12 @@ internal sealed class MissingPagePlanner(
         {
             answered = await reading
                 .ReadEntityCatalogueAsync(
-                    baseAddress, context.ApiKey, context.Generation, kind, providerEntityId, ct)
+                    context.Binding.BaseAddress,
+                    context.Binding.ApiKey,
+                    context.Binding.Generation,
+                    kind,
+                    providerEntityId,
+                    ct)
                 .ConfigureAwait(false);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
@@ -164,7 +167,7 @@ internal sealed class MissingPagePlanner(
 
         if (answered.Scenes is { } scenes)
         {
-            cache.Hold(context.Generation, kind, providerEntityId, scenes);
+            cache.Hold(context.Binding.Generation, kind, providerEntityId, scenes);
         }
 
         return answered;
@@ -213,7 +216,7 @@ internal sealed class MissingPagePlanner(
 
 
         var identity = await identities
-            .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
+            .ResolveAsync(request.Kind, request.CoveId, context.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
@@ -280,9 +283,7 @@ internal sealed class MissingPagePlanner(
     private static async Task<IReadOnlySet<string>> ReadExcludedAsync(
         MissingPageContext context, List<WhisparrCatalogueScene> kept, CancellationToken ct)
     {
-        if (context.ExclusionReading is not { } reading
-            || context.BaseAddress is not { } baseAddress
-            || kept.Count == 0)
+        if (context.ExclusionReading is not { } reading || kept.Count == 0)
         {
             return new HashSet<string>(StringComparer.Ordinal);
         }
@@ -290,8 +291,8 @@ internal sealed class MissingPagePlanner(
         return await SceneExclusionPort
             .ReadExcludedAsync(
                 reading,
-                baseAddress,
-                context.ApiKey,
+                context.Binding.BaseAddress,
+                context.Binding.ApiKey,
                 [.. kept.Select(scene => scene.ProviderSceneId)],
                 ct)
             .ConfigureAwait(false);

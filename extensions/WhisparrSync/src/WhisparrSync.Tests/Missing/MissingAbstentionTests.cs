@@ -137,9 +137,7 @@ public sealed class MissingAbstentionTests
 
     private static MissingPageContext Context(IWhisparrEntityCatalogueReading reading)
         => new(
-            SomeInstance,
-            SomeKey,
-            WhisparrGeneration.V3,
+            new WhisparrBinding(WhisparrGeneration.V3, SomeInstance, SomeKey),
             new ResolvedProvider(StashDb, "a-key", 240),
             ExclusionReading: null,
             reading);

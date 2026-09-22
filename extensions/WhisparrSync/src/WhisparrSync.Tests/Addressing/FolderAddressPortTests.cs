@@ -175,9 +175,7 @@ public sealed class FolderAddressPortTests
 
     private static FolderAddressTarget Target(BodyRecordingHandler handler)
         => new(
-            WhisparrGeneration.V3,
-            Address,
-            Key,
+            new WhisparrBinding(WhisparrGeneration.V3, Address, Key),
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
     private static (IFolderAddressPort Port, BodyRecordingHandler Handler) Over(

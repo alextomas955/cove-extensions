@@ -268,9 +268,7 @@ public sealed class FolderAgreementMappingTests
 
     private static FolderAddressTarget Target(BodyRecordingHandler handler, Uri address)
         => new(
-            WhisparrGeneration.V3,
-            address,
-            Key,
+            new WhisparrBinding(WhisparrGeneration.V3, address, Key),
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
     private static FolderAddressPort Port(
