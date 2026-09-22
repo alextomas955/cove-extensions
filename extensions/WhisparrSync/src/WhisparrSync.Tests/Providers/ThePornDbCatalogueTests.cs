@@ -696,7 +696,8 @@ public sealed class ThePornDbCatalogueTests
 
     // The picture fields and the status are the whole subject of these, so the answers are written
     // here rather than taken from a recording of one scene that happens to carry every field.
-    // Measured 2026-09-22: `background` is 16:9 and `poster` is 2:3, and the card's tile is 16:9.
+    // `background` is 16:9 and `poster` is 2:3, and the card's tile is 16:9, so the poster loses
+    // most of its height to the crop.
     [Fact]
     public async Task ASceneCarryingEveryPictureIsCoveredByTheWidescreenOne()
     {
@@ -771,9 +772,8 @@ public sealed class ThePornDbCatalogueTests
     private static string SingleScene(JsonNode row)
         => new JsonObject { ["data"] = row.DeepClone() }.ToJsonString();
 
-    // Measured 2026-09-22: this path redirected to the sign-in page rather than answering 404, and
-    // a path the site registers nothing for answered 404, so the route resolves. The whole site is
-    // behind a sign-in, so the link lands for a reader who holds an account there.
+    // A signed-in reader following this path is shown the scene. The whole site is behind a
+    // sign-in, so a signed-out one is sent to the sign-in page instead.
     [Fact]
     public void ASceneIsAddressedOnTheSiteRatherThanWhereTheCatalogueIsRead()
     {
