@@ -336,7 +336,11 @@ public sealed partial class WhisparrSync
 
     private static EntityMonitoringView Refused(
         WhisparrEntityKind kind, MonitoringTarget target, MonitorRefusalKind refusal)
-        => EntityMonitoringView.Refused(kind, target.Binding.Generation, target.Capabilities.Held, refusal);
+        => EntityMonitoringView.Refused(
+            kind,
+            target.Binding.Generation,
+            GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
+            refusal);
 
     private static EntityMonitoringView State(
         WhisparrEntityKind kind,
@@ -345,7 +349,12 @@ public sealed partial class WhisparrSync
         bool monitored,
         MonitorScope? scope)
         => EntityMonitoringView.State(
-            kind, target.Binding.Generation, target.Capabilities.Held, present, monitored, scope);
+            kind,
+            target.Binding.Generation,
+            GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
+            present,
+            monitored,
+            scope);
 
     // The instance's own answer is the only source of the scope. Neither acting path may substitute
     // the scope it asked for: this generation answers a body whose fields it dropped with a success.

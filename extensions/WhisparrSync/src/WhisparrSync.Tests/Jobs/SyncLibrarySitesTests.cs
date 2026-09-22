@@ -124,8 +124,8 @@ public sealed class SyncLibrarySitesTests
         var adds = new List<string>();
 
         var registered = await SiteRegistrationStep.RegisterAsync(
-            Answering(reads, RecordingWhisparrClient.Json(404, string.Empty)),
-            Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            Answering(reads, RecordingWhisparrCore.Json(404, string.Empty)),
+            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
             agreedRoot: null,
@@ -133,8 +133,8 @@ public sealed class SyncLibrarySitesTests
             TestCt);
 
         var alreadyThere = await SiteRegistrationStep.RegisterAsync(
-            Answering(reads, RecordingWhisparrClient.Json(200, HeldRow)),
-            Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            Answering(reads, RecordingWhisparrCore.Json(200, HeldRow)),
+            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
             agreedRoot: null,
@@ -159,7 +159,7 @@ public sealed class SyncLibrarySitesTests
 
         var outcome = await SiteRegistrationStep.RegisterAsync(
             (_, _) => Task.FromResult<WhisparrResponse?>(null),
-            Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
             agreedRoot: null,

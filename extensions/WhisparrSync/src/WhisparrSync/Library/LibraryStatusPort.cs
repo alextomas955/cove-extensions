@@ -24,14 +24,13 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     public async Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
             Func<string, CancellationToken, Task<WhisparrResponse>> reading,
-            Capability<IWhisparrEntityBatchReading> batch,
+            IWhisparrEntityBatchReading? batch,
             WhisparrEntityKind kind,
             WhisparrBinding binding,
             IReadOnlyList<int> coveIds,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
-        ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(coveIds);
 
@@ -85,13 +84,13 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     // reports no card rather than sending a read per card behind it: the page would then cost what
     // the batch was there to avoid, against an instance that just failed to answer.
     private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedAsync(
-        Capability<IWhisparrEntityBatchReading> batch,
+        IWhisparrEntityBatchReading? batch,
         WhisparrEntityKind kind,
         WhisparrBinding binding,
         IReadOnlyList<(int CoveId, string? ForeignId)> named,
         CancellationToken ct)
     {
-        if (batch.Match<IWhisparrEntityBatchReading?>(role => role, _ => null) is not { } reading)
+        if (batch is not { } reading)
         {
             return (null, false);
         }
@@ -129,22 +128,20 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             : new LibraryCardReading(false, false, null);
 
     // Costs one exclusion read for the whole set, plus either one batch read for the page or one
-    // status read per identifier where the generation registers no batch role. The exclusion read
+    // status read per identifier where the instance declares no batch role. The exclusion read
     // comes first, because a scene that is both excluded and unheld reads as excluded. exclusions is
-    // a capability, not a role, so a generation registering none sends nothing and no card is
-    // reported as excluded on a fact no instance answered.
+    // null where the instance declares no exclusion read, so that generation sends nothing and no
+    // card is reported as excluded on a fact no instance answered.
     public async Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
         ReadSceneCardsAsync(
             IWhisparrSceneStatusReading reading,
-            Capability<IWhisparrSceneExclusionReading> exclusions,
-            Capability<IWhisparrSceneBatchReading> batch,
+            IWhisparrSceneExclusionReading? exclusions,
+            IWhisparrSceneBatchReading? batch,
             WhisparrBinding binding,
             IReadOnlyList<LibraryCardIdentity> identities,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
-        ArgumentNullException.ThrowIfNull(exclusions);
-        ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(identities);
 
@@ -202,15 +199,15 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         return (readings, dropped);
     }
 
-    // One read for the whole page where the generation registers the role, contained for the reason
+    // One read for the whole page where the instance declares the role, contained for the reason
     // the entity path's batch gives.
     private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedScenesAsync(
-        Capability<IWhisparrSceneBatchReading> batch,
+        IWhisparrSceneBatchReading? batch,
         WhisparrBinding binding,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
     {
-        if (batch.Match<IWhisparrSceneBatchReading?>(role => role, _ => null) is not { } reading)
+        if (batch is not { } reading)
         {
             return (null, false);
         }
@@ -249,14 +246,14 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             binding.BaseAddress.Host);
 
     private static async Task<IReadOnlySet<string>> ExcludedAmongAsync(
-        Capability<IWhisparrSceneExclusionReading> exclusions,
+        IWhisparrSceneExclusionReading? exclusions,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
-        => await exclusions.Match(
-            role => role.ReduceExclusionsAsync(
+        => exclusions is { } role
+            ? await role.ReduceExclusionsAsync(
                 [.. identities.Select(identity => identity.RemoteId)],
-                ct),
-            _ => Task.FromResult<IReadOnlySet<string>>(NothingExcluded)).ConfigureAwait(false);
+                ct).ConfigureAwait(false)
+            : NothingExcluded;
 
     // The per-scene route answers a held scene and an unheld one alike with a list, so a not-found
     // and an empty list are both the instance stating an absence rather than declining to answer.

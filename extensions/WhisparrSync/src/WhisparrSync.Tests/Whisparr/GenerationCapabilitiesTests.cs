@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
@@ -12,117 +13,6 @@ public sealed class GenerationCapabilitiesTests
     private const string V2SchemaFixture = "whisparr-v2-2.2.0.231-notification-schema-webhook.json";
 
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
-
-    [Fact]
-    public void TheV3SetHoldsTheOutOfBandSecretRole()
-    {
-        var role = OutOfBandRoleOf(WhisparrGeneration.V3);
-
-        Assert.NotNull(role);
-        Assert.Equal(
-            [
-                WhisparrCapability.OutOfBandCallbackSecret,
-                WhisparrCapability.MonitorStudio,
-                WhisparrCapability.MonitorPerformer,
-                WhisparrCapability.RegisterMissingScenes,
-                WhisparrCapability.ReflectOwnedFiles,
-                WhisparrCapability.SearchMonitored,
-                WhisparrCapability.ReadSceneStatus,
-                WhisparrCapability.ReadSceneExclusions,
-                WhisparrCapability.SearchScene,
-                WhisparrCapability.MonitorScene,
-                WhisparrCapability.ExcludeScene,
-                WhisparrCapability.ReadEntityCardsInBatch,
-                WhisparrCapability.ReadSceneCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
-                WhisparrCapability.ReadEntityCatalogue,
-                WhisparrCapability.ReadInstanceFilesystem,
-            ],
-            GenerationCapabilities.For(WhisparrGeneration.V3).Held);
-    }
-
-    [Fact]
-    public void TheV2SetAlsoHoldsTheOutOfBandSecretRole()
-    {
-        var role = OutOfBandRoleOf(WhisparrGeneration.V2);
-
-        Assert.NotNull(role);
-        Assert.Equal(
-            [
-                WhisparrCapability.OutOfBandCallbackSecret,
-                WhisparrCapability.MonitorStudio,
-                WhisparrCapability.ReflectOwnedFiles,
-                WhisparrCapability.SearchMonitored,
-                WhisparrCapability.MonitorScene,
-                WhisparrCapability.RegisterOwnedSites,
-                WhisparrCapability.ReadSiteSceneRows,
-                WhisparrCapability.ReadHeldSites,
-                WhisparrCapability.ReadEntityCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
-                WhisparrCapability.ReadEntityCatalogue,
-                WhisparrCapability.ReadInstanceFilesystem,
-            ],
-            GenerationCapabilities.For(WhisparrGeneration.V2).Held);
-    }
-
-    // No route on v2 adds a catalogue item, so its set holds no scene-registration role. The
-    // refusal is an answer of its own: not null, not a default role, and not an exception.
-    [Fact]
-    public void ASetHoldingNoRoleRefusesAndNamesWhatItRefused()
-    {
-        var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V2,
-            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
-
-        var refusal = capabilities.Obtain<IWhisparrMissingSceneActing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-        Assert.DoesNotContain(WhisparrCapability.RegisterMissingScenes, capabilities.Held);
-    }
-
-    // Whisparr v2 addresses no performer at all. The refusal is the absence of a registration
-    // rather than a check.
-    [Fact]
-    public void V2HoldsNoPerformerCapabilityAndRefusesTheRoleByName()
-    {
-        var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V2,
-            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
-
-        var refusal = capabilities.Obtain<IWhisparrPerformerActing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.MonitorPerformer, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-        Assert.DoesNotContain(WhisparrCapability.MonitorPerformer, capabilities.Held);
-        Assert.DoesNotContain(
-            WhisparrCapability.MonitorPerformer,
-            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
-    }
-
-    [Fact]
-    public void V3HoldsThePerformerCapabilityAndHandsOutTheRole()
-    {
-        var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V3,
-            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
-
-        Assert.Contains(WhisparrCapability.MonitorPerformer, capabilities.Held);
-        Assert.NotNull(
-            capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match<IWhisparrPerformerActing?>(held => held, _ => null));
-    }
-
-    // A held capability with no source is a wiring fault, not an answer about the connected
-    // instance, so it throws instead of refusing.
-    [Fact]
-    public void ACapabilityHeldButUnsourcedIsAFaultRatherThanARefusal()
-        => Assert.Throws<InvalidOperationException>(
-            () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrStudioActing>());
 
     // Both lists are the whole claim rather than a sample, so a capability added to a generation
     // fails here rather than arriving unnoticed. v2 addresses no performer, adds no catalogue item
@@ -170,90 +60,9 @@ public sealed class GenerationCapabilitiesTests
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
     }
 
-    // v2 keeps no scene records, so it has no scene to search for. Both generations are asserted
-    // over one client implementing every role, so the answers differ by generation rather than by
-    // what each set was built with.
-    [Fact]
-    public void OnlyV3ObtainsThePerSceneSearchRole()
-    {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
-
-        Assert.NotNull(SceneSearchRoleOn(WhisparrGeneration.V3, client));
-
-        var refusal = GenerationCapabilities
-            .For(WhisparrGeneration.V2, client)
-            .Obtain<IWhisparrSceneSearchGrabbing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.SearchScene, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-    }
-
-    // v3 answers presence for a site through a route naming the site, so it needs no list and has
-    // nothing to implement here.
-    [Fact]
-    public void OnlyV2ObtainsTheHeldSiteReadRole()
-    {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
-
-        Assert.NotNull(
-            GenerationCapabilities
-                .For(WhisparrGeneration.V2, client)
-                .Obtain<IWhisparrHeldSiteReading>()
-                .Match<IWhisparrHeldSiteReading?>(held => held, _ => null));
-
-        var refusal = GenerationCapabilities
-            .For(WhisparrGeneration.V3, client)
-            .Obtain<IWhisparrHeldSiteReading>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.ReadHeldSites, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V3, refusal.Generation);
-    }
-
-    private static IWhisparrSceneSearchGrabbing? SceneSearchRoleOn(
-        WhisparrGeneration generation, RecordingWhisparrClient client)
-        => GenerationCapabilities
-            .For(generation, client)
-            .Obtain<IWhisparrSceneSearchGrabbing>()
-            .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null);
-
-    // v2's catalogue arrives only by re-reading its own metadata source, so there is no way to
-    // register an item this library holds and the instance does not.
-    [Fact]
-    public void V2HoldsNoMissingSceneCapabilityAndRefusesTheRoleByName()
-    {
-        var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V2,
-            new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
-
-        var refusal = capabilities.Obtain<IWhisparrMissingSceneActing>()
-            .Match<CapabilityRefusal?>(_ => null, refused => refused);
-
-        Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
-        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-    }
-
-    [Fact]
-    public void V2HoldsTheStudioCapabilityAndHandsOutTheRole()
-    {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
-        var capabilities = GenerationCapabilities.For(
-            WhisparrGeneration.V2, client);
-
-        Assert.Contains(WhisparrCapability.MonitorStudio, capabilities.Held);
-        Assert.Same(
-            client,
-            capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<IWhisparrStudioActing?>(held => held, _ => null));
-    }
-
-    // Checked against the notification schemas the two builds themselves returned, so the table is
-    // compared with the instances rather than with itself. Registering one generation's field on the
-    // other is a save that is accepted and delivers nothing.
+    // Checked against the notification schemas the two builds themselves returned, so what each
+    // instance carries is compared with the instances rather than with itself. Registering one
+    // generation's field on the other is a save that is accepted and delivers nothing.
     [Fact]
     public void EachGenerationCarriesTheSecretInFieldsItsOwnSchemaDeclares()
     {
@@ -269,19 +78,19 @@ public sealed class GenerationCapabilitiesTests
         foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
         {
             var declared = generation == WhisparrGeneration.V3 ? v3Fields : v2Fields;
-            var carried = OutOfBandRoleOf(generation)!.Carry("a-secret");
+            var carried = OutOfBandRoleOf(generation).Carry("a-secret");
 
             Assert.All(carried.Fields, field => Assert.Contains(field.Name, declared));
             Assert.Contains(
                 WhisparrCapability.OutOfBandCallbackSecret,
-                GenerationCapabilities.For(generation).Held);
+                GenerationCapabilities.CapabilitiesOf(generation));
         }
     }
 
     [Fact]
     public void TheV3RoleCarriesTheSecretAsACustomHeader()
     {
-        var carried = OutOfBandRoleOf(WhisparrGeneration.V3)!.Carry("a-secret");
+        var carried = OutOfBandRoleOf(WhisparrGeneration.V3).Carry("a-secret");
 
         var field = Assert.Single(carried.Fields);
         Assert.Equal("headers", field.Name);
@@ -296,7 +105,7 @@ public sealed class GenerationCapabilitiesTests
     [Fact]
     public void TheV2RoleCarriesTheSecretAsTheBasicAuthPassword()
     {
-        var carried = OutOfBandRoleOf(WhisparrGeneration.V2)!.Carry("a-secret");
+        var carried = OutOfBandRoleOf(WhisparrGeneration.V2).Carry("a-secret");
 
         Assert.Equal("Authorization", carried.ArrivesAsHeader);
         Assert.Equal(
@@ -313,16 +122,10 @@ public sealed class GenerationCapabilitiesTests
         foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
         {
             var role = OutOfBandRoleOf(generation);
-            Assert.NotNull(role);
 
             Assert.ThrowsAny<ArgumentException>(() => role.Carry(secret!));
         }
     }
-
-    [Fact]
-    public void ARoleThisProductDoesNotDeclareIsNotAnsweredAsARefusal()
-        => Assert.Throws<InvalidOperationException>(
-            () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrClient>());
 
     // The expected spelling is transcribed by hand from the camelCase wire convention, not computed
     // from the enum.
@@ -336,12 +139,13 @@ public sealed class GenerationCapabilitiesTests
                 + "\"readSceneCardsInBatch\",\"trackEntityCatalogue\",\"readEntityCatalogue\","
                 + "\"readInstanceFilesystem\"]",
             JsonSerializer.Serialize(
-                GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
+                GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3), HostJsonOptions));
 
-    private static IOutOfBandSecretRegistration? OutOfBandRoleOf(WhisparrGeneration generation)
-        => GenerationCapabilities.For(generation)
-            .Obtain<IOutOfBandSecretRegistration>()
-            .Match<IOutOfBandSecretRegistration?>(held => held, _ => null);
+    // Taken off the bound instance, so the fields asserted below are the ones that generation's
+    // instance would register. Nothing is sent: the role composes field values and makes no request.
+    private static IOutOfBandSecretRegistration OutOfBandRoleOf(WhisparrGeneration generation)
+        => (IOutOfBandSecretRegistration)TestWhisparrClient.Over(
+            BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]"), generation: generation);
 
     private static IReadOnlyList<string> DeclaredFields(string fixtureFileName)
     {

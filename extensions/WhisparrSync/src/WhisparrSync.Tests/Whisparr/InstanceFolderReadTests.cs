@@ -69,13 +69,10 @@ public sealed class InstanceFolderReadTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, Listing);
         var client = TestWhisparrClient.Over(handler, generation: generation);
 
-        var role = GenerationCapabilities
-            .For(generation, client)
-            .Obtain<IWhisparrInstanceFilesystemReading>()
-            .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null);
-
-        Assert.NotNull(role);
-        Assert.Contains(WhisparrCapability.ReadInstanceFilesystem, GenerationCapabilities.For(generation).Held);
+        Assert.IsAssignableFrom<IWhisparrInstanceFilesystemReading>(client);
+        Assert.Contains(
+            WhisparrCapability.ReadInstanceFilesystem,
+            GenerationCapabilities.CapabilitiesOf(generation));
     }
 
     private static IWhisparrInstanceFilesystemReading Role(IWhisparrClient client)

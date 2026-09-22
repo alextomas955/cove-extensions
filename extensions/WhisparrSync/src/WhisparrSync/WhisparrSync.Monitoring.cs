@@ -148,7 +148,10 @@ public sealed partial class WhisparrSync
             is not { } target
                 ? TypedResults.Ok(WhisparrConnectionOffer.NotConfigured)
                 : TypedResults.Ok(
-                    new WhisparrConnectionOffer(target.Binding.Generation, target.Capabilities.Held, true));
+                    new WhisparrConnectionOffer(
+                        target.Binding.Generation,
+                        GenerationCapabilities.CapabilitiesOf(target.Binding.Generation),
+                        true));
     }
 
     // The request carries a scope and nothing else. Which entity the instance is asked about comes

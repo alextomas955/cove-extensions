@@ -265,13 +265,9 @@ public sealed partial class WhisparrSync
         }
 
         var binding = new WhisparrBinding(generation, baseAddress, apiKey);
-        var capabilities = GenerationCapabilities.For(generation, instances.Bound(binding));
-        var exclusions = capabilities
-            .Obtain<IWhisparrSceneExclusionReading>()
-            .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null);
-        var catalogue = capabilities
-            .Obtain<IWhisparrEntityCatalogueReading>()
-            .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null);
+        var instance = instances.Bound(binding);
+        var exclusions = instance as IWhisparrSceneExclusionReading;
+        var catalogue = instance as IWhisparrEntityCatalogueReading;
 
         return new MissingPageContext(
             binding,

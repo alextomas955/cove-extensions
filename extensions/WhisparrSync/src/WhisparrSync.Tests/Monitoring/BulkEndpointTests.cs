@@ -239,7 +239,7 @@ public sealed class BulkEndpointTests
     public async Task ASelectionCarryingOneEntityTwiceActsOnItOnce()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.ReadHardlinkSettingAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.ReadHardlinkSettingAsync), MonitorHost.Json(200, "{}"));
         var studio = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
         var progress = new RecordingJobProgress();
 
@@ -325,7 +325,7 @@ public sealed class BulkEndpointTests
     public async Task TheUnmonitorVerbReachesTheUnmonitorPathAndNotTheAddOne()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, MonitorHost.AddedStudio));
