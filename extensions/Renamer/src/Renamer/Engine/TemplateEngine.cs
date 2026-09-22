@@ -184,33 +184,12 @@ public static class TemplateEngine
     private static string Resolve(IReadOnlyDictionary<string, string> resolved, string name)
         => resolved.TryGetValue(name, out var v) ? v ?? string.Empty : string.Empty;
 
-    // Matches the bare $resolution token the engine supports; there is no ${...} form. The match is
-    // case-insensitive and only counts when the next char is not a token-name char, so $resolutionx
-    // does not match.
+    // Template syntax has one parser, so a grammar change moves rendering and de-duplication
+    // together. Segment.Text carries the bare token name, and token lookup is case-insensitive.
     private static bool TemplateRendersResolution(string template)
-    {
-        const string tok = "$" + Tokens.Resolution;
-        int from = 0;
-        while (from <= template.Length - tok.Length)
-        {
-            int idx = template.IndexOf(tok, from, StringComparison.OrdinalIgnoreCase);
-            if (idx < 0)
-            {
-                return false;
-            }
-
-            int end = idx + tok.Length;
-            char after = end < template.Length ? template[end] : '\0';
-            if (!(char.IsLetterOrDigit(after) || after == '_'))
-            {
-                return true;
-            }
-
-            from = idx + 1;
-        }
-
-        return false;
-    }
+        => Tokenizer.Scan(template).Any(seg =>
+            seg.Kind == SegKind.Token
+            && string.Equals(seg.Text, Tokens.Resolution, StringComparison.OrdinalIgnoreCase));
 
     // Removes one trailing resolution tag: a bracketed ResolutionLabel.KnownLabels entry such as
     // [1080p] or [4K], or an arbitrary progressive-scan label such as [368p], which an imported title
