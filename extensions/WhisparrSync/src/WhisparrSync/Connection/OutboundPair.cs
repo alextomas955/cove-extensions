@@ -1,7 +1,13 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Connection;
+
+// What one resolution established. Missing names the setting that was empty and is null once a
+// binding was built, so a caller cannot report a refusal a resolution did not make.
+internal readonly record struct OutboundResolution(
+    WhisparrBinding? Binding, ConnectionSetting? Missing);
 
 // The one place the address and the key an outbound request is built from are resolved.
 internal static class OutboundPair
@@ -16,17 +22,31 @@ internal static class OutboundPair
         WhisparrSyncOptions stored, ICredentialPort credentials, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(stored);
+
+        return (await ResolveAsync(stored, credentials, stored.SelectedGeneration, ct)
+            .ConfigureAwait(false)).Binding;
+    }
+
+    // Takes the generation rather than reading the selected one, for a caller answering for the
+    // generation it was handed: a delivery names the generation that sent it, and a job carries the
+    // one it was aimed at.
+    internal static async Task<OutboundResolution> ResolveAsync(
+        WhisparrSyncOptions stored,
+        ICredentialPort credentials,
+        WhisparrGeneration generation,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(stored);
         ArgumentNullException.ThrowIfNull(credentials);
 
-        var generation = stored.SelectedGeneration;
         var held = await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false);
         var apiKey = held?.ApiKey;
         var address = string.IsNullOrWhiteSpace(held?.Address)
             ? stored.ConnectionFor(generation)?.Address
             : held.Address;
 
-        return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _)
-            ? new WhisparrBinding(generation, baseAddress, apiKey)
-            : null;
+        return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out var missing)
+            ? new OutboundResolution(new WhisparrBinding(generation, baseAddress, apiKey), null)
+            : new OutboundResolution(null, missing);
     }
 }
