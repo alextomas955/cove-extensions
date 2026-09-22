@@ -18,6 +18,7 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
     <SectionCard title="What gets renamed">
       <Toggle
         label="Only rename organized items"
+        helper="Skips anything not marked organized, unless an unorganized destination is set."
         checked={options.onlyOrganized}
         onChange={(v) => {
           set("onlyOrganized", v);
@@ -31,10 +32,7 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
         }}
         helper="The filename without its extension, saved onto the item so later renames read the stored title."
       />
-      <Field
-        label="Required fields"
-        helper="An item whose listed tokens resolve to nothing is skipped."
-      >
+      <Field label="Required fields" helper="An item missing any of these is skipped.">
         <TagListInput
           values={options.requiredFields}
           onChange={(v) => {

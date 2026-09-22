@@ -44,7 +44,7 @@ export function RunAutomationSection({
           <div className="min-w-0 flex-1">
             <div className="text-base font-semibold text-foreground">Run for the whole library</div>
             <p className="mt-1 text-sm text-secondary">
-              Applies your rules to every matching item. A dry run writes nothing.
+              Applies your rules to every matching item. Dry run writes nothing.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">

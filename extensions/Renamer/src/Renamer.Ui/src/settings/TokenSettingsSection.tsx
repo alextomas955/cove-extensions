@@ -315,8 +315,8 @@ export function TokenSettingsSection({
             No token-specific settings needed
           </h3>
           <p className="mx-auto mb-4 mt-1 max-w-md text-sm text-secondary">
-            Add $performers, $tags, $date, or $duration to your filename or folder template to
-            configure how they&apos;re formatted.
+            Your templates don&apos;t use $performers, $tags, $date or $duration. Add one and its
+            options show up here.
           </p>
           <div className="flex flex-wrap justify-center gap-1">
             <Chip

@@ -16,7 +16,7 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { PerKindRows } from "./PerKindRows";
-import { type LibraryPathsState, type RenamerOptions } from "./options";
+import { RENAMABLE_KINDS, type LibraryPathsState, type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -92,7 +92,7 @@ test("a kind with nothing stored reads as following the default", async () => {
   const view = await renderRows({});
 
   expect(view.row("Videos").text()).toContain("Follows the default");
-  expect(view.text()).toContain("Every kind follows the settings above");
+  expect(view.text()).toContain(`All ${RENAMABLE_KINDS.length} kinds follow this default.`);
 
   view.unmount();
 });

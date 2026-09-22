@@ -79,6 +79,7 @@ export function DestinationRoutingSection({
       >
         <Toggle
           label="Route unorganized items to their own destination"
+          helper="Off, the only-organized setting decides whether they're skipped."
           checked={options.unorganizedDestination !== null}
           onChange={(on) => {
             // Off is the absent destination, not one naming nothing: only the absent one falls
@@ -99,7 +100,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-studio destinations"
-        description="Route a studio's items to their own destination."
+        description="Send a studio's items to their own destination."
         enabled={showStudioRules}
         onToggle={setShowStudioRules}
       >
@@ -114,7 +115,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-tag destinations"
-        description="Route a tag's items to their own destination."
+        description="Send a tag's items to their own destination."
         enabled={showTagRules}
         onToggle={setShowTagRules}
       >
@@ -156,7 +157,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Source-path destinations"
-        description="Match an item's source path to a destination, top rule first. An exact match or a regex."
+        description="Match a source path to a destination. Exact match or regex, top rule first."
         enabled={showPathRules}
         onToggle={setShowPathRules}
       >
@@ -204,7 +205,7 @@ export function DestinationRoutingSection({
 
       <GroupCard
         title="Sidecar files"
-        description="A file sharing the primary's basename moves and renames with it; an existing target is never overwritten."
+        description="Files with the same name move and rename with the primary. An existing file is never overwritten."
       >
         <Field label="Also move sidecar files with these extensions">
           <TagListInput
@@ -233,7 +234,7 @@ export function DestinationRoutingSection({
           onChange={(v) => {
             set("removeEmptyFolder", v);
           }}
-          helper="Never a non-empty folder or a root. Undo won't recreate it."
+          helper="Never deletes a folder that still has files in it, and never a drive root. Undo won't recreate a deleted folder."
         />
       </div>
     </SectionCard>
