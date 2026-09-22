@@ -66,17 +66,19 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         // A typed client rather than a constructed HttpClient, so the handler is pooled and its
         // lifetime is the factory's. The host stands the AddHttpClient stack up before this call.
-        services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
-            .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler)
+        services.AddHttpClient<WhisparrTransport>(WhisparrTransport.Configure)
+            .ConfigurePrimaryHttpMessageHandler(WhisparrTransport.CreateHandler)
 
-            // Built here rather than from the container, so the client writes to this extension's own
-            // logger for the same reason every other service constructed above does.
-            .AddTypedClient<IWhisparrClient>((client, services) => new WhisparrClient(
-                client,
-                services.GetRequiredService<Whisparr3Gateway>(),
-                services.GetRequiredService<Whisparr2Gateway>(),
-                services.GetRequiredService<ISiteNumberPort>(),
-                _log));
+            // Built here rather than from the container, so the transport writes to this extension's
+            // own logger for the same reason every other service constructed above does.
+            .AddTypedClient((client, _) => new WhisparrTransport(client, _log));
+
+        services.AddTransient<IWhisparrClient>(services => new WhisparrClient(
+            services.GetRequiredService<WhisparrTransport>(),
+            services.GetRequiredService<Whisparr3Gateway>(),
+            services.GetRequiredService<Whisparr2Gateway>(),
+            services.GetRequiredService<ISiteNumberPort>(),
+            _log));
 
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();

@@ -107,12 +107,13 @@ public sealed class SceneExclusionPortTests
     }
 
     [Fact]
-    public void TheOutboundClientDeclaresNoFieldACollectionCouldSurviveIn()
+    public void TheOutboundSeamDeclaresNoFieldACollectionCouldSurviveIn()
         => Assert.Empty(
-            typeof(WhisparrClient)
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+            OutboundSeamTypes.All
+                .SelectMany(type => type.GetFields(
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
                 .Where(field => typeof(System.Collections.IEnumerable).IsAssignableFrom(field.FieldType))
-                .Select(field => field.Name));
+                .Select(field => $"{field.DeclaringType?.Name}.{field.Name}"));
 
     [Fact]
     public async Task ThePortSpendsOneRequestPerPageAndNeverOnePerCard()

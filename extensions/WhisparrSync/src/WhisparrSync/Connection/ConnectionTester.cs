@@ -87,7 +87,7 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         baseAddress = null;
         if (string.IsNullOrWhiteSpace(address)
             || !Uri.TryCreate(address.Trim(), UriKind.Absolute, out var parsed)
-            || !WhisparrClient.IsAddressable(parsed))
+            || !WhisparrTransport.IsAddressable(parsed))
         {
             return false;
         }

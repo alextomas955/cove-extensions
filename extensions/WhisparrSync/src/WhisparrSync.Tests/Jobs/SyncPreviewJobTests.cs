@@ -27,9 +27,9 @@ public sealed class SyncPreviewJobTests
         var worstCase = (long)SyncPreviewJob.ChunkSize * SyncPreviewJob.MeasuredBytesPerHit;
 
         Assert.True(
-            worstCase < WhisparrClient.MaxResponseBytes,
+            worstCase < WhisparrTransport.MaxResponseBytes,
             $"a full batch answered in its entirety is {worstCase} bytes, past the "
-                + $"{WhisparrClient.MaxResponseBytes}-byte bound the transport reads within.");
+                + $"{WhisparrTransport.MaxResponseBytes}-byte bound the transport reads within.");
     }
 
     // Parsed rather than compared as text. An object naming the identifiers as a member is answered

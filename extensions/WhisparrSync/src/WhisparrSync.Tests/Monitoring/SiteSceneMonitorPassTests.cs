@@ -21,7 +21,7 @@ public sealed class SiteSceneMonitorPassTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    // The timeout shape is the one WhisparrClient.RequestTimeout produces, and it derives from the
+    // The timeout shape is the one WhisparrTransport.RequestTimeout produces, and it derives from the
     // shape a host stop raises. A filter written for the other two lets it through unnoticed, so
     // every contained read is driven against all three.
     public static TheoryData<Type> UnanswerableReads =>

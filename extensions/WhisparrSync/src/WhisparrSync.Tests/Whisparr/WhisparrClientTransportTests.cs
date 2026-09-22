@@ -120,9 +120,9 @@ public sealed class WhisparrClientTransportTests
     {
         using var configured = new HttpClient();
 
-        WhisparrClient.Configure(configured);
+        WhisparrTransport.Configure(configured);
 
-        Assert.Equal(WhisparrClient.RequestTimeout, configured.Timeout);
+        Assert.Equal(WhisparrTransport.RequestTimeout, configured.Timeout);
     }
 
     // The value the bound must be below is read off a client nothing configured, so a constant
@@ -133,8 +133,8 @@ public sealed class WhisparrClientTransportTests
         using var unconfigured = new HttpClient();
 
         Assert.True(
-            WhisparrClient.MaxResponseBytes < unconfigured.MaxResponseContentBufferSize,
-            $"the bound is {WhisparrClient.MaxResponseBytes}, which bounds nothing a client nothing "
+            WhisparrTransport.MaxResponseBytes < unconfigured.MaxResponseContentBufferSize,
+            $"the bound is {WhisparrTransport.MaxResponseBytes}, which bounds nothing a client nothing "
                 + $"configured would not already refuse at {unconfigured.MaxResponseContentBufferSize}");
     }
 
@@ -287,7 +287,7 @@ public sealed class WhisparrClientTransportTests
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.Equal("/whisparr/api/v3/history", request.RequestUri?.AbsolutePath);
         Assert.Equal(query, request.RequestUri?.Query);
-        Assert.Equal(SomeKey, Assert.Single(request.Headers.GetValues(WhisparrClient.ApiKeyHeader)));
+        Assert.Equal(SomeKey, Assert.Single(request.Headers.GetValues(WhisparrTransport.ApiKeyHeader)));
     }
 
     // An identifier sent to the other kind's route is answered with a not-found, which reads as an
@@ -432,8 +432,8 @@ public sealed class WhisparrClientTransportTests
 
     private static HttpClient NewHttpClient()
     {
-        var http = new HttpClient(WhisparrClient.CreateHandler());
-        WhisparrClient.Configure(http);
+        var http = new HttpClient(WhisparrTransport.CreateHandler());
+        WhisparrTransport.Configure(http);
         return http;
     }
 
