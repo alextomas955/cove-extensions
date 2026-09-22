@@ -13,13 +13,21 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    // The generation, the address and the key are read off the one binding rather than stored
+    // beside each other, so a caller cannot take a generation from one instance and an address from
+    // another.
     private sealed record MonitoringTarget(
-        WhisparrGeneration Generation,
-        Uri BaseAddress,
-        string ApiKey,
+        WhisparrBinding Binding,
         WhisparrCapabilitySet Capabilities,
         IWhisparrClient Reads,
-        MonitorScope DefaultMonitorScope);
+        MonitorScope DefaultMonitorScope)
+    {
+        public WhisparrGeneration Generation => Binding.Generation;
+
+        public Uri BaseAddress => Binding.BaseAddress;
+
+        public string ApiKey => Binding.ApiKey;
+    }
 
     // Written outside the run's own cancellation. What a run established about a root holds whether
     // or not the run finished.
@@ -67,9 +75,7 @@ public sealed partial class WhisparrSync
         // connection reaches nothing that could make a request.
         return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _)
             ? new MonitoringTarget(
-                generation,
-                baseAddress,
-                apiKey,
+                new WhisparrBinding(generation, baseAddress, apiKey),
                 GenerationCapabilities.For(generation, WhisparrRoleSet.From(client)),
                 client,
                 stored.DefaultMonitorScope)
