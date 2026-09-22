@@ -9,6 +9,11 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
+import {
+  announceEntityChanged,
+  isTheSameEntity,
+  onEntityChanged,
+} from "../common/lib/entityChanged";
 import { api } from "../common/lib/extension";
 import {
   monitorRefusalIn,
@@ -77,13 +82,27 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
           } else {
             store.actionSucceeded(entity);
           }
-          read(entity);
+          // Announced rather than read here: this control subscribes to the same entity, so the
+          // read happens once and the tab beside it, which lists what the reader does not own, is
+          // told at the same moment. Adding every missing scene empties that tab, and a scope
+          // change moves what it marks.
+          announceEntityChanged(entity);
         })
         .catch(() => {
           store.actionFailed(entity);
         });
     },
-    [store, read, kind, coveId],
+    [store, kind, coveId],
+  );
+
+  // Read again whenever something else on this page acted on the same entity: the tab beside this
+  // control can add the entity to the instance, which is exactly what this control reports on.
+  useEffect(
+    () =>
+      onEntityChanged((announced) => {
+        if (isTheSameEntity(announced, { kind, coveId })) read({ kind, coveId });
+      }),
+    [read, kind, coveId],
   );
 
   // Keyed on the entity rather than a bare boolean. The host keeps this component across a
