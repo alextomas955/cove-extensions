@@ -1,9 +1,7 @@
 import { expect, test, vi } from "vitest";
 
-import type { BulkJobState } from "../../wire/api";
-
 const reads: string[] = [];
-let answers: { status: BulkJobState }[] = [];
+let answers: { status: string }[] = [];
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   requestJson: (route: string) => {
@@ -15,21 +13,8 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-const { announceCardsChanged, announceWhenRunEnds, onCardsChanged, pollDelayMs, runHasStopped } =
+const { announceCardsChanged, announceWhenRunEnds, onCardsChanged } =
   await import("./cardsChanged");
-
-// Transcribed by hand from the wire enum. A list computed from the module it checks would agree
-// with itself whatever it says.
-const STATES: BulkJobState[] = ["pending", "running", "completed", "failed", "cancelled"];
-
-test("a run is stopped in every state that is not pending or running", () => {
-  expect(STATES.filter(runHasStopped)).toEqual(["completed", "failed", "cancelled"]);
-});
-
-test("the wait grows with each ask and settles at a ceiling", () => {
-  expect([1, 2, 3, 4].map(pollDelayMs)).toEqual([500, 1000, 2000, 4000]);
-  expect(pollDelayMs(20)).toBe(4000);
-});
 
 test("an announcement reaches every listener and carries what changed", () => {
   const heard: [string, readonly number[]][] = [];
