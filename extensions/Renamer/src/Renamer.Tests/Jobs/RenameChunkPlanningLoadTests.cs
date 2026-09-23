@@ -75,17 +75,8 @@ public sealed class RenameChunkPlanningLoadTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw 0.mkv", "Film 0", organized: false);
-            var ids = new List<int> { firstId };
-            for (int i = 1; i < entities; i++)
-            {
-                var video = new Video { Title = $"Film {i}", Organized = false };
-                db.Set<Video>().Add(video);
-                await db.SaveChangesAsync();
-                await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
-                ids.Add(video.Id);
-            }
+            var ids = await ExecutorTestSeed.SeedVideosAsync(
+                db, entities, i => (folderPath, $"raw {i}.mkv", $"Film {i}"), organized: false);
 
             var ext = await BuildAsync(
                 provider, new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true });

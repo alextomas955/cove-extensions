@@ -355,13 +355,7 @@ public sealed class ScanLibraryEndpointTests
             await db.Database.EnsureCreatedAsync();
 
             int n = CoveRenamerDataPort.LoadChunkSize + 25;  // spans two chunks
-            var ids = new List<int>(n);
-            for (int k = 0; k < n; k++)
-            {
-                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                    db, folderPath: $"media/{k}", basename: $"c{k}.mkv", title: $"C{k}");
-                ids.Add(videoId);
-            }
+            var ids = await ExecutorTestSeed.SeedVideosAsync(db, n, k => ($"media/{k}", $"c{k}.mkv", $"C{k}"));
 
             var port = new CoveRenamerDataPort(db);
             interceptor.ReaderCount = default;  // count only the batch load below

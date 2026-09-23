@@ -48,6 +48,48 @@ internal static class ExecutorTestSeed
     }
 
     /// <summary>
+    /// Seeds <paramref name="count"/> videos with one VideoFile each, in a single save, and returns
+    /// the video ids in seed order. <paramref name="shape"/> names each one's folder, basename and
+    /// title; videos naming the same folder path share one Folder row.
+    /// </summary>
+    /// <remarks>
+    /// A save per row on one context rescans every entity the context already tracks, so a loop over
+    /// <see cref="SeedVideoAsync"/> costs the square of the row count.
+    /// </remarks>
+    public static async Task<IReadOnlyList<int>> SeedVideosAsync(
+        DbContext db, int count, Func<int, (string FolderPath, string Basename, string Title)> shape,
+        bool organized = true, CancellationToken ct = default)
+    {
+        var folders = new Dictionary<string, Folder>(StringComparer.Ordinal);
+        var videos = new List<Video>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var (folderPath, basename, title) = shape(i);
+            string path = folderPath.Replace('\\', '/');
+            if (!folders.TryGetValue(path, out var folder))
+            {
+                folder = new Folder { Path = path, ModTime = DateTime.UtcNow };
+                folders.Add(path, folder);
+                db.Set<Folder>().Add(folder);
+            }
+
+            var video = new Video { Title = title, Organized = organized };
+            db.Set<Video>().Add(video);
+            db.Set<VideoFile>().Add(new VideoFile
+            {
+                Basename = basename,
+                ParentFolder = folder,
+                Format = ExtOf(basename),
+                Video = video,
+            });
+            videos.Add(video);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return [.. videos.Select(v => v.Id)];
+    }
+
+    /// <summary>
     /// Seeds a Folder (Path = <paramref name="folderPath"/>) + an Image titled <paramref name="title"/>
     /// + a single ImageFile (<paramref name="basename"/>). Returns the (folderId, imageId, fileId).
     /// </summary>
