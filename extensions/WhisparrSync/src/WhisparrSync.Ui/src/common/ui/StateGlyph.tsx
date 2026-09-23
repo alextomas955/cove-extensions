@@ -8,7 +8,9 @@ import {
   Ban,
   Bookmark,
   BookmarkMinus,
+  Check,
   Circle,
+  CircleAlert,
   CircleDashed,
   CircleHelp,
   HardDrive,
@@ -27,6 +29,10 @@ const GLYPH: Record<string, typeof Bookmark> = {
   circleQuestion: CircleHelp,
   hardDrive: HardDrive,
   unlink: Unlink,
+  // The settings page's own three: something is settled, something needs an answer, and something
+  // holds nothing to answer for.
+  check: Check,
+  circleAlert: CircleAlert,
 };
 
 /** Drawn filled, so the state that leads the axis reads heavier than the rest. */

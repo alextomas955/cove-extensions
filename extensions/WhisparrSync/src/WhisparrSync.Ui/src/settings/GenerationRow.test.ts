@@ -68,6 +68,11 @@ test("the drafted option is marked by a word, not by its colours alone", async (
   expect(marked, "the drafted option carries no word saying it is the selected one").toHaveLength(
     1,
   );
+
+  // A mark beside the word, as every other status pill the product draws carries one.
+  expect(marked[0]?.querySelector("svg"), "the pill says it with a tint and a word alone").not.toBe(
+    null,
+  );
   expect(marked[0].textContent).toContain("Whisparr v2");
   expect(marked[0].textContent).not.toContain("Eros");
 });

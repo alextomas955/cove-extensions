@@ -12,6 +12,7 @@ import { useState } from "react";
 import type { FolderAgreementRootLine, FolderAgreementView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
+import { StateGlyph } from "../common/ui/StateGlyph";
 import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegionLogic";
 import {
   folderAgreementTriedSummary,
@@ -39,10 +40,14 @@ import {
   type FolderSaveAnswer,
 } from "./folderAgreementLogic";
 
-const PILL_VARIANT: Record<FolderAgreementState, "green" | "amber" | "gray"> = {
-  settled: "green",
-  needsAPath: "amber",
-  nothingToSettle: "gray",
+// A tint and a mark, never a tint alone: every other status pill the product draws carries one.
+const PILL_FACE: Record<
+  FolderAgreementState,
+  { variant: "green" | "amber" | "gray"; glyph: string }
+> = {
+  settled: { variant: "green", glyph: "check" },
+  needsAPath: { variant: "amber", glyph: "circleAlert" },
+  nothingToSettle: { variant: "gray", glyph: "circleDashed" },
 };
 
 export interface FolderAgreementSectionProps {
@@ -139,7 +144,11 @@ function Prompt({
       className="space-y-2 rounded-xl border border-border bg-card px-3 py-2"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <StatusPill variant={PILL_VARIANT[state]} shape="tag">
+        <StatusPill
+          variant={PILL_FACE[state].variant}
+          shape="tag"
+          icon={<StateGlyph iconKey={PILL_FACE[state].glyph} />}
+        >
           {stateLabel(state)}
         </StatusPill>
         <span className="font-mono text-sm text-primary">{line.root}</span>
