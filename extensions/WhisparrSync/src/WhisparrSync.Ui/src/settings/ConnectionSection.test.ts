@@ -7,7 +7,6 @@ import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
 import { ConnectionSection } from "./ConnectionSection";
 import type { TransientTest } from "./connectLogic";
 import type { SettingsDraft } from "./settingsDraftLogic";
-import type { SaveState } from "./settingsDraftStore";
 
 const NEVER_VERIFIED: WhisparrSyncGenerationSettingsView = {
   address: "http://whisparr:6969",
@@ -38,7 +37,6 @@ function section(overrides: {
   stored?: WhisparrSyncGenerationSettingsView | null;
   draft?: SettingsDraft;
   test?: TransientTest;
-  save?: SaveState;
 }) {
   return createElement(ConnectionSection, {
     card: "v3",
@@ -46,8 +44,6 @@ function section(overrides: {
     readFailed: false,
     draft: overrides.draft ?? NO_DRAFT,
     test: overrides.test ?? { phase: "none" },
-    save: overrides.save ?? { status: "idle" },
-    noOpSave: false,
     testsStored: false,
     sharedReason: null,
     now: NOW,
@@ -55,7 +51,6 @@ function section(overrides: {
     onKeyChange: () => undefined,
     onClearStoredKey: () => undefined,
     onTest: () => undefined,
-    onSave: () => undefined,
   });
 }
 

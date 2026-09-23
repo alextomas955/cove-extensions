@@ -1,3 +1,5 @@
+import { SaveBar, type SaveOutcome } from "@cove-extensions/ui-shared";
+
 import { useNow } from "../common/lib/useNow";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
@@ -9,9 +11,10 @@ import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { SyncLibrarySection } from "./SyncLibrarySection";
 import { valuesForCard } from "./connectLogic";
-import { testsStoredConnection, unsavedFields } from "./settingsDraftLogic";
+import { testsStoredConnection, unsavedFields, unsavedSummary } from "./settingsDraftLogic";
 import { syncSentences } from "./syncLibraryLogic";
 import { useSettingsDraft } from "./useSettingsDraft";
+import type { SaveState } from "./settingsDraftStore";
 import { useFolderAgreement } from "./useFolderAgreement";
 import { useImportBanner } from "./useImportBanner";
 import { useSyncLibrary } from "./useSyncLibrary";
@@ -34,6 +37,7 @@ export function WhisparrSyncPage() {
     clearStoredKey,
     editBehavior,
     chooseGeneration,
+    discard,
     test,
     save,
   } = useSettingsDraft(reloadPage);
@@ -49,7 +53,10 @@ export function WhisparrSyncPage() {
   const sharedReason = state.settings === null ? reasonNothingIsReadable(state.readError) : null;
 
   return (
-    <div className="space-y-4">
+    // The bar is fixed to the viewport and covers the foot of the page, and the host's padding
+    // scale stops short of its height. The gutter is always present: one that appeared with the
+    // bar would move the page under the pointer at the first edit.
+    <div className="space-y-4" style={{ paddingBottom: BAR_GUTTER }}>
       <ImportBanner read={banner.read} view={banner.view} now={now} />
 
       <FolderAgreementSection
@@ -80,8 +87,6 @@ export function WhisparrSyncPage() {
         readFailed={state.read.failed}
         draft={state.draft}
         test={state.test}
-        save={state.save}
-        noOpSave={unsaved.length === 0}
         testsStored={testsStoredConnection(state.settings, state.draft)}
         sharedReason={sharedReason}
         now={now}
@@ -89,7 +94,6 @@ export function WhisparrSyncPage() {
         onKeyChange={editKey}
         onClearStoredKey={clearStoredKey}
         onTest={test}
-        onSave={save}
       />
 
       <ImportWebhookSection
@@ -128,13 +132,39 @@ export function WhisparrSyncPage() {
         onMonitorAlso={sync.chooseMonitorAlso}
         onSync={sync.sync}
       />
+
+      <SaveBar
+        dirty={unsaved.length > 0}
+        saving={state.save.status === "saving"}
+        canSave={state.settings !== null}
+        summary={
+          <>
+            <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
+            <div className="mt-0.5 text-xs text-secondary">{unsavedSummary(unsaved)}</div>
+          </>
+        }
+        outcome={saveOutcome(state.save)}
+        onSave={save}
+        onDiscard={discard}
+      />
     </div>
   );
 }
 
-// The controls the shared reason disables: connection test, connection save, registration, upgrade
-// behaviour, library sync.
-const SHARED_REASON_CONTROLS = 5;
+// The bar, including the wrapper that holds it off the foot of the viewport.
+const BAR_GUTTER = "96px";
+
+function saveOutcome(save: SaveState): SaveOutcome {
+  if (save.status === "failed") {
+    return { kind: "failed", message: `Cove could not save: ${save.message}` };
+  }
+  return save.status === "saved" ? { kind: "saved", message: "Settings saved." } : { kind: "none" };
+}
+
+// The controls the shared reason disables: connection test, registration, replacement-file
+// behaviour, library sync. The bar's save control is not one of them: nothing can be unsaved
+// before the settings have arrived, so the bar is not drawn while the reason stands.
+const SHARED_REASON_CONTROLS = 4;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null
