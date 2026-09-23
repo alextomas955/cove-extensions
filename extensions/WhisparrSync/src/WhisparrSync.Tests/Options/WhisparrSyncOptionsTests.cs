@@ -425,8 +425,10 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal("/whisparr/media/scene-a/file.mp4", underIt.Path);
     }
 
-    // A blob an earlier build wrote cannot reintroduce a value with no ceiling. Written as a
-    // literal, because the model can no longer hold the value the load path is asked to bind.
+    // The ceiling is applied on the read, so a value that never passed through a save is still
+    // shortened. Cove's bulk data route writes this blob whole, so an over-long value can arrive
+    // without this product having written it. Written as a literal, because the model cannot hold
+    // the value the load path is asked to bind.
     [Fact]
     public async Task AnOverLongStoredPathLoadsShortened()
     {
@@ -526,8 +528,10 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Null(neverRead.RecordedVersion);
     }
 
-    // A blob an earlier build wrote cannot reintroduce a value with no ceiling. Written as a
-    // literal, because the model can no longer hold the value the load path is asked to bind.
+    // The ceiling is applied on the read, so a value that never passed through a save is still
+    // shortened. Cove's bulk data route writes this blob whole, so an over-long value can arrive
+    // without this product having written it. Written as a literal, because the model cannot hold
+    // the value the load path is asked to bind.
     [Fact]
     public async Task AnOverLongStoredVersionLoadsShortened()
     {
