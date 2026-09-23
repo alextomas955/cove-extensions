@@ -3,9 +3,9 @@ namespace Renamer.Planner;
 
 /// <summary>One physical file row in the renamer's own vocabulary.</summary>
 /// <remarks>
-/// Mapped at the port boundary so the production <c>Renamer.csproj</c> takes no runtime dependency
-/// on Cove.Core. A null media-metadata field means the kind does not carry that token and the
-/// projector omits it. <c>ParentFolderPath</c> is denormalized forward-slash form; <c>Format</c> is
+/// Mapped at the port boundary so the planner and engine take no dependency on Cove.Core. A null
+/// media-metadata field means the kind does not carry that token and the projector omits it.
+/// <c>ParentFolderPath</c> is denormalized forward-slash form; <c>Format</c> is
 /// the token source for <c>$ext</c> and may be empty; <c>Captions</c> is empty for non-video kinds.
 /// <c>SizeBytes</c> feeds the per-volume free-space sum, where <c>0</c> never pushes a volume over
 /// its headroom. <c>BitRate</c> is bits/sec, <c>null</c> where none is stored, and renders as kbps.
@@ -95,8 +95,8 @@ public sealed record RenamerEntity(
 /// <summary>The database seam between the planner and executor and a live <c>CoveContext</c>.</summary>
 /// <remarks>
 /// This interface speaks only in the Renamer-owned records above, never in Cove.Core entity types,
-/// because the production <c>Renamer.csproj</c> takes no runtime dependency on Cove.Core. The
-/// Cove-backed implementation maps live entity graphs into these records at the boundary.
+/// so the planner and engine depend on nothing of Cove's. The Cove-backed implementation maps live
+/// entity graphs into these records at the boundary.
 /// </remarks>
 public interface IRenamerDataPort
 {

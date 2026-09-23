@@ -75,9 +75,9 @@ npm test                                           # tests for scripts/
   version is `CoveSdkVersion`, derived from `CoveMinVersion` in `Directory.Build.props`.
 - The validator reads `CoveMinVersion` as the host floor. Never edit the floor to make a version
   check pass.
-- Never bundle host-provided assemblies (`Cove.*`, EF Core, Npgsql, Pgvector). A bundled copy in
-  the extension's load context gives host types a second identity, and casts and DI then fail with
-  no error. `Cove.Sdk.targets` strips them. On the local ProjectReference path the root targets file
+- Never bundle host-provided assemblies (`Cove.*`, EF Core, Npgsql, Pgvector). The host loads its
+  own copy of anything in its dependency closure, so a bundled one is dead weight and logs a warning
+  at load. `Cove.Sdk.targets` strips them. On the local ProjectReference path the root targets file
   imports it explicitly. Verify the published file set against the catalog's `artifacts` list.
 
 ## Extension contract
@@ -132,7 +132,8 @@ Libraries reach millions of files. Nothing may grow with the library.
   with the work it runs, never with the endpoint that enqueues it.
 - An interface member with no production caller is deleted, not kept for symmetry. A seam that only
   a test double implements is not a boundary. Keep an interface for a real dependency inversion:
-  Renamer's data port exists because production takes no runtime dependency on Cove.Core entities.
+  Renamer's data port exists because its planner and engine work only in Renamer-owned records and
+  take no dependency on Cove.Core entities.
 
 ## UI conventions
 

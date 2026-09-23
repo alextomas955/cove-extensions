@@ -5,10 +5,10 @@ sidebar_position: 1
 
 # Architecture
 
-Rename turns an option change into a file moved on disk and a matching database update. This page
+Renamer turns an option change into a file moved on disk and a matching database update. This page
 traces that path for a contributor reading the code for the first time.
 
-Rename is a Cove extension in two halves:
+Renamer is a Cove extension in two halves:
 
 - **Backend** - a .NET 10 C# class library (`src/Renamer/`, built to `Renamer.dll`) that implements
   Cove's `IExtension` contract (deriving `FullExtensionBase` from `Cove.Plugins` / `Cove.Sdk`).
@@ -44,10 +44,9 @@ rename stops being recorded, so every rename is reversible until its window clos
 upgrading from the stored journal has it moved into the table once, on first load, after which both
 legacy keys are gone.
 
-Rows are written in groups rather than one at a time. A save per row costs a database round-trip per
-renamed file, which is several times the cost of the same-volume rename it records, and every worker
-of a parallel run queues behind it; measured against Postgres, grouping the writes takes 100,000 rows
-from about 294 seconds to about 8. What the group costs is the crash window: a host that dies
+Rows are written in groups rather than one at a time, because a save per row costs a database
+round-trip per renamed file and every worker of a parallel run queues behind it. What the group costs
+is the crash window: a host that dies
 mid-rename leaves up to one group of already-renamed files with no journal row, so undo cannot put
 those back. They are renamed correctly and recorded correctly in Cove's own tables, and only their
 reversal is lost. A read on the journal that is writing answers over the group it still holds, so the
@@ -142,8 +141,7 @@ the two never drift.
 - `CoveRevertJournal.cs` - the journal over two tables the extension owns (`renamer_revert_batches`,
   `renamer_revert_rows`), created by the migration in `RevertJournalStorage.cs` and applied by the
   host. Rows are read a page at a time through a keyset cursor, so an undo restores a batch without
-  holding it in memory. A batch expires whole after a fixed retention window, and a batch offered
-  over the row cap is refused outright rather than recorded in part.
+  holding it in memory. A batch expires whole after a fixed retention window.
 - `RevertDelta.cs` - the sidecar and caption moves that rode along with one renamed file, recorded in
   the forward direction so undo replays what happened rather than recomputing a target from the names.
 - `UndoStopReason.cs` - why one entry stopped short, as a value. Exactly one reason is terminal - the
@@ -205,7 +203,7 @@ Minimal-API endpoints the frontend calls, mounted under
   rule would be worse than the host control's permanent "Loading…". Asks about exactly the ids the
   rules name, so it is bounded by how many rules the user wrote, never by library size.
 
-The committed `wire/openapi.json` is the contract these twelve routes answer to. A test builds a real
+The committed `wire/openapi.json` is the contract these routes answer to. A test builds a real
 host over the shipped registrations, emits the document from them, and fails when the committed copy
 no longer matches - so the document cannot go stale without a red build, and the UI's TypeScript wire
 types are generated from it rather than declared a second time by hand.
@@ -327,8 +325,8 @@ These are the guarantees the design exists to protect. Preserve them when you ch
   performs zero mutation.
 - **Detached bodies read as System; request paths do not.** The two job bodies, the load-time
   migrations, the shared batch core and the auto-rename hook all run outside any request, so they
-  carry whichever principal happened to reach them, or none at all. Cove's per-principal query filters answer an under-privileged principal with zero rows and
-  no error, so each of those bodies takes its scope from the one elevating seam
+  carry whichever principal happened to reach them, or none at all. Cove's per-principal query
+  filters answer an under-privileged principal with zero rows and no error, so each of those bodies takes its scope from the one elevating seam
   (`Cove.Extensions.Shared/RunAsSystem.cs`) rather than opening a plain one. A request path is the
   opposite case and stays on its caller's principal, because elevating it would hand a restricted
   caller rows their own read is denied. Both halves are asserted per entry point, on the principal in
