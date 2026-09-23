@@ -93,6 +93,8 @@ computed, which it could not before.
 - Undoing a text rename announces the right kind. The undo path published a video-updated event for
   every kind, so other parts of Cove watching for the change were told about the wrong sort of item.
   Nothing was renamed wrongly.
+- The note beside **Undo last rename** now says what undo does: it reverts the most recent rename
+  that still has files to put back. It used to say only one batch is kept, which was out of date.
 
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
