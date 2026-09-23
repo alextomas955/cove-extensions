@@ -1,6 +1,5 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Contracts;
@@ -26,20 +25,13 @@ public sealed class JobStatusEndpointTests
         Error: null,
         EtaSeconds: 12.5);
 
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static RenamerJobStatus OkView(IResult result)
         => Assert.IsType<Ok<RenamerJobStatus>>(Unwrap(result)).Value!;
 
     [Fact]
     public void ReadPermissionAndOwnJob_ReturnsTheRunsProgress()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService(Job("job-1", OwnScanJob, JobStatus.Running));
 
         var view = OkView(ext.JobStatus(
@@ -56,7 +48,7 @@ public sealed class JobStatusEndpointTests
     [Fact]
     public void JobOwnedByAnotherExtension_IsNotFound_NotForbidden()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService(Job("job-2", ForeignJob, JobStatus.Running));
 
         var result = ext.JobStatus(
@@ -70,7 +62,7 @@ public sealed class JobStatusEndpointTests
     [Fact]
     public void UnknownJobId_IsNotFound()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService(job: null);
 
         Assert.IsType<NotFound>(Unwrap(ext.JobStatus(
@@ -85,7 +77,7 @@ public sealed class JobStatusEndpointTests
     [InlineData(JobStatus.Cancelled, RenamerJobState.Cancelled)]
     public void EveryHostStatus_MapsToItsOwnWireState(JobStatus host, RenamerJobState expected)
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService(Job("job-3", OwnScanJob, host));
 
         Assert.Equal(expected, OkView(ext.JobStatus(

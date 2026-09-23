@@ -1,12 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
+using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -20,26 +19,7 @@ public sealed class UndoEndpointTests
     // Wires the extension's captured seams from a DI provider that registers the seeded context as
     // the base DbContext (singleton, so the scope resolves the same seeded instance) and the given
     // capturing event bus, plus a fresh FakeStore for the options.
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
-        DbContext db, IEventBus bus, params string[] libraryPaths)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton(bus);
-        services.AddLibraryPaths(libraryPaths);
-        var provider = services.BuildServiceProvider();
-
-        var store = new FakeStore();
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
-        return (ext, store);
-    }
-
-    // Seeds the extension's stored options so a renamer renames to "$title".
-    private static Task SeedTitleOptionsAsync(FakeStore store) =>
-        new global::Renamer.Options.OptionsStore(store)
-            .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });
+    private static readonly RenamerOptions TitleOptions = new() { FilenameTemplate = "$title" };
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
@@ -69,10 +49,9 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store); // → "My Film.mkv"
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
-            // Forward renamer via the shared batch core - writes one real batch to the store.
+            // Forward renamer via the shared batch core - writes one real batch to the journal.
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
@@ -141,8 +120,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "image-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Image, [imageId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
@@ -178,7 +156,7 @@ public sealed class UndoEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (ext, _) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new RenamerOptions());
 
             var result = await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
@@ -213,8 +191,7 @@ public sealed class UndoEndpointTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             File.WriteAllText(oldFull, "video-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, new CapturingEventBus());
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
@@ -260,8 +237,7 @@ public sealed class UndoEndpointTests
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, new CapturingEventBus());
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
@@ -314,8 +290,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "text-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Text, [textId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));

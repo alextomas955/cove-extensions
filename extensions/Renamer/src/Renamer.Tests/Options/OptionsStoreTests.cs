@@ -43,17 +43,14 @@ public sealed class OptionsStoreTests
     {
         var fake = new FakeStore();
         await fake.SetAsync("options", "this is not json {{{");
-        var log = new CapturingLogger();
+        var log = new CapturingLogger<OptionsStore>();
         var store = new OptionsStore(fake, log);
 
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded)); // catches JsonException → defaults
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded));
 
-        // Defaults are indistinguishable from a correct empty configuration at every layer above this,
-        // so this line is the only evidence that a user's stored settings were discarded rather than
-        // never written. Asserted at the level and the carried exception and not at the wording, which
-        // would pin the sentence instead of the behaviour.
+        // The warning is the only sign that stored settings were discarded rather than never written.
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.IsAssignableFrom<JsonException>(entry.Error);
@@ -149,22 +146,5 @@ public sealed class OptionsStoreTests
         var all = await fake.GetAllAsync();
         Assert.Single(all);                       // exactly one entry (single JSON blob)
         Assert.True(all.ContainsKey("options"));  // under the "options" key
-    }
-
-    private sealed class CapturingLogger : ILogger
-    {
-        public List<(LogLevel Level, Exception? Error)> Entries { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) => Entries.Add((logLevel, exception));
     }
 }

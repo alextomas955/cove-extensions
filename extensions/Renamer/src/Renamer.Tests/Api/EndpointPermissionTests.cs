@@ -7,13 +7,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class EndpointPermissionTests
 {
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
@@ -24,7 +17,7 @@ public sealed class EndpointPermissionTests
         {
             // A principal with only videos.read must be forbidden from previewing an image;
             // the matching images.read principal is allowed (200).
-            var ext = NewExtension();
+            var ext = RenamerFixture.CreateWithStore();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var denied = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
@@ -48,7 +41,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_WithVideosWrite_EnqueuesOneJob_AndReturns202WithJobId()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
@@ -71,7 +64,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_ImageRequest_RequiresImagesWrite_NotVideosWrite()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
 
         // A principal holding only videos.write must not be able to enqueue an image renamer.
@@ -95,7 +88,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_AudioRequest_RequiresAudiosWrite()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
 
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);

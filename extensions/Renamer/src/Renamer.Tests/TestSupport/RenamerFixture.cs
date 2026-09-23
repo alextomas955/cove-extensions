@@ -3,12 +3,9 @@ using Cove.Plugins;
 
 namespace Renamer.Tests.TestSupport;
 
-// Constructs the extension the way the host does: instance first, then extension.json applied
-// through IManifestAware. Every test that needs an extension instance has to build it through here.
-// The extension declares no metadata in code, so an instance without an applied manifest has a null
-// Id and registers its routes under the wrong prefix. The manifest read is the shipped file next to
-// the test assembly, not a stub, so a file that stops parsing or loses its id fails the suite
-// rather than only a live install.
+// Builds the extension the way the host does: construct it, then apply the shipped extension.json.
+// The extension declares no metadata in code, so without the manifest its Id is null and its routes
+// register under the wrong prefix.
 internal static class RenamerFixture
 {
     private const string ManifestFileName = "extension.json";
@@ -21,14 +18,19 @@ internal static class RenamerFixture
 
     private static readonly Lazy<ExtensionManifestFile> SharedManifest = new(LoadManifest);
 
-    // The parsed, shipped manifest - the same bytes the host would read.
     internal static ExtensionManifestFile Manifest => SharedManifest.Value;
 
-    // A ready-to-use extension instance with the shipped manifest already applied.
     internal static global::Renamer.Renamer Create()
     {
         var extension = new global::Renamer.Renamer();
         ((IManifestAware)extension).ApplyManifest(Manifest);
+        return extension;
+    }
+
+    internal static global::Renamer.Renamer CreateWithStore()
+    {
+        var extension = Create();
+        ((IStatefulExtension)extension).SetStore(new FakeStore());
         return extension;
     }
 

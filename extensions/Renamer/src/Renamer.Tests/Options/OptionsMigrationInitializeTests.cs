@@ -1,6 +1,5 @@
 using Cove.Core.Entities;
 using Cove.Plugins;
-using Microsoft.Extensions.Logging;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
@@ -211,7 +210,7 @@ public sealed class OptionsMigrationInitializeTests
 
         await using var library = await LibraryDatabase.CreateAsync();
         await SeedTagsAsync(library, (13, "spoiler"));
-        var log = new CapturingLogger();
+        var log = new CapturingLogger<global::Renamer.Renamer>();
         library.Log = log;
 
         var ext = new global::Renamer.Renamer();
@@ -220,11 +219,10 @@ public sealed class OptionsMigrationInitializeTests
 
         // The settings write landed, and the name it discarded is named.
         Assert.Equal([13], (await new OptionsStore(store).LoadAsync()).ExcludeTagIds);
-        Assert.Contains(RuleDroppedEvent, log.Events);
+        Assert.Contains(log.Entries, e => e.EventId == RuleDroppedEvent);
 
-        // Asserted at the event id rather than the wording, which would pin the sentence instead of the
-        // behaviour: the failure is reported, and the store is left unstamped so a later load retries.
-        Assert.Contains(MigrationFailedEvent, log.Events);
+        // The store is left unstamped so a later load retries.
+        Assert.Contains(log.Entries, e => e.EventId == MigrationFailedEvent);
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
@@ -247,22 +245,5 @@ public sealed class OptionsMigrationInitializeTests
 
         public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default) =>
             inner.GetAllAsync(ct);
-    }
-
-    private sealed class CapturingLogger : ILogger<global::Renamer.Renamer>
-    {
-        public List<int> Events { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) => Events.Add(eventId.Id);
     }
 }

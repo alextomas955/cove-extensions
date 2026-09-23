@@ -13,13 +13,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class PreviewSampleEndpointTests
 {
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     // Builds an HttpRequest whose body is the given raw JSON - the endpoint now binds the raw
@@ -45,7 +38,7 @@ public sealed class PreviewSampleEndpointTests
     // Runs the endpoint with a videos.read principal and a raw JSON body string.
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var result = ext.PreviewSampleAsync(RequestWithBody(json), principal, default).GetAwaiter().GetResult();
         var ok = Assert.IsType<Ok<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
@@ -214,7 +207,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public async Task PreviewSample_WithNoReadPermission_Returns403_BeforeReadingBody()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
 
         // Hand a body stream that would throw if read, proving the 403 short-circuits before any
         // body read (permission is enforced before work - including deserialization).
@@ -230,7 +223,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public async Task PreviewSample_AdmitsACallerWhoCanReadOnlyTexts()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsRead);
 
         var result = await ext.PreviewSampleAsync(RequestWithBody(PascalCaseEnvelope), textsOnly, default);
@@ -278,7 +271,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public async Task PreviewSample_MalformedJson_Returns400()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
         var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, default);

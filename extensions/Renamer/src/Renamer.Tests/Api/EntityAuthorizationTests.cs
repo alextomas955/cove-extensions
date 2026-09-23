@@ -12,19 +12,12 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityAuthorizationTests
 {
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task RenamerEnqueue_OneUnwritableId_Returns403_AndEnqueuesNothing()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
         authz.Denied.Add((EntityKinds.Video, 8));
@@ -40,7 +33,7 @@ public sealed class EntityAuthorizationTests
     [Fact]
     public async Task RenamerEnqueue_AsksTheWritePermission_ForEverySuppliedId()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
 
@@ -61,7 +54,7 @@ public sealed class EntityAuthorizationTests
     [Fact]
     public async Task RenamerEnqueue_CallerHoldingEveryPermission_AsksNothing()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
 

@@ -37,7 +37,7 @@ public sealed class RenamerBatchJobTests
         await new global::Renamer.Options.OptionsStore(store).SaveAsync(
             new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
+        await ext.InitializeAsync(provider);
         return ext;
     }
 

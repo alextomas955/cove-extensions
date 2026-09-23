@@ -17,13 +17,6 @@ public sealed class EntityIdsCapTests
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
@@ -35,7 +28,7 @@ public sealed class EntityIdsCapTests
             var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            var ext = NewExtension();
+            var ext = RenamerFixture.CreateWithStore();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
 
@@ -59,7 +52,7 @@ public sealed class EntityIdsCapTests
     [Fact]
     public async Task RenamerEnqueue_OverCapIds_Returns400_AndDoesNotEnqueue()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
@@ -76,7 +69,7 @@ public sealed class EntityIdsCapTests
     public async Task RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
     {
         // Exactly at the cap is allowed - the bound rejects only what exceeds it.
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap).ToArray();

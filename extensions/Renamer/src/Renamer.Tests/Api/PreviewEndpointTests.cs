@@ -15,12 +15,9 @@ public sealed class PreviewEndpointTests
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
-        // This test exercises preview wire-shape + zero mutation, not the default template; pin the
-        // title-only template in the store so the seeded (height-less) video renders a stable
-        // "Title.ext" name independent of the shipped default (which would append "[$resolution]").
+        // "$title" keeps the seeded video, which has no height, from gaining a resolution suffix.
         await new OptionsStore(store).SaveAsync(new RenamerOptions { FilenameTemplate = "$title" });
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
-        // PreviewAsync uses Store (OptionsStore) but not _scopeFactory/_eventBus; no Initialize needed.
         return ext;
     }
 

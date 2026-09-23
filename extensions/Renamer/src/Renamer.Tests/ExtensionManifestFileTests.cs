@@ -1,32 +1,13 @@
-using System.Text.Json;
-using Cove.Plugins;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
 public sealed class ExtensionManifestFileTests
 {
-    // The manifest is copied next to the test assembly via the Renamer project reference's
-    // CopyToOutputDirectory. Read it from there so the test exercises the actual shipped file.
-    private static readonly string ManifestPath =
-        Path.Combine(AppContext.BaseDirectory, "extension.json");
-
-    // Mirror the host's own deserialization options (ExtensionManager reads the manifest with
-    // PropertyNameCaseInsensitive = true). Deserializing with the same options proves the loader
-    // will bind every key our manifest declares.
-    private static readonly JsonSerializerOptions HostOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static ExtensionManifestFile Load()
-    {
-        string json = File.ReadAllText(ManifestPath);
-        return JsonSerializer.Deserialize<ExtensionManifestFile>(json, HostOptions)
-            ?? throw new InvalidOperationException("extension.json deserialized to null");
-    }
-
     [Fact]
     public void Manifest_DeserializesAgainstHostContract_WithCoreIdentity()
     {
-        var manifest = Load();
+        var manifest = RenamerFixture.Manifest;
 
         Assert.Equal("com.alextomas955.renamer", manifest.Id);
         Assert.Equal("Renamer", manifest.Name);
@@ -40,7 +21,7 @@ public sealed class ExtensionManifestFileTests
     [Fact]
     public void Manifest_DeclaresNoNetworkScraperOrDownloaderPermissions()
     {
-        var manifest = Load();
+        var manifest = RenamerFixture.Manifest;
 
         // The extension touches files on disk and the DB only - it makes no network calls and runs no
         // scraper/downloader code, so all three runtime-permission buckets the host models are empty.
@@ -53,7 +34,7 @@ public sealed class ExtensionManifestFileTests
     [Fact]
     public void Extension_AnswersItsMetadataFromTheShippedManifest()
     {
-        var manifest = Load();
+        var manifest = RenamerFixture.Manifest;
         var extension = RenamerFixture.Create();
 
         Assert.Equal(manifest.Id, extension.Id);
