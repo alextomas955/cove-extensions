@@ -5,32 +5,24 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Collisions;
 
-/// <summary>
-/// The absolute-path budget survives the executor's own duplicate-suffix loop (integration, SQLite +
-/// real disk). The loop runs after the plan was measured and lengthens the name to free a taken slot,
-/// so the pair of cases below is the assertion: one budget refuses the suffixed path and leaves the
-/// source where it is, and the same arrangement with the suffix's own length added renames through to
-/// the suffixed name - which is what proves the loop really fires here rather than the refusal coming
-/// from the collision.
-/// </summary>
 public sealed class SuffixBudgetTests
 {
     private const string SourceBasename = "a.mkv";
     private const string PlannedBasename = "target.mkv";
 
-    /// <summary>The name the loop settles on once the planned one is found taken, at the shipped suffix format.</summary>
+    // The name the loop settles on once the planned one is found taken, at the shipped suffix
+    // format.
     private const string SuffixedBasename = "target (1).mkv";
 
-    /// <summary>What " (1)" costs between the stem and the extension.</summary>
+    // What " (1)" costs between the stem and the extension.
     private const int SuffixCost = 4;
 
     private sealed record Run(
         RenamerExecutor.RenamerRunResult Result, CapturingEventBus Bus, string DbBasename);
 
-    /// <summary>
-    /// Renames the seeded source onto a name already present on disk, under a budget derived from the
-    /// planned path's own length, so the arrangement cannot drift with the temp directory's depth.
-    /// </summary>
+    // Renames the seeded source onto a name already present on disk, under a budget derived from
+    // the planned path's own length, so the arrangement cannot drift with the temp directory's
+    // depth.
     private static async Task<Run> RenameOntoATakenNameAsync(TempDir dir, int budgetOverPlanned)
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -48,12 +40,12 @@ public sealed class SuffixBudgetTests
             var plan = new RenamerPlan(10, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, $"{folderPath}/{SourceBasename}", plannedFullPath,
-                    RenamerStatus.Renamer, PlannedBasename, folderPath),
+                    RenamerStatus.Rename, PlannedBasename, folderPath),
             ]);
 
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());
+                new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(
                 plan,

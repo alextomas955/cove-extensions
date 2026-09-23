@@ -2,7 +2,7 @@ using Cove.Core.Events;
 using Renamer.Planner;
 
 using static global::Renamer.Execution.KindEvents;
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 
@@ -19,9 +19,8 @@ namespace Renamer.Execution;
 // there is no state where disk and database disagree. Entries are independent; one failure does not
 // abort the batch.
 //
-// Sidecars replay the delta the forward path recorded, reversed. The forward caption transform is not
-// invertible, and a caption rename was applied only for a sidecar whose file really moved, so the
-// reverse target cannot be recomputed from the stems. A sidecar that cannot go back leaves the entry
+// Sidecars replay the delta the forward path recorded, reversed; see RevertDelta. A sidecar that cannot
+// go back leaves the entry
 // restored with a warning, since the media file and its row are both at the original location. A
 // caption's stored filename is written back only when its file moved back.
 //
@@ -30,16 +29,13 @@ public sealed class UndoReplayer
 {
     private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
-    private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
 
     // The cross mover handles a reverse move whose old and new paths sit on different volumes.
-    public UndoReplayer(IRenamerDataPort port, IEventBus eventBus, DiskMover disk,
-        CrossVolumeMover? cross = null)
+    public UndoReplayer(IRenamerDataPort port, IEventBus eventBus, CrossVolumeMover? cross = null)
     {
         _port = port;
         _eventBus = eventBus;
-        _disk = disk;
         _cross = cross ?? new CrossVolumeMover();
     }
 
@@ -70,16 +66,17 @@ public sealed class UndoReplayer
     // Warnings is separate from the two problem buckets: those entries succeeded, and folding them in
     // would stop the caller retiring a row whose file did come back.
     public sealed record UndoRunResult(
-        int Undone,
         IReadOnlyList<UndoFailure> Failed,
         IReadOnlyList<UndoFailure> Skipped,
         IReadOnlyList<RevertRow> Restored,
-        IReadOnlyList<UndoWarning> Warnings);
+        IReadOnlyList<UndoWarning> Warnings)
+    {
+        public int Undone => Restored.Count;
+    }
 
     // The batch arrives newest-first from the journal, which is the order the rows must be replayed in.
     public async Task<UndoRunResult> RevertAsync(RevertBatch batch, CancellationToken ct = default)
     {
-        int undone = 0;
         var failed = new List<UndoFailure>();
         var skipped = new List<UndoFailure>();
         var restored = new List<RevertRow>();
@@ -119,7 +116,7 @@ public sealed class UndoReplayer
                 var outcome = await RevertEntryAsync(batch.Kind, entry, currentPath, warnings, ct);
                 switch (outcome)
                 {
-                    case RevertOutcome.Undone: undone++; restored.Add(entry); break;
+                    case RevertOutcome.Undone: restored.Add(entry); break;
                     case RevertOutcome.Skipped skip: skipped.Add(skip.Failure); break;
                     case RevertOutcome.Failed fail: failed.Add(fail.Failure); break;
                 }
@@ -134,7 +131,7 @@ public sealed class UndoReplayer
             }
         }
 
-        return new UndoRunResult(undone, failed, skipped, restored, warnings);
+        return new UndoRunResult(failed, skipped, restored, warnings);
     }
 
     private async Task<RevertOutcome> RevertEntryAsync(
@@ -157,7 +154,7 @@ public sealed class UndoReplayer
         // this row names still comes back.
         _ = RevertDelta.TryParse(entry.SidecarsJson, out var delta);
         var reverseSidecars = delta.Sidecars
-            .Select(s => new DiskMover.SidecarMove(ToNative(s.ToPath), ToNative(s.FromPath)))
+            .Select(s => new SidecarMove(ToNative(s.ToPath), ToNative(s.FromPath)))
             .ToList();
 
         // A non-moved result, whether locked, target-exists, verify-failed, disk-full or offline, is a
@@ -166,14 +163,17 @@ public sealed class UndoReplayer
         string nativeOld = ToNative(entry.OldPath);
         bool sameVolume = VolumeClassifier.SameVolume(currentPath, entry.OldPath);
 
-        var (moved, moveReason, moveStop, movedSidecars, sidecarWarnings) =
-            await ReverseMoveOnDisk(sameVolume, nativeNew, nativeOld, reverseSidecars, ct);
+        // The moved sidecars are the ones that actually came back: a rollback reverses exactly those, and
+        // they decide which caption filenames may be written back.
+        var move = await Movers.MoveAsync(sameVolume, _cross, nativeNew, nativeOld, reverseSidecars, ct);
+        var movedSidecars = move.MovedSidecars;
+        var sidecarWarnings = move.Warnings;
 
-        if (!moved)
+        if (!move.Moved)
         {
             return new RevertOutcome.Skipped(new UndoFailure(
                 entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
-                moveReason ?? "skipped: reverse move did not happen", moveStop));
+                move.Reason ?? "skipped: reverse move did not happen", StopFor(move.Outcome)));
         }
 
         // A sidecar that could not go back, because its old slot is occupied or it is locked, is a
@@ -199,25 +199,8 @@ public sealed class UndoReplayer
             entry.FileId, oldBasename, oldFolderId, restoredCaptions.Count > 0 ? restoredCaptions : null);
         try
         {
-            var saved = await _port.ApplyAndSaveAsync([mutation], ct);
-
-            // The recomputed path must equal the old path just restored to. The lookup is nullable
-            // because default(SavedFile) carries a null RecomputedPath, which the comparison below reads
-            // as a differing path: a save reporting no row would then take the rollback branch and undo
-            // a restore that committed.
-            SavedFile? savedFile = saved
-                .Where(s => s.FileId == entry.FileId)
-                .Select(s => (SavedFile?)s)
-                .FirstOrDefault();
-            if (savedFile is null)
-            {
-                return new RevertOutcome.Failed(new UndoFailure(
-                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
-                    "the save reported no row for this file, so the restored path could not be verified",
-                    UndoStopReason.SaveReportedNoRow));
-            }
-
-            string recomputed = savedFile.Value.RecomputedPath;
+            // The recomputed path must equal the old path just restored to.
+            string recomputed = await _port.ApplyAndSaveAsync(mutation, ct);
             string expected = NormalizeSlash(entry.OldPath);
             if (!PathsEqual(recomputed, expected))
             {
@@ -226,7 +209,7 @@ public sealed class UndoReplayer
                 // Rollback(oldFull, newFull) move newFull to oldFull, so the arguments are passed
                 // swapped. Rollback warnings are surfaced so an incomplete rollback, such as the renamed
                 // slot being re-occupied or a cross-volume copy-back failing verification, is visible.
-                IReadOnlyList<string> rbWarnings = await RollbackReverseMove(sameVolume, nativeNew, nativeOld, movedSidecars, ct);
+                IReadOnlyList<string> rbWarnings = await Movers.RollbackAsync(sameVolume, _cross, nativeNew, nativeOld, movedSidecars, ct);
                 string note = rbWarnings.Count > 0
                     ? $"recomputed Path '{recomputed}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
                     : $"recomputed Path '{recomputed}' != restored path '{expected}'; rolled back";
@@ -241,14 +224,11 @@ public sealed class UndoReplayer
         catch (Exception ex)
         {
             // The save failed after a successful reverse move, so the disk goes back to the renamed
-            // location on the same volume tier the reverse move used, leaving no half-state. The file
-            // sits at the old path and both movers' Rollback(oldFull, newFull) move newFull to oldFull,
-            // so the arguments are passed swapped. Rollback warnings are surfaced so an incomplete
-            // rollback is visible.
-            // On the cancel path the ambient token is already cancelled, so the rollback uses None.
+            // location, as in the mismatch branch above. On the cancel path the ambient token is already
+            // cancelled, so the rollback uses None.
             var rollbackCt = ex is OperationCanceledException ? CancellationToken.None : ct;
             IReadOnlyList<string> rbWarnings =
-                await RollbackReverseMove(sameVolume, nativeNew, nativeOld, movedSidecars, rollbackCt);
+                await Movers.RollbackAsync(sameVolume, _cross, nativeNew, nativeOld, movedSidecars, rollbackCt);
 
             if (ex is OperationCanceledException)
             {
@@ -281,12 +261,12 @@ public sealed class UndoReplayer
                 UndoStopReason.OriginalDirectoryUnavailable)), 0);
         }
 
-        int oldFolderId = await _port.GetOrCreateFolderIdAsync(oldDir, ct);
-
         // The old slot must be free on both disk and database; an occupied slot is skipped, never
-        // clobbered.
+        // clobbered. A folder with no row holds no database collision.
+        int? existingFolderId = await _port.TryGetFolderIdAsync(oldDir, ct);
         if (System.IO.File.Exists(ToNative(entry.OldPath))
-            || await _port.CollisionExistsAsync(oldFolderId, oldBasename, entry.FileId, ct))
+            || (existingFolderId is int folderId
+                && await _port.CollisionExistsAsync(folderId, oldBasename, entry.FileId, ct)))
         {
             return (new RevertOutcome.Skipped(new UndoFailure(
                 entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
@@ -294,32 +274,7 @@ public sealed class UndoReplayer
                 UndoStopReason.OriginalLocationOccupied)), 0);
         }
 
-        return (null, oldFolderId);
-    }
-
-    // The reverse disk move on the matching volume tier. A same-volume reverse takes the atomic
-    // never-overwrite DiskMover.Move; a cross-volume reverse takes the copy, verify, promote and
-    // delete-source-last CrossVolumeMover.MoveAsync.
-    //
-    // The returned moved sidecars are the ones that actually came back: a rollback reverses exactly
-    // those, and they decide which caption filenames may be written back.
-    private async Task<(bool moved, string? reason, UndoStopReason stop,
-        IReadOnlyList<(string From, string To)> movedSidecars,
-        IReadOnlyList<string> warnings)> ReverseMoveOnDisk(
-        bool sameVolume, string nativeNew, string nativeOld,
-        List<DiskMover.SidecarMove> sidecars, CancellationToken ct)
-    {
-        if (sameVolume)
-        {
-            var move = _disk.Move(nativeNew, nativeOld, sidecars);
-            return (move.Moved, move.Reason, StopFor(move.Outcome),
-                [.. move.MovedSidecars.Select(s => (s.From, s.To))], move.Warnings);
-        }
-
-        var cross = await _cross.MoveAsync(nativeNew, nativeOld,
-            [.. sidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
-        return (cross.Moved, cross.Reason, StopFor(cross.Outcome),
-            [.. cross.MovedSidecars.Select(s => (s.From, s.To))], cross.Warnings);
+        return (null, existingFolderId ?? await _port.GetOrCreateFolderIdAsync(oldDir, ct));
     }
 
     // The Moved arm is unreachable while callers only ask about a move that did not happen. It maps to
@@ -336,18 +291,6 @@ public sealed class UndoReplayer
         MoveOutcome.Cancelled => UndoStopReason.ReverseMoveCancelled,
         MoveOutcome.Moved => UndoStopReason.UnexpectedError,
     };
-
-    // Rolls a completed reverse move back to the renamed location through the same mover tier that
-    // performed it, taking the sidecars that came back with it. Both movers' Rollback(oldFull, newFull)
-    // move newFull to oldFull, so the arguments arrive swapped. A non-empty return means the rollback
-    // was incomplete.
-    private async Task<IReadOnlyList<string>> RollbackReverseMove(
-        bool sameVolume, string nativeNew, string nativeOld,
-        IReadOnlyList<(string From, string To)> movedSidecars, CancellationToken ct)
-        => sameVolume
-            ? _disk.Rollback(nativeNew, nativeOld, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
-            : await _cross.RollbackAsync(nativeNew, nativeOld,
-                [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
     private abstract record RevertOutcome
     {

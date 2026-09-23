@@ -35,9 +35,7 @@ The same template degrades cleanly as metadata gets sparser:
 | title + resolution (no date) | `The Matrix [1080p].mp4`              |
 | title only                   | `The Matrix.mp4`                      |
 
-The extension is always added automatically, at the end. Leave `$ext` out of a filename template:
-writing it changes nothing, because the renderer resolves it to nothing there and appends the real
-extension afterwards either way. It cannot be moved.
+The file extension is always added at the end, so leave `$ext` out of a filename template.
 
 ## Syntax
 

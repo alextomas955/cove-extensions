@@ -11,30 +11,13 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
-/// <see cref="SampleTokenSets"/> + the posted (unsaved) options and returns per-sample old→new + folder
-/// + advisory flags - single-sourcing the naming logic so the React panel never re-implements it. The
-/// length-reduced flag is asserted by its named dropped fields (truthful, not a generic boolean),
-/// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
-/// (no HTTP host, no DbContext).
-/// </summary>
 public sealed class PreviewSampleEndpointTests
 {
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
-    /// <summary>
-    /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON - the endpoint now binds the
-    /// raw request and parses the body itself (with <see cref="RenamerOptions.JsonOptions"/>), so tests
-    /// drive it through a real body stream rather than a pre-bound typed record.
-    /// </summary>
+    // Builds an HttpRequest whose body is the given raw JSON - the endpoint now binds the raw
+    // request and parses the body itself (with JsonOptions), so tests drive it through a real body
+    // stream rather than a pre-bound typed record.
     private static HttpRequest RequestWithBody(string json)
     {
         var ctx = new DefaultHttpContext();
@@ -43,7 +26,7 @@ public sealed class PreviewSampleEndpointTests
         return ctx.Request;
     }
 
-    /// <summary>Runs the endpoint with a videos.read principal and a serialized {Options:...} body.</summary>
+    // Runs the endpoint with a videos.read principal and a serialized {Options:...} body.
     private static IReadOnlyList<PreviewSampleResult> Preview(RenamerOptions? options)
     {
         // Serialize the body exactly as the panel/host would, via the converter-aware options, so the
@@ -52,10 +35,10 @@ public sealed class PreviewSampleEndpointTests
         return PreviewRaw(json);
     }
 
-    /// <summary>Runs the endpoint with a videos.read principal and a raw JSON body string.</summary>
+    // Runs the endpoint with a videos.read principal and a raw JSON body string.
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var result = ext.PreviewSampleAsync(RequestWithBody(json), principal, default).GetAwaiter().GetResult();
         var ok = Assert.IsType<Ok<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
@@ -91,6 +74,15 @@ public sealed class PreviewSampleEndpointTests
         // The theory proves each casing parses; this proves they agree. Differing results would mean one
         // spelling silently lost a member and fell back to its default.
         Assert.Equal(PreviewRaw(PascalCaseEnvelope), PreviewRaw(CamelCaseEnvelope));
+    }
+
+    [Fact]
+    public void PreviewSample_OptionsWithANullListAndAZeroCap_RenderAsASavedLoadWouldRepairThem()
+    {
+        var repaired = PreviewRaw("""{ "Options": { "DropOrder": null, "FullPathMax": 0 } }""");
+        var defaults = PreviewRaw("""{ "Options": {} }""");
+
+        Assert.Equal(defaults.Select(r => r.NewName), repaired.Select(r => r.NewName));
     }
 
     [Fact]
@@ -175,7 +167,7 @@ public sealed class PreviewSampleEndpointTests
         Assert.Contains("length-reduced", video.Flags);
         Assert.NotEmpty(video.DroppedFields);
         // videoCodec/audioCodec/resolution are early in the default DropOrder and present in the
-        // template - they must be among the named dropped fields (A2 wiring, not a string diff).
+        // template - they must be among the named dropped fields.
         Assert.Contains("videoCodec", video.DroppedFields);
         Assert.Contains("audioCodec", video.DroppedFields);
     }
@@ -213,9 +205,9 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public async Task PreviewSample_WithoutVideosRead_Returns403_BeforeReadingBody()
+    public async Task PreviewSample_WithNoReadPermission_Returns403_BeforeReadingBody()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
 
         // Hand a body stream that would throw if read, proving the 403 short-circuits before any
         // body read (permission is enforced before work - including deserialization).
@@ -226,6 +218,17 @@ public sealed class PreviewSampleEndpointTests
         var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), default);
 
         Assert.Equal(403, StatusOf(result)); // permission denied
+    }
+
+    [Fact]
+    public async Task PreviewSample_AdmitsACallerWhoCanReadOnlyTexts()
+    {
+        var ext = RenamerFixture.CreateWithStore();
+        var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsRead);
+
+        var result = await ext.PreviewSampleAsync(RequestWithBody(PascalCaseEnvelope), textsOnly, default);
+
+        Assert.IsType<Ok<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
     }
 
     [Fact]
@@ -268,7 +271,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public async Task PreviewSample_MalformedJson_Returns400()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
         var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, default);
@@ -289,13 +292,8 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_SingleCanonicalPascalCaseKey_RendersTheLiveTemplate()
     {
-        // Characterization of the wire-fix: the dual-source preview bug was that a legacy blob's
-        // stale camelCase `filenameTemplate` rode into the body after the live PascalCase `FilenameTemplate`
-        // and won under System.Text.Json case-insensitive last-write-wins. The real fix is client-side
-        // (frontend `normalizeOptions` now sends one canonical key per property). This test documents the
-        // backend contract the fix relies on: given a clean single-PascalCase-key body (no camelCase
-        // duplicate - the shape the normalized frontend now always sends), the endpoint renders using that
-        // live template value. No backend normalize is added - the binder is unchanged.
+        // A body holding one PascalCase key per property renders with that value. A camelCase duplicate
+        // would win under case-insensitive last-write-wins binding, so the panel sends only this shape.
         const string body = """
             {
               "Options": {
@@ -310,7 +308,6 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal("The Example LIVE.mp4", video.NewName);
     }
 
-    /// <summary>A read-once stream that throws on any read - proves the 403 path never touches the body.</summary>
     private sealed class ThrowingStream : Stream
     {
         public override bool CanRead => true;

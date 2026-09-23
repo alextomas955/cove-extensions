@@ -11,21 +11,8 @@ namespace Renamer.Execution;
 // - A locked source or a permission failure is caught and reported. Whatever process holds the lock is
 //   never touched: this class references no OS process API.
 // - A sidecar whose target already exists is left untouched and recorded as a warning.
-public sealed class DiskMover
+public static class DiskMover
 {
-    // One planned sidecar move, absolute on both sides. Either separator is accepted.
-    public readonly record struct SidecarMove(string From, string To);
-
-    // The outcome of a Move. MovedSidecars holds the pairs that actually moved, in move order, which is
-    // what a rollback reverses. Reason is null on success. A result that did not move is a skip and
-    // never a thrown error.
-    public sealed record MoveResult(
-        bool Moved,
-        MoveOutcome Outcome,
-        IReadOnlyList<SidecarMove> MovedSidecars,
-        IReadOnlyList<string> Warnings,
-        string? Reason);
-
     // Moves the primary file, creating the destination directory when needed, then moves each planned
     // sidecar without clobbering. A locked source returns Locked and an occupied destination returns
     // TargetExists; the atomic move raises one IOException for both, so they are told apart by testing
@@ -34,15 +21,11 @@ public sealed class DiskMover
     //
     // Those four are the only MoveOutcome members this tier produces. An atomic rename has no copy to
     // read back and no cancellation point, so VerifyFailed and Cancelled belong to CrossVolumeMover.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
-            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
-            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
-    public MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
+    public static MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try
         {
-            EnsureParentDir(newFull);
+            Movers.EnsureParentDir(newFull);
             // The two-argument overload throws IOException when the destination exists and when the
             // source is locked.
             System.IO.File.Move(oldFull, newFull);
@@ -62,47 +45,45 @@ public sealed class DiskMover
 
         var moved = new List<SidecarMove>();
         var warnings = new List<string>();
-        if (sidecars is not null)
+        foreach (var sc in sidecars ?? [])
         {
-            foreach (var sc in sidecars)
-            {
-                if (System.IO.File.Exists(sc.To))
-                {
-                    // The pre-existing target is left untouched.
-                    warnings.Add($"sidecar target exists, skipped: {sc.To}");
-                    continue;
-                }
-
-                try
-                {
-                    EnsureParentDir(sc.To);
-                    System.IO.File.Move(sc.From, sc.To);
-                    moved.Add(sc);
-                }
-                catch (IOException ex)
-                {
-                    // A locked sidecar is non-fatal; the primary file has already moved.
-                    warnings.Add($"sidecar move failed (locked/exists), skipped: {sc.From} -> {sc.To}: {ex.Message}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    warnings.Add($"sidecar move failed (permission), skipped: {sc.From} -> {sc.To}: {ex.Message}");
-                }
-            }
+            MoveSidecar(sc, moved, warnings);
         }
 
         return new MoveResult(true, MoveOutcome.Moved, moved, warnings, null);
+    }
+
+    // Runs after the primary file has moved, so a sidecar that cannot move is a warning, never a
+    // failure. A pre-existing target is left untouched.
+    private static void MoveSidecar(SidecarMove sc, List<SidecarMove> moved, List<string> warnings)
+    {
+        if (System.IO.File.Exists(sc.To))
+        {
+            warnings.Add($"sidecar target exists, skipped: {sc.To}");
+            return;
+        }
+
+        try
+        {
+            Movers.EnsureParentDir(sc.To);
+            System.IO.File.Move(sc.From, sc.To);
+            moved.Add(sc);
+        }
+        catch (IOException ex)
+        {
+            warnings.Add($"sidecar move failed (locked/exists), skipped: {sc.From} -> {sc.To}: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            warnings.Add($"sidecar move failed (permission), skipped: {sc.From} -> {sc.To}: {ex.Message}");
+        }
     }
 
     // Reverses a successful Move: the primary file goes back to oldFull and every moved sidecar back to
     // its source. Best-effort, so a secondary failure such as the old slot being re-occupied is
     // reported in the returned warnings and never thrown, and a failed save's cleanup cannot crash the
     // batch. The warnings are empty when the restore was clean.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
-            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
-            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
-    public IReadOnlyList<string> Rollback(string oldFull, string newFull, IReadOnlyList<SidecarMove> movedSidecars)
+    public static IReadOnlyList<string> Rollback(string oldFull, string newFull, IReadOnlyList<SidecarMove> movedSidecars)
     {
         var warnings = new List<string>();
 
@@ -132,21 +113,12 @@ public sealed class DiskMover
                 warnings.Add($"rollback target re-occupied, leaving as-is: {to}");
                 return;
             }
-            EnsureParentDir(to);
+            Movers.EnsureParentDir(to);
             System.IO.File.Move(from, to);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             warnings.Add($"rollback move failed {from} -> {to}: {ex.Message}");
-        }
-    }
-
-    private static void EnsureParentDir(string fullPath)
-    {
-        var dir = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
         }
     }
 }

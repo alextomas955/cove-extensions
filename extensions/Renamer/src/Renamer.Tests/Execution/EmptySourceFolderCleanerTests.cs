@@ -6,15 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The destructive-leg safety net: every invariant that keeps the opt-in empty-source-folder cleanup
-/// from ever destroying data the move did not touch. Filesystem behavior (enumerate, link-resolve,
-/// non-recursive delete) is exercised against a real <see cref="TempDir"/>, not a mock. The end-to-end
-/// cases (1, 8, 9) drive the real executor so the call-site trigger and the move-result-still-moved
-/// contract are proven, not just the helper in isolation. The undo-contract case pins the real
-/// behavior: a deleted source folder makes a later undo of that move skip the restore (the file stays
-/// at its verified destination, never lost).
-/// </summary>
 public sealed class EmptySourceFolderCleanerTests
 {
     [Fact]
@@ -60,6 +51,31 @@ public sealed class EmptySourceFolderCleanerTests
         Assert.True(removed);
         Assert.Null(warning);
         Assert.False(Directory.Exists(src));
+    }
+
+    [Fact]
+    public void ALinkedFolder_IsLeftAlone_AndSoIsTheEmptyFolderItPointsAt()
+    {
+        using var dir = new TempDir();
+        string target = Path.Combine(dir.Root, "outside-the-library");
+        Directory.CreateDirectory(target);
+        string link = Path.Combine(dir.Root, "linked");
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Windows grants symlink creation only to an elevated or developer-mode account.
+            Assert.Skip($"cannot create a directory symlink here: {ex.Message}");
+        }
+
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(link.Replace('\\', '/'));
+
+        Assert.False(removed);
+        Assert.Null(warning);
+        Assert.True(Directory.Exists(target));
+        Assert.NotNull(new DirectoryInfo(link).LinkTarget);
     }
 
     [Fact]
@@ -170,7 +186,7 @@ public sealed class EmptySourceFolderCleanerTests
     }
 
     [Fact]
-    public async Task SameFolderRenamer_NeverEntersCleanup_SourceDirSurvives()
+    public async Task SameFolderRename_NeverEntersCleanup_SourceDirSurvives()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -195,7 +211,7 @@ public sealed class EmptySourceFolderCleanerTests
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
                 .PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var item = Assert.Single(plan.Items);
-            Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
+            Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place renamer, not a move
 
             // The trigger predicate's two independent reasons to skip both hold for this item:
             // it is not a move, and the parent dir does not change.
@@ -242,7 +258,7 @@ public sealed class EmptySourceFolderCleanerTests
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
@@ -250,7 +266,7 @@ public sealed class EmptySourceFolderCleanerTests
             // Undo the batch: the original directory is gone, so the restore skips - it is not recreated.
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
+            var replayer = new UndoReplayer(port, new CapturingEventBus());
             var undo = await replayer.RevertAsync(batch!, default);
 
             Assert.Equal(0, undo.Undone);
@@ -274,7 +290,7 @@ public sealed class EmptySourceFolderCleanerTests
     private static RenamerExecutor NewExecutor(DbContext db, out CapturingEventBus bus)
     {
         bus = new CapturingEventBus();
-        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());
+        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
     }
 
     private static string DirOf(string fullPath)

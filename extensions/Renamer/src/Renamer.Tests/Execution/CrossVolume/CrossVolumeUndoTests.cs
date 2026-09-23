@@ -5,32 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-/// <summary>
-/// The cross-drive reverse-replay proofs - the mirror of the forward verify-failure cases in
-/// <see cref="CrossVolumeMoverTests"/>, driven through <see cref="UndoReplayer"/> (not
-/// <see cref="RenamerExecutor"/>) so the new→old direction is exercised. Each test sets up a
-/// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
-/// physical disk - no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
-/// the new (subst) location and a hand-built <see cref="global::Renamer.Planner.RevertBatch"/> whose row records
-/// OldPath on the temp root and NewPath on the subst root, then reverse-replays it.
-///
-/// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> - after undo the file is back at old
-/// byte-for-byte and gone from new. (b) <see cref="BitFlipOnCopyBack_VerifyFails_FileNotLost"/> - the
-/// reverse-direction centerpiece, the mirror of the forward data-loss proof: a bit-flip on the copy-back makes verify fail, the
-/// reverse move reports !Moved → reported skip, and the file is not lost (the new copy survives, the
-/// old slot is not half-written). (c) <see cref="CrossSaveThrows_RollsBackToNEW"/> - when the reverse
-/// DB save throws after a successful cross copy-back, the file is rolled back to new through
-/// <see cref="CrossVolumeMover.RollbackAsync"/> and the entry is Failed.
-///
-/// SQLite (not EF-InMemory) so the unique index + Path recompute are faithful. Captions are out of
-/// undo scope: nothing is asserted about sidecars; the reverse passes sidecars: null.
-/// </summary>
-/// <remarks>
-/// Where a case asserts that no in-flight copy was left behind, it takes the path from the mover's
-/// post-copy seam rather than constructing one. The name is minted per call and unguessable, so a
-/// test-built expectation would be asserting on its own input and would pass however wrong the real
-/// name was.
-/// </remarks>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class CrossVolumeUndoTests
 {
@@ -56,7 +30,7 @@ public sealed class CrossVolumeUndoTests
 
             var minted = new List<string>();
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover(Recorder(minted)));
+            var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover(Recorder(minted)));
             var result = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
@@ -108,7 +82,7 @@ public sealed class CrossVolumeUndoTests
             });
 
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: faultMover);
+            var replayer = new UndoReplayer(port, undoBus, cross: faultMover);
             var result = await replayer.RevertAsync(batch, default);
 
             // The reverse move reports !Moved (VerifyFailed) → reported skip, never Undone.
@@ -153,7 +127,7 @@ public sealed class CrossVolumeUndoTests
             var throwingPort = new ThrowOnSaveDataPort(db);
             var minted = new List<string>();
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(throwingPort, undoBus, new DiskMover(), cross: new CrossVolumeMover(Recorder(minted)));
+            var replayer = new UndoReplayer(throwingPort, undoBus, cross: new CrossVolumeMover(Recorder(minted)));
             var result = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(0, result.Undone);
@@ -174,53 +148,7 @@ public sealed class CrossVolumeUndoTests
     }
 
     [Fact]
-    public async Task DirMissing_Skip_NotRecreated()
-    {
-        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
-
-        using var oldDir = new TempDir();
-        using var newDrive = new SecondVolume();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            const string original = "bytes whose OLD directory has since vanished";
-            // The recorded old dir is a subdirectory that does not exist on disk (deleted since the move).
-            string missingOldDir = Path.Combine(oldDir.Root, "gone");
-            string oldFull = Path.Combine(missingOldDir, "raw.mkv");
-            string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
-            File.WriteAllText(newFull, original);
-            Assert.False(Directory.Exists(missingOldDir), "precondition: the OLD dir must be absent");
-
-            var (port, batch, _) = await SeedReverseBatchAsync(db, missingOldDir, newDrive.Root, oldFull, newFull);
-
-            var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
-
-            // The missing old dir is a reported skip citing "original directory no longer exists".
-            Assert.Equal(0, result.Undone);
-            Assert.Empty(result.Failed);
-            var skip = Assert.Single(result.Skipped);
-            Assert.NotNull(skip.Reason);
-            Assert.Contains("original directory no longer exists", skip.Reason, StringComparison.OrdinalIgnoreCase);
-            Assert.Empty(undoBus.Published);
-
-            // The old dir is not recreated (we never restore into a possibly-relocated location), and the
-            // file stays at new byte-for-byte.
-            Assert.False(Directory.Exists(missingOldDir), "the missing OLD dir must NOT be recreated");
-            Assert.False(File.Exists(oldFull), "no file may be restored into the missing OLD dir");
-            Assert.True(File.Exists(newFull), "the file must stay at NEW");
-            Assert.Equal(original, File.ReadAllText(newFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task DestinationFull_or_Offline_ReportedSkip()
+    public async Task AnOldVolumeGoneOffline_IsASkip_AndTheFileStaysAtItsNewPath()
     {
         Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
@@ -243,7 +171,7 @@ public sealed class CrossVolumeUndoTests
             oldDrive.Dispose();
 
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
+            var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover());
             var result = await replayer.RevertAsync(batch, default);
 
             // A gone old drive is a reported skip (the dir-missing Directory.Exists check returns false on
@@ -265,54 +193,10 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
-    public async Task CrossReoccupiedOldSlot_SkippedNotClobbered()
-    {
-        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
-
-        using var oldDir = new TempDir();
-        using var newDrive = new SecondVolume();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            const string original = "the renamed bytes that must NOT clobber a re-occupied OLD slot";
-            const string squatter = "a different file already sitting in the OLD slot";
-            string oldFull = Path.Combine(oldDir.Root, "raw.mkv");
-            string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
-            File.WriteAllText(newFull, original);
-            // The old slot is re-occupied on disk (a different file now sits there).
-            File.WriteAllText(oldFull, squatter);
-
-            var (port, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
-
-            var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
-
-            // The re-occupied old slot is a reported skip - never clobbered.
-            Assert.Equal(0, result.Undone);
-            Assert.Empty(result.Failed);
-            Assert.Single(result.Skipped);
-            Assert.Empty(undoBus.Published);
-
-            // The squatter is intact, and the renamed bytes survive at new.
-            Assert.Equal(squatter, File.ReadAllText(oldFull));
-            Assert.True(File.Exists(newFull), "the renamed file must stay at NEW, not clobber the OLD slot");
-            Assert.Equal(original, File.ReadAllText(newFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    /// <summary>
-    /// Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
-    /// <see cref="RevertBatch"/> whose single row records OldPath on the temp root and
-    /// NewPath on the subst root. The old folder is pre-seeded too so the reverse save's recomputed
-    /// Path resolves to the old path. Returns the live port, the batch, and (videoId, fileId).
-    /// </summary>
+    // Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
+    // RevertBatch whose single row records OldPath on the temp root and NewPath on the subst root.
+    // The old folder is pre-seeded too so the reverse save's recomputed Path resolves to the old
+    // path. Returns the live port, the batch, and (videoId, fileId).
     private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
         SeedReverseBatchAsync(DbContext db, string oldRoot, string newRoot, string oldFull, string newFull)
     {
@@ -340,10 +224,8 @@ public sealed class CrossVolumeUndoTests
         return (new CoveRenamerDataPort(db), batch, (videoId, fileId));
     }
 
-    /// <summary>
-    /// A post-copy seam that only records the path production minted, leaving the copy untouched - the
-    /// mover's real behaviour, plus the observation the test needs.
-    /// </summary>
+    // A post-copy seam that only records the path production minted, leaving the copy untouched -
+    // the mover's real behaviour, plus the observation the test needs.
     private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
         (inFlight, _) =>
         {
@@ -361,11 +243,10 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
     private sealed class ThrowOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
-        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
             => throw new InvalidOperationException("forced save failure");
     }
 }

@@ -1,16 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
-using Renamer.Planner;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The journal read over an operation: several batches of one user action aggregate into one summary,
-/// are walked newest-first by a cursor, and a batch written before the operation column existed reads
-/// as an operation of one.
-/// </summary>
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertOperationTests
 {
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
@@ -109,7 +101,6 @@ public sealed class RevertOperationTests
             "legacy", IRevertJournal.FirstBatchTicks, IRevertJournal.FirstBatchRunId);
         Assert.NotNull(batch);
         Assert.Equal("legacy", batch!.Value.RunId);
-        Assert.Equal("legacy", batch.Value.OperationId);
         Assert.Equal(2, (await journal.ReadBatchPageAsync("legacy", long.MaxValue, limit: 10)).Count);
     }
 

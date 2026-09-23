@@ -1,34 +1,23 @@
-using Renamer.Planner;
+using Renamer.Execution;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Pages a whole batch out of an <see cref="IRevertJournal"/> into one list, for tests that want to
-/// assert over all of it at once.
-/// </summary>
-/// <remarks>
-/// this is where materializing a whole batch lives now, and deliberately not on the port: a production
-/// read that returned all of a batch would tie memory to whatever the cap on a batch is at the time,
-/// while here the fixtures have a known, small size and a call site that can never reach production.
-/// <para>
-/// It pages through the same public reads an undo uses, so a cursor bug shows up here too rather than
-/// being papered over by a shortcut.
-/// </para>
-/// </remarks>
+// Pages a whole batch out of an IRevertJournal into one list, for tests that want to assert over
+// all of it at once. this is where materializing a whole batch lives now, and deliberately not on
+// the port: a production read that returned all of a batch would tie memory to whatever the cap on
+// a batch is at the time, while here the fixtures have a known, small size and a call site that can
+// never reach production. It pages through the same public reads an undo uses, so a cursor bug
+// shows up here too rather than being papered over by a shortcut.
 public static class JournalPageReader
 {
-    /// <summary>A small default page size, so a helper call crosses a page boundary on ordinary fixtures.</summary>
+    // A small default page size, so a helper call crosses a page boundary on ordinary fixtures.
     public const int TestPageSize = 64;
 
-    /// <summary>
-    /// The newest batch of the operation an undo would act on, with every row it still holds, or null
-    /// when that operation has no batch with rows left.
-    /// </summary>
-    /// <remarks>
-    /// Null-for-nothing-replayable is the shape assertions about "nothing left to offer" are written
-    /// against: the undo target itself falls back to a settled operation so its aggregate stays
-    /// readable, which is a question about the aggregate, not about the rows.
-    /// </remarks>
+    // The newest batch of the operation an undo would act on, with every row it still holds, or
+    // null when that operation has no batch with rows left. Null-for-nothing-replayable is the
+    // shape assertions about "nothing left to offer" are written against: the undo target itself
+    // falls back to a settled operation so its aggregate stays readable, which is a question about
+    // the aggregate, not about the rows.
     public static async Task<RevertBatch?> ReadWholeUndoTargetAsync(
         IRevertJournal journal, int pageSize = TestPageSize, CancellationToken ct = default)
     {
@@ -49,7 +38,7 @@ public static class JournalPageReader
         return rows.Count == 0 ? null : new RevertBatch(batch.Value.RunId, batch.Value.Kind, rows);
     }
 
-    /// <summary>Every row <paramref name="runId"/> still holds, newest-first, across as many pages as it takes.</summary>
+    // Every row runId still holds, newest-first, across as many pages as it takes.
     public static async Task<IReadOnlyList<RevertRow>> ReadAllRowsAsync(
         IRevertJournal journal, string runId, int pageSize = TestPageSize, CancellationToken ct = default)
     {

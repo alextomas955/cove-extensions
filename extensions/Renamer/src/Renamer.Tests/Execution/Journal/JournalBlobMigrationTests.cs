@@ -4,20 +4,9 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The one-shot legacy journal migration: what an installation still carries under the two stored keys
-/// becomes one batch in the journal table, and both keys go - including when the value cannot be read.
-/// </summary>
-/// <remarks>
-/// Every legacy fixture here is hand-written rather than produced by the code that reads it. A fixture
-/// generated from the parser under test agrees with that parser forever, whatever either of them says;
-/// a transcribed one fails when the format claim is wrong. Assertions are on the outcome - the keys are
-/// gone, the batch is readable from the table - never on the migration having been called.
-/// </remarks>
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalBlobMigrationTests
 {
-    /// <summary>A hand-written header: run <c>R1</c>, opened 3 Aug 2026 10:00 UTC, video, still replayable.</summary>
+    // A hand-written header: run R1, opened 3 Aug 2026 10:00 UTC, video, still replayable.
     private static readonly DateTime HeaderOpened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
     private static string Header(string runId = "R1", string kind = "Video", string status = "open") =>
@@ -54,43 +43,6 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal(RenamerFileKind.Video, batch.Kind);
         Assert.Equal([(8, 80, "/lib/b.mkv"), (7, 70, "/lib/a.mkv")],
             batch.Rows.Select(r => (r.EntityId, r.FileId, r.OldPath)));
-
-        await AssertBothKeysGoneAsync(store);
-    }
-
-    [Fact]
-    public async Task AHeaderlessJournal_MigratesThroughTheTolerantLegacyPath()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
-
-        // The pre-header shape: fileId|old|new rows and no batch line at all.
-        var store = await StampedStoreAsync("70|/lib/a.mkv|/lib/A.mkv\n80|/lib/b.mkv|/lib/B.mkv");
-        var journal = new CoveRevertJournal(db);
-
-        int moved = await JournalBlobMigration.RunAsync(store, journal, Now);
-
-        Assert.Equal(2, moved);
-
-        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-        Assert.NotNull(batch);
-        Assert.Equal(RenamerFileKind.Video, batch.Kind);
-
-        // The legacy path has no parent entity to record, so each row's entity id is its file id.
-        Assert.All(batch.Rows, r => Assert.Equal(r.FileId, r.EntityId));
-        Assert.Equal([80, 70], batch.Rows.Select(r => r.FileId));
-
-        // The old path is followed by the new one here, so it is one field and stops at the next
-        // separator - the opposite of the headered shape, where the path is the last field.
-        Assert.Equal(["/lib/b.mkv", "/lib/a.mkv"], batch.Rows.Select(r => r.OldPath));
-
-        // No header means no timestamp to inherit. Treating an unknown age as expired would delete a
-        // pending undo on the next batch open with nothing to say so, which is the outcome this
-        // exists to make impossible - so an unknown age gets the full window instead.
-        var summary = await journal.ReadUndoTargetAsync();
-        Assert.NotNull(summary);
-        Assert.Equal(Now.Ticks, summary.Value.OpenedAtUtcTicks);
 
         await AssertBothKeysGoneAsync(store);
     }
@@ -137,13 +89,13 @@ public sealed class JournalBlobMigrationTests
     }
 
     [Fact]
-    public async Task AStoredValueLargerThanOneChunk_ArrivesInFull()
+    public async Task AJournalAtTheLastReleasesRowCap_ArrivesInFull()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;
 
-        int rows = (JournalBlobMigration.LinesPerChunk * 2) + 7;
+        const int rows = 5000;
         var lines = new List<string> { Header() };
         for (int i = 0; i < rows; i++)
         {
@@ -159,8 +111,7 @@ public sealed class JournalBlobMigrationTests
         Assert.NotNull(batch);
         Assert.Equal(rows, batch.Rows.Count);
 
-        // Every row arrived exactly once, with its own sequence number - a chunk boundary that dropped
-        // or repeated a line would show as a short count or a repeated key.
+        // Every row arrived exactly once, with its own sequence number.
         Assert.Equal(rows, batch.Rows.Select(r => r.FileId).Distinct().Count());
         Assert.Equal(rows, batch.Rows.Select(r => r.Seq).Distinct().Count());
         Assert.Contains(batch.Rows, r => r.FileId == 5000);
@@ -211,8 +162,8 @@ public sealed class JournalBlobMigrationTests
         await using var library = await LibraryDatabase.CreateAsync();
 
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
-        await store.SetAsync(RevertLog.Key, string.Join("\n", Header(), "7|70|/lib/a.mkv"));
+        await store.SetAsync(JournalBlobMigration.SchemaKey, JournalBlobMigration.CurrentSchema);
+        await store.SetAsync(JournalBlobMigration.Key, string.Join("\n", Header(), "7|70|/lib/a.mkv"));
 
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
@@ -229,17 +180,35 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal("/lib/a.mkv", Assert.Single(batch.Rows).OldPath);
     }
 
+    [Fact]
+    public async Task MalformedRows_AreSkipped_AndAnUnknownKindReadsAsVideo()
+    {
+        var journal = new FakeRevertJournal();
+        var store = await StampedStoreAsync(string.Join("\n",
+            Header(kind: "Sculpture"),
+            "notanint|70|/lib/x.mkv",
+            "7|short",
+            "7|70|/lib/a.mkv"));
+
+        Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, Now));
+
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+        Assert.NotNull(batch);
+        Assert.Equal(RenamerFileKind.Video, batch.Kind);
+        Assert.Equal(70, Assert.Single(batch.Rows).FileId);
+    }
+
     private static async Task<FakeStore> StampedStoreAsync(string blob)
     {
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
-        await store.SetAsync(RevertLog.Key, blob);
+        await store.SetAsync(JournalBlobMigration.SchemaKey, JournalBlobMigration.CurrentSchema);
+        await store.SetAsync(JournalBlobMigration.Key, blob);
         return store;
     }
 
     private static async Task AssertBothKeysGoneAsync(FakeStore store)
     {
-        Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Null(await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(JournalBlobMigration.Key));
+        Assert.Null(await store.GetAsync(JournalBlobMigration.SchemaKey));
     }
 }

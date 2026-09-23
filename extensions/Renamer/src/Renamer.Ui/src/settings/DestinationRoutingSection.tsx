@@ -8,11 +8,11 @@
  * decided server-side, so reordering these cards is safe. Presentational - every field flows up
  * through `set`.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { useState } from "react";
 
 import {
   NO_DESTINATION,
-  type Destination,
   type LibraryPathsState,
   type RenamerOptions,
   type PathDestinationRule,
@@ -26,16 +26,13 @@ import {
   GroupCard,
   SectionCard,
   ToggleHeaderCard,
-  KeyValueMapEditor,
   ObjectArrayEditor,
   RegexValidity,
   StatusText,
   extensionShapeAdvisory,
 } from "@cove-extensions/ui-shared";
-import { EntitySelectField } from "./EntitySelectField";
 import { DestinationField } from "./DestinationField";
-import { StudioDestinationsEditor } from "./StudioMap";
-import { RuleKeyLabel } from "./RuleKeyLabel";
+import { EntityDestinationsEditor } from "./EntityDestinationsEditor";
 import { useOrphanedRules } from "./useOrphanedRules";
 
 /** Strip one leading dot if present, then lowercase - the add-time transform for a sidecar extension. */
@@ -45,9 +42,9 @@ function normalizeSidecarExtension(raw: string): string {
   return v.toLowerCase();
 }
 
-export interface DestinationRoutingSectionProps {
+interface DestinationRoutingSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   /** Cove's library paths, so every destination here offers them as choices. */
   library: LibraryPathsState;
 }
@@ -105,12 +102,14 @@ export function DestinationRoutingSection({
         enabled={showStudioRules}
         onToggle={setShowStudioRules}
       >
-        <StudioDestinationsEditor
+        <EntityDestinationsEditor
+          entityType="studio"
           map={options.studioDestinations}
           onChange={(m) => {
             set("studioDestinations", m);
           }}
           library={library}
+          orphaned={orphaned.studios}
         />
       </ToggleHeaderCard>
 
@@ -120,39 +119,14 @@ export function DestinationRoutingSection({
         enabled={showTagRules}
         onToggle={setShowTagRules}
       >
-        {/* The host resolves a committed row's opaque id to the tag's name: one cached lookup per
-            configured rule, bounded by the rules the user authored rather than by the library. */}
-        <KeyValueMapEditor<Destination>
+        <EntityDestinationsEditor
+          entityType="tag"
           map={options.tagDestinations}
           onChange={(m) => {
             set("tagDestinations", m);
           }}
-          emptyValue={NO_DESTINATION}
-          renderKey={(draftKey, setDraftKey, existingKeys) => (
-            <EntitySelectField
-              entityType="tag"
-              label="Tag"
-              values={draftKey === "" ? [] : [Number(draftKey)]}
-              onChange={(values) => {
-                // Last-id-wins: the selector is multi-value but a map key holds exactly one tag.
-                const latest = values.at(-1);
-                setDraftKey(latest === undefined ? "" : String(latest));
-              }}
-              placeholder="Search tags…"
-              excludeIds={existingKeys.map(Number)}
-            />
-          )}
-          renderValue={(value, setValue) => (
-            <DestinationField value={value} onChange={setValue} library={library} />
-          )}
-          renderKeyLabel={(key) => (
-            <RuleKeyLabel
-              entityType="tag"
-              id={Number(key)}
-              orphaned={orphaned.tags.has(Number(key))}
-            />
-          )}
-          addLabel="Add tag rule"
+          library={library}
+          orphaned={orphaned.tags}
         />
       </ToggleHeaderCard>
 

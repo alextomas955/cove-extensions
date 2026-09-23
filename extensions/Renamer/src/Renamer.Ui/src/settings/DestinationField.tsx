@@ -12,7 +12,7 @@ import type { Ref } from "react";
 
 import { Field, Select, TextInput, PathShapeHint, StatusText } from "@cove-extensions/ui-shared";
 
-import { TemplateValidation } from "./templateAdvisories";
+import { TemplateAdvisories } from "./templateAdvisories";
 
 import {
   CONTAINING_ROOT,
@@ -22,7 +22,7 @@ import {
   type LibraryPathsState,
 } from "./options";
 
-export interface DestinationFieldProps {
+interface DestinationFieldProps {
   value: Destination;
   onChange: (value: Destination) => void;
   /** Cove's configured library paths, from `/library-paths`, as the panel currently knows them. */
@@ -30,13 +30,6 @@ export interface DestinationFieldProps {
   /** Shown above the template input; omit inside a row that already names itself. */
   label?: string;
   helper?: string;
-  /**
-   * Explains what the root picker measures from. No default: a section listing one row per
-   * studio, tag or path rule already says it once in its own description, and a per-row copy
-   * would repeat the same sentence down the whole list.
-   */
-  rootHelper?: string;
-  templatePlaceholder?: string;
   /** Handed to the template input so the panel's at-caret token insertion can reach it. */
   templateRef?: Ref<HTMLInputElement>;
   onTemplateFocus?: () => void;
@@ -48,8 +41,6 @@ export function DestinationField({
   library,
   label = "Folder template",
   helper,
-  rootHelper,
-  templatePlaceholder = "$studio/$year",
   templateRef,
   onTemplateFocus,
 }: Readonly<DestinationFieldProps>) {
@@ -64,7 +55,7 @@ export function DestinationField({
   ];
 
   const rootField = (
-    <Field label="Under" helper={rootHelper}>
+    <Field label="Under">
       {(id) => (
         <>
           <Select
@@ -102,7 +93,7 @@ export function DestinationField({
             onFocus={onTemplateFocus}
             inputRef={templateRef}
             mono
-            placeholder={templatePlaceholder}
+            placeholder="$studio/$year"
           />
           {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about
               to become literal folder names, and this is the only line that says so — while naming a
@@ -111,13 +102,13 @@ export function DestinationField({
             value={value.template}
             message={
               showPicker
-                ? "This is a folder template, not a path — pick the root beside it instead."
-                : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+                ? "This is a folder template, not a path. Pick the root beside it instead."
+                : "This is a folder template, not a path. The whole thing becomes folder names under this destination's root."
             }
           />
           {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by
               the one editor they all use, so a new destination cannot ship without it. */}
-          <TemplateValidation value={value.template} />
+          <TemplateAdvisories value={value.template} />
         </>
       )}
     </Field>

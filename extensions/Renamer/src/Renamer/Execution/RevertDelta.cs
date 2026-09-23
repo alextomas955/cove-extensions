@@ -8,8 +8,7 @@ namespace Renamer.Execution;
 public sealed record RevertSidecarDelta(string FromPath, string ToPath);
 
 // One database-tracked caption whose stored filename the forward rename rewrote. OriginalFilename is
-// the value an undo writes back. It is recorded because the forward transform only rewrites a caption
-// whose name starts with the old stem, so it is not invertible from the new name alone.
+// the value an undo writes back.
 public sealed record RevertCaptionDelta(int CaptionId, string OriginalFilename);
 
 // Everything that rode along with one renamed file: the sidecar moves that happened on disk, in the
@@ -21,8 +20,7 @@ public sealed record RevertCaptionDelta(int CaptionId, string OriginalFilename);
 //
 // The serialized form is what the journal row's sidecar column holds. Records are separated by LF and
 // fields by a pipe, in two shapes: s|fromPath|toPath for a sidecar move and c|captionId|originalFilename
-// for a caption. An empty delta serializes to the empty string, which is the column's default, so a row
-// written before deltas existed and a row whose file had no sidecars read identically.
+// for a caption. An empty delta serializes to the empty string, the column's default.
 //
 // Every field is escaped on write, backslash first: backslash doubles, a pipe becomes \p, LF becomes
 // \n and CR becomes \r. Reading applies the inverse. A path may legally contain any of those

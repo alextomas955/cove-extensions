@@ -1,34 +1,12 @@
 using Cove.Plugins;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// A title-less item with two files, auto-renamed, must rename once and then stop.
-/// </summary>
-/// <remarks>
-/// Two defects compose here and neither runs away alone. The self-save suppression is one token per
-/// entity while a save publishes one event per file, so with two files one event survives
-/// unsuppressed - harmless on its own, because the survivor finds an empty plan. The filename-derived
-/// title is what makes every plan non-empty: derived from the basename the previous pass wrote, it
-/// renders a new name every time, so the survivor always has work and each pass publishes as many
-/// events as the item has files. See <c>MetadataProjector.DerivedTitle</c>.
-/// <para>
-/// The bus only records, so the events a save raises are delivered back into the handler here, which
-/// is what the host does. Without that loop the chain is invisible and a runaway reads as one quiet
-/// rename.
-/// </para>
-/// <para>
-/// Every expected name is transcribed by hand from the arrangement. The two files share a stem and
-/// differ only in extension, so the derived title is the same whichever file the entity graph returns
-/// first, and the pair never collides.
-/// </para>
-/// </remarks>
 public sealed class AutoRenamerTitleChainTests
 {
-    /// <summary>Enough re-delivery rounds for a runaway to be unmistakable; a settled item needs one.</summary>
+    // Enough re-delivery rounds for a runaway to be unmistakable; a settled item needs one.
     private const int MaxGenerations = 12;
 
     [Fact]

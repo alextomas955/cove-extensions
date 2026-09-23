@@ -3,29 +3,21 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// A locked/in-use source file (held open with <see cref="FileShare.None"/>)
-/// is caught and reported as a skip - the move does not happen, no exception escapes, the source
-/// stays at its old path, and the locking process is never touched (the helper references no
-/// <c>System.Diagnostics.Process</c> API - it never tries to force a lock open).
-/// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
-/// </summary>
 public sealed class LockedFileTests
 {
     [Fact]
     public void LockedSource_FileShareNone_SkippedNotThrown_SourceIntact()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs Windows mandatory locking — FileShare.None does not block a reader on Unix");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs Windows mandatory locking: FileShare.None does not block a reader on Unix");
 
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "data");
         var dest = Path.Combine(dir.Root, "Renamed.mkv");
-        var mover = new DiskMover();
 
         // Hold the source open exclusively so File.Move throws IOException (ERROR_SHARING_VIOLATION).
         using (new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.None))
         {
-            var result = mover.Move(old, dest);
+            var result = DiskMover.Move(old, dest);
 
             Assert.False(result.Moved);
             Assert.Equal(MoveOutcome.Locked, result.Outcome);
@@ -44,9 +36,8 @@ public sealed class LockedFileTests
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "hello");
         var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
-        var mover = new DiskMover();
 
-        var result = mover.Move(old, dest);
+        var result = DiskMover.Move(old, dest);
 
         Assert.True(result.Moved);
         Assert.Equal(MoveOutcome.Moved, result.Outcome);
@@ -61,9 +52,8 @@ public sealed class LockedFileTests
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "new");
         var dest = dir.Touch("Taken.mkv", "original");
-        var mover = new DiskMover();
 
-        var result = mover.Move(old, dest);
+        var result = DiskMover.Move(old, dest);
 
         // The 2-arg File.Move throws when the destination exists; the helper surfaces a skip. The
         // IOException alone cannot say which cause it met, so the destination decides - and here it is

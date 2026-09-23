@@ -1,5 +1,4 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 
 namespace Renamer.Planner;
 
@@ -59,7 +58,7 @@ public sealed class ScanAggregator
             tally.Files++;
             tally.ByStatus[(int)item.Status]++;
 
-            if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+            if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
             {
                 continue;
             }

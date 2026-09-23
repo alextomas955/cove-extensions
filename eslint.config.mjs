@@ -214,7 +214,6 @@ export default defineConfig(
       "shared/ui-shared/**/*Logic.ts",
       // Pure modules whose names predate the *Logic.ts suffix.
       "extensions/*/src/**/options.ts",
-      "extensions/*/src/**/preview.ts",
       "shared/ui-shared/**/actions.ts",
     ],
     rules: {

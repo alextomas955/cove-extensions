@@ -1,55 +1,22 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The per-entity authorization the coarse route permission cannot supply: holding
-/// <c>videos.write</c> does not grant write access to every video, so each path checks the entities
-/// it is about to act on against the caller's own principal.
-/// </summary>
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class EntityAuthorizationTests
 {
-    /// <summary>Records every <c>Enqueue</c>; all other members are unused and throw.</summary>
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<string> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add(type);
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task RenamerEnqueue_OneUnwritableId_Returns403_AndEnqueuesNothing()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
         authz.Denied.Add((EntityKinds.Video, 8));
@@ -65,7 +32,7 @@ public sealed class EntityAuthorizationTests
     [Fact]
     public async Task RenamerEnqueue_AsksTheWritePermission_ForEverySuppliedId()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
 
@@ -86,7 +53,7 @@ public sealed class EntityAuthorizationTests
     [Fact]
     public async Task RenamerEnqueue_CallerHoldingEveryPermission_AsksNothing()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var authz = new RecordingAuthorizationService();
 
@@ -110,7 +77,7 @@ public sealed class EntityAuthorizationTests
         return (ext, store);
     }
 
-    /// <summary>Seeds two single-file videos in one folder with real bytes, and returns their entity ids.</summary>
+    // Seeds two single-file videos in one folder with real bytes, and returns their entity ids.
     private static async Task<(int First, int Second)> SeedTwoVideosAsync(LibraryDatabase library, TempDir dir)
     {
         string folderPath = dir.Root.Replace('\\', '/');
@@ -130,7 +97,7 @@ public sealed class EntityAuthorizationTests
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
-    /// <summary>Reads the stored scan aggregate with the wire's camelCase and string enums.</summary>
+    // Reads the stored scan aggregate with the wire's camelCase and string enums.
     private static readonly JsonSerializerOptions EnumJson =
         new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 

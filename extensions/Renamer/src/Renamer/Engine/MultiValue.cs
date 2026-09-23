@@ -1,5 +1,4 @@
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Engine;
 
@@ -20,51 +19,21 @@ public static class MultiValue
             seq = seq.OrderBy(v => v, StringComparer.OrdinalIgnoreCase);
         }
 
-        var list = seq.ToList();
-
-        if (m.MaxCount > 0 && list.Count > m.MaxCount)
-        {
-            // DropAll empties the whole field, which makes the token empty and so collapses any {}
-            // group around it.
-            list = m.OnOverflow == OverflowPolicy.KeepFirst
-                ? list.Take(m.MaxCount).ToList()
-                : new List<string>();
-        }
-
-        return string.Join(m.Separator, list);
+        return string.Join(m.Separator, Capped(seq, m));
     }
 
     // The whitelist and blacklist match on each tag's stable id, and the surviving tags render their
     // current names. Sorting is by name, which is what the token renders.
     public static string Resolve(IReadOnlyList<(int Id, string Name)> tags, MultiValueOptions m)
     {
-        IEnumerable<(int Id, string Name)> seq = tags;
-
-        if (m.WhitelistIds.Count > 0)
-        {
-            seq = seq.Where(t => m.WhitelistIds.Contains(t.Id));
-        }
-
-        if (m.BlacklistIds.Count > 0)
-        {
-            seq = seq.Where(t => !m.BlacklistIds.Contains(t.Id));
-        }
+        var seq = Filtered(tags, t => t.Id, m);
 
         if (m.Sort == SortOrder.NameAsc)
         {
             seq = seq.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase);
         }
 
-        var list = seq.ToList();
-
-        if (m.MaxCount > 0 && list.Count > m.MaxCount)
-        {
-            list = m.OnOverflow == OverflowPolicy.KeepFirst
-                ? list.Take(m.MaxCount).ToList()
-                : [];
-        }
-
-        return string.Join(m.Separator, list.Select(t => t.Name));
+        return string.Join(m.Separator, Capped(seq, m).Select(t => t.Name));
     }
 
     // Performer records also carry id, favorite and gender. The order is whitelist, blacklist by id,
@@ -72,17 +41,7 @@ public static class MultiValue
     // gender-order run before the max count, so they change which performers survive the limit.
     public static string Resolve(IReadOnlyList<RenamerPerformer> performers, MultiValueOptions m)
     {
-        IEnumerable<RenamerPerformer> seq = performers;
-
-        if (m.WhitelistIds.Count > 0)
-        {
-            seq = seq.Where(p => m.WhitelistIds.Contains(p.Id));
-        }
-
-        if (m.BlacklistIds.Count > 0)
-        {
-            seq = seq.Where(p => !m.BlacklistIds.Contains(p.Id));
-        }
+        var seq = Filtered(performers, p => p.Id, m);
 
         // Ignored genders drop before the limit, so an ignored gender frees an overflow slot. A
         // performer with no gender set is kept.
@@ -107,16 +66,30 @@ public static class MultiValue
             seq = seq.OrderBy(p => GenderRank(p.Gender, m.GenderOrder));
         }
 
-        var list = seq.ToList();
+        return string.Join(m.Separator, Capped(seq, m).Select(p => p.Name));
+    }
 
-        if (m.MaxCount > 0 && list.Count > m.MaxCount)
+    private static IEnumerable<T> Filtered<T>(IEnumerable<T> values, Func<T, int> id, MultiValueOptions m)
+    {
+        if (m.WhitelistIds.Count > 0)
         {
-            list = m.OnOverflow == OverflowPolicy.KeepFirst
-                ? list.Take(m.MaxCount).ToList()
-                : new List<RenamerPerformer>();
+            values = values.Where(v => m.WhitelistIds.Contains(id(v)));
         }
 
-        return string.Join(m.Separator, list.Select(p => p.Name));
+        return m.BlacklistIds.Count > 0 ? values.Where(v => !m.BlacklistIds.Contains(id(v))) : values;
+    }
+
+    // Over the max count, KeepFirst keeps the first N and DropAll empties the field, which makes the
+    // token empty and so collapses any {} group around it.
+    private static List<T> Capped<T>(IEnumerable<T> values, MultiValueOptions m)
+    {
+        var list = values.ToList();
+        if (m.MaxCount <= 0 || list.Count <= m.MaxCount)
+        {
+            return list;
+        }
+
+        return m.OnOverflow == OverflowPolicy.KeepFirst ? list.Take(m.MaxCount).ToList() : [];
     }
 
     // A gender absent from the list, null included, ranks after every listed gender.

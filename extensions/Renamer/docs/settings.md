@@ -9,14 +9,14 @@ Every Renamer setting, grouped by the card it appears in on the Renamer page (**
 first run, start with the [Quick start](./quick-start). For the template tokens, see
 [Naming templates](./templates).
 
-Settings are saved as one block when you click **Save**; **Discard** reverts unsaved edits.
+Settings are saved as one block when you select **Save changes**; **Discard** reverts unsaved edits.
 
 If your tag and performer rules were saved by an older Renamer, the page can say they are waiting for
-a one-time conversion and turn **Save** off until it has run. Restart Cove and reload the page. Saving
+a one-time conversion and turn **Save changes** off until it has run. Restart Cove and reload the page. Saving
 before then would replace those rules with the empty ones the page is able to show, so it is refused
 rather than allowed to lose them.
 
-Your destinations are converted by their own one-time conversion, and the page turns **Save** off for
+Your destinations are converted by their own one-time conversion, and the page turns **Save changes** off for
 that one too. It needs at least one library path configured in Cove, because that is what a
 destination now measures from; until then your stored folders show as blank and a save would store
 the blanks. Add a library path in Cove if there is none, then restart Cove and reload the page.
@@ -24,7 +24,7 @@ the blanks. Add a library path in Cove if there is none, then restart Cove and r
 ## Picking a studio, tag or performer
 
 Several settings below ask you to pick studios, tags or performers. Each one searches your library as
-you type and lists the matches; click a match to add it, and click the **×** on a chip to remove it.
+you type and lists the matches; select a match to add it, and select the **×** on a chip to remove it.
 
 Each pick is stored as that studio, tag or performer's stable id rather than as its name, so renaming
 it in Cove keeps every rule that uses it, and two spellings of one name cannot route to two different
@@ -44,7 +44,7 @@ it here.
 The **preset** chips set the filename template to a starter pattern; the **live preview** beside the
 card shows the result on sample items as you type.
 
-The token list under this field is the only one on the page. Clicking a token inserts it at the
+The token list under this field is the only one on the page. Selecting a token inserts it at the
 cursor of whichever template field you used last - _Filename template_ or _Folder template_. A token
 either template already uses is tinted in that list.
 
@@ -117,14 +117,10 @@ Type in the _Required fields_ box to search the token list, then pick one with t
 mouse. _Drop order_ under [Advanced](#length--collisions) works the same way. The list is a
 suggestion, not a limit: a name outside it is still accepted, and the panel flags it.
 
-_Use filename as title when none is set_ saves the derived title onto the item, in the same save as the
-rename. It is the only setting that makes Renamer change metadata rather than only move files, and it
-has to write: a title derived fresh on every run is read from the name the previous run wrote, so any
-template carrying more than `$title` would wrap its own decorations again each pass and the name would
-grow without end. Once the title is recorded the item has one, so the fallback never runs for it again
-and a second run over that item changes nothing. A title you typed yourself is never overwritten. With
-the setting off nothing is written, a title-less item resolves `$title` to nothing, and the shipped
-`title` required field then skips it.
+_Use filename as title when none is set_ saves the title it takes from the filename onto the item,
+so a second rename of that item changes nothing. It is the only setting that makes Renamer change
+metadata. A title you typed yourself is never overwritten. With the setting off, an item with no
+title is skipped by the default `title` required field.
 
 Undoing a rename puts the file back under its old name; the recorded title stays. A later rename of
 that item therefore renders the same name again rather than deriving a new one from whatever the file
@@ -134,19 +130,12 @@ is called at the time.
 
 ![The Run & automation card, with Auto-rename on update, Dry run and Rename all files.](./img/run-automation.jpg)
 
-| Setting               | What it does                                                                                | Default |
-| --------------------- | ------------------------------------------------------------------------------------------- | ------- |
-| Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
+| Setting               | What it does                                                          | Default |
+| --------------------- | --------------------------------------------------------------------- | ------- |
+| Auto-rename on update | Rename a video or image again automatically when you edit it in Cove. | Off     |
 
-Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only.
-Audio and text documents are never auto-renamed. Editing several items at once raises an event for each of them, so every
-one is considered.
-
-A rename makes Cove announce that the item changed, and that announcement is the same event that
-wakes auto-rename. Renamer ignores the one its own rename caused, so one edit produces one rename
-however your destination rules are set - including a pair of rules that would otherwise send a file
-back and forth for as long as the events kept arriving. A later edit of the same item is picked up
-normally, and an item already sitting at its computed name and folder is left alone.
+Audio and text documents are never auto-renamed. Editing several items at once renames each of them.
+One edit produces one rename, however your destination rules are set.
 
 This section also holds the **Dry run** and **Rename all files** actions (see the
 [Quick start](./quick-start#4-preview-with-a-dry-run)). Those run a rename; they aren't saved settings.
@@ -269,10 +258,10 @@ second time whenever that default resolves somewhere other than where the rule p
 
 ### Sidecar files and empty folders
 
-| Setting                                              | What it does                                                                                                                                        | Default   |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./how-to/undo) brings them back with it. | _(empty)_ |
-| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                       | Off       |
+| Setting                                              | What it does                                                                                                                                            | Default   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./how-to/undo) brings them back with it.     | _(empty)_ |
+| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). A folder that is a symlink is left alone. Undo will not re-create it. | Off       |
 
 An extension is matched ignoring case, so `srt`, `.srt` and `SRT` all take the same file, and a moved
 sidecar keeps the extension casing it had on disk. An existing file at the sidecar's target name is
@@ -330,9 +319,7 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 ## Advanced settings not shown in the UI
 
-This is persisted but has **no control in the settings panel** - it exists for unusual cross-drive
-setups and is safe to leave at its default. Changing it requires editing the extension's stored
-options directly.
+This setting has no control on the page. Leave it at its default.
 
 | Setting             | What it does                                                                                                   | Default |
 | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------- |

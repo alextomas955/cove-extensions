@@ -1,17 +1,7 @@
 // @vitest-environment jsdom
-/**
- * That the pane shows the preview for the options the user is on, when two requests overlap.
- *
- * The pure decision has its own suite, and a green one there proves nothing on its own - a hook that
- * never consults it repaints from whichever request answers last however correct the decision is. So
- * this renders the real hook and holds two POSTs open at once, then settles them in reverse issue
- * order, which is the ordering the debounce cannot prevent.
- *
- * One seam is stubbed, and it is not the subject: the host request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. Its stand-in hands each call's resolver back to
- * the test so settle order is the test's to choose, and the promise itself so a test can let the
- * hook's own handler run before reading the result.
- */
+// The pane shows the preview for the options the user is on when two requests overlap. The request
+// mock hands each call's resolver back to the test, so the test settles them in reverse issue order,
+// which the debounce cannot prevent.
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,7 +13,7 @@ import { type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
 import type { PreviewSampleResult } from "../wire/api";
 
-/** Every POST the hook issued, each holding its own settle handles. */
+// Every POST the hook issued, each holding its own settle handles.
 const host = vi.hoisted(() => ({
   calls: [] as {
     aborted: () => boolean;
@@ -37,6 +27,7 @@ const { noop } = host;
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: (_path: string, init: RequestInit) => {
     let settle: { resolve: (rows: unknown) => void; reject: (err: unknown) => void };
     const promise = new Promise((resolve, reject) => {
@@ -59,22 +50,13 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-// The shared barrel re-exports the React primitives, whose `react`/`lucide-react` imports resolve only
-// inside a consuming bundle. This hook reaches the barrel for one route builder, so the stand-in
-// re-exports the real one from the pure module that defines it.
-vi.mock("@cove-extensions/ui-shared", async () => ({
-  extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
-}));
-
 const sleep = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
-/**
- * Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
- * real elapsed time, because a debounce is a timer and nothing renders while it runs.
- */
+// Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
+// real elapsed time, because a debounce is a timer and nothing renders while it runs.
 const PAST_DEBOUNCE_MS = 400;
 
 function sample(label: string): PreviewSampleResult[] {
@@ -90,7 +72,7 @@ function sample(label: string): PreviewSampleResult[] {
   ];
 }
 
-/** Mount the hook and hand back its latest return value, a way to change its options, and a teardown. */
+// Mount the hook and hand back its latest return value, a way to change its options, and a teardown.
 function mountHook(initial: RenamerOptions) {
   let latest: UseRenamePreview | null = null;
   function Probe({ options }: { options: RenamerOptions }) {

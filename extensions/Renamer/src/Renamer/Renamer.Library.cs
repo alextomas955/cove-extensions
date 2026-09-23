@@ -3,6 +3,7 @@ using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -26,7 +27,7 @@ public sealed partial class Renamer
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
         Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
-        var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = overrideOptions ?? await StoredOptions.LoadAsync(ct);
 
         // Held for the whole run, and deliberately not elevated: the decision reads the caller from
         // its argument, not from the ambient principal. The calls are sequential from the page loop,
@@ -46,17 +47,10 @@ public sealed partial class Renamer
         });
     }
 
-    /// <summary>
-    /// Plans every entity of each readable kind through the planner <c>/preview</c> uses and persists
-    /// one bounded aggregate. Mutates neither disk nor database.
-    /// </summary>
-    /// <remarks>
-    /// Persists per-kind counts and blast radius, never the rows: a per-file collection is O(library)
-    /// in both the heap and the stored value, and one oversized stored value makes Cove's bulk
-    /// extension-data read fail for every key this extension owns. The rows are served on demand by
-    /// the <c>/scan-rows</c> page query. The port is a parameter so that boundedness can be proven
-    /// over a fake, with no live database.
-    /// </remarks>
+    // Plans every entity of each readable kind through the planner /preview uses and persists one
+    // bounded aggregate, mutating neither disk nor database. It stores per-kind counts and the blast
+    // radius, never the rows: one oversized stored value makes Cove's bulk extension-data read fail for
+    // every key this extension owns. /scan-rows serves the rows a page at a time.
     internal async Task RunScanCoreAsync(
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
         AllowedIds allowedIds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
@@ -65,7 +59,7 @@ public sealed partial class Renamer
         // scan with library-many rows whose only content is that the kind is off.
         var kinds = readableKinds.Where(options.IsKindEnabled).ToList();
 
-        var lookups = BuildLookups(options);
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
@@ -88,7 +82,7 @@ public sealed partial class Renamer
         {
             await WriteScanSummaryAsync(aggregator, ct);
             LogScanDone(0, 0);
-            progress.Report(1d, "Scan complete — nothing to scan.");
+            progress.Report(1d, "Scan complete. Nothing to scan.");
             return;
         }
 
@@ -102,7 +96,7 @@ public sealed partial class Renamer
             int afterId = 0;
             while (true)
             {
-                var chunk = await port.LoadEntityIdPageAsync(kind, afterId, CoveRenamerDataPort.LoadChunkSize, ct);
+                var chunk = await port.LoadEntityIdPageAsync(kind, afterId, IRenamerDataPort.LoadChunkSize, ct);
                 if (chunk.Count == 0)
                 {
                     break;
@@ -158,21 +152,34 @@ public sealed partial class Renamer
             JsonSerializer.Serialize(aggregator.ToSummary(DateTime.UtcNow.Ticks), PreviewResponseJsonOptions),
             ct);
 
-    /// <summary>
-    /// Renames every entity of each writable kind, a chunk at a time, through the same chunk a
-    /// single-kind selection drives.
-    /// </summary>
-    /// <remarks>
-    /// Every batch the run opens carries one operation id, which is what <c>/undo</c> acts on, so the
-    /// whole run is one undoable action however many kinds and chunks it spanned. The job is enqueued
-    /// as a closure, so no id list that grows with the library reaches the host's parameter map. A
-    /// kind with no entities is skipped, so no empty batch header opens for it.
-    /// </remarks>
+    // Written inside the job, so the counts are stored by the time the job reads as completed. The
+    // renames are done by now, so the write takes no cancellation and a failure is only logged: a job
+    // failing here would be reported as a failed rename after files had moved. The panel reads a
+    // missing summary as a finished run whose counts it could not read.
+    private async Task TryStoreLibraryRenameSummaryAsync(LibraryRenameSummary summary)
+    {
+        try
+        {
+            await Store.SetAsync(
+                LastLibraryRenameSummaryKey,
+                JsonSerializer.Serialize(summary, PreviewResponseJsonOptions),
+                CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogLibraryRenameSummaryNotStored(ex, summary.RunId);
+        }
+    }
+
+    // Renames every entity of each writable kind a chunk at a time, through the chunk a selection
+    // drives. Every batch the run opens carries one operation id, which is what /undo acts on, so the
+    // whole run is one undoable action. A kind with no entities opens no batch.
     internal async Task RunRenamerLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
-        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
+        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
+        string? runId = null)
     {
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         // Held for the whole run, and deliberately not elevated: the decision reads the caller from
         // its argument, not from the ambient principal. The calls are sequential from the page loop,
@@ -205,10 +212,12 @@ public sealed partial class Renamer
         int planned = 0;
 
         // One click, one operation, however many kinds it spans. Each kind opens its own batches,
-        // since a journal row carries no kind, but the operation is what /undo acts on.
-        var operationId = Guid.NewGuid().ToString("N");
+        // since a journal row carries no kind, but the operation is what /undo acts on. It is also the
+        // run id the stored counts carry.
+        var operationId = runId ?? Guid.NewGuid().ToString("N");
 
         var refused = new List<RenamerFileKind>();
+        var tallies = new List<LibraryRenameKindTally>(countByKind.Count);
         foreach (var (kind, count) in countByKind)
         {
             ct.ThrowIfCancellationRequested();
@@ -217,18 +226,25 @@ public sealed partial class Renamer
 
             // A kind that ran out of room stops, and the walk moves to the next kind, which may sit on
             // another volume. The refusal is collected because the run's own final report is the only
-            // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
+            // one the host keeps: SliceProgress holds back a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
-            string? shortfall = await RunRenamerKindAsync(
+            var tally = await RunRenamerKindAsync(
                 new RenameRun(kind, count, operationId, options, freeSpaceProbe), allowedIds,
-                new KindSliceProgress(progress, planned, count, total), ct);
-            if (shortfall is not null)
+                new SliceProgress(progress, planned, count, total, holdFinal: true), ct);
+            if (tally.Shortfall is not null)
             {
                 refused.Add(kind);
             }
 
+            tallies.Add(new LibraryRenameKindTally(
+                kind, tally.Renamed, tally.Skipped, tally.Failed, tally.Shortfall is not null));
+
             planned += count;
         }
+
+        await TryStoreLibraryRenameSummaryAsync(
+            new LibraryRenameSummary(
+                LibraryRenameSummary.CurrentSchemaVersion, operationId, DateTime.UtcNow.Ticks, tallies));
 
         progress.Report(
             1d,
@@ -236,25 +252,5 @@ public sealed partial class Renamer
                 ? "Library rename complete."
                 : $"Stopped: insufficient free space for {string.Join(", ", refused)}. "
                     + "Files renamed before each stop stay renamed.");
-    }
-
-    // Maps one kind's [0, 1] batch progress onto that kind's share of a whole-library run. The run's
-    // own final report owns 1.0, and a batch reports 1.0 on every exit it has, so the last kind's is
-    // dropped. total is never zero: a kind is only run when it has ids.
-    private sealed class KindSliceProgress(
-        Cove.Plugins.IJobProgress inner, int offset, int share, int total) : Cove.Plugins.IJobProgress
-    {
-        public void Report(double percent, string? message = null)
-        {
-            // Clamped because the slice arithmetic trusts its input: a batch reporting below 0 maps
-            // under the offset this kind starts at, stepping the bar backward.
-            double scaled = (offset + (Math.Clamp(percent, 0d, 1d) * share)) / total;
-            if (scaled >= 1d)
-            {
-                return;
-            }
-
-            inner.Report(scaled, message);
-        }
     }
 }

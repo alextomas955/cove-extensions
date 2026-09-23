@@ -1,8 +1,5 @@
-/**
- * What the panel still decides for itself about a stored destination root: which library path it
- * names. The stored spelling, the defaults and the one-time conversions are the backend's, and the
- * `/options` endpoint tests hold them.
- */
+// The one thing the panel decides about a stored destination root: which library path it names. The
+// stored spelling, the defaults and the conversions belong to the backend's `/options` tests.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

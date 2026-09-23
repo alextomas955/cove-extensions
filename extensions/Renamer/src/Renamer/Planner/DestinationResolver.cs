@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 using Renamer.Options;
 
 namespace Renamer.Planner;
@@ -18,12 +20,11 @@ namespace Renamer.Planner;
 // arrive pre-parsed in RouteLookups; this resolver only calls IsMatch and never compiles a pattern.
 public static class DestinationResolver
 {
-    // The case rule for exact source-path matching: paths are case-insensitive on Windows, the primary
-    // platform, and case-sensitive elsewhere. The exact-path dictionary is built with this comparer so a
-    // rule for "media/incoming" matches a stored "Media/Incoming" on Windows instead of silently falling
-    // through. Mirrors VolumeClassifier and PathConfinement.IsUnderRoot.
-    public static StringComparer SourcePathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    // The case rule for exact source-path matching, which is PathOps' file-identity rule: a rule for
+    // "media/incoming" matches a stored "Media/Incoming" wherever those name one folder, so on Windows
+    // and macOS instead of silently falling through. Collision and equality checks use the same rule,
+    // so routing and targeting never disagree about whether two spellings are one location.
+    public static StringComparer SourcePathComparer => PathOps.PathComparer;
 
     // Normalizes a source path for exact-match keying: trims a single trailing forward slash so a rule
     // for "media/incoming" also matches a stored "media/incoming/". Separator style is already
@@ -89,19 +90,9 @@ public static class DestinationResolver
 
             foreach (var (pattern, regexDest) in lk.PathRegexRules)
             {
-                // A pattern that compiles fine can still backtrack catastrophically and throw
-                // RegexMatchTimeoutException at match time once the per-pattern timeout elapses; the
-                // build-time guard catches only syntax errors. A match-time timeout is classified as
-                // "this rule did not match" so the cascade continues and one rule cannot abort the whole
-                // batch. The resolver is pure and static, so it cannot log here.
-                bool matched;
-                try
+                if (TryMatch(pattern, sourcePath) is not { } matched)
                 {
-                    matched = pattern.IsMatch(sourcePath);
-                }
-                catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-                {
-                    continue;
+                    return TimedOut("SourcePath:regex", pattern);
                 }
 
                 if (matched)
@@ -119,8 +110,7 @@ public static class DestinationResolver
 
     // The exclude cascade: tag id, studio id (direct or any ParentStudios ancestor), then source-path,
     // exact before regex. Returns the excluded result on the first match, or null when nothing excludes
-    // the entity. A null or empty exclude lookup means none is configured. A match-time regex timeout is
-    // classified as no-match, like the routing regex.
+    // the entity. A null or empty exclude lookup means none is configured.
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
         if (lk.ExcludeTagIds is { Count: > 0 } excludeTags)
@@ -171,17 +161,9 @@ public static class DestinationResolver
             {
                 foreach (var pattern in excludeRegex)
                 {
-                    // A match-time backtracking timeout is classified as "this rule did not match" so one
-                    // rule cannot abort the batch. The build-time guard already rejected syntax-invalid
-                    // patterns.
-                    bool matched;
-                    try
+                    if (TryMatch(pattern, excludeSrc) is not { } matched)
                     {
-                        matched = pattern.IsMatch(excludeSrc);
-                    }
-                    catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-                    {
-                        continue;
+                        return TimedOut("Exclude:Path:regex", pattern);
                     }
 
                     if (matched)
@@ -194,4 +176,22 @@ public static class DestinationResolver
 
         return null;
     }
+
+    // A pattern that compiles can still backtrack past its match timeout. The outcome of that rule is
+    // then unknown, and either guess can move a file the user meant to keep in place, so the item is
+    // left alone with the rule named. Null means the match timed out.
+    private static bool? TryMatch(Regex pattern, string input)
+    {
+        try
+        {
+            return pattern.IsMatch(input);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
+    }
+
+    private static RouteResult TimedOut(string rule, Regex pattern)
+        => new(RouteCategory.RuleTimedOut, $"{rule}:{pattern}", null);
 }

@@ -1,30 +1,16 @@
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Shared, deterministic fixture data for the deliberately-long template + metadata case.
-///
-/// The LengthReducer test consumes this: the rendered name is engineered to exceed
-/// 255 chars so the reducer must walk every default drop-order field
-/// (videoCodec → audioCodec → frameRate → resolution → tags → studioCode → studio →
-/// performers → date) and finally hard-truncate the <c>$title</c> component.
-///
-/// This class has no test methods of its own - it is shared data.
-/// </summary>
 internal static class LongTemplateFixture
 {
-    /// <summary>
-    /// A filename template referencing many tokens, including the multi-value
-    /// <c>$performers</c>/<c>$tags</c> fields and every default drop-order field.
-    /// </summary>
+    // A filename template referencing many tokens, including the multi-value $performers/$tags
+    // fields and every default drop-order field.
     public const string FilenameTemplate =
         "$studio - $studioCode - $title - $performers " +
         "[$resolution $videoCodec $audioCodec $frameRate] {$tags} ($date)";
 
-    /// <summary>
-    /// A deliberately-long title (200+ chars) so that, even after every drop-order
-    /// field is removed, the title alone still exceeds the 255-char filename cap and
-    /// forces the hard-truncate last resort.
-    /// </summary>
+    // A deliberately-long title (200+ chars) so that, even after every drop-order field is removed,
+    // the title alone still exceeds the 255-char filename cap and forces the hard-truncate last
+    // resort.
     public const string LongTitle =
         "The Exceedingly Verbose And Deliberately Overlong Documentary Title That Keeps " +
         "Going Well Past Any Reasonable Filesystem Component Length Limit In Order To " +
@@ -32,10 +18,8 @@ internal static class LongTemplateFixture
         "Itself So That Even With Every Other Drop-Order Field Removed The Bare Title " +
         "Alone Still Exceeds Two Hundred And Fifty Five Characters And Must Be Cut Short";
 
-    /// <summary>
-    /// Scalar token values. Performers/tags are supplied separately via
-    /// <see cref="Performers"/> / <see cref="Tags"/> for multi-value resolution.
-    /// </summary>
+    // Scalar token values. Performers/tags are supplied separately via Performers / Tags for
+    // multi-value resolution.
     public static IReadOnlyDictionary<string, string> Tokens { get; } = new Dictionary<string, string>
     {
         ["title"] = LongTitle,
@@ -49,7 +33,7 @@ internal static class LongTemplateFixture
         ["ext"] = "mkv",
     };
 
-    /// <summary>Many long performer names so the joined value is itself substantial.</summary>
+    // Many long performer names so the joined value is itself substantial.
     public static IReadOnlyList<string> Performers { get; } =
     [
         "Alexandria Featherstonehaugh",
@@ -59,7 +43,7 @@ internal static class LongTemplateFixture
         "Evangeline Marchetti-Hawthorne",
     ];
 
-    /// <summary>Many long tag values.</summary>
+    // Many long tag values.
     public static IReadOnlyList<string> Tags { get; } =
     [
         "documentary-feature-length",

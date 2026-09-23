@@ -3,11 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The stored spelling of the per-kind settings map. The settings panel hand-writes the options blob
-/// it sends, so the exact key and property casing here is a contract between the two sides, and the
-/// wire document does not describe it.
-/// </summary>
 public sealed class KindOptionsJsonTests
 {
     [Fact]

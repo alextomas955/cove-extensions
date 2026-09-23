@@ -3,31 +3,21 @@ using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution.Collisions;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Sidecars;
 
-/// <summary>
-/// Drives the real executor end-to-end (SQLite + a real <see cref="TempDir"/>) to prove the
-/// extension-list sidecar discovery: a same-stem neighbor whose extension is configured moves and
-/// renames alongside the primary, the three negative cases never move, an empty list is byte-identical
-/// to caption-only behavior, the discovered move inherits skip-not-clobber + rollback-with-primary, a
-/// tracked caption is never moved twice, an in-place renamer emits no spurious sidecar warning, and the
-/// extension compare normalizes a leading dot + casing. All assertions are against the actual on-disk
-/// state; disposables released in a finally, mirroring the sibling executor tests.
-/// </summary>
 public sealed class AssociatedExtensionSidecarTests
 {
     private static RenamerPlan RenamerPlan(int videoId, int fileId, string folderPath, string oldBasename, string newBasename)
         => new(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/" + oldBasename, folderPath + "/" + newBasename,
-                RenamerStatus.Renamer, newBasename, folderPath),
+                RenamerStatus.Rename, newBasename, folderPath),
         ]);
 
     private static RenamerExecutor RealExecutor(DbContext db)
-        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
     [Fact]
     public async Task SameStemListedExtension_MovesAndTracksNewStem()
@@ -253,7 +243,7 @@ public sealed class AssociatedExtensionSidecarTests
             Assert.False(File.Exists(Path.Combine(dir.Root, "taken.mkv")), "precondition: disk target free so the move happens first");
 
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await executor.ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "taken.mkv"), options, default);
@@ -311,7 +301,7 @@ public sealed class AssociatedExtensionSidecarTests
     }
 
     [Fact]
-    public async Task InPlaceSameStemRenamer_WithListedSidecar_NoSpuriousWarning_SidecarStaysInPlace()
+    public async Task InPlaceSameStemRename_WithListedSidecar_NoSpuriousWarning_SidecarStaysInPlace()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

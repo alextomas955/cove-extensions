@@ -13,8 +13,7 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
   basename, so Renamer does the disk rename itself.
 - `extension.json` names `Renamer.dll` as `entryDll` and `index.mjs` as the bundle.
 - The backend is one rich capability layered by domain: `Engine/`, `Planner/`, `Execution/` beside
-  `Api/`, `Contracts/`, `Jobs/`, `Options/`. Keep that layering. Do not split it into per-verb
-  folders.
+  `Api/`, `Contracts/`, `Options/`. Keep that layering. Do not split it into per-verb folders.
 - UI slices: `settings/` (with the dry-run modal nested at `settings/dry-run/`) and
   `rename-action/`. Extension-local shared code is `common/`.
 - The settings panel loads and saves through `GET`/`PUT /options`, never through Cove's extension
@@ -25,7 +24,7 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 ## Build and deploy
 
 - `pwsh scripts/deploy-dev.ps1` builds against the local Cove checkout, builds the UI, assembles the
-  catalog's file set, installs it, and restarts the host. Always `pwsh`. Set `COVE_HOME` off
+  catalog's file set and installs it. It does not restart Cove. Always `pwsh`. Set `COVE_HOME` off
   Windows.
 - `@cove/extension-sdk` is not on npm. It is vendored as a tarball under `src/Renamer.Ui/vendor/`
   and installs offline. Regenerate it with `scripts/update-cove-sdk.ps1` when the SDK version

@@ -7,14 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Sidecars;
 
-/// <summary>
-/// Drives the real executor over SQLite and a real <see cref="TempDir"/> to prove a renamed caption's
-/// database row is written, not only that its file moved on disk.
-/// </summary>
-/// <remarks>
-/// The sibling sidecar tests assert the on-disk move, which the disk mover performs and which a lost
-/// row write leaves looking correct, so the row needs an assertion of its own.
-/// </remarks>
 public sealed class CaptionRowWriteTests
 {
     [Fact]
@@ -71,9 +63,9 @@ public sealed class CaptionRowWriteTests
         => new(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/" + oldBasename, folderPath + "/" + newBasename,
-                RenamerStatus.Renamer, newBasename, folderPath),
+                RenamerStatus.Rename, newBasename, folderPath),
         ]);
 
     private static RenamerExecutor RealExecutor(DbContext db)
-        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 }

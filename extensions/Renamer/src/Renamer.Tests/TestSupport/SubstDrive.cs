@@ -2,20 +2,16 @@ using System.Diagnostics;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// A Windows-only test fixture that maps a free drive letter to a real backing directory via
-/// <c>subst</c>, giving a second path root that resolves to the same physical volume. This lets the
-/// executor's <c>VolumeClassifier</c> branch report a cross-volume move (distinct
-/// <see cref="Path.GetPathRoot(string)"/> values) and exercise the real <c>CrossVolumeMover</c>
-/// end-to-end on one machine - no second physical
-/// drive required (a real two-drive run remains a manual cross-platform check).
-///
-/// The backing directory is created under the temp tree; both it and the subst mapping are torn down
-/// on dispose. A free drive letter is probed at construction so parallel tests do not collide.
-/// </summary>
+// A Windows-only test fixture that maps a free drive letter to a real backing directory via subst,
+// giving a second path root that resolves to the same physical volume. This lets the executor's
+// VolumeClassifier branch report a cross-volume move (distinct GetPathRoot(string) values) and
+// exercise the real CrossVolumeMover end-to-end on one machine - no second physical drive required
+// (a real two-drive run remains a manual cross-platform check). The backing directory is created
+// under the temp tree; both it and the subst mapping are torn down on dispose. A free drive letter
+// is probed at construction so parallel tests do not collide.
 public sealed class SubstDrive : IDisposable
 {
-    /// <summary>The mapped drive root, e.g. <c>"P:\"</c> - a distinct path root from the temp dir.</summary>
+    // The mapped drive root, e.g. "P:\" - a distinct path root from the temp dir.
     public string Root { get; }
 
     private readonly char _letter;
@@ -50,12 +46,10 @@ public sealed class SubstDrive : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort cleanup; a leaked temp dir is harmless */ }
     }
 
-    /// <summary>
-    /// Maps a free drive letter to <paramref name="backing"/>, re-probing and retrying across the
-    /// candidate range on a subst failure so a parallel-construction collision (the probed letter got
-    /// claimed by another instance before our subst ran) just advances to the next free letter. Returns
-    /// the letter actually mapped.
-    /// </summary>
+    // Maps a free drive letter to backing, re-probing and retrying across the candidate range on a
+    // subst failure so a parallel-construction collision (the probed letter got claimed by another
+    // instance before our subst ran) just advances to the next free letter. Returns the letter
+    // actually mapped.
     private static char MapFreeDriveWithRetry(string backing)
     {
         var tried = new HashSet<char>();

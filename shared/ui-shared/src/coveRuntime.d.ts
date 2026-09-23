@@ -64,4 +64,18 @@ declare module "@cove/runtime/components" {
     entityType: EntityReferenceType;
     value: unknown;
   }) => never;
+
+  // Traps Tab, cancels on Escape and on a backdrop click, restores focus on close, and suspends every
+  // cancel while isPending. The host's delete-file options are left out: nothing here offers them.
+  export const ConfirmDialog: (props: {
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void | Promise<void>;
+    onCancel: () => void;
+    destructive?: boolean;
+    isPending?: boolean;
+    errorMessage?: string | null;
+  }) => never;
 }

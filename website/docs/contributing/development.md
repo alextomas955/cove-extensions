@@ -118,13 +118,12 @@ pwsh extensions/Renamer/scripts/deploy-dev.ps1
 
 It publishes against a local Cove source checkout so the extension is ABI-identical to the running
 host, builds the UI bundle, assembles exactly the file set `extensions/catalog.json` declares for the
-extension - the same set a release ships - installs it under the Cove data root, and restarts the
-host.
+extension - the same set a release ships - and installs it under the Cove data root. Restart Cove
+afterwards to load it.
 
-Two conditions before you run it. Invoke it as `pwsh`, not Windows PowerShell 5.1, which does not
-define an automatic variable the script reads. On macOS and Linux set `COVE_HOME`, because the data
-root it falls back to is Windows-only and it throws rather than guessing at a directory Cove never
-reads. `extensions/Renamer/README.md` has the rest.
+Invoke it as `pwsh`, not Windows PowerShell 5.1, which does not define an automatic variable the
+script reads. On macOS and Linux set `COVE_HOME` to the Cove data directory. The default it falls back
+to is Windows-only, and the script refuses to guess one elsewhere.
 
 ## Format and lint
 

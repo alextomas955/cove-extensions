@@ -1,40 +1,29 @@
-// Verifies a real cross-device move on Linux: /data2 is a tmpfs mount (a genuinely different
-// filesystem from the container's root, unlike two named volumes, which land on the same backing
-// device in Docker Desktop). A move from /data into /data2 raises a real EXDEV at the kernel level.
-//
-// important - what this test does and does not prove: Renamer's own same-vs-cross-volume
-// classification (VolumeClassifier.SameVolume) is Path.GetPathRoot()-based, which always returns
-// "/" for every path on Linux (POSIX has no drive letters). So Renamer's code still classifies
-// this move as "same volume" and routes it through the fast DiskMover.Move path (File.Move), not
-// through CrossVolumeMover's verified copy->delete path - that path is only reachable on Windows,
-// where GetPathRoot returns distinct drive letters. See CrossVolumeMoverTests.cs in the existing
-// xUnit suite for coverage of that path.
-//
-// What is being verified here: DiskMover.Move's `catch (IOException ex)` already catches the real
-// EXDEV .NET raises for a cross-device File.Move on Linux (.NET's File.Move surfaces EXDEV as a
-// plain IOException, same type as "destination exists" / "source locked") - so the move fails
-// safely (reported as a skip, not a crash, not a partial/corrupted state) even though the
-// reported reason ("locked or target exists") is misleading for this specific cause. This test
-// locks in that safety property and documents the misleading-message gap as a known finding for
-// Renamer's own backlog (a message-text fix is a Renamer source change, out of scope for this
-// E2E-infrastructure task).
-import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+// A move from /data into /data2 crosses filesystems: /data2 is a tmpfs mount, so the kernel raises
+// EXDEV for a plain rename and the volume classifier keys it as a second volume. The move must go
+// through the copy-verify-delete path and land the file at the new path with nothing left behind.
+import { test, expect, seedVideo, EXTENSION_ID, ROUTE } from "../lib/renamer-fixtures.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
+async function fileExists(container, path) {
+  const probe = await container.exec(["test", "-f", path]);
+  return probe.exitCode === 0;
+}
 
-test("a move routed into a genuinely different filesystem (EXDEV) fails safely, not silently or destructively", async ({
+test("a move onto another filesystem copies, verifies, and removes the source", async ({
   harness,
   baseUrl,
   api,
 }) => {
+  // The container restart before each spec leaves /data2 root-owned with no world write.
+  await harness.container.exec(["chown", "cove:cove", "/data2"], { user: "root" });
+
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
-  // /data2 is one of the container's Cove library paths, so the default destination may name it.
-  const optionsBody = JSON.stringify({ FolderRoot: "/data2" });
-  const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);
+  const put = await api.put(
+    `/api/extensions/${EXTENSION_ID}/data/options`,
+    JSON.stringify({ FolderRoot: "/data2" }),
+  );
   expect(put.ok).toBe(true);
 
   try {
@@ -45,51 +34,23 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
     expect(enqueue.status).toBe(202);
 
     const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
-    // The batch job itself always reports "completed" - per-item outcomes (renamed/skipped/failed)
-    // are in the batch log, not the job status. A skip is not a job failure.
     expect(job.status.toLowerCase()).toBe("completed");
 
-    // Safety property: the source file must not have vanished or been left in a half-moved state.
-    // Either it stayed at its original path (skipped) or landed intact at exactly one place - never
-    // both missing from /data and missing from /data2 (which would mean data loss).
-    const afterMove = await api.get(`/api/videos/${video.id}`);
-    const finalPath = afterMove.json.files[0].path;
-    const stillAtOriginal = finalPath === originalPath;
-    const exec = await harness.container.exec(["test", "-f", finalPath]);
-    const fileExistsAtReportedPath = exec.exitCode === 0;
+    const after = await api.get(`/api/videos/${video.id}`);
+    const finalPath = after.json.files[0].path;
 
+    expect(finalPath.startsWith("/data2/"), `the file stayed at ${finalPath}`).toBe(true);
+    expect(await fileExists(harness.container, finalPath), `no file at ${finalPath}`).toBe(true);
     expect(
-      fileExistsAtReportedPath,
-      `DB reports path ${finalPath} but no file exists there — data loss`,
-    ).toBe(true);
-
-    if (!stillAtOriginal) {
-      // If Renamer's Windows-shaped SameVolume check ever changes to be cross-platform-aware, this
-      // branch would start exercising the real CrossVolumeMover path - leave both outcomes valid so
-      // this test does not need to change if that happens, only note which branch actually ran.
-      console.log(
-        "Move succeeded across the EXDEV-raising mount (unexpected on current Linux-only SameVolume logic, but not unsafe).",
-      );
-    } else {
-      console.log(
-        'Move was skipped (expected on Linux): DiskMover caught the real EXDEV as an IOException and reported it as "locked or target exists" — misleading reason text for this specific cause, but safe (no data loss, no crash). Tracked as a Renamer backlog item, not fixed here.',
-      );
-    }
+      await fileExists(harness.container, originalPath),
+      `source left at ${originalPath}`,
+    ).toBe(false);
   } finally {
-    // This test PUTs a global Renamer option (FolderRoot) into the Cove instance,
-    // which is shared across every sibling spec on the same Playwright worker. Restore the defaults
-    // so a later spec that relies on the file's own library path - notably rename-ui-coverage's
-    // folder-template relocate, which needs the default destination to name no root so it stays
-    // within /data - is not silently routed cross-device (/data2), skipped as an EXDEV move, and left
-    // un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
-    // assertion above still cannot leak routing state into the next test.
+    // The options are shared by every later spec on this worker.
     const reset = await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
       JSON.stringify({ FolderRoot: "" }),
     );
-    expect(
-      reset.ok,
-      `restoring FolderRoot returned ${reset.status}; a later spec is silently routed cross-device`,
-    ).toBe(true);
+    expect(reset.ok, `restoring FolderRoot returned ${reset.status}`).toBe(true);
   }
 });

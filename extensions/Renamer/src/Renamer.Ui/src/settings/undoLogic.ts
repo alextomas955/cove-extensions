@@ -1,51 +1,22 @@
 /**
- * The pure composition of everything the undo panel says: its status line from the `/last-batch`
- * summary, and its feedback sentence from the `/undo` response. One module because they are one
- * panel's copy, and they already shared a `plural` helper each had its own copy of.
+ * Everything the undo footer says: its status line from `/last-batch` and its feedback from `/undo`.
+ * `now` is a parameter so every expiry case is testable.
  *
- * Kept import-free apart from the generated wire types (no React, no DOM, no SDK) so it stays L0 -
- * deterministic and testable with no environment - and so the sentences a user reads before and after
- * a destructive action are the exact sentences the suite covers. `now` is a parameter rather than a
- * call to `Date.now()` for the same reason: a clock read inside would make every expiry case
- * untestable.
- *
- * The feedback half is extracted from the panel for one further reason: **every number it states comes
- * from a `…Count` field, and a `…Sample` is read only to name the first reason.** The response
- * describes at most a fixed number of entries per channel because a rename batch reaches library size,
- * so a sentence built from an array's length would under-report a large undo - telling the user three
- * files could not come back when five hundred are still sitting under their renamed names. That
- * distinction is not visible in a render function and cannot be eyeballed in a review, so it lives here
- * where a test pins it. The cap's value is deliberately absent from this module: nothing here may
- * depend on how many entries the server chose to describe.
+ * Every number in the feedback comes from a `…Count` field, and a `…Sample` is read only to name the
+ * first reason. The response describes at most a few entries per channel, so a count taken from a
+ * sample's length would under-report a large undo.
  */
 
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 /**
- * How long the server keeps a batch before it expires, in milliseconds.
- *
- * A deliberate second copy of `CoveRevertJournal.RetentionWindow` on the server. The panel states the
- * batch's actual expiry date rather than a static "kept for 7 days" note, and that date is the
- * summary's own open timestamp plus this window - computed here because the window is a constant
- * rather than per-batch data, so putting it on the wire would add a field that is the same on every
- * response.
- *
- * The cost of that choice is this duplication, and a duplicated number with nothing watching it
- * drifts silently: the symptom would be a date the user trusts and the server does not honour. So it
- * is pinned rather than commented - `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` asserts the
- * server constant is seven days and names this file in its failure message.
+ * How long the server keeps a batch, in milliseconds: a copy of `CoveRevertJournal.RetentionWindow`,
+ * which `RetentionWindowPinTests` pins to the same seven days.
  */
 export const RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-/**
- * .NET DateTime ticks → epoch ms (ticks are 100ns since 0001-01-01).
- *
- * The tick offset between 0001-01-01 and 1970-01-01 is 621355968000000000, which exceeds
- * Number.MAX_SAFE_INTEGER (2^53). Writing it as a single literal is exact as a double but trips a
- * "literal loses precision" hint, so build it from two safe-integer factors instead: the offset in
- * milliseconds (62135596800000, well within safe range) times 10000 ticks/ms. The product is the
- * identical double value.
- */
+// .NET ticks are 100 ns since 0001-01-01. The epoch offset in ticks exceeds the safe-integer range as
+// a literal, so it is built from two safe factors.
 const EPOCH_OFFSET_MS = 62135596800000;
 const TICKS_PER_MS = 10000;
 const TICKS_AT_EPOCH = EPOCH_OFFSET_MS * TICKS_PER_MS;
@@ -55,7 +26,7 @@ function ticksToEpochMs(ticks: number): number {
 }
 
 /** What the panel needs to render and to decide whether to offer the button at all. */
-export interface UndoPanelStatus {
+interface UndoPanelStatus {
   /** The single line stating what happened, what is left, and until when. */
   line: string;
   /** How many files the button would act on. This is the figure the confirm must quote. */
@@ -63,12 +34,8 @@ export interface UndoPanelStatus {
   /** Epoch ms at which the batch passes out of the server's retention window. */
   expiresAtMs: number;
   /**
-   * True once `now` is past that moment.
-   *
-   * The rows may still be on disk: the server purges an expired batch when the next batch opens and
-   * nowhere else, so a library that has been quiet since keeps them. What has gone is the promise -
-   * the next rename drops the batch with no further warning - so the caller withholds the button
-   * rather than offering a recovery it cannot say will still be there.
+   * True once `now` is past that moment. The rows may still exist until the next rename purges them,
+   * but the button is withheld, because the undo can no longer be promised.
    */
   expired: boolean;
 }
@@ -104,16 +71,8 @@ function relativeTime(epochMs: number, now: number): string {
 }
 
 /**
- * Build the panel's status, or `null` when there is nothing to offer.
- *
- * `null` covers both "no batch was ever journalled" and "every file in the last batch has been
- * settled" - the panel renders its "No rename to undo." branch for either, because from the user's
- * side they are the same situation. The second test is on `remainingCount`, which the server derives
- * from the same aggregate it derives `consumed` from, so the two cannot disagree.
- *
- * An expired batch is not `null`. Saying nothing there would read as "there was never a rename",
- * while the truth is that there was one and its undo window has closed; the caller uses `expired` to
- * withhold the button while still showing the line.
+ * Build the footer's status, or `null` when no batch exists or every file in it is settled. An expired
+ * batch still returns its line, with `expired` set.
  */
 export function buildUndoStatus(
   summary: LastBatchSummary | null | undefined,
@@ -124,8 +83,6 @@ export function buildUndoStatus(
   const original = summary.count;
   const remaining = summary.remainingCount;
   const unrestorable = summary.unrestorableCount;
-  // Derived, never read: the server owns the three figures that must sum, and a fourth on the wire
-  // would be a fourth that can disagree with them.
   const restored = original - remaining - unrestorable;
 
   const writtenAtMs = ticksToEpochMs(summary.writtenAtUtcTicks);
@@ -134,8 +91,6 @@ export function buildUndoStatus(
 
   const parts: string[] = [];
   if (restored > 0 || unrestorable > 0) {
-    // Something has already been settled, so lead with the split. Both figures are stated so the
-    // reader never subtracts one from the other to learn what is left.
     parts.push(`${restored} of ${original} restored`, `${remaining} remaining`);
   } else {
     parts.push(`${original} ${plural(original, "item", "items")} renamed`);
@@ -170,7 +125,7 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   if (problemCount === 0) {
     return {
       kind: stranded ? "error" : "success",
-      text: `Undone — ${result.undone} ${plural(result.undone, "file", "files")} moved back to their original names.${stranded}`,
+      text: `Undone: ${result.undone} ${plural(result.undone, "file", "files")} moved back to their original names.${stranded}`,
     };
   }
 
@@ -185,11 +140,11 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   if (result.undone > 0) {
     return {
       kind: "error",
-      text: `Undo finished with problems — ${problemCount} ${plural(problemCount, "file", "files")} couldn't be moved back (${firstReason}). The rest were restored.${stranded}`,
+      text: `Undo finished with problems: ${problemCount} ${plural(problemCount, "file", "files")} couldn't be moved back (${firstReason}). The rest were restored.${stranded}`,
     };
   }
 
-  return { kind: "error", text: `Couldn't undo — ${firstReason}. Nothing was changed.` };
+  return { kind: "error", text: `Couldn't undo: ${firstReason}. Nothing was changed.` };
 }
 
 /**
@@ -206,6 +161,11 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 export function buildUndoUnconfirmed(detail: string): UndoFeedback {
   return {
     kind: "error",
-    text: `Couldn't confirm the undo — ${detail}. Some files may already have been moved back; check the batch before trying again.`,
+    text: `Couldn't confirm the undo: ${detail}. Some files may already have been moved back; check the batch before trying again.`,
   };
+}
+
+/** Compose the sentence for an undo the server answered with a refusal, which moved nothing. */
+export function buildUndoRefused(detail: string): UndoFeedback {
+  return { kind: "error", text: `Couldn't undo: ${detail}. Nothing was changed.` };
 }

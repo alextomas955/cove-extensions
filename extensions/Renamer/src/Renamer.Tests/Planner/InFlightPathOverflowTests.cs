@@ -1,21 +1,8 @@
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The band <see cref="PathConfinement"/> accepts and the executor cannot fit: a cross-volume move copies
-/// to a name <see cref="CrossVolumeMover.InFlightSuffixLength"/> characters longer beside the destination
-/// before promoting it, while the planner budgets only the final path. These cases position a destination
-/// on each side of that boundary and read <see cref="BatchPreview.InFlightPathOverflows"/> plus the count
-/// <see cref="BatchPreview.Summarize"/> folds from it.
-/// </summary>
-/// <remarks>
-/// A sibling of <c>BlastRadiusTests</c> rather than part of it, so the arms that decide whether the
-/// warning is trustworthy compile on the cove-absent leg, which is the leg CI runs the unit tier on.
-/// pure - path arithmetic, a synthetic mount table and no disk, so it runs identically on Windows and Unix.
-/// </remarks>
 public sealed class InFlightPathOverflowTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.
@@ -50,12 +37,12 @@ public sealed class InFlightPathOverflowTests
     [Fact]
     public void CrossVolumeMove_IsFlagged_OneCharacterPastTheBudgetLessTheMintedSegment()
     {
-        // A cross-volume move copies to a name CrossVolumeMover.InFlightSuffixLength characters longer
+        // A cross-volume move copies to a name PathOps.InFlightSuffixLength characters longer
         // beside the destination and promotes it, so the longest final path whose copy still fits is
         // Budget - InFlightSuffixLength. One character past that the copy overruns a real platform limit -
         // no "\?\" extended-length prefix is ever applied - while the planner, which budgets only the
         // final path, accepted the plan the user is about to approve.
-        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+        int longestThatFits = Budget - PathOps.InFlightSuffixLength;
 
         var fits = Item(
             1, OnVol("C", "a.mkv"), OnVol("D", NameForPathLength(longestThatFits)),
@@ -84,10 +71,10 @@ public sealed class InFlightPathOverflowTests
         // all - a same-volume move is one atomic rename - so an identical path length that overruns when
         // copied across drives is perfectly fine in place. A warning here would fire on a correct plan,
         // and most plans are same-volume.
-        string overLength = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
+        string overLength = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
 
         var sameVolume = Item(
-            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Renamer, RootOf("C"));
+            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Rename, RootOf("C"));
         var crossVolume = Item(
             2, OnVol("C", "b.mkv"), OnVol("D", overLength), RenamerStatus.Move, RootOf("D"));
 
@@ -111,7 +98,7 @@ public sealed class InFlightPathOverflowTests
         var skipped = Item(
             1,
             OnVol("C", "a.mkv"),
-            OnVol("D", NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1)),
+            OnVol("D", NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1)),
             RenamerStatus.SkipCollision,
             RootOf("D"));
 

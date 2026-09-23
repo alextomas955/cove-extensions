@@ -48,6 +48,10 @@ public sealed class RevertRowEntity
 // host executes this SQL, receipts it by name, and never re-runs a name it has already receipted.
 public static class RevertJournalSchema
 {
+    public const string BatchTable = "renamer_revert_batches";
+
+    public const string RowTable = "renamer_revert_rows";
+
     // The migration name is frozen, and so is its SQL. The host receipts a migration by name and skips
     // a name it has already applied, whatever the content now says, so an edit here would reach a
     // fresh install and never reach an existing one. A schema change is a new constant with a new name.

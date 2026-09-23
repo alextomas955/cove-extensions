@@ -16,18 +16,18 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 
-import { Dialog, ErrorBox } from "../../common/ui/Dialog";
+import { Dialog, ErrorBox } from "./Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import type { RenamerOptions } from "../options";
+import type { RenameProgress } from "../useRenameLibrary";
 import { DryRunRows } from "./DryRunRows";
 import { ScanProgress } from "./ScanProgress";
-import { useLibraryScan } from "./useLibraryScan";
+import { useLibraryScan, type ScanDisplay } from "./useLibraryScan";
 import {
   bucketTotal,
   formatEta,
   progressPercent,
   summaryCounts,
-  type DryRunCounts,
   type DryRunFilter,
 } from "./dryRunLogic";
 
@@ -62,7 +62,7 @@ export function DryRunModal({
   dirty: boolean;
   onClose: () => void;
   /** The SHARED rename-trigger handler - also called by the panel-level button. */
-  onRenameAll: (counts: DryRunCounts) => void;
+  onRenameAll: () => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
   /**
@@ -70,7 +70,7 @@ export function DryRunModal({
    * before the first sample) falls back to the button spinner. The modal creates no poller of its
    * own for the rename job.
    */
-  renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
+  renameProgress?: RenameProgress | null;
 }>) {
   const [filter, setFilter] = useState<DryRunFilter>("all");
   const [search, setSearch] = useState("");
@@ -102,20 +102,14 @@ export function DryRunModal({
   const counts = scan.summary ? summaryCounts(scan.summary) : null;
 
   return (
-    <Dialog
-      titleId={TITLE_ID}
-      describedById={DESC_ID}
-      pending={renaming}
-      onCancel={onClose}
-      size="xl"
-    >
+    <Dialog titleId={TITLE_ID} describedById={DESC_ID} pending={renaming} onCancel={onClose}>
       <h2 id={TITLE_ID} className="mb-2 text-lg font-semibold text-foreground">
         Dry run
       </h2>
 
       {scan.error !== null && (
         <div className="mb-4">
-          <ErrorBox>Couldn&apos;t scan your library — {scan.error}. Close and try again.</ErrorBox>
+          <ErrorBox>Couldn&apos;t scan your library: {scan.error}. Close and try again.</ErrorBox>
         </div>
       )}
 
@@ -125,7 +119,7 @@ export function DryRunModal({
         <>
           {counts.scanned === 0 ? (
             <p id={DESC_ID} className="py-8 text-center text-sm text-secondary">
-              No items match your current settings — nothing to rename.
+              No items match your current settings. Nothing to rename.
             </p>
           ) : (
             <>
@@ -225,9 +219,7 @@ export function DryRunModal({
           Close
         </Button>
         <Button
-          onClick={() => {
-            if (counts) onRenameAll(counts);
-          }}
+          onClick={onRenameAll}
           disabled={dirty || scanIsStale || renaming || !counts || counts.willChange === 0}
         >
           {renaming ? <Spinner /> : null}
@@ -243,9 +235,7 @@ function filterPlaceholder(rows: number): string {
   return `Filter ${rows} row${rows === 1 ? "" : "s"}`;
 }
 
-function Scanning({
-  display,
-}: Readonly<{ display: ReturnType<typeof useLibraryScan>["progress"] }>) {
+function Scanning({ display }: Readonly<{ display: ScanDisplay | null }>) {
   if (display) return <ScanProgress display={display} />;
   return (
     <div className="flex items-center gap-2 py-8 text-sm text-secondary">

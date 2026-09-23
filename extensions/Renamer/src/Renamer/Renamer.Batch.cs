@@ -3,15 +3,13 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer;
 
-// One rename run's fixed settings, carried whole from the entry point down to the chunk body. The
-// three methods below take it instead of repeating its fields, which they had grown to nine
-// arguments of. A null FreeSpaceProbe measures the real volume.
+// One rename run's fixed settings, carried whole from the entry point down to the chunk body. A null
+// FreeSpaceProbe measures the real volume.
 internal sealed record RenameRun(
     RenamerFileKind Kind,
     int TotalEntities,
@@ -27,6 +25,16 @@ internal sealed record RenameRun(
 /// </summary>
 public sealed partial class Renamer
 {
+    // The fraction of a chunk's progress bar the planning pass owns, execution taking the rest. The
+    // split is cosmetic: both passes scale linearly, so the bar only advances.
+    private const double PlanningProgressShare = 0.5;
+
+    // The entities a rename run plans and executes before starting the next chunk. Equal to
+    // MaxEntityIdsPerRequest, so one selection is one chunk. A run's plans, projected moves and
+    // destination-folder map are released with each chunk, so a whole-library run costs what one full
+    // selection costs.
+    internal const int RenameChunkEntities = MaxEntityIdsPerRequest;
+
     // One acting file's unit of execution work. The move tuple partitions same- from cross-volume
     // and re-checks free space in flight; the entity id is for per-item logging.
     private readonly record struct BatchUnit(
@@ -34,17 +42,32 @@ public sealed partial class Renamer
         Planner.RenamerPlan Plan,
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
-    // What one chunk did. Shortfall, when set, is the free-space refusal that stops the run.
+    // What one chunk did. Skipped counts move-time skips and PlanSkipped the files the planner skipped.
+    // Shortfall, when set, is the free-space refusal that stops the run.
     private readonly record struct ChunkOutcome(
-        int Renamed, int Skipped, int Failed, int ContestedFiles, string? Shortfall);
+        int Renamed, int Skipped, int Failed, int ContestedFiles, int PlanSkipped, string? Shortfall);
 
-    // Maps one chunk's own progress onto its share of a run over `total` entities.
-    private sealed class ChunkSliceProgress(IJobProgress inner, int offset, int share, int total) : IJobProgress
+    // What one run did, in files. Skipped includes the planner's skips. Shortfall, when set, is the
+    // free-space refusal that stopped it.
+    internal readonly record struct RunTally(int Renamed, int Skipped, int Failed, string? Shortfall);
+
+    // Maps one slice's progress onto its share of a run over `total` entities, clamped so a report
+    // below 0 cannot step the bar backward. With holdFinal a report that would complete the run is
+    // dropped, so only the caller's own closing report lands the bar.
+    private sealed class SliceProgress(
+        IJobProgress inner, int offset, int share, int total, bool holdFinal = false) : IJobProgress
     {
         public void Report(double percent, string? message = null)
-            => inner.Report(
-                Math.Clamp((offset + (Math.Clamp(percent, 0d, 1d) * share)) / Math.Max(total, 1), 0d, 1d),
-                message);
+        {
+            double scaled = Math.Clamp(
+                (offset + (Math.Clamp(percent, 0d, 1d) * share)) / Math.Max(total, 1), 0d, 1d);
+            if (holdFinal && scaled >= 1d)
+            {
+                return;
+            }
+
+            inner.Report(scaled, message);
+        }
     }
 
     // The free-space reading the up-front refusal and the in-flight re-check share. An unprobeable
@@ -68,23 +91,20 @@ public sealed partial class Renamer
         }
     }
 
-    // Renames every id in the decoded batch. One selection is one user action, so this call is its
-    // own operation and everything it renames comes back from a single undo. Job parameters are
-    // untrusted: bad, empty or unsupported input is a no-op that still reports the final 1.0, and
-    // this never throws on them.
+    // Renames every selected id. One selection is one user action, so this call is its own operation
+    // and everything it renames comes back from a single undo. An empty selection is a no-op that
+    // still reports the final 1.0.
     internal async Task RunRenamerBatchAsync(
-        IReadOnlyDictionary<string, string>? parameters, IJobProgress progress, CancellationToken ct,
+        RenamerFileKind kind, IReadOnlyList<int> ids, IJobProgress progress, CancellationToken ct,
         Func<string, long>? freeSpaceProbe = null)
     {
-        var (entityType, ids) = RenamerJob.Decode(parameters);
-
-        if (!TryParseKind(entityType, out var kind) || ids.Length == 0)
+        if (ids.Count == 0)
         {
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         int taken = 0;
         Task<IReadOnlyList<int>> NextChunk(CancellationToken token)
@@ -95,7 +115,7 @@ public sealed partial class Renamer
         }
 
         var run = new RenameRun(
-            kind, ids.Length, Guid.NewGuid().ToString("N"), options, freeSpaceProbe);
+            kind, ids.Count, Guid.NewGuid().ToString("N"), options, freeSpaceProbe);
         await RunRenameChunksAsync(run, NextChunk, progress, ct);
     }
 
@@ -105,7 +125,7 @@ public sealed partial class Renamer
     // cursor is the entity id, which a rename never changes, so the run's own writes can neither
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
-    internal Task<string?> RunRenamerKindAsync(
+    internal Task<RunTally> RunRenamerKindAsync(
         RenameRun run, AllowedIds allowedIds, IJobProgress progress, CancellationToken ct)
     {
         int after = 0;
@@ -144,18 +164,7 @@ public sealed partial class Renamer
                 }
 
                 after = page[^1];
-
-                foreach (int id in await allowedIds(run.Kind, page, token))
-                {
-                    if (allowed.Count < run.ChunkEntities)
-                    {
-                        allowed.Add(id);
-                    }
-                    else
-                    {
-                        carried.Enqueue(id);
-                    }
-                }
+                Distribute(await allowedIds(run.Kind, page, token), allowed, carried, run.ChunkEntities);
             }
 
             return allowed;
@@ -164,10 +173,25 @@ public sealed partial class Renamer
         return RunRenameChunksAsync(run, NextPageAsync, progress, ct);
     }
 
+    // Fills the chunk up to its capacity and queues the rest for the next one, in id order.
+    private static void Distribute(IEnumerable<int> ids, List<int> chunk, Queue<int> carried, int capacity)
+    {
+        foreach (int id in ids)
+        {
+            if (chunk.Count < capacity)
+            {
+                chunk.Add(id);
+            }
+            else
+            {
+                carried.Enqueue(id);
+            }
+        }
+    }
+
     // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and
-    // reports the run's final 1.0 with what happened. Returns the free-space shortfall that stopped
-    // the run, or null when it ran to the end.
-    private async Task<string?> RunRenameChunksAsync(
+    // reports the run's final 1.0 with what happened.
+    private async Task<RunTally> RunRenameChunksAsync(
         RenameRun run,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
         IJobProgress progress,
@@ -181,7 +205,7 @@ public sealed partial class Renamer
         // pre-parsed source-path regex set, so the resolver never re-walks or re-compiles them per
         // entity. An invalid user regex is caught at this build step and skipped with a log, so it can
         // never throw mid-match.
-        var lookups = BuildLookups(run.Options);
+        var lookups = RouteLookups.From(run.Options, LogInvalidRouteRegex);
 
         // The journal gets its own scope, and therefore its own DbContext, for the whole run: every
         // parallel worker of every chunk shares it because it mints each row's sequence number, and a
@@ -191,7 +215,7 @@ public sealed partial class Renamer
         await using var journalScope = ScopeFactory.CreateAsyncScope();
         await using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
-        int renamed = 0, skipped = 0, failed = 0, contested = 0, entitiesDone = 0;
+        int renamed = 0, skipped = 0, failed = 0, contested = 0, planSkipped = 0, entitiesDone = 0;
         string? shortfall = null;
 
         while (true)
@@ -208,12 +232,13 @@ public sealed partial class Renamer
 
             var outcome = await RunRenameChunkAsync(
                 run, chunk, lookups, journal, freeSpaceProbe,
-                new ChunkSliceProgress(progress, entitiesDone, chunk.Count, run.TotalEntities), ct);
+                new SliceProgress(progress, entitiesDone, chunk.Count, run.TotalEntities), ct);
 
             renamed += outcome.Renamed;
             skipped += outcome.Skipped;
             failed += outcome.Failed;
             contested += outcome.ContestedFiles;
+            planSkipped += outcome.PlanSkipped;
             entitiesDone += chunk.Count;
 
             if (outcome.Shortfall is not null)
@@ -235,17 +260,17 @@ public sealed partial class Renamer
             progress.Report(
                 1d,
                 $"Refused: insufficient free space ({shortfall}). {renamed} file(s) renamed before the run stopped.{RefusedNote(contested)}");
-            return shortfall;
         }
-
-        if (renamed == 0 && failed == 0 && skipped == contested)
+        else if (renamed == 0 && failed == 0 && skipped == contested)
         {
-            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contested)}");
-            return null;
+            progress.Report(1d, $"Nothing to rename.{RefusedNote(contested)}");
+        }
+        else
+        {
+            progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
         }
 
-        progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
-        return null;
+        return new RunTally(renamed, skipped + planSkipped, failed, shortfall);
     }
 
     // Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
@@ -277,6 +302,7 @@ public sealed partial class Renamer
         // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
         // as it found it.
         var planned = new List<BatchUnit>();
+        int planSkipped = 0;
 
         // Planning reports no percentage of its own until the loop starts, so trace it to the log -
         // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
@@ -318,8 +344,13 @@ public sealed partial class Renamer
 
                     foreach (var item in plan.Items)
                     {
-                        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                         {
+                            if (ScanBucket.Of(item.Status) == ScanBucketKind.Attention)
+                            {
+                                planSkipped++;
+                            }
+
                             continue;
                         }
 
@@ -334,9 +365,8 @@ public sealed partial class Renamer
                 }
 
                 LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
-                // Planning drives the first half of the chunk's bar; execution drives the second, so the
-                // bar only ever advances. The message names the phase, so the UI reads "Planning 769/1000"
-                // rather than a silent 0%.
+                // Planning drives the first half of the chunk's bar and execution the second, so the bar
+                // only advances, and the message names the phase.
                 progress.Report(
                     (double)planIndex / ids.Count * PlanningProgressShare,
                     $"Planning {planIndex}/{ids.Count}...");
@@ -393,7 +423,7 @@ public sealed partial class Renamer
             string detail = string.Join("; ",
                 shortfall.Select(s => $"{s.Volume}: need {s.Needed} bytes, {s.Available} free"));
             LogBatchDone(runId, 0, contestedFiles, 0);
-            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, detail);
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, planSkipped, detail);
         }
 
         // Nothing acts, so open no batch: an empty batch would shadow the operation's earlier replayable
@@ -401,7 +431,7 @@ public sealed partial class Renamer
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, contestedFiles, 0);
-            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, null);
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, planSkipped, null);
         }
 
         // Resolve or create every distinct destination folder once, single-threaded, after the refusals
@@ -482,12 +512,11 @@ public sealed partial class Renamer
             {
                 var db = services.GetRequiredService<DbContext>();
                 var exec = new RenamerExecutor(
-                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
+                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId);
                 return exec.ExecuteAsync(unit.Plan, run.Options, folderIdByPath, token);
             });
             LogBatchItem(runId, run.Kind, unit.EntityId, result);
 
-            // Thread-safe tally: a racing `+=` would lose increments under parallel workers.
             Interlocked.Add(ref totalRenamed, result.Renamed.Count);
             Interlocked.Add(ref totalSkipped, result.Skipped.Count);
             Interlocked.Add(ref totalFailed, result.Failed.Count);
@@ -526,7 +555,7 @@ public sealed partial class Renamer
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, null);
+        return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, planSkipped, null);
     }
 
     // The refusal has to reach the job's own message: its files rename nothing and produce no per-item
@@ -536,11 +565,8 @@ public sealed partial class Renamer
             ? $" {contestedFiles} file(s) refused: more than one record names the same file."
             : "";
 
-    /// <summary>
-    /// Records one planned entity's per-file outcomes to the host log: a line per renamed/moved file
-    /// (old → new), per skip (with its reason), and per failure. Paths are logged so a maintainer can
-    /// audit exactly what moved and revert from the log if needed.
-    /// </summary>
+    // Logs one entity's per-file outcomes with their paths, so a maintainer can audit what moved and
+    // revert from the log.
     private void LogBatchItem(string runId, RenamerFileKind kind, int entityId, RenamerExecutor.RenamerRunResult result)
     {
         foreach (var r in result.Renamed)

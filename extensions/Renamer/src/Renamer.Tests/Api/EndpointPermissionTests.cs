@@ -1,43 +1,12 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The per-kind permission each handler checks once the route policy has admitted the caller. The
-/// route admits a holder of any one kind's permission, so a request for another kind is refused here.
-/// The authorized path enqueues exactly one exclusive renamer-batch job and returns 202 {jobId}.
-/// </summary>
 public sealed class EndpointPermissionTests
 {
-    /// <summary>Records every <c>Enqueue</c> call (including its exclusivity); all other members are unused and throw.</summary>
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<(string type, string description, bool exclusive)> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add((type, description, exclusive));
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
-
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
@@ -48,7 +17,7 @@ public sealed class EndpointPermissionTests
         {
             // A principal with only videos.read must be forbidden from previewing an image;
             // the matching images.read principal is allowed (200).
-            var ext = NewExtension();
+            var ext = RenamerFixture.CreateWithStore();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var denied = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
@@ -72,7 +41,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_WithVideosWrite_EnqueuesOneJob_AndReturns202WithJobId()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
@@ -95,7 +64,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_ImageRequest_RequiresImagesWrite_NotVideosWrite()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
 
         // A principal holding only videos.write must not be able to enqueue an image renamer.
@@ -119,10 +88,9 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task RenamerEnqueue_AudioRequest_RequiresAudiosWrite()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
 
-        // Audio is officially supported (kept in v1.6) and gated on audios.write - videos.write is denied.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         Assert.Equal(403, StatusOf(await ext.RenamerEnqueue(
             new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs,

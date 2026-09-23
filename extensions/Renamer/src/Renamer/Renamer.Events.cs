@@ -2,7 +2,6 @@ using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer;
@@ -50,10 +49,10 @@ public sealed partial class Renamer
 
         try
         {
-            var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+            var options = await StoredOptions.LoadAsync(ct);
             if (!options.AutoRenamerOnUpdate)
             {
-                return; // opt-in, default off — do no database work when disabled.
+                return;
             }
 
             // One elevated scope for the whole handler, from the seam that elevates as it creates. The
@@ -68,13 +67,13 @@ public sealed partial class Renamer
                 // Preview, auto-renamer and batch resolve destinations identically, so a matched
                 // studio, tag or path rule relocates the edited item to its configured destination.
                 // Only the edited entity is planned, so this does not relocate the library.
-                var lookups = BuildLookups(options);
+                var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 
                 // Re-entrancy guard: nothing moves, so the executor is not touched, no save happens,
                 // and the save-event-re-enter loop never starts. Gated items land here as SkipGated.
                 int actingFiles = plan.Items.Count(i =>
-                    i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
+                    i.Status is RenamerStatus.Rename or RenamerStatus.Move);
                 if (actingFiles == 0)
                 {
                     return;
@@ -92,7 +91,7 @@ public sealed partial class Renamer
                 // so the event can re-enter this handler before ExecuteAsync returns.
                 _selfSaved[selfSaveKey] = 0;
 
-                var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
+                var executor = new RenamerExecutor(port, EventBus, journal, runId);
 
                 // No pre-resolved folder map: this call is not parallelized, so the executor resolves
                 // the destination folder itself.

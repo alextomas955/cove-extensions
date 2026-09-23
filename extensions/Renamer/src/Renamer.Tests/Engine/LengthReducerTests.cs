@@ -3,12 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Proves the dual MAX_PATH reduction: the filename component (≤255) and the full generated path
-/// (≤259) are both enforced; over-long names drop fields in DropOrder then hard-truncate the title.
-/// Driven by <see cref="LongTemplateFixture"/>, engineered to exhaust every drop and force a title
-/// truncate.
-/// </summary>
 public class LengthReducerTests
 {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> FixtureMulti =
@@ -96,9 +90,7 @@ public class LengthReducerTests
         Assert.True(r.Filename.Length < LongTemplateFixture.LongTitle.Length);
     }
 
-    // ---- Deep-folder case: a short filename in a deep folder is still caught by the full-path cap ----
-
-    // ---- A2: the engine surfaces the actually-dropped fields (truthful, not diffed) ----
+    // ---- the engine reports the fields it dropped ----
 
     [Fact]
     public void RenderWithDropped_ShortName_DropsNothing()
@@ -123,19 +115,6 @@ public class LengthReducerTests
         // The fixture is engineered to exhaust every drop-order field, so the dropped set is the
         // full DropOrder in order - proves the names come from the reducer, not a string diff.
         Assert.Equal(options.DropOrder, dropped);
-    }
-
-    [Fact]
-    public void FitWithDropped_ShortName_EmptyDropped_AndDelegatingFitMatches()
-    {
-        var o = new RenamerOptions();
-        (string folder, string name) ReRender(IReadOnlyCollection<string> _) => ("", "name");
-
-        var (result, dropped) = LengthReducer.FitWithDropped("", "name", ".mkv", o, ReRender);
-        var fitOnly = LengthReducer.Fit("", "name", ".mkv", o, ReRender);
-
-        Assert.Empty(dropped);
-        Assert.Equal(fitOnly, result); // Fit delegates to FitWithDropped — same RenamerResult
     }
 
     [Fact]
@@ -169,7 +148,7 @@ public class LengthReducerTests
         // here reaches the planner's candidate basename with nothing left to repair it.
         var o = new RenamerOptions { FilenameMax = 14, FullPathMax = 1000 }; // budget 14 - 4 = 10
 
-        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine)).result;
 
         Assert.Equal(9, r.Filename.Length);
         Assert.DoesNotContain(r.Filename, char.IsSurrogate);
@@ -182,7 +161,7 @@ public class LengthReducerTests
         // lose a unit, so the shortening is keyed on the pair and not applied to every truncate.
         var o = new RenamerOptions { FilenameMax = 15, FullPathMax = 1000 }; // budget 15 - 4 = 11
 
-        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine)).result;
 
         Assert.Equal(11, r.Filename.Length);
         Assert.EndsWith("\U0001F600", r.Filename, StringComparison.Ordinal);

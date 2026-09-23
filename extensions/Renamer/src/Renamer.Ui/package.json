@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.5.0",
   "type": "module",
-  "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
+  "description": "The Cove Renamer extension's settings page and bulk action, built as one Vite library bundle (index.mjs).",
   "license": "AGPL-3.0",
   "scripts": {
     "generate:wire": "node ../../../../scripts/generate-wire-types.mjs --extension com.alextomas955.renamer",

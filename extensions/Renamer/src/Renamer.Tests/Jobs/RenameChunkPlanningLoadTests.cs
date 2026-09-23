@@ -5,25 +5,12 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
-using Renamer.Tests.Execution;
+using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// The rename chunk's planning pass reads its entities in bulk, the same shape the library scan
-/// uses, and still walks the caller's ids in the order they were given.
-/// </summary>
-/// <remarks>
-/// Driven through the real <c>CoveContext</c> rather than the fake port, because the batch core
-/// builds its own port from the DI-scoped context and the claim is about the round-trips that reach
-/// the database. The counter is reader commands, not rows: EF may split one query with includes into
-/// a small constant number of readers, so the assertion is against the id count and not an exact
-/// number.
-/// </remarks>
 public sealed class RenameChunkPlanningLoadTests
 {
     private static async Task<(SqliteConnection Connection, DbContext Db, CommandCountingInterceptor Interceptor,
@@ -60,14 +47,10 @@ public sealed class RenameChunkPlanningLoadTests
         return ext;
     }
 
-    /// <summary>
-    /// Plans <paramref name="entities"/> unorganized entities under the only-organized gate and returns
-    /// how many reader commands the run issued.
-    /// </summary>
-    /// <remarks>
-    /// The gate makes every file plan as a skip, so the chunk acts on nothing and the reads counted are
-    /// the planning pass's own. The count is taken after the extension is built, so it excludes setup.
-    /// </remarks>
+    // Plans entities unorganized entities under the only-organized gate and returns how many reader
+    // commands the run issued. The gate makes every file plan as a skip, so the chunk acts on
+    // nothing and the reads counted are the planning pass's own. The count is taken after the
+    // extension is built, so it excludes setup.
     private static async Task<int> PlanningReadsAsync(int entities)
     {
         using var dir = new TempDir();
@@ -83,7 +66,7 @@ public sealed class RenameChunkPlanningLoadTests
             var progress = new FakeJobProgress();
 
             interceptor.ReaderCount = 0;
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             Assert.Equal(1d, progress.LastPercent);
             return interceptor.ReaderCount;
@@ -99,12 +82,12 @@ public sealed class RenameChunkPlanningLoadTests
     [Fact]
     public async Task PlanningPass_CostsTheSameReads_ForTenTimesAsManyEntitiesInOneLoadChunk()
     {
-        // Both populations sit inside a single CoveRenamerDataPort.LoadChunkSize, so a bulk load plans
+        // Both populations sit inside a single IRenamerDataPort.LoadChunkSize, so a bulk load plans
         // either in the same number of round-trips. Ten times the entities for the same reads is the
         // property under test - a read per id would make the larger run cost ten times the smaller.
         const int few = 12;
         const int many = 120;
-        Assert.True(many <= CoveRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
+        Assert.True(many <= IRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
 
         int readsForFew = await PlanningReadsAsync(few);
         int readsForMany = await PlanningReadsAsync(many);
@@ -142,7 +125,7 @@ public sealed class RenameChunkPlanningLoadTests
             // the id after it.
             int absent = second.Id + 500;
             await ext.RunRenamerBatchAsync(
-                RenamerJob.Encode("video", [firstId, absent, second.Id]), progress, default);
+                RenamerFileKind.Video, [firstId, absent, second.Id], progress, default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "Second Film.mkv")));

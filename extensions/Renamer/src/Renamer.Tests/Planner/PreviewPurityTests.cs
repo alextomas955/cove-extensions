@@ -4,14 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// A dry-run plan, which is what <c>/preview</c> runs, performs no database mutation. In
-/// particular it does not create a destination <see cref="Cove.Core.Entities.Folder"/> row when a
-/// move/route targets a folder that does not exist yet. The planner resolves the target folder id
-/// read-only (<see cref="IRenamerDataPort.TryGetFolderIdAsync"/>); an absent folder holds no files, so
-/// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
-/// executor's job.
-/// </summary>
 public sealed class PreviewPurityTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>

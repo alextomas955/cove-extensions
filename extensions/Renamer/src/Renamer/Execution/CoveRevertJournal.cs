@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Renamer.Planner;
 
 namespace Renamer.Execution;
 
@@ -14,7 +13,7 @@ namespace Renamer.Execution;
 // because the sequence number that half-identifies a row is minted per instance. A DbContext is not
 // thread-safe and Cove disables EF's thread-safety checks, so concurrent writes through one context
 // corrupt silently instead of throwing. The write gate serializes them.
-public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDisposable
+public sealed class CoveRevertJournal : IRevertJournal, IAsyncDisposable
 {
     // A read granularity, not a ceiling on what an undo restores: the run pages until a page comes back
     // empty, so the whole batch comes back however many pages that takes.
@@ -41,8 +40,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
     private long _lastSeq;
 
     // How many appended rows are held before they are written. A save per row costs a round-trip per
-    // renamed file, which on a same-volume rename is several times the rename it records and is what
-    // every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
+    // renamed file, which every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
     // mid-run leaves up to this many already-renamed files with no journal row, so undo cannot put
     // those back. They are renamed correctly and recorded correctly in Cove's own tables; only their
     // reversal is lost.
@@ -99,6 +97,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
             _db.Set<RevertBatchEntity>().Add(batch);
 
             await _db.SaveChangesAsync(ct);
+            _db.Entry(batch).State = EntityState.Detached;
         }
         finally
         {
@@ -351,25 +350,8 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         _writes.Dispose();
     }
 
-    public void Dispose()
-    {
-        if (_pending.Count > 0 || _pendingCounts.Count > 0)
-        {
-            FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
-        }
-
-        _writes.Dispose();
-    }
-
     private static RevertBatchSummary Summarize(RevertBatchEntity batch) =>
-        new(batch.RunId,
-            // A batch written before the operation id column existed is an operation of one.
-            batch.OperationId.Length == 0 ? batch.RunId : batch.OperationId,
-            ParseKind(batch.Kind),
-            batch.OpenedAtUtcTicks,
-            batch.OriginalCount,
-            batch.RestoredCount,
-            batch.UnrestorableCount);
+        new(batch.RunId, ParseKind(batch.Kind), batch.OpenedAtUtcTicks);
 
     // Writes the buffered rows and detaches them. The caller holds the write gate.
     //

@@ -4,6 +4,7 @@
  * pre-routing excludes, and field rewriting & name shaping. Presentational - every field flows up
  * through `set`.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { type ReactNode } from "react";
 
 import {
@@ -29,7 +30,7 @@ import {
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { BARE_TOKENS } from "./templateValidation";
+import { BARE_TOKENS } from "./templateLogic";
 import { optionsFor } from "./selectOptions";
 import { TokenAdvisory } from "./templateAdvisories";
 
@@ -78,9 +79,9 @@ function SubBlock({
   );
 }
 
-export interface AdvancedSectionProps {
+interface AdvancedSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
 }
 
 export function AdvancedSection({ options, set }: AdvancedSectionProps) {
@@ -206,7 +207,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               }}
               ordered
               suggestions={BARE_TOKENS}
-              placeholder="Add a token — type to search"
+              placeholder="Type to add a token"
               ariaLabel="Drop order"
             />
             <TokenAdvisory values={options.dropOrder} />
@@ -274,7 +275,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             never want this extension to touch. All three flow through set() like every other control. */}
       <CollapsibleSection
         title="Excludes"
-        summary="Skip items by tag, studio, or source path — before any routing"
+        summary="Skip items by tag, studio, or source path, before any routing"
       >
         <EntitySelectField
           entityType="tag"
@@ -354,9 +355,8 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             }}
             makeRow={() => ({ targetToken: TOKEN_OPTIONS[0].value, find: "", replace: "" })}
             renderRow={(row, _i, update) => {
-              // A rule saved before this dropdown existed (or via a hand-edited blob) may hold a
-              // token outside the 18 - surface it as an extra option so the Select shows the real
-              // stored value instead of silently displaying the first option while state differs.
+              // A stored rule can name a token outside the list, so it is added as an option and the
+              // Select shows the real value.
               const tokenOptions = TOKEN_OPTIONS.some((o) => o.value === row.targetToken)
                 ? TOKEN_OPTIONS
                 : [

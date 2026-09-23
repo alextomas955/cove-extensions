@@ -5,12 +5,12 @@
  */
 import { Chip } from "@cove-extensions/ui-shared";
 
-import { templateUsesToken } from "./templateValidation";
+import { templateUsesToken } from "./templateLogic";
 import { TOKENS, type TokenEntry } from "./tokens";
 
 /** Tooltip copy for an optional chip - names the exact wrapped string it inserts. */
 function optionalTooltip(t: TokenEntry): string {
-  return `Inserts wrapped in an optional group: ${t.insert} — disappears cleanly when empty.`;
+  return `Inserts ${t.insert}, an optional group that disappears when empty.`;
 }
 
 export function TokenLegend({

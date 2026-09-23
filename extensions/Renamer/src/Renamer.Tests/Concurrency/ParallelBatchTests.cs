@@ -3,28 +3,16 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// Parallel-batch correctness. Proves: every acting item
-/// renames and the shared journal holds exactly one well-formed row per success (no torn/lost
-/// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
-/// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
-/// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the
-/// free-space sum); and an in-flight free-space drop skips a cross-volume item gracefully. Cove
-/// disables EF thread-safety checks, so every assertion is on observable outcomes (files, DB rows,
-/// the journal rows) - never on an EF exception. The store is a thread-safe
-/// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
-/// </summary>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
-    /// <summary>Wires the extension over a scoped DbContext factory so each worker gets its own context over the shared DB.</summary>
+    // Wires the extension over a scoped DbContext factory so each worker gets its own context over
+    // the shared DB.
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
         BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
     {
@@ -71,7 +59,7 @@ public sealed class ParallelBatchTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             // All K renamed on disk.
             for (int i = 0; i < k; i++)
@@ -82,7 +70,7 @@ public sealed class ParallelBatchTests
 
             // The shared journal (read fresh from the database) holds exactly K well-formed rows.
             await using var readDb = shared.NewContext();
-            using var journal = new CoveRevertJournal(readDb);
+            await using var journal = new CoveRevertJournal(readDb);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Rows.Count);
@@ -145,7 +133,7 @@ public sealed class ParallelBatchTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             // Every item whose source existed renamed; the faulting item did not (its target was never
             // created) and the batch still finished at 1.0 - one bad item never aborts the run.
@@ -202,7 +190,7 @@ public sealed class ParallelBatchTests
                 new RenamerOptions { FilenameTemplate = "$title", CrossVolumeConcurrency = 1 });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default,
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default,
                 freeSpaceProbe: _ => 1L);
 
             for (int i = 0; i < k; i++)
@@ -220,20 +208,17 @@ public sealed class ParallelBatchTests
     [Fact]
     public async Task InFlightFreeSpaceDrop_SkipsCrossVolumeItemGracefully()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst gives a distinct path root (NOT a real second drive) on Windows only.
-        }
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
-        using var drive = new SubstDrive(); // a distinct path root that backs the same physical volume.
+        using var drive = new SecondVolume();
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
             string srcFolder = Path.Combine(dir.Root, "incoming");
             Directory.CreateDirectory(srcFolder);
             string srcPathFwd = srcFolder.Replace('\\', '/');
-            string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
+            string destRootFwd = drive.Root.Replace('\\', '/');
 
             await using var seedDb = shared.NewContext();
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
@@ -246,7 +231,7 @@ public sealed class ParallelBatchTests
             fileRow.Size = 4096;
             await seedDb.SaveChangesAsync();
 
-            // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
+            // Route the item across volumes (src on the temp drive → dest on the second volume), so
             // the partition classifies it cross-volume and the worker runs the in-flight Shortfall.
             var options = new RenamerOptions
             {
@@ -271,7 +256,7 @@ public sealed class ParallelBatchTests
             long Probe(string vol) => Interlocked.Increment(ref calls) == 1 ? 1L << 40 : 1L;
 
             var progress = new FakeJobProgress();
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default, Probe);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], progress, default, Probe);
 
             // The in-flight drop skipped the move: the file stayed at its source and never landed on the
             // routed destination. The batch finished cleanly (no throw, final 1.0).

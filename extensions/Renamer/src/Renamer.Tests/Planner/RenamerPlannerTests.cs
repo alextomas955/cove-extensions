@@ -1,15 +1,10 @@
+using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Dry-run core: <c>RenamerPlanner.PlanAsync</c> produces an accurate per-file
-/// old→new plan with the right <see cref="RenamerStatus"/>. Covers the happy-path renamer, NoOp,
-/// and the confinement rejection. That planning mutates nothing is pinned by
-/// <see cref="PreviewPurityTests"/>.
-/// </summary>
 public sealed class RenamerPlannerTests
 {
     private static RenamerFile VideoFile(int id, string basename, int folderId = 5, string folderPath = "media/videos") =>
@@ -23,7 +18,7 @@ public sealed class RenamerPlannerTests
             Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(1, "hd")], Files: files);
 
     [Fact]
-    public async Task SingleFile_Renamer_HappyPath_ZeroMutation()
+    public async Task SingleFile_Rename_HappyPath_ZeroMutation()
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
@@ -33,7 +28,7 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Equal("My Film.mkv", item.NewBasename);
         Assert.EndsWith("My Film.mkv", item.NewFullPath);
         Assert.EndsWith("media/videos/raw.mkv", item.OldFullPath);

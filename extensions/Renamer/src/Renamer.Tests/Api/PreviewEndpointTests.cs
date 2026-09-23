@@ -3,30 +3,20 @@ using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// Dry-run preview: <c>PreviewAsync</c> runs the planner over the seeded entity and returns
-/// <see cref="RenamerPlanItem"/>[] (old→new + status) with zero mutation - proven by reading back
-/// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
-/// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
-/// </summary>
 public sealed class PreviewEndpointTests
 {
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync()
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
-        // This test exercises preview wire-shape + zero mutation, not the default template; pin the
-        // title-only template in the store so the seeded (height-less) video renders a stable
-        // "Title.ext" name independent of the shipped default (which would append "[$resolution]").
+        // "$title" keeps the seeded video, which has no height, from gaining a resolution suffix.
         await new OptionsStore(store).SaveAsync(new RenamerOptions { FilenameTemplate = "$title" });
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
-        // PreviewAsync uses Store (OptionsStore) but not _scopeFactory/_eventBus; no Initialize needed.
         return ext;
     }
 
@@ -56,15 +46,12 @@ public sealed class PreviewEndpointTests
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
             Assert.Equal("First Film.mkv", item.NewBasename);
-            Assert.Equal(RenamerStatus.Renamer, item.Status);
+            Assert.Equal(RenamerStatus.Rename, item.Status);
 
-            // wire-shape regression (the bug live-browser verification caught): the response must
-            // serialize as camelCase with `status` the camelCase string "renamer" - not PascalCase,
-            // not the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
-            // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
-            // fires. Assert the actual bytes the response options produce.
+            // The UI's confirm summary reads it.status === "rename" and it.fileId, so a numeric enum or a
+            // PascalCase key reads as nothing to rename and the rename never fires.
             var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
-            Assert.Contains("\"status\":\"renamer\"", json);
+            Assert.Contains("\"status\":\"rename\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
             Assert.DoesNotContain("\"Status\":", json);

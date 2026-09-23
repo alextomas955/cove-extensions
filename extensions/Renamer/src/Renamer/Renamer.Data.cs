@@ -19,7 +19,7 @@ public sealed partial class Renamer
     {
         modelBuilder.Entity<RevertBatchEntity>(batch =>
         {
-            batch.ToTable("renamer_revert_batches");
+            batch.ToTable(RevertJournalSchema.BatchTable);
             batch.HasKey(b => b.RunId);
             batch.Property(b => b.RunId).HasColumnName("run_id");
             batch.Property(b => b.OpenedAtUtcTicks).HasColumnName("opened_at_utc_ticks");
@@ -33,7 +33,7 @@ public sealed partial class Renamer
 
         modelBuilder.Entity<RevertRowEntity>(row =>
         {
-            row.ToTable("renamer_revert_rows");
+            row.ToTable(RevertJournalSchema.RowTable);
             row.HasKey(r => new { r.RunId, r.Seq });
             row.Property(r => r.RunId).HasColumnName("run_id");
             row.Property(r => r.Seq).HasColumnName("seq");

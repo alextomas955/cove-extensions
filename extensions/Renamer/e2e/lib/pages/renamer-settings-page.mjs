@@ -12,7 +12,7 @@ const SETTINGS_PATH = "/settings/renamer";
 // It has to cover a slow response on the panel's critical path - the extension bundle the host serves,
 // and the settings blob the panel reads - on a cold container under a loaded CI runner. Neither is
 // broken when it is slow, and neither raises any of the signals below, so waiting is the only
-// instrument that helps. `host-page-transients.spec.mjs` pins how slow a response this survives.
+// instrument that helps.
 const PANEL_VISIT_BUDGET_MS = 120_000;
 
 // How many times the host may answer with a recoverable signal before the page is called unreachable.
@@ -48,10 +48,9 @@ export class RenamerSettingsPage {
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
-    // The whole-library run's success banner - the poll target that proves the scan+rename job pair
-    // settled, not the correctness proof (disk+DB state is asserted separately). Matched on the
-    // opening sentence alone: the counts that follow come from the pre-run scan, so pinning them here
-    // would tie this locator to a number the banner does not learn from the run.
+    // The whole-library run's success banner - the poll target that proves the rename job settled,
+    // not the correctness proof (disk and DB state are asserted separately). Matched on the opening
+    // sentence alone, so a spec's own seeding decides nothing about the locator.
     this.renameAllFeedback = page.getByText(/Rename finished\./);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button - dynamic label ("Undo 1 rename",
@@ -77,12 +76,6 @@ export class RenamerSettingsPage {
   /** Opens the panel and returns once it has rendered. */
   async goto() {
     await this.#navigate(() => this.page.goto(this.panelUrl));
-    await this.waitForPanel();
-  }
-
-  /** Reloads the panel and returns once it has rendered again. */
-  async reload() {
-    await this.#navigate(() => this.page.reload());
     await this.waitForPanel();
   }
 
@@ -216,11 +209,6 @@ export class RenamerSettingsPage {
     await this.kindRow(kindLabel).getByRole("button", { name: "Include" }).click();
   }
 
-  /** Puts the kind back on the card's own destination, clearing any folder of its own. Does not save. */
-  async useDefaultForKind(kindLabel) {
-    await this.kindRow(kindLabel).getByRole("button", { name: "Use default" }).click();
-  }
-
   /**
    * Clicks "Rename all files" and waits for the in-panel success banner. Saves first when the panel
    * is dirty: the button is disabled while there are unsaved edits (disabled={dirty || …}), because
@@ -281,10 +269,6 @@ export class RenamerSettingsPage {
   /** The video live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
     return this.page.getByText("Video", { exact: true }).locator("..");
-  }
-
-  hasUndoAvailable() {
-    return this.undoLastRenameButton.isVisible();
   }
 
   /**

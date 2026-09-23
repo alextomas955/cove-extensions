@@ -1,5 +1,4 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 using Renamer.Options;
 
 namespace Renamer.Planner;
@@ -70,13 +69,9 @@ public sealed class ScanRowPager(
             var kind = order[i];
             int after = i == startIndex ? startAfter : 0;
 
+            // The inner loop returns once the entity budget is spent, so every pass starts under it.
             while (true)
             {
-                if (examined >= MaxEntitiesPerRequest)
-                {
-                    return new ScanRowsPage(rows, new ScanCursor(kind, after), examined, true);
-                }
-
                 int idBatch = Math.Min(IdBatchSize, MaxEntitiesPerRequest - examined);
                 var ids = await port.LoadEntityIdPageAsync(kind, after, idBatch, ct);
                 if (ids.Count == 0)
@@ -146,7 +141,7 @@ public sealed class ScanRowPager(
     // Ids are pulled in batches so a filtered page issues one id query per batch rather than one per
     // entity, and the same batch feeds one chunked graph load. Bound to the port's own chunk decision so
     // there is a single number.
-    private const int IdBatchSize = CoveRenamerDataPort.LoadChunkSize;
+    private const int IdBatchSize = IRenamerDataPort.LoadChunkSize;
 
     // Trims and lower-cases a search query; a blank query becomes null, meaning no filter.
     internal static string? NormalizeQuery(string? query)
@@ -174,19 +169,7 @@ public sealed class ScanRowPager(
         }
 
         string haystack =
-            $"{row.OldFullPath}\n{row.NewFullPath}\n{Basename(row.NewFullPath)}\n{Folder(row.NewFullPath)}";
+            $"{row.OldFullPath}\n{row.NewFullPath}\n{PathOps.BasenameOf(row.NewFullPath)}\n{PathOps.DirOf(row.NewFullPath)}";
         return haystack.ToLowerInvariant().Contains(needle, StringComparison.Ordinal);
-    }
-
-    private static string Basename(string path)
-    {
-        int i = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
-        return i >= 0 ? path[(i + 1)..] : path;
-    }
-
-    private static string Folder(string path)
-    {
-        int i = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
-        return i >= 0 ? path[..i] : string.Empty;
     }
 }

@@ -18,10 +18,8 @@
 // It reads the installed artifact over HTTP rather than the local dist/, so it covers the
 // build → publish → install → serve path rather than re-asserting a fact about a file the build just
 // wrote.
-import { test, expect } from "../lib/renamer-fixtures.mjs";
+import { test, expect, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
-
-const EXTENSION_ID = "com.alextomas955.renamer";
 
 // A named import binding, never a bare side-effect `import "@cove/runtime/api";` - an external with
 // no live binding degrades to exactly that, which proves the specifier resolves but proves nothing

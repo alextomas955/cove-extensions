@@ -4,6 +4,9 @@
  * (so an unused token never shows noise); when none is used, an empty-state offers one-click token
  * insertion. Presentational - edits flow up through set/setMulti/insertToken.
  */
+import type { SetOption } from "./useRenamerOptions";
+import type { ReactNode } from "react";
+
 import {
   type RenamerOptions,
   type MultiValueOptions,
@@ -28,8 +31,9 @@ import {
   type ValueOption,
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { templateUsesToken } from "./templateValidation";
+import { templateUsesToken } from "./templateLogic";
 import { optionsFor } from "./selectOptions";
+import { TOKENS } from "./tokens";
 
 const OVERFLOW_OPTIONS = optionsFor<OverflowPolicy>({
   dropAll: "Drop all when over the max",
@@ -88,9 +92,9 @@ const SEPARATOR_OPTIONS: readonly SeparatorOption[] = [
   { value: " - ", label: "Dash ( - )" },
 ];
 
-export interface TokenSettingsSectionProps {
+interface TokenSettingsSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
   insertToken: (token: string) => void;
 }
@@ -101,194 +105,63 @@ export function TokenSettingsSection({
   setMulti,
   insertToken,
 }: TokenSettingsSectionProps) {
-  const mv = (group: "performers" | "tags") => options[group];
-
-  const usesPerformers = templateUsesToken(
-    "performers",
-    options.filenameTemplate,
-    options.folderTemplate,
-  );
-  const usesTags = templateUsesToken("tags", options.filenameTemplate, options.folderTemplate);
-  const usesDate = templateUsesToken("date", options.filenameTemplate, options.folderTemplate);
-  const usesDuration = templateUsesToken(
-    "duration",
-    options.filenameTemplate,
-    options.folderTemplate,
-  );
+  const uses = (token: string) =>
+    templateUsesToken(token, options.filenameTemplate, options.folderTemplate);
+  const usesPerformers = uses("performers");
+  const usesTags = uses("tags");
+  const usesDate = uses("date");
+  const usesDuration = uses("duration");
 
   return (
     <SectionCard title="Token settings" description="Formatting for individual tokens.">
       {usesPerformers ? (
-        <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
-          <FieldGroup label="Separator">
-            <SeparatorChips
-              value={mv("performers").separator}
-              onChange={(v) => {
-                setMulti("performers", { separator: v });
-              }}
-              options={SEPARATOR_OPTIONS}
-              customPlaceholder="Custom separator"
-              ariaLabel="Performer separator"
-            />
-          </FieldGroup>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count">
-              {(id) => (
-                <NumberInput
-                  id={id}
-                  value={mv("performers").maxCount}
-                  min={0}
-                  placeholder="No limit"
-                  blankWhenZero
-                  onChange={(v) => {
-                    setMulti("performers", { maxCount: v });
-                  }}
-                />
-              )}
-            </Field>
-            <Field label="On overflow">
-              {(id) => (
-                <Select
-                  id={id}
-                  value={mv("performers").onOverflow}
-                  onChange={(v) => {
-                    setMulti("performers", { onOverflow: v });
-                  }}
-                  options={OVERFLOW_OPTIONS}
-                />
-              )}
-            </Field>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Sort" helper="The id and favorite orders apply to performers only.">
-              {(id) => (
-                <Select
-                  id={id}
-                  value={mv("performers").sort}
-                  onChange={(v) => {
-                    setMulti("performers", { sort: v });
-                  }}
-                  options={PERFORMER_SORT_OPTIONS}
-                />
-              )}
-            </Field>
+        <MultiValueGroup
+          title="Performers"
+          group="performers"
+          entityType="performer"
+          options={options.performers}
+          setMulti={setMulti}
+          sortOptions={PERFORMER_SORT_OPTIONS}
+          sortHelper="The id and favorite orders apply to performers only."
+          ignoreGenders={
             <FieldGroup
               label="Ignore genders"
               helper="Removed before the max-count cap. Performers with no gender are always kept."
             >
               <ChipMultiSelect
                 options={GENDER_OPTIONS}
-                values={mv("performers").ignoreGenders}
+                values={options.performers.ignoreGenders}
                 onChange={(v) => {
                   setMulti("performers", { ignoreGenders: v });
                 }}
               />
             </FieldGroup>
-          </div>
-          <FieldGroup label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
-            <OrderedPickToAdd
-              options={GENDER_OPTIONS}
-              values={mv("performers").genderOrder}
-              onChange={(v) => {
-                setMulti("performers", { genderOrder: v });
-              }}
-              addPrompt="Add a gender…"
-              ariaLabel="Gender order"
-            />
-          </FieldGroup>
-          <EntitySelectField
-            entityType="performer"
-            label="Only include"
-            values={mv("performers").whitelistIds}
-            onChange={(v) => {
-              setMulti("performers", { whitelistIds: v });
-            }}
-            placeholder="Search performers…"
-          />
-          <EntitySelectField
-            entityType="performer"
-            label="Never include"
-            values={mv("performers").blacklistIds}
-            onChange={(v) => {
-              setMulti("performers", { blacklistIds: v });
-            }}
-            placeholder="Search performers…"
-          />
-        </GroupCard>
+          }
+          genderOrder={
+            <FieldGroup label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
+              <OrderedPickToAdd
+                options={GENDER_OPTIONS}
+                values={options.performers.genderOrder}
+                onChange={(v) => {
+                  setMulti("performers", { genderOrder: v });
+                }}
+                addPrompt="Add a gender…"
+                ariaLabel="Gender order"
+              />
+            </FieldGroup>
+          }
+        />
       ) : null}
 
       {usesTags ? (
-        <GroupCard title="Tags" badge={<Badge mono>$tags</Badge>}>
-          <FieldGroup label="Separator">
-            <SeparatorChips
-              value={mv("tags").separator}
-              onChange={(v) => {
-                setMulti("tags", { separator: v });
-              }}
-              options={SEPARATOR_OPTIONS}
-              customPlaceholder="Custom separator"
-              ariaLabel="Tag separator"
-            />
-          </FieldGroup>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count">
-              {(id) => (
-                <NumberInput
-                  id={id}
-                  value={mv("tags").maxCount}
-                  min={0}
-                  placeholder="No limit"
-                  blankWhenZero
-                  onChange={(v) => {
-                    setMulti("tags", { maxCount: v });
-                  }}
-                />
-              )}
-            </Field>
-            <Field label="On overflow">
-              {(id) => (
-                <Select
-                  id={id}
-                  value={mv("tags").onOverflow}
-                  onChange={(v) => {
-                    setMulti("tags", { onOverflow: v });
-                  }}
-                  options={OVERFLOW_OPTIONS}
-                />
-              )}
-            </Field>
-          </div>
-          <Field label="Sort">
-            {(id) => (
-              <Select
-                id={id}
-                value={mv("tags").sort}
-                onChange={(v) => {
-                  setMulti("tags", { sort: v });
-                }}
-                options={TAG_SORT_OPTIONS}
-              />
-            )}
-          </Field>
-          <EntitySelectField
-            entityType="tag"
-            label="Only include"
-            values={mv("tags").whitelistIds}
-            onChange={(v) => {
-              setMulti("tags", { whitelistIds: v });
-            }}
-            placeholder="Search tags…"
-          />
-          <EntitySelectField
-            entityType="tag"
-            label="Never include"
-            values={mv("tags").blacklistIds}
-            onChange={(v) => {
-              setMulti("tags", { blacklistIds: v });
-            }}
-            placeholder="Search tags…"
-          />
-        </GroupCard>
+        <MultiValueGroup
+          title="Tags"
+          group="tags"
+          entityType="tag"
+          options={options.tags}
+          setMulti={setMulti}
+          sortOptions={TAG_SORT_OPTIONS}
+        />
       ) : null}
 
       {usesDate || usesDuration ? (
@@ -345,45 +218,134 @@ export function TokenSettingsSection({
             options show up here.
           </p>
           <div className="flex flex-wrap justify-center gap-1">
-            <Chip
-              selected={false}
-              mono
-              onClick={() => {
-                insertToken("{ - $performers}");
-              }}
-            >
-              $performers
-            </Chip>
-            <Chip
-              selected={false}
-              mono
-              onClick={() => {
-                insertToken("{ - $tags}");
-              }}
-            >
-              $tags
-            </Chip>
-            <Chip
-              selected={false}
-              mono
-              onClick={() => {
-                insertToken("{ - $date}");
-              }}
-            >
-              $date
-            </Chip>
-            <Chip
-              selected={false}
-              mono
-              onClick={() => {
-                insertToken("{ [$duration]}");
-              }}
-            >
-              $duration
-            </Chip>
+            {EMPTY_STATE_TOKENS.map((t) => (
+              <Chip
+                key={t.token}
+                selected={false}
+                mono
+                onClick={() => {
+                  insertToken(t.insert);
+                }}
+              >
+                {t.token}
+              </Chip>
+            ))}
           </div>
         </div>
       ) : null}
     </SectionCard>
+  );
+}
+
+const EMPTY_STATE_TOKENS = ["$performers", "$tags", "$date", "$duration"].flatMap((name) =>
+  TOKENS.filter((t) => t.token === name),
+);
+
+/** The $performers or $tags group: separator, count cap, sort, and the include and exclude lists. */
+function MultiValueGroup({
+  title,
+  group,
+  entityType,
+  options,
+  setMulti,
+  sortOptions,
+  sortHelper,
+  ignoreGenders,
+  genderOrder,
+}: Readonly<{
+  title: string;
+  group: "performers" | "tags";
+  entityType: "performer" | "tag";
+  options: MultiValueOptions;
+  setMulti: TokenSettingsSectionProps["setMulti"];
+  sortOptions: readonly { value: SortOrder; label: string }[];
+  sortHelper?: string;
+  ignoreGenders?: ReactNode;
+  genderOrder?: ReactNode;
+}>) {
+  const noun = entityType === "performer" ? "Performer" : "Tag";
+  const sort = (
+    <Field label="Sort" helper={sortHelper}>
+      {(id) => (
+        <Select
+          id={id}
+          value={options.sort}
+          onChange={(v) => {
+            setMulti(group, { sort: v });
+          }}
+          options={sortOptions}
+        />
+      )}
+    </Field>
+  );
+  return (
+    <GroupCard title={title} badge={<Badge mono>${group}</Badge>}>
+      <FieldGroup label="Separator">
+        <SeparatorChips
+          value={options.separator}
+          onChange={(v) => {
+            setMulti(group, { separator: v });
+          }}
+          options={SEPARATOR_OPTIONS}
+          customPlaceholder="Custom separator"
+          ariaLabel={`${noun} separator`}
+        />
+      </FieldGroup>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Max count">
+          {(id) => (
+            <NumberInput
+              id={id}
+              value={options.maxCount}
+              min={0}
+              placeholder="No limit"
+              blankWhenZero
+              onChange={(v) => {
+                setMulti(group, { maxCount: v });
+              }}
+            />
+          )}
+        </Field>
+        <Field label="On overflow">
+          {(id) => (
+            <Select
+              id={id}
+              value={options.onOverflow}
+              onChange={(v) => {
+                setMulti(group, { onOverflow: v });
+              }}
+              options={OVERFLOW_OPTIONS}
+            />
+          )}
+        </Field>
+      </div>
+      {ignoreGenders ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {sort}
+          {ignoreGenders}
+        </div>
+      ) : (
+        sort
+      )}
+      {genderOrder}
+      <EntitySelectField
+        entityType={entityType}
+        label="Only include"
+        values={options.whitelistIds}
+        onChange={(v) => {
+          setMulti(group, { whitelistIds: v });
+        }}
+        placeholder={`Search ${group}…`}
+      />
+      <EntitySelectField
+        entityType={entityType}
+        label="Never include"
+        values={options.blacklistIds}
+        onChange={(v) => {
+          setMulti(group, { blacklistIds: v });
+        }}
+        placeholder={`Search ${group}…`}
+      />
+    </GroupCard>
   );
 }

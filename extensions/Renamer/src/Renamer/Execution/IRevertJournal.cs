@@ -1,9 +1,9 @@
-namespace Renamer.Planner;
+namespace Renamer.Execution;
 
 /// <summary>The undo seam between the rename and undo paths and where the revert journal is stored.</summary>
 /// <remarks>
-/// Speaks only in the Renamer-owned records below, never an EF or Cove.Core type, for the reason
-/// <see cref="IRenamerDataPort"/> gives. A row exists exactly while its file still needs restoring,
+/// Speaks only in the Renamer-owned records below, never an EF type. A row exists exactly while its
+/// file still needs restoring,
 /// so there is no per-row status to disagree with the row's own presence; the per-batch counters
 /// carry the totals the panel reports.
 /// </remarks>
@@ -110,8 +110,7 @@ public interface IRevertJournal
 /// <remarks>
 /// <c>EntityId</c> is the parent entity the forward rename published its event for, not
 /// <c>FileId</c>, the renamed physical file row. <c>OldPath</c> is forward-slash form.
-/// <c>SidecarsJson</c> is journalled rather than recomputed because which sidecars actually moved is
-/// a runtime fact, and the caption transform is not invertible from the names alone.
+/// <c>SidecarsJson</c> holds the serialized <see cref="RevertDelta"/>.
 /// </remarks>
 public sealed record RevertRow(
     string RunId,
@@ -142,28 +141,13 @@ public readonly record struct RevertOperationSummary(
     int UnrestorableCount)
 {
     /// <summary>How many files the operation still has to restore.</summary>
-    /// <remarks>Derived, never stored, for the reason <see cref="RevertBatchSummary.Remaining"/> gives.</remarks>
-    public int Remaining => OriginalCount - RestoredCount - UnrestorableCount;
-}
-
-/// <summary>A batch's aggregate: what it started as, and how much of it has been settled.</summary>
-/// <remarks>
-/// <c>OperationId</c> is resolved on read, so a batch written before the column existed reads as an
-/// operation of one. <c>WrittenAtUtcTicks</c> is what the retention window is measured from.
-/// <c>OriginalCount</c> is never decremented. <c>Kind</c> serves the undo endpoint's per-kind write
-/// re-gate and the replayer from one read, and deliberately does not reach the wire summary: it
-/// would tell a caller holding one kind's read permission which kind was renamed.
-/// </remarks>
-public readonly record struct RevertBatchSummary(
-    string RunId,
-    string OperationId,
-    RenamerFileKind Kind,
-    long WrittenAtUtcTicks,
-    int OriginalCount,
-    int RestoredCount,
-    int UnrestorableCount)
-{
-    /// <summary>How many files the batch still has to restore.</summary>
     /// <remarks>Derived, never stored: three numbers that must sum correctly can disagree.</remarks>
     public int Remaining => OriginalCount - RestoredCount - UnrestorableCount;
 }
+
+/// <summary>One batch of an operation, as the undo loop walks them.</summary>
+/// <remarks>
+/// <c>WrittenAtUtcTicks</c> and <c>RunId</c> are the walk's cursor. <c>Kind</c> never reaches the wire,
+/// because it would tell a caller holding one kind's read permission which kind was renamed.
+/// </remarks>
+public readonly record struct RevertBatchSummary(string RunId, RenamerFileKind Kind, long WrittenAtUtcTicks);

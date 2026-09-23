@@ -1,16 +1,9 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The incremental fold the whole-library scan replaces its per-file list with: folding one entity at a
-/// time must produce the same blast radius <see cref="BatchPreview.Summarize"/> computes over the whole
-/// set at once, exact per-status counts, and a retained-object count that does not grow with the number
-/// of entities folded.
-/// </summary>
 public sealed class ScanAggregatorTests
 {
     // Volume identity is per-platform (VolumeClassifier): the path root on Windows, the enclosing mount
@@ -41,7 +34,7 @@ public sealed class ScanAggregatorTests
     private static string FolderOf(string path) => Path.GetDirectoryName(path)!.Replace('\\', '/');
 
     private static RenamerPlanItem Acting(int fileId, string oldPath, string newPath) =>
-        new(fileId, oldPath, newPath, RenamerStatus.Renamer, Path.GetFileName(newPath), FolderOf(newPath));
+        new(fileId, oldPath, newPath, RenamerStatus.Rename, Path.GetFileName(newPath), FolderOf(newPath));
 
     private static RenamerPlanItem WithStatus(int fileId, RenamerStatus status)
     {
@@ -233,10 +226,10 @@ public sealed class ScanAggregatorTests
     public void Fold_CountsAnOverflow_OnlyForTheCrossVolumeItemPastTheBoundary()
     {
         // The longest final path whose cross-volume copy still fits, because the copy is minted
-        // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before being
+        // PathOps.InFlightSuffixLength characters longer beside the destination before being
         // promoted. Three items positioned around it: the boundary itself, one character past it, and a
         // same-volume item of that same over-boundary length, which mints no temporary name at all.
-        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+        int longestThatFits = Budget - PathOps.InFlightSuffixLength;
         string fitsName = NameForPathLength(longestThatFits);
         string overName = NameForPathLength(longestThatFits + 1);
 
@@ -274,8 +267,8 @@ public sealed class ScanAggregatorTests
         // The whole-library figure a large-library user reads. It is re-derived by summing the per-kind
         // summaries, so it is zero whenever either the per-kind fold or the merge is left unwired, and a
         // count of zero reads as "no overflows" on exactly the libraries most likely to have them.
-        string overName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
-        string fitsName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength);
+        string overName = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
+        string fitsName = NameForPathLength(Budget - PathOps.InFlightSuffixLength);
 
         var aggregator = new ScanAggregator(Budget, Mounts);
         var sizes = new Dictionary<int, long>();

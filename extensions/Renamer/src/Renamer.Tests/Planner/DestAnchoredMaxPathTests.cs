@@ -1,17 +1,10 @@
-using Renamer.Execution;
+using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The FullPathMax re-check re-anchors on the destination's own root, not the
-/// source folder. The load-bearing assertion is the contrast - the same rendered name fits under a
-/// short library path but overflows under a deep routed root, so the over-long case becomes a
-/// skip-with-reason at preview (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
-/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. pure - no disk.
-/// </summary>
 public sealed class DestAnchoredMaxPathTests
 {
     // A short source folder and a deep routed root, so the same render fits under one and overflows the other.
@@ -215,7 +208,7 @@ public sealed class DestAnchoredMaxPathTests
         // above would be a skip and this one would be the only survivor. Read from the minter's own
         // declaration, so a narrowing of the minted name moves this case with it.
         var item = await PlanAtBudgetAsync(
-            BoundaryAbsoluteLength + CrossVolumeMover.InFlightSuffixLength);
+            BoundaryAbsoluteLength + PathOps.InFlightSuffixLength);
 
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(BoundaryBasename, item.NewBasename);

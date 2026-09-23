@@ -4,10 +4,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The name-to-id options conversion. Every case here is a way a user's configuration can be lost
-/// silently, so each asserts what survives rather than only that the conversion ran.
-/// </summary>
 public sealed class OptionsMigrationScanTests
 {
     [Theory]
@@ -149,7 +145,6 @@ public sealed class OptionsMigrationScanTests
     }
 }
 
-/// <summary>The conversion itself: what it rewrites, what it keeps, and what it reports losing.</summary>
 public sealed class OptionsMigrationConvertTests
 {
     private const string LegacyBlob = """

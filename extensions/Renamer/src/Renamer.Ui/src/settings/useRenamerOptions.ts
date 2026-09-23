@@ -9,12 +9,15 @@
  * The panel consumes this hook and stays presentational: it never issues a request.
  */
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, request, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { request, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { OptionsView, RenamerOptions, MultiValueOptions } from "./options";
 import { api } from "../common/lib/extension";
 
 const OPTIONS_PATH = api("options");
+
+/** Sets one option on the unsaved copy. */
+export type SetOption = <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
 
 export interface UseRenamerOptions {
   options: RenamerOptions | null;
@@ -31,7 +34,7 @@ export interface UseRenamerOptions {
   load: () => Promise<void>;
   onSave: () => Promise<void>;
   discard: () => void;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
 }
 
@@ -71,7 +74,7 @@ export function useRenamerOptions(): UseRenamerOptions {
       setPendingNameMigration(view.pendingNameMigration);
       setPendingDestinationMigration(view.pendingDestinationMigration);
     } catch (err) {
-      setLoadError(err instanceof ApiError ? `${err.status} ${err.body}` : String(err));
+      setLoadError(errorText(err));
     } finally {
       setLoading(false);
     }
@@ -101,7 +104,7 @@ export function useRenamerOptions(): UseRenamerOptions {
         setSavedFlash(false);
       }, 3000);
     } catch (err) {
-      setSaveError(err instanceof ApiError ? `${err.status} ${err.body}` : String(err));
+      setSaveError(errorText(err));
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Engine;
 using Renamer.Planner;
 
 namespace Renamer.Execution;
@@ -150,12 +151,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-    // EF Core translates an in list to one bound parameter per id, so an unchunked load would exceed
-    // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
-    // at one round-trip per chunk. The in list is provider-agnostic: the provider is host-supplied,
-    // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
-    // on SQLite.
-    internal const int LoadChunkSize = 200;
 
     // The single source of truth for studio-hierarchy depth. Two things stay bound to it: the
     // WalkParentStudios ancestor-hop bound, and the number of ".ThenInclude(s => s!.Parent)" hops each
@@ -172,40 +167,25 @@ public class CoveRenamerDataPort : IRenamerDataPort
             return [];
         }
 
-        var result = new List<RenamerEntity>(ids.Count);
-        switch (kind)
+        return kind switch
         {
-            case RenamerFileKind.Video:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await VideoQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapVideoEntity));
-                }
-                break;
-            case RenamerFileKind.Image:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await ImageQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapImageEntity));
-                }
-                break;
-            case RenamerFileKind.Audio:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await AudioQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapAudioEntity));
-                }
-                break;
-            case RenamerFileKind.Text:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await TextQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapTextEntity));
-                }
-                break;
-            default:
-                // Gallery is not yet a renamable kind.
-                return [];
+            RenamerFileKind.Video => await LoadChunkedAsync(VideoQuery(), ids, MapVideoEntity, ct),
+            RenamerFileKind.Image => await LoadChunkedAsync(ImageQuery(), ids, MapImageEntity, ct),
+            RenamerFileKind.Audio => await LoadChunkedAsync(AudioQuery(), ids, MapAudioEntity, ct),
+            RenamerFileKind.Text => await LoadChunkedAsync(TextQuery(), ids, MapTextEntity, ct),
+            _ => [],
+        };
+    }
+
+    private static async Task<IReadOnlyList<RenamerEntity>> LoadChunkedAsync<T>(
+        IQueryable<T> query, IReadOnlyList<int> ids, Func<T, RenamerEntity> map, CancellationToken ct)
+        where T : BaseEntity
+    {
+        var result = new List<RenamerEntity>(ids.Count);
+        foreach (var chunk in ids.Chunk(IRenamerDataPort.LoadChunkSize))
+        {
+            var rows = await query.Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+            result.AddRange(rows.Select(map));
         }
 
         return result;
@@ -316,7 +296,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an in
         // list, and a whole run of planned paths would approach the provider's parameter cap.
-        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
+        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(IRenamerDataPort.LoadChunkSize))
         {
             // Where the volume treats a path and its case-variant as one file, so must this query.
             // Equality here is the database collation's, and a case-sensitive collation over a
@@ -379,17 +359,18 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         return kind switch
         {
-            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking()
-                .Where(v => v.Id > afterEntityId).OrderBy(v => v.Id).Take(take).Select(v => v.Id).ToArrayAsync(ct),
-            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking()
-                .Where(i => i.Id > afterEntityId).OrderBy(i => i.Id).Take(take).Select(i => i.Id).ToArrayAsync(ct),
-            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking()
-                .Where(a => a.Id > afterEntityId).OrderBy(a => a.Id).Take(take).Select(a => a.Id).ToArrayAsync(ct),
-            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking()
-                .Where(t => t.Id > afterEntityId).OrderBy(t => t.Id).Take(take).Select(t => t.Id).ToArrayAsync(ct),
+            RenamerFileKind.Video => await IdPageAsync<Video>(afterEntityId, take, ct),
+            RenamerFileKind.Image => await IdPageAsync<Image>(afterEntityId, take, ct),
+            RenamerFileKind.Audio => await IdPageAsync<Audio>(afterEntityId, take, ct),
+            RenamerFileKind.Text => await IdPageAsync<TextDocument>(afterEntityId, take, ct),
             _ => [],
         };
     }
+
+    private async Task<IReadOnlyList<int>> IdPageAsync<T>(int afterEntityId, int take, CancellationToken ct)
+        where T : BaseEntity
+        => await _db.Set<T>().AsNoTracking()
+            .Where(e => e.Id > afterEntityId).OrderBy(e => e.Id).Take(take).Select(e => e.Id).ToArrayAsync(ct);
 
     // The (ParentFolderId, Basename) unique-index pre-check: true when another file row already
     // occupies the slot. The source row is excluded, so a case-only rename onto itself is not a
@@ -407,7 +388,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // nothing, so a preview does not persist a destination folder.
     public async Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default)
     {
-        var normalized = folderPath.Replace('\\', '/');
+        var normalized = PathOps.NormalizeSlash(folderPath);
         var existing = await _db.Set<Folder>().AsNoTracking()
             .FirstOrDefaultAsync(f => normalized == f.Path, ct);
         return existing?.Id;
@@ -416,14 +397,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // The read-only disk probe backing the preview's missing-source warning.
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
     {
-        var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
-        return Task.FromResult(System.IO.File.Exists(native));
+        return Task.FromResult(System.IO.File.Exists(PathOps.ToNative(fullPath)));
     }
 
     // Returns the tracked folder entity, creating and saving one when the path has none.
     private async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
     {
-        var normalized = folderPath.Replace('\\', '/');
+        var normalized = PathOps.NormalizeSlash(folderPath);
         var existing = await _db.Set<Folder>().FirstOrDefaultAsync(f => normalized == f.Path, ct);
         if (existing is not null)
         {
@@ -436,70 +416,56 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return folder;
     }
 
-    // Applies each mutation to its tracked file row: Basename, optionally ParentFolderId and the
+    // Applies the mutation to its tracked file row: Basename, optionally ParentFolderId and the
     // ParentFolder navigation so the recompute resolves the new folder path, and each moved caption's
-    // Filename. Path is never set; Cove recomputes it in the one SaveChangesAsync, whose result is the
-    // recomputed Path of each saved file. A save failure, such as the unique-index violation, throws so
-    // the executor's catch rolls the disk back.
-    //
-    // Every caller passes a single mutation today, so no batch shape is exercised: this costs a tracked
-    // query per mutation, and another per mutation that changes folder, deduping neither. A batching
-    // caller wants the chunked in list of LoadEntitiesAsync.
-    public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-        IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+    // Filename. Path is never set; Cove recomputes it in SaveChangesAsync.
+    public virtual async Task<string> ApplyAndSaveAsync(
+        RenamerFileMutation mutation, CancellationToken ct = default)
     {
-        var touched = new List<BaseFileEntity>(mutations.Count);
+        var file = await _db.Set<BaseFileEntity>()
+            .Include(f => f.ParentFolder)
+            .FirstOrDefaultAsync(f => f.Id == mutation.FileId, ct)
+            ?? throw new InvalidOperationException($"file {mutation.FileId} not found");
 
-        foreach (var m in mutations)
+        file.Basename = mutation.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
+
+        if (mutation.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
         {
-            var file = await _db.Set<BaseFileEntity>()
-                .Include(f => f.ParentFolder)
-                .FirstOrDefaultAsync(f => f.Id == m.FileId, ct)
-                ?? throw new InvalidOperationException($"file {m.FileId} not found");
-
-            file.Basename = m.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
-
-            if (m.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
-            {
-                file.ParentFolderId = newFolderId;
-                // The navigation is set too, so ComputeFilePaths resolves the new folder path in memory.
-                file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
-            }
-
-            if (m.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
-            {
-                // The rows are queried and not reached through file.Captions. Every read this port makes
-                // is AsNoTracking, so in production nothing has put this file's captions in the change
-                // tracker and the navigation is empty: a lookup through it finds nothing and each rename
-                // is dropped in silence, leaving the row naming a file the move has taken away. A test
-                // that seeds a caption through the same context gets the navigation populated by
-                // relationship fix-up, so a fixture hides this.
-                var captionIds = m.CaptionRenames.Select(cr => cr.CaptionId).ToList();
-                var captions = await _db.Set<VideoCaption>()
-                    .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
-                    .ToListAsync(ct);
-
-                foreach (var (captionId, newFilename) in m.CaptionRenames)
-                {
-                    var cap = captions.FirstOrDefault(c => c.Id == captionId);
-                    if (cap is not null)
-                    {
-                        cap.Filename = newFilename;
-                    }
-                }
-            }
-
-            if (m.EntityTitle is RenamerEntityTitleWrite titleWrite)
-            {
-                await ApplyDerivedTitleAsync(titleWrite, ct);
-            }
-
-            touched.Add(file);
+            file.ParentFolderId = newFolderId;
+            // The navigation is set too, so ComputeFilePaths resolves the new folder path in memory.
+            file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
         }
 
-        await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here
+        if (mutation.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
+        {
+            // The rows are queried and not reached through file.Captions. Every read this port makes
+            // is AsNoTracking, so in production nothing has put this file's captions in the change
+            // tracker and the navigation is empty: a lookup through it finds nothing and each rename
+            // is dropped in silence, leaving the row naming a file the move has taken away. A test
+            // that seeds a caption through the same context gets the navigation populated by
+            // relationship fix-up, so a fixture hides this.
+            var captionIds = mutation.CaptionRenames.Select(cr => cr.CaptionId).ToList();
+            var captions = await _db.Set<VideoCaption>()
+                .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
+                .ToListAsync(ct);
 
-        return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
+            foreach (var (captionId, newFilename) in mutation.CaptionRenames)
+            {
+                var cap = captions.FirstOrDefault(c => c.Id == captionId);
+                if (cap is not null)
+                {
+                    cap.Filename = newFilename;
+                }
+            }
+        }
+
+        if (mutation.EntityTitle is RenamerEntityTitleWrite titleWrite)
+        {
+            await ApplyDerivedTitleAsync(titleWrite, ct);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return file.Path;
     }
 
     // Records a filename-derived title on its media entity, and only on one that still has none.

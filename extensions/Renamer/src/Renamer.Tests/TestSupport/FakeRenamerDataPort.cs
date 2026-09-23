@@ -2,16 +2,15 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// In-memory <see cref="IRenamerDataPort"/> for DB-free unit tests of the planner / collision /
-/// gating / suffix logic: this is the seam faked so the pure planning logic is testable without a
-/// live CoveContext. No disk, no DB.
-/// </summary>
+// In-memory IRenamerDataPort for DB-free unit tests of the planner / collision / gating / suffix
+// logic: this is the seam faked so the pure planning logic is testable without a live CoveContext.
+// No disk, no DB.
 public sealed class FakeRenamerDataPort : IRenamerDataPort
 {
     private readonly Dictionary<(RenamerFileKind kind, int id), RenamerEntity> _entities = new();
 
-    /// <summary>Pre-seeded (folderId, basename) pairs treated as occupied (paired with the file id that holds them).</summary>
+    // Pre-seeded (folderId, basename) pairs treated as occupied (paired with the file id that holds
+    // them).
     private readonly HashSet<(int folderId, string basename, int fileId)> _occupied = new();
 
     private readonly Dictionary<string, int> _folderIds = new(StringComparer.Ordinal);
@@ -19,61 +18,49 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     private readonly Dictionary<RenamerFileKind, List<int>> _allIds = new();
 
-    /// <summary>Seeds a loadable entity (returned by <see cref="LoadEntityAsync"/>).</summary>
+    // Seeds a loadable entity (returned by LoadEntityAsync).
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;
 
-    /// <summary>Marks (folderId, basename) as occupied by <paramref name="fileId"/> for collision tests.</summary>
+    // Marks (folderId, basename) as occupied by fileId for collision tests.
     public void SeedOccupied(int folderId, string basename, int fileId) => _occupied.Add((folderId, basename, fileId));
 
-    /// <summary>Pre-registers a folder path → id mapping (otherwise <see cref="GetOrCreateFolderIdAsync"/> mints one).</summary>
+    // Pre-registers a folder path → id mapping (otherwise GetOrCreateFolderIdAsync mints one).
     public void SeedFolder(string path, int id) => _folderIds[path] = id;
 
-    /// <summary>Seeds the ids <paramref name="kind"/>'s pages walk.</summary>
+    // Seeds the ids kind's pages walk.
     public void SeedAllIds(RenamerFileKind kind, params int[] ids) => _allIds[kind] = [.. ids];
 
-    /// <summary>Every seeded id of <paramref name="kind"/>, ascending.</summary>
-    /// <remarks>
-    /// Test support, not a port member: the production interface offers no whole-kind read, so a
-    /// reference sequence for a paging-equivalence comparison has to come from the fake's own state.
-    /// </remarks>
+    // Every seeded id of kind, ascending. Test support, not a port member: the production interface
+    // offers no whole-kind read, so a reference sequence for a paging-equivalence comparison has to
+    // come from the fake's own state.
     public IReadOnlyList<int> SeededIds(RenamerFileKind kind) =>
         _allIds.TryGetValue(kind, out var seeded) ? [.. seeded.OrderBy(id => id)] : [];
 
-    /// <summary>Forward-slash source paths the test declares absent on disk; everything else reports present.</summary>
+    // Forward-slash source paths the test declares absent on disk; everything else reports present.
     public HashSet<string> MissingSources { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>Declares <paramref name="fullPath"/> absent on disk for <see cref="SourceExistsAsync"/>.</summary>
+    // Declares fullPath absent on disk for SourceExistsAsync.
     public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
 
-    /// <summary>Number of <see cref="LoadEntityAsync"/> calls - lets a test prove the planning pass loads each id once, not twice.</summary>
+    // Number of LoadEntityAsync calls - lets a test prove the planning pass loads each id once, not
+    // twice.
     public int LoadEntityCallCount { get; private set; }
 
-    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls - one per call (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
+    // Number of LoadEntitiesAsync calls - one per call (not per id), so a scan test can prove
+    // batching issues far fewer than N loads.
     public int LoadEntitiesCallCount { get; private set; }
 
-    /// <summary>The library paths the fake declares; empty by default, so a test opts in to an anchor.</summary>
+    // The library paths the fake declares; empty by default, so a test opts in to an anchor.
     public List<string> LibraryPathList { get; } = [];
 
-    /// <summary>Declares <paramref name="paths"/> as Cove's configured library paths.</summary>
+    // Declares paths as Cove's configured library paths.
     public void SeedLibraryPaths(params string[] paths) => LibraryPathList.AddRange(paths);
 
     public IReadOnlyList<string> LibraryRoots => LibraryPathList;
 
-    /// <summary>Rows <see cref="ResolveNamesAsync"/> resolves against, per entity table.</summary>
-    private readonly Dictionary<RenamerEntityKind, List<(int Id, string Name)>> _namedEntities = new();
-
-    /// <summary>Seeds resolvable <c>(id, name)</c> rows for <paramref name="kind"/>.</summary>
-    public void SeedNamedEntities(RenamerEntityKind kind, params (int Id, string Name)[] rows)
-        => _namedEntities[kind] = [.. rows];
-
     public Task<NameResolution> ResolveNamesAsync(
         RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default)
-    {
-        var rows = _namedEntities.TryGetValue(kind, out var seeded) ? seeded : [];
-        IReadOnlyList<(int Id, string Name)> matches =
-            [.. rows.Where(r => names.Contains(r.Name, StringComparer.OrdinalIgnoreCase))];
-        return Task.FromResult(new NameResolution(rows.Count > 0, matches));
-    }
+        => Task.FromResult(new NameResolution(false, []));
 
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
     {
@@ -91,7 +78,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult<IReadOnlyList<RenamerEntity>>(found);
     }
 
-    /// <summary>Every <see cref="LoadEntityIdPageAsync"/> call, in order, so a test can see how wide each ask was.</summary>
+    // Every LoadEntityIdPageAsync call, in order, so a test can see how wide each ask was.
     public List<(RenamerFileKind Kind, int After, int Take)> IdPageRequests { get; } = [];
 
     public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
@@ -111,7 +98,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     public Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default)
         => Task.FromResult(_allIds.TryGetValue(kind, out var ids) ? ids.Count : 0);
 
-    /// <summary>Source paths the test declares as named by more than one file row.</summary>
+    // Source paths the test declares as named by more than one file row.
     public Dictionary<string, int> SourcePathClaims { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
@@ -129,7 +116,8 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult(taken);
     }
 
-    /// <summary>Records every <see cref="GetOrCreateFolderIdAsync"/> call's path, in order - a created folder is a mutation, so a preview-purity test asserts this stays empty.</summary>
+    // Records every GetOrCreateFolderIdAsync call's path, in order - a created folder is a
+    // mutation, so a preview-purity test asserts this stays empty.
     public List<string> CreatedFolderPaths { get; } = new();
 
     public Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
@@ -149,24 +137,12 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
         => Task.FromResult(!MissingSources.Contains(fullPath));
 
-    /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this - the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
-    public Exception? ApplyAndSaveThrow { get; set; }
+    // Every ApplyAndSaveAsync call's mutation, in order.
+    public List<RenamerFileMutation> ApplyAndSaveCalls { get; } = [];
 
-    /// <summary>Per-file <c>RecomputedPath</c> a successful <see cref="ApplyAndSaveAsync"/> returns; a file id absent here echoes its new basename.</summary>
-    public Dictionary<int, string> RecomputedPaths { get; } = new();
-
-    /// <summary>Every <see cref="ApplyAndSaveAsync"/> call's mutations, in order, for assertions.</summary>
-    public List<IReadOnlyList<RenamerFileMutation>> ApplyAndSaveCalls { get; } = new();
-
-    public Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+    public Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default)
     {
-        ApplyAndSaveCalls.Add(mutations);
-        if (ApplyAndSaveThrow is not null)
-        {
-            throw ApplyAndSaveThrow;
-        }
-
-        return Task.FromResult<IReadOnlyList<SavedFile>>(
-            [.. mutations.Select(m => new SavedFile(m.FileId, RecomputedPaths.GetValueOrDefault(m.FileId, m.NewBasename)))]);
+        ApplyAndSaveCalls.Add(mutation);
+        return Task.FromResult(mutation.NewBasename);
     }
 }

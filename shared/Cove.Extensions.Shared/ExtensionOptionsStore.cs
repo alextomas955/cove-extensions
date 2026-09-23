@@ -63,8 +63,7 @@ public class ExtensionOptionsStore<TOptions>(
                 return defaultFactory();
             }
 
-            RestoreDeclaredNonNull(loaded, defaultFactory(), new NullabilityInfoContext());
-            return normalize is null ? loaded : normalize(loaded);
+            return Repair(loaded);
         }
         catch (JsonException ex)
         {
@@ -76,6 +75,16 @@ public class ExtensionOptionsStore<TOptions>(
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
             return defaultFactory();
         }
+    }
+
+    /// <summary>
+    /// Gives options bound from anywhere else, such as a request body, the repair <see cref="LoadAsync"/>
+    /// gives a stored blob: declared non-null members restored, then the caller's normalizer.
+    /// </summary>
+    public TOptions Repair(TOptions bound)
+    {
+        RestoreDeclaredNonNull(bound, defaultFactory(), new NullabilityInfoContext());
+        return normalize is null ? bound : normalize(bound);
     }
 
     /// <summary>Serializes the options to the single <c>"options"</c> JSON blob.</summary>

@@ -1,7 +1,7 @@
 using Renamer.Engine;
 using Renamer.Options;
 
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Planner;
 
@@ -20,17 +20,6 @@ public sealed class RenamerPlanner
 
     // With empty lookups the resolver always returns Unmatched, so every entity takes the default
     // destination.
-    private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, Destination>(),
-        new Dictionary<int, Destination>(),
-        new Dictionary<string, Destination>(),
-        Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
-
-    // Overload for callers that do not route: every file takes the default destination.
-    public Task<RenamerPlan> PlanAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanAsync(kind, entityId, options, EmptyLookups, ct);
-
     // Computes the per-file old-to-new plan for the given entity with zero disk or DB mutation, and
     // returns an empty plan when the entity does not exist. Routing is resolved once per entity, and
     // the resolved destination's root is the anchor the per-file confinement measures against, so an
@@ -63,6 +52,17 @@ public sealed class RenamerPlanner
                 .Select(f => SkipItem(f, RenamerStatus.SkipExcluded, $"excluded: {route.MatchedRule}"))
                 .ToList();
             return new RenamerPlan(entity.EntityId, entity.Kind, excluded);
+        }
+
+        if (route.Category == RouteCategory.RuleTimedOut)
+        {
+            var undecided = entity.Files
+                .Select(f => SkipItem(
+                    f, RenamerStatus.SkipRuleTimedOut,
+                    $"skipped: the rule {route.MatchedRule} timed out matching this item's folder, so "
+                        + "whether it applies is unknown - simplify the pattern"))
+                .ToList();
+            return new RenamerPlan(entity.EntityId, entity.Kind, undecided);
         }
 
         // A gated item is skipped for every one of its files and never rendered.
@@ -110,8 +110,8 @@ public sealed class RenamerPlanner
         // own file count.
         //
         // Membership follows the platform's own case rule, because what it decides is whether two
-        // planned paths name one file on disk; the resolver's comparer owns that rule.
-        var claimedTargets = new HashSet<string>(DestinationResolver.SourcePathComparer);
+        // planned paths name one file on disk.
+        var claimedTargets = new HashSet<string>(PathComparer);
 
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)
@@ -124,7 +124,7 @@ public sealed class RenamerPlanner
             // This loop is the set's only writer and the callee only reads it. Claimed only for an item
             // that places the file: a no-op or a skip leaves the file where its own row already records
             // it, so the port's row check sees it.
-            if (item.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            if (item.Status is RenamerStatus.Rename or RenamerStatus.Move)
             {
                 claimedTargets.Add(item.NewFullPath);
             }
@@ -169,15 +169,14 @@ public sealed class RenamerPlanner
 
         if (options.RequiredFields.Count > 0)
         {
-            // A required field is satisfied when some file projects it non-empty. Required fields are
-            // entity-level scalars, so any file's projection suffices.
+            // Required fields are entity-level, so the first file's projection answers for every file.
             var sample = entity.Files.Count > 0 ? entity.Files[0] : null;
             if (sample is not null)
             {
-                var (tokens, _, _, _) = MetadataProjector.Project(entity, sample, options);
+                var (tokens, multi) = MetadataProjector.Project(entity, sample, options);
                 foreach (var field in options.RequiredFields)
                 {
-                    if (!tokens.TryGetValue(field, out var v) || string.IsNullOrEmpty(v))
+                    if (TemplateEngine.ResolveField(tokens, multi, options, field, entity.Performers, entity.TagRefs).Length == 0)
                     {
                         reason = $"skipped: required field '{field}' is empty (require-fields gate)";
                         return true;
@@ -201,8 +200,8 @@ public sealed class RenamerPlanner
 
         // Project and render, both pure. The performer records and tag pairs ride alongside the name
         // side-input so the engine can order and filter by id before the max limit.
-        var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
-        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tags: tagRefs);
+        var (tokens, multi) = MetadataProjector.Project(entity, file, options);
+        var rendered = TemplateEngine.Render(tokens, multi, options, entity.Performers, entity.TagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
         // The rendered folder is anchored on something the move leaves standing, never on the file's
@@ -356,7 +355,7 @@ public sealed class RenamerPlanner
         // Sanitized reads the engine's own check, the same one the preview sample uses, so the basename
         // is never string-sniffed.
         bool suffixed = attempt > 0;
-        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options, performers, tagRefs);
+        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options, entity.Performers, entity.TagRefs);
 
         // The resolved root is the library path the destination was measured from; null when the item
         // does not move and so is anchored on nothing.
@@ -372,7 +371,7 @@ public sealed class RenamerPlanner
 
         return new RenamerPlanItem(
             file.FileId, oldFullPath, newFullPath,
-            isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
+            isMove ? RenamerStatus.Move : RenamerStatus.Rename,
             candidate, relTargetFolder, null, suffixed, sanitized,
             resolvedRoot, route.MatchedRule, targetVolume, derivedTitle);
     }

@@ -3,20 +3,11 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// Regression: <c>/preview</c> must route through the same <c>RouteLookups</c> the manual batch
-/// builds, so the dry-run reflects the routed destination the batch will execute. Before the fix
-/// <c>PreviewAsync</c> called the empty-lookups overload and reported every item as an in-place
-/// source-confine renamer even when a destination rule was configured - preview lied about where files
-/// would move. This pins that preview now carries the routed <see cref="RenamerPlanItem.ResolvedDestinationRoot"/>
-/// and <see cref="RenamerPlanItem.MatchedRule"/>, and still mutates nothing.
-/// </summary>
 public sealed class PreviewRoutingTests
 {
     // A fictional destination root on a different drive than the temp source, so routing anchors on a

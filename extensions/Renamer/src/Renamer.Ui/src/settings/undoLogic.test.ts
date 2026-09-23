@@ -1,26 +1,23 @@
-/** Behavior contract for the undo panel's copy, and for the panel actually reading it from here. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildUndoFeedback, buildUndoStatus, RETENTION_WINDOW_MS } from "./undoLogic";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
-/**
- * The window in milliseconds, transcribed by hand rather than read from the module, and the same
- * number `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` transcribes on the server side. Three
- * hand-written copies of one constant is the price of it having no wire field; an expectation computed
- * from `RETENTION_WINDOW_MS` would agree with it however far it drifted from the server.
- */
+// The window in milliseconds, transcribed by hand rather than read from the module, and the same
+// number `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` transcribes on the server side. Three
+// hand-written copies of one constant is the price of it having no wire field; an expectation computed
+// from `RETENTION_WINDOW_MS` would agree with it however far it drifted from the server.
 const SEVEN_DAYS_MS = 604_800_000;
 
-/** .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds. */
+// .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds.
 const TICKS_AT_EPOCH = 62135596800000 * 10000;
 
 function ticksFor(epochMs: number): number {
   return epochMs * 10000 + TICKS_AT_EPOCH;
 }
 
-/** A batch that opened at `writtenMs`, with the three figures the server guarantees sum to `count`. */
+// A batch that opened at `writtenMs`, with the three figures the server guarantees sum to `count`.
 function summary(
   writtenMs: number,
   counts: { count: number; remainingCount: number; unrestorableCount?: number },
@@ -36,7 +33,7 @@ function summary(
   };
 }
 
-/** An undo response with every channel empty, so each case declares only what it is about. */
+// An undo response with every channel empty, so each case declares only what it is about.
 function undoResult(overrides: Partial<UndoResult>): UndoResult {
   return {
     undone: 0,
@@ -54,10 +51,10 @@ function error(reason: string) {
   return { fileId: 1, oldPath: "a.mp4", newPath: "b.mp4", reason };
 }
 
-/** Written just before New Year so the expiry lands in the FOLLOWING year, whatever the locale. */
+// Written just before New Year so the expiry lands in the FOLLOWING year, whatever the locale.
 const WRITTEN_MS = Date.UTC(2026, 11, 30, 12, 0, 0);
 
-/** The line without its trailing expiry clause, which is a locale-formatted date. */
+// The line without its trailing expiry clause, which is a locale-formatted date.
 function lineBeforeExpiry(line: string): string {
   const parts = line.split(" · ");
   return parts.slice(0, -1).join(" · ");
@@ -189,15 +186,15 @@ test("the last millisecond inside the window is not expired", () => {
 test("a clean undo reads as a success and counts the files it moved", () => {
   assert.deepEqual(buildUndoFeedback(undoResult({ undone: 12 })), {
     kind: "success",
-    text: "Undone — 12 files moved back to their original names.",
+    text: "Undone: 12 files moved back to their original names.",
   });
   assert.deepEqual(buildUndoFeedback(undoResult({ undone: 1 })), {
     kind: "success",
-    text: "Undone — 1 file moved back to their original names.",
+    text: "Undone: 1 file moved back to their original names.",
   });
   assert.deepEqual(buildUndoFeedback(undoResult({})), {
     kind: "success",
-    text: "Undone — 0 files moved back to their original names.",
+    text: "Undone: 0 files moved back to their original names.",
   });
 });
 
@@ -215,7 +212,7 @@ test("a partial undo counts the problems from the totals, never from the samples
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undo finished with problems — 500 files couldn't be moved back (access denied). The rest were restored.",
+    text: "Undo finished with problems: 500 files couldn't be moved back (access denied). The rest were restored.",
   });
 });
 
@@ -225,7 +222,7 @@ test("one problem file is one file", () => {
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undo finished with problems — 1 file couldn't be moved back (gone). The rest were restored.",
+    text: "Undo finished with problems: 1 file couldn't be moved back (gone). The rest were restored.",
   });
 });
 
@@ -246,7 +243,7 @@ test("a problem count with an empty sample names no reason rather than an undefi
   const feedback = buildUndoFeedback(undoResult({ undone: 0, failedCount: 7 }));
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Couldn't undo — unknown reason. Nothing was changed.",
+    text: "Couldn't undo: unknown reason. Nothing was changed.",
   });
 });
 
@@ -256,7 +253,7 @@ test("an undo that restored nothing says nothing was changed", () => {
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Couldn't undo — access denied. Nothing was changed.",
+    text: "Couldn't undo: access denied. Nothing was changed.",
   });
 });
 
@@ -270,7 +267,7 @@ test("a stranded companion is reported beside a run that otherwise succeeded", (
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undone — 12 files moved back to their original names. 2 companion files stayed behind (poster.jpg is still under the renamed name).",
+    text: "Undone: 12 files moved back to their original names. 2 companion files stayed behind (poster.jpg is still under the renamed name).",
   });
 });
 
@@ -302,6 +299,6 @@ test("a stranded companion rides on a partial undo too", () => {
   );
   assert.equal(
     feedback.text,
-    "Undo finished with problems — 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
+    "Undo finished with problems: 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
   );
 });

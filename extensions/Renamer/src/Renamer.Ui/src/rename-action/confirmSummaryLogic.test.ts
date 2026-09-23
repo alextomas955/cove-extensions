@@ -1,20 +1,16 @@
-/**
- * Behavior contract for the pure bulk-rename confirm builder.
- *
- * The claim under test is the one a user acts on: the confirm shown before a rename touches disk must
- * promise an undo only when the server says the batch will be journalled.
- */
+// The confirm shown before a rename touches disk promises an undo only when the server says the batch
+// will be journalled.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { buildConfirmSummary } from "./preview";
-import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
+import { buildConfirmSummary } from "./confirmSummaryLogic";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../wire/api";
 
 const RENAME_ITEM: PreviewItemView = {
   fileId: 1,
   oldFullPath: "/lib/raw.mkv",
   newFullPath: "/lib/Film.mkv",
-  status: "renamer",
+  status: "rename",
   newBasename: "Film.mkv",
   targetFolderPath: "/lib",
   reason: null,
@@ -86,13 +82,11 @@ test("a confirm built without a summary still promises the undo", () => {
   assert.match(text, /You can undo this afterwards\./);
 });
 
-/**
- * The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
- * the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
- * Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
- * `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
- * rename simply never appears.
- */
+// The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
+// the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
+// Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
+// `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
+// rename simply never appears.
 const OVERFLOW_COUNT_WIRE_FIELD = "inFlightPathOverflowCount";
 
 test("a cross-drive batch whose temporary copies will not fit says so before the user approves", () => {
@@ -119,15 +113,13 @@ test("a confirm built without a summary says nothing about an overflow either", 
   assert.doesNotMatch(text, /cannot be copied across drives/);
 });
 
-/**
- * The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
- * members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
- * rest are executor-only and are produced after this confirm has already been approved.
- *
- * Written out because the failure this guards is silent. A status with no clause is not counted, so the
- * headline the user approves a rename against reads lower than the truth, and where it is the only
- * reason anything was skipped the explanation disappears from the dialog altogether.
- */
+// The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
+// members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
+// rest are executor-only and are produced after this confirm has already been approved.
+//
+// Written out because the failure this guards is silent. A status with no clause is not counted, so the
+// headline the user approves a rename against reads lower than the truth, and where it is the only
+// reason anything was skipped the explanation disappears from the dialog altogether.
 const PLANNER_SKIP_STATUSES = [
   "skipGated",
   "skipCollision",
@@ -195,7 +187,7 @@ test("two kinds are listed as clauses behind one total", () => {
     summary({ totalCount: 2 }),
   );
 
-  assert.match(text, /⚠ 2 skipped — /);
+  assert.match(text, /⚠ 2 skipped: /);
   assert.match(text, /1 need a required field/);
   assert.match(text, /1 would make too long a path/);
 });

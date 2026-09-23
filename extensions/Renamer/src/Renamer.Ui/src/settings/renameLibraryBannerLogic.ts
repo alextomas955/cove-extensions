@@ -1,30 +1,65 @@
-/**
- * The pure composition of the banner a whole-library rename leaves behind.
- *
- * Import-free apart from the counts shape it reads (no React, no request helper) so it stays L0 -
- * deterministic and testable with no environment, and so the sentence a user reads after a destructive
- * operation is the exact sentence the suite covers.
- */
+/** The banner a whole-library rename leaves behind. */
 
-import type { DryRunCounts } from "./dry-run/dryRunLogic";
+import type { LibraryRenameSummaryView } from "../wire/api";
+import { KIND_LABELS, type RenamableKind } from "./options";
 
-/**
- * The banner for a completed run.
- *
- * Both numbers are a scan's, and the sentence names the scan as their source for that reason: the
- * rename job reports no per-status totals of its own, so a stated renamed count is a claim nothing on
- * this path has a source for. A file the scan planned can still be skipped by the run.
- */
-export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
-  const skipped = counts.attention > 0 ? `, ${counts.attention} skipped` : "";
-  const plural = counts.willChange === 1 ? "" : "s";
-
-  return `Rename finished. The scan found ${counts.willChange} file${plural} to rename${skipped}.`;
+export interface RenameLibraryBanner {
+  kind: "success" | "error";
+  text: string;
 }
 
-/** The banner for a run the job itself reported as failed or cancelled. */
-export function buildRenameLibraryError(detail: string): string {
-  return `Couldn't rename — ${detail}. Nothing was changed; you can try again.`;
+function files(n: number): string {
+  return `${n} file${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * The banner for a run that completed, worded from the job's own counts, or null when they could not
+ * be read. A kind that ran out of destination space stopped early, so that run reads as an error
+ * even though the job completed.
+ */
+export function buildRenameLibraryResult(
+  summary: LibraryRenameSummaryView | null,
+): RenameLibraryBanner {
+  if (summary === null) {
+    return {
+      kind: "success",
+      text: "Rename finished. Couldn't read how many files it renamed; run a dry run to see where things stand.",
+    };
+  }
+
+  const { renamed, skipped, failed, stoppedForSpace } = summary;
+  const extras = [
+    ...(skipped > 0 ? [`${skipped} skipped`] : []),
+    ...(failed > 0 ? [`${failed} failed`] : []),
+  ];
+  const counts = [`${files(renamed)} renamed`, ...extras].join(", ") + ".";
+
+  if (stoppedForSpace.length > 0) {
+    const kinds = stoppedForSpace
+      .map((k) => (k in KIND_LABELS ? KIND_LABELS[k as RenamableKind] : k))
+      .join(", ");
+    return {
+      kind: "error",
+      text: `Rename stopped early: not enough free space for ${kinds}. ${counts} Files renamed before the stop stay renamed.`,
+    };
+  }
+
+  if (renamed === 0 && extras.length === 0) {
+    return { kind: "success", text: "Rename finished. Nothing needed renaming." };
+  }
+
+  return { kind: "success", text: `Rename finished. ${counts}` };
+}
+
+/**
+ * The banner for a rename that failed. Before the job was accepted nothing can have changed. After,
+ * the job may have renamed some chunks before it failed or was cancelled, so the banner never says
+ * nothing changed.
+ */
+export function buildRenameLibraryError(detail: string, started: boolean): string {
+  return started
+    ? `The rename stopped before it finished: ${detail}. Some files may already be renamed; check the undo line and run a dry run before you try again.`
+    : `Couldn't rename: ${detail}. Nothing was changed; you can try again.`;
 }
 
 /**
@@ -35,5 +70,5 @@ export function buildRenameLibraryError(detail: string): string {
  * falsehood about a destructive operation.
  */
 export function buildRenameLibraryUnconfirmed(detail: string): string {
-  return `Couldn't confirm the rename — ${detail}.`;
+  return `Couldn't confirm the rename: ${detail}.`;
 }

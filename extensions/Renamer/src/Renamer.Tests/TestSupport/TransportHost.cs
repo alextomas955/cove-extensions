@@ -11,48 +11,40 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Mounts the extension's own <c>MapEndpoints</c> in an in-process
-/// <see cref="WebApplication"/>/TestServer over a real <see cref="CoveContext"/>, and hands back an
-/// <see cref="HttpClient"/> that speaks to it.
-/// </summary>
-/// <remarks>
-/// A handler called directly receives whatever arguments the test constructs, so a test written that
-/// way proves nothing about what the host's model binding actually produces for a given request body.
-/// Anything asserting on the wire - the bound request shape, the status code, the response bytes -
-/// belongs on this seam.
-/// </remarks>
+// Mounts the extension's own MapEndpoints in an in-process WebApplication/TestServer over a real
+// CoveContext, and hands back an HttpClient that speaks to it. A handler called directly receives
+// whatever arguments the test constructs, so a test written that way proves nothing about what the
+// host's model binding actually produces for a given request body. Anything asserting on the wire -
+// the bound request shape, the status code, the response bytes - belongs on this seam.
 public sealed class TransportHost : IAsyncDisposable
 {
-    /// <summary>The route prefix the host mounts an extension's endpoints under.</summary>
+    // The route prefix the host mounts an extension's endpoints under.
     public const string BaseRoute = "/api/extensions/com.alextomas955.renamer";
 
     private readonly WebApplication _app;
     private readonly SqliteConnection _conn;
     private readonly DbContext _db;
-    private readonly StubJobService _jobs;
+    private readonly RecordingJobService _jobs;
 
-    /// <summary>A client bound to the in-process server; request paths start at <see cref="BaseRoute"/>.</summary>
+    // A client bound to the in-process server; request paths start at BaseRoute.
     public HttpClient Client { get; }
 
-    /// <summary>
-    /// Every route the extension mounted, as an HTTP method paired with the route pattern as written
-    /// (so a parameterised route reads <c>/job-status/{jobId}</c>, not a request path).
-    /// </summary>
+    // Every route the extension mounted, as an HTTP method paired with the route pattern as written
+    // (so a parameterised route reads /job-status/{jobId}, not a request path).
     public IReadOnlyList<(string Method, string Pattern)> MountedRoutes { get; }
 
-    /// <summary>Every endpoint the extension mounted, carrying the metadata its registration attached.</summary>
+    // Every endpoint the extension mounted, carrying the metadata its registration attached.
     public IReadOnlyList<RouteEndpoint> Endpoints { get; }
 
-    /// <summary>How many jobs the handlers enqueued.</summary>
-    public int EnqueuedJobs => _jobs.EnqueuedCount;
+    // How many jobs the handlers enqueued.
+    public int EnqueuedJobs => _jobs.Enqueued.Count;
 
     private TransportHost(
         WebApplication app,
         HttpClient client,
         SqliteConnection conn,
         DbContext db,
-        StubJobService jobs,
+        RecordingJobService jobs,
         IReadOnlyList<RouteEndpoint> endpoints)
     {
         _app = app;
@@ -66,9 +58,9 @@ public sealed class TransportHost : IAsyncDisposable
                 .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))];
     }
 
-    /// <summary>Boots a server serving the extension's routes as the given principal.</summary>
-    /// <param name="principal">The principal every in-handler permission check reads.</param>
-    /// <param name="store">The extension store, or null for an empty <c>FakeStore</c>.</param>
+    // Boots a server serving the extension's routes as the given principal. principal: The
+    // principal every in-handler permission check reads. store: The extension store, or null for an
+    // empty FakeStore.
     public static async Task<TransportHost> BootAsync(
         ICurrentPrincipalAccessor principal, IExtensionStore? store = null)
     {
@@ -81,7 +73,7 @@ public sealed class TransportHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(principal);
         builder.Services.AddSingleton<DbContext>(db);
-        var jobs = new StubJobService();
+        var jobs = new RecordingJobService();
         builder.Services.AddSingleton<IJobService>(jobs);
         builder.Services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
@@ -113,21 +105,4 @@ public sealed class TransportHost : IAsyncDisposable
         await _conn.DisposeAsync();
     }
 
-    /// <summary>Counts every enqueue and never runs it; all other members are unused and throw.</summary>
-    private sealed class StubJobService : IJobService
-    {
-        public int EnqueuedCount { get; private set; }
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            EnqueuedCount++;
-            return "job-1";
-        }
-
-        public bool Cancel(string jobId) => throw new NotSupportedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotSupportedException();
-        public JobInfo? GetJob(string jobId) => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotSupportedException();
-    }
 }

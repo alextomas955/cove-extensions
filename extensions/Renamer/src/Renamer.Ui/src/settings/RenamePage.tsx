@@ -1,15 +1,274 @@
 /**
- * RenamePage - the component the host mounts inside the dedicated "Rename" settings tab
- * (Settings → Extensions → Rename). It renders only the shared {@link RenamePanelBody}: the host
- * already supplies the tab header (title + description from the manifest) and a section card around
- * this component, so adding our own page header/gutter here would triple the "Rename" title. No outer
- * <h1>, no page padding - the stack of titled cards the body renders provides the hierarchy.
- *
- * The host passes `{ onNavigate }` to the component; this UI does not navigate, so it ignores it.
- * Styling uses host Tailwind token classes only (no hex, no CSS bundle).
+ * The Renamer settings page. The host renders its tab with page layout and no card around it, so this
+ * owns the whole canvas: a stack of titled cards, the undo footer and a fixed save bar. It holds only
+ * cross-section glue: the template inputs a token chip inserts into, and the empty-sample advisory
+ * from the live preview.
  */
-import { RenamePanelBody } from "./RenameSettingsPanel";
+import { useRef } from "react";
 
+import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
+import { UndoSection } from "./UndoSection";
+import { DryRunModal } from "./dry-run/DryRunModal";
+import { FilenameSection } from "./FilenameSection";
+import { LivePreviewPane } from "./LivePreviewPane";
+import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
+import { RunAutomationSection } from "./RunAutomationSection";
+import { TokenSettingsSection } from "./TokenSettingsSection";
+import { DestinationRoutingSection } from "./DestinationRoutingSection";
+import { useLibraryPaths } from "./useLibraryPaths";
+import { AdvancedSection } from "./AdvancedSection";
+import { useRenamerOptions } from "./useRenamerOptions";
+import { useRenamePreview } from "./useRenamePreview";
+import { useRenameLibrary } from "./useRenameLibrary";
+
+/**
+ * The fixed-bottom global save bar - reachable from anywhere on the page, visible only while
+ * `dirty`. Reuses the dirty/saving/saveError/savedFlash state and onSave handler from
+ * useRenamerOptions; Discard reverts to the last-saved snapshot, never the factory defaults.
+ */
+// The error dot takes its colour from an inline style, so its class carries none.
+function dotClass(saveError: string | null, savedFlash: boolean): string {
+  if (saveError) return "";
+  return savedFlash ? "bg-green-400" : "bg-amber-400";
+}
+
+function SaveBarMessage({
+  saveError,
+  savedFlash,
+}: Readonly<{ saveError: string | null; savedFlash: boolean }>) {
+  if (saveError) {
+    return (
+      <StatusText kind="error">
+        Couldn't save settings: {saveError}. Your changes are still here; try Save again.
+      </StatusText>
+    );
+  }
+  if (savedFlash) return <StatusText kind="success">Settings saved.</StatusText>;
+  return (
+    <>
+      <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
+      <div className="mt-0.5 text-xs text-secondary">Nothing on disk changes until you save.</div>
+    </>
+  );
+}
+
+function SaveBar({
+  dirty,
+  saving,
+  saveError,
+  savedFlash,
+  canSave,
+  onSave,
+  onDiscard,
+}: Readonly<{
+  dirty: boolean;
+  saving: boolean;
+  saveError: string | null;
+  savedFlash: boolean;
+  canSave: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+}>) {
+  if (!dirty) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
+      {/* py-3.5 is host-absent (Cove's own UI never uses it, so its prebuilt bundle omits it);
+          inline the 0.875rem padding instead of shipping CSS. */}
+      <div
+        className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg"
+        style={{ paddingTop: "0.875rem", paddingBottom: "0.875rem" }}
+      >
+        {/* Cove's own UI writes the red-400 fill only at 80% alpha, so its prebuilt stylesheet omits
+            the full-strength utility and the error dot resolved to no fill. The colour scale's custom
+            property is declared whether or not a utility using it is, so inline the tone off that. */}
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${dotClass(saveError, savedFlash)}`}
+          style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
+        />
+        <div className="min-w-0 flex-1">
+          <SaveBarMessage saveError={saveError} savedFlash={savedFlash} />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Button variant="ghost" onClick={onDiscard} disabled={saving}>
+            Discard
+          </Button>
+          <Button onClick={onSave} disabled={!canSave || saving}>
+            {saving ? <Spinner /> : null}
+            Save changes
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * RenamePage - the composition root rendered by the dedicated nav page (`RenamePage`). The root
+ * stays a plain `<div className="space-y-6">`; the host SectionCard / page wrapper supplies outer
+ * chrome.
+ */
 export function RenamePage() {
-  return <RenamePanelBody />;
+  const {
+    options,
+    loading,
+    loadError,
+    saving,
+    saveError,
+    savedFlash,
+    recoveredFromBadBlob,
+    pendingNameMigration,
+    pendingDestinationMigration,
+    dirty,
+    canSave,
+    load,
+    onSave,
+    discard,
+    set,
+    setMulti,
+  } = useRenamerOptions();
+  const { preview, previewError } = useRenamePreview(options, loading);
+  const {
+    dryRunOpen,
+    setDryRunOpen,
+    renamingLibrary,
+    runLibraryFeedback,
+    undoRefreshKey,
+    renameProgress,
+    renameLibrary,
+  } = useRenameLibrary();
+  const library = useLibraryPaths();
+
+  // Last-focused template input, so a token chip inserts at its caret.
+  const filenameRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
+  const activeTemplateRef = useRef<"filename" | "folder">("filename");
+
+  if (loadError) {
+    return (
+      <div className="space-y-3">
+        <StatusText kind="error">Couldn't load your saved settings: {loadError}. Retry.</StatusText>
+        <div>
+          <Button variant="ghost" onClick={() => void load()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || options === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-secondary">
+        <Spinner />
+        Loading settings…
+      </div>
+    );
+  }
+
+  const insertToken = (token: string) => {
+    const which = activeTemplateRef.current;
+    const el = which === "folder" ? folderRef.current : filenameRef.current;
+    const key: "filenameTemplate" | "folderTemplate" =
+      which === "folder" ? "folderTemplate" : "filenameTemplate";
+    const current = options[key];
+    if (el && typeof el.selectionStart === "number") {
+      const start = el.selectionStart;
+      const end = el.selectionEnd ?? start;
+      const next = current.slice(0, start) + token + current.slice(end);
+      set(key, next);
+      requestAnimationFrame(() => {
+        el.focus();
+        const caret = start + token.length;
+        el.setSelectionRange(caret, caret);
+      });
+    } else {
+      set(key, current + token);
+    }
+  };
+
+  // Empty-for-sample advisory: read the existing debounced /preview-sample
+  // result; name each sample whose flags include "empty". No new request.
+  const emptySamples = (preview ?? [])
+    .filter((r) => r.flags.includes("empty"))
+    .map((r) => r.sampleLabel);
+
+  // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent - inline it.
+  return (
+    <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
+      {/* Two-pane shell, narrowed to the two naming cards: they take 2/3 via col-span-2, the live
+          preview 1/3, sticky on lg+. Every other panel renders as a full-width sibling below this
+          grid, so the preview's sticky containing block is that column's height, not the whole page.
+          Standard grid-cols-3 + col-span-2 only: the host stylesheet has no arbitrary [..] values. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <FilenameSection
+          library={library}
+          options={options}
+          set={set}
+          insertToken={insertToken}
+          filenameRef={filenameRef}
+          folderRef={folderRef}
+          activeTemplateRef={activeTemplateRef}
+          emptySamples={emptySamples}
+          recoveredFromBadBlob={recoveredFromBadBlob}
+          pendingNameMigration={pendingNameMigration}
+          pendingDestinationMigration={pendingDestinationMigration}
+        />
+        <LivePreviewPane preview={preview} previewError={previewError} />
+      </div>
+
+      <WhatGetsRenamedSection options={options} set={set} />
+
+      <RunAutomationSection
+        options={options}
+        set={set}
+        dirty={dirty}
+        renamingLibrary={renamingLibrary}
+        runLibraryFeedback={runLibraryFeedback}
+        onDryRun={() => {
+          setDryRunOpen(true);
+        }}
+        onRenameAll={() => void renameLibrary()}
+      />
+
+      {dryRunOpen ? (
+        <DryRunModal
+          options={options}
+          dirty={dirty}
+          onClose={() => {
+            setDryRunOpen(false);
+          }}
+          onRenameAll={() => void renameLibrary()}
+          renaming={renamingLibrary}
+          renameProgress={renameProgress}
+        />
+      ) : null}
+
+      <TokenSettingsSection
+        options={options}
+        set={set}
+        setMulti={setMulti}
+        insertToken={insertToken}
+      />
+
+      <DestinationRoutingSection options={options} set={set} library={library} />
+
+      <AdvancedSection options={options} set={set} />
+
+      <UndoSection refreshKey={undoRefreshKey} />
+
+      {/* The bar and the dialog are both fixed at the same layer, and this one is the later sibling,
+          so with the dialog open the bar paints over it and its buttons stay mouse-reachable. The
+          root's bottom padding stays keyed on `dirty` alone: that clearance is for the page behind
+          the dialog, which must not shift under an open overlay. */}
+      <SaveBar
+        dirty={dirty && !dryRunOpen}
+        saving={saving}
+        saveError={saveError}
+        savedFlash={savedFlash}
+        canSave={canSave}
+        onSave={() => void onSave()}
+        onDiscard={discard}
+      />
+    </div>
+  );
 }

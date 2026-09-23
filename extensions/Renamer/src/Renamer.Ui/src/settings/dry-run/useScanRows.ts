@@ -7,9 +7,9 @@
  * of what is already loaded.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanRow, ScanRowsPage } from "../../wire/api";
+import type { ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
 import { api } from "../../common/lib/extension";
 import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
 import {
@@ -21,7 +21,7 @@ import {
 
 const SCAN_ROWS_PATH = api("scan-rows");
 
-export interface UseScanRows {
+interface UseScanRows {
   rows: ScanRow[];
   /** Requests the next page. Safe to call on every scroll frame - overlapping calls collapse into one. */
   loadMore: () => void;
@@ -63,21 +63,19 @@ export function useScanRows(
       requestJson<ScanRowsPage>(SCAN_ROWS_PATH, {
         method: "POST",
         body: JSON.stringify({
-          Options: optionsBlob,
-          Kind: cursor?.kind ?? null,
-          AfterEntityId: cursor?.afterEntityId ?? null,
-          Query: query,
-          Bucket: bucketWireValue(bucket),
-        }),
+          options: optionsBlob,
+          kind: cursor?.kind ?? null,
+          afterEntityId: cursor?.afterEntityId ?? null,
+          take: null,
+          query,
+          bucket: bucketWireValue(bucket),
+        } satisfies ScanRowsRequest),
       })
         .then((page) => {
           store.append(walkTarget, page);
         })
         .catch((err: unknown) => {
-          store.fail(
-            walkTarget,
-            err instanceof ApiError ? `${err.status} ${err.body}` : String(err),
-          );
+          store.fail(walkTarget, errorText(err));
         });
     },
     [store, optionsBlob, query, bucket],

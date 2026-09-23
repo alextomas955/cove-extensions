@@ -3,17 +3,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// Which media kinds the auto-rename hook is registered for - asserted through the public
-/// <see cref="IEventExtension.OnEventAsync"/> seam, since the handler table itself is private.
-/// </summary>
-/// <remarks>
-/// The probe works because <c>AutoRenamerOnUpdate</c> defaults to false: a registered handler reads
-/// the options blob and then returns, while an unregistered event type never reaches any code that
-/// touches the store. So the options key appearing in <see cref="FakeStore.GetKeys"/> is the signal
-/// that a handler ran, and its absence is the signal that none did. pure - no DB, no host, no
-/// container.
-/// </remarks>
 public sealed class AutoRenamerEventRegistrationTests
 {
     private const string OptionsKey = "options";

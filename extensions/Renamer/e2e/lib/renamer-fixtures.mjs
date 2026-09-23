@@ -6,7 +6,8 @@
 import { test as baseTest, expect } from "@cove-extensions/e2e";
 import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 
-const RENAMER_EXTENSION_ID = "com.alextomas955.renamer";
+export const EXTENSION_ID = "com.alextomas955.renamer";
+export const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 export const RENAMER_EXTENSION = resolveExtensionPaths(import.meta.url, {
   srcProject: "Renamer",
@@ -22,7 +23,7 @@ export const test = baseTest.extend({
   // delete for extension data; an empty document loads as the defaults.
   restoredOptions: [
     async ({ api }, use) => {
-      const route = `/api/extensions/${RENAMER_EXTENSION_ID}/data`;
+      const route = `${ROUTE}/data`;
       const before = (await api.get(route)).json?.options ?? "{}";
       await use();
       const restore = await api.put(`${route}/options`, before);

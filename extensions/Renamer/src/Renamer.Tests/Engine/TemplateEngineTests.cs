@@ -1,6 +1,5 @@
 using Renamer.Engine;
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
@@ -580,10 +579,10 @@ public class TemplateEngineTests
         Assert.Equal("RealityKings", squeezed.FolderPath);
     }
 
-    // ---- additive / non-breaking guarantee ----
+    // ---- default options ----
 
     [Fact]
-    public void DefaultOptions_RenderByteIdentical_ToPrePhaseEngine()
+    public void DefaultOptions_RenderTheLiteralOutput()
     {
         // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>

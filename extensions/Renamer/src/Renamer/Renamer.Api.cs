@@ -14,7 +14,6 @@ using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Engine;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
@@ -43,6 +42,7 @@ public sealed partial class Renamer
     private string LastBatchRoute => RouteBase + "/last-batch";
     private string ScanLibraryRoute => RouteBase + "/scan-library";
     private string LastScanRoute => RouteBase + "/last-scan";
+    private string LastLibraryRenameRoute => RouteBase + "/last-library-rename/{runId}";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
     private string LibraryPathsRoute => RouteBase + "/library-paths";
@@ -57,8 +57,11 @@ public sealed partial class Renamer
     // The fixed store key the whole-library scan's bounded aggregate lives under.
     internal const string LastScanSummaryKey = "last-scan-summary";
 
-    // Upper bound on how many ids a single preview/renamer request may carry. Preview runs the planner
-    // (DB hits) per id synchronously on the request thread, and renamer fans the same ids out into one
+    // The fixed store key the last whole-library rename's per-kind counts live under.
+    internal const string LastLibraryRenameSummaryKey = "last-library-rename-summary";
+
+    // Upper bound on how many ids a single /preview or /renamer request may carry. Preview runs the planner
+    // (DB hits) per id synchronously on the request thread, and /renamer fans the same ids out into one
     // job - so a caller-supplied array is an unbounded fan-out. The cap rejects a runaway/oversized
     // request up front with a 400, before any per-id work, while staying far above any realistic
     // selection. A genuinely larger job should be split into batches by the caller.
@@ -86,7 +89,7 @@ public sealed partial class Renamer
                 handlerName: "renamerSelected",
                 order: 100,
                 requiredPermission: Permissions.VideosWrite,
-                // The rename runs as a job (showInTaskList) that reports into the top-right Job Drawer, so the
+                // The rename runs as a job that reports into the top-right Job Drawer, so the
                 // host's queued-success window.alert is suppressed. The before-disk window.confirm gate stays.
                 suppressSuccessAlert: true)
             .AddAction(
@@ -131,21 +134,10 @@ public sealed partial class Renamer
             .WithJsBundle("index.mjs")
             .Build();
 
-    // Invoked from the FullExtensionBase constructor, so RenamerJob.JobId must already exist here.
-    protected override void DefineJobs()
-        => Job(
-            id: RenamerJob.JobId,
-            name: "Rename selected",
-            handler: (parameters, progress, ct) => RunRenamerBatchAsync(parameters, progress, ct),
-            description: "Renames the items you selected, using your naming pattern.",
-            supportsParameters: true,
-            showInTaskList: true);
-
     // Each endpoint declares the coarse gate its own handler re-checks. An endpoint carrying none of
     // the SDK's authorization conventions is treated as anonymous, and the host warns at boot naming
-    // every such route. The in-handler check stays, because it keeps behavior identical on a host
-    // predating policy enforcement. Both read the same AnyReadPermissions and AnyWritePermissions
-    // arrays, so the declaration and the enforcement cannot drift.
+    // every such route. The declaration and the handler read the same AnyReadPermissions and
+    // AnyWritePermissions arrays, so they cannot drift.
     //
     // Coarse is the most the host can express here. A per-kind check has no endpoint-level
     // equivalent: the kind travels in the request body and the host binds an entity policy to a
@@ -168,16 +160,9 @@ public sealed partial class Renamer
                 => RenamerEnqueue(req, principal, jobs, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
-        // NB: this endpoint binds the raw HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions - the host's default
-        // minimal-API JsonSerializerOptions has no JsonStringEnumConverter, so a body carrying
-        // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
-        // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
-        // the body ourselves with the converter-aware options.
-        // The handler reads the raw request so it can parse the options blob with the extension's own
-        // tolerant serializer rather than the host's. No parameter therefore declares the body, and
-        // without .Accepts<> the emitted document carries no request schema for this route at all -
-        // which also silently exempts that body from the drift check the document exists for.
+        // The handler reads the raw request so an empty body means the defaults, which typed binding
+        // cannot express. No parameter declares the body, so .Accepts<> is what puts its schema in the
+        // emitted document and under its drift check.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
@@ -209,6 +194,11 @@ public sealed partial class Renamer
                 => ScanRowsAsync(body, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
+        endpoints.MapGet(LastLibraryRenameRoute,
+            (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => LibraryRenameResultAsync(runId, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
+
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
@@ -235,9 +225,9 @@ public sealed partial class Renamer
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
             .RequireCovePermission(Permissions.ExtensionsConfigure);
 
-        // Binds the raw HttpContext for the reason /preview-sample does: the body carries string enum
-        // values, and the host's minimal-API serializer has no enum converter, so typed binding would
-        // 400 before the handler ran. .Accepts<> is what puts the request schema in the document.
+        // Binds the raw HttpContext so the pending-conversion refusal comes before the body is read and
+        // a malformed body is this route's own 400. .Accepts<> is what puts the request schema in the
+        // document.
         endpoints.MapPut(OptionsRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SaveOptionsAsync(http.Request, principal, ct))
@@ -256,7 +246,7 @@ public sealed partial class Renamer
         }
 
         var stored = await Store.GetAsync(OptionsStore.Key, ct);
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         return TypedResults.Ok(new OptionsView(
             options,
@@ -306,7 +296,7 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
         }
 
-        await new OptionsStore(Store, _log).SaveAsync(options, ct);
+        await StoredOptions.SaveAsync(options, ct);
         return TypedResults.NoContent();
     }
 
@@ -322,6 +312,8 @@ public sealed partial class Renamer
 
     // The prefix the host mints onto every job type this extension enqueues.
     private string OwnJobTypePrefix => "ext:" + Id + ":";
+
+    private string OwnJobType(string name) => OwnJobTypePrefix + name;
 
     // Where one of this extension's own runs has got to. Cove gates its job route on unrestricted
     // read, so a scoped account is refused there even for a run it started, and this serves the same
@@ -359,7 +351,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
         int[] studioIds = [.. options.StudioDestinations.Keys];
         int[] tagIds = [.. options.TagDestinations.Keys];
 
@@ -392,14 +384,12 @@ public sealed partial class Renamer
     }
 
     // The synchronous read-only dry run: plans each requested id and returns the accumulated items.
-    // Mutates nothing. The permission is enforced in-handler because the host's filter is MVC-only
-    // and inert on minimal-API endpoints.
+    // Mutates nothing.
     internal async Task<Results<Ok<PreviewResponse>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewAsync(
         RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // Resolve the kind first so the permission check below gates on the request's own entity kind
-        // (videos/images/audios.read) rather than always videos.read. An unparseable kind is a 400
-        // before the auth check leaks nothing - it carries no ids and reads no data either way.
+        // The kind is resolved first so the check gates on that kind's read permission. An unparseable
+        // kind is a 400 before the check; it carries no ids and reads no data.
         if (!TryParseKind(req.EntityType, out var kind))
         {
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
@@ -422,33 +412,31 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
         var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
-        // Build the RouteLookups the batch builds and route through the routing overload,
-        // so the dry-run reflects the routed destination the batch will execute (not the empty-lookups
-        // source-confine fallback). Preview must match execution - the core value.
-        var lookups = BuildLookups(options);
+        // The batch's own lookups and loader, so the preview plans exactly what a run would. The walk
+        // follows the caller's id order, and an id the load did not return contributes nothing.
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
+        var loaded = await port.LoadEntitiesAsync(kind, req.EntityIds, ct);
+        var byId = loaded.ToDictionary(e => e.EntityId);
 
         var items = new List<RenamerPlanItem>();
         var sizeByFileId = new Dictionary<int, long>();
         foreach (var id in req.EntityIds)
         {
             ct.ThrowIfCancellationRequested();
-            var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
-            items.AddRange(plan.Items);
-
-            // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
-            // plan item. Load the entity once (AsNoTracking - still zero mutation) and record each
-            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's planning pass.
-            var entity = await port.LoadEntityAsync(kind, id, ct);
-            if (entity is not null)
+            if (!byId.TryGetValue(id, out var entity))
             {
-                foreach (var file in entity.Files)
-                {
-                    sizeByFileId[file.FileId] = file.SizeBytes;
-                }
+                continue;
+            }
+
+            var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+            items.AddRange(plan.Items);
+            foreach (var file in entity.Files)
+            {
+                sizeByFileId[file.FileId] = file.SizeBytes;
             }
         }
 
@@ -458,10 +446,6 @@ public sealed partial class Renamer
         // different limits and disagree.
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
-        // buildConfirmSummary reads as a non-renamer - so the renamer would silently never fire. The
-        // string spelling comes from CamelCaseStringEnumConverter declared on RenamerStatus and
-        // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
             new PreviewResponse(
                 [.. items.Select(i => PreviewItemView.From(
@@ -469,8 +453,7 @@ public sealed partial class Renamer
                 summary));
     }
 
-    // Encodes the request into the job parameters and hands the host a delegate that calls
-    // RunRenamerBatchAsync. Returns 403 before any enqueue.
+    // Hands the host a delegate that calls RunRenamerBatchAsync. Returns 403 before any enqueue.
     //
     // One id the caller cannot write refuses the whole request, and the 403 carries no body, so the
     // response names none of the ids that were denied. The per-entity decision runs in the request
@@ -479,7 +462,7 @@ public sealed partial class Renamer
         RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
         IAuthorizationService authz, CancellationToken ct)
     {
-        // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
+        // The kind is resolved first so the check gates on that kind's write permission.
         if (!TryParseKind(req.EntityType, out var kind))
         {
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
@@ -509,15 +492,13 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);
-
-        // Enqueue exclusive (the host's JobService default): a renamer batch mutates disk + DB, so two
+        // Enqueue exclusive (the host's JobService default): a rename batch mutates disk + DB, so two
         // batches running at once could plan against each other's stale snapshots or target the same
         // paths. Exclusive serializes them - the second waits for the first to finish.
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:{RenamerJob.JobId}",
+            OwnJobType("renamer-batch"),
             $"[{Name}] Rename selected",
-            (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunRenamerBatchAsync(kind, req.EntityIds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
@@ -534,30 +515,19 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
-        // consumed flag only - no paths). A user who can renamer any kind may see it, so gate on holding
-        // any renamer-read permission rather than videos.read specifically. The summary does not carry
-        // the batch kind, so a per-kind gate would require reading the full batch for a metadata probe.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        // The summary carries no paths and no kind, so any kind's read permission admits it.
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        // The journal is a database read now, so this endpoint needs the scope it never had.
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
 
         await using var journal = new CoveRevertJournal(db);
 
-        // The read /undo names its target with, which is what makes the line this endpoint feeds
-        // describe the work the button will do. Two reads that merely agreed today drifted the moment a
-        // newer batch could settle while an older one still held rows.
-        //
-        // The counts are the operation's, summed over every batch the click opened, and the timestamp
+        // The same read /undo names its target with, so the line this feeds describes the work the
+        // button will do. The counts are the operation's, summed over every batch the click opened, and the timestamp
         // is the earliest of them: the moment the user clicked, not the moment its last kind started.
         var summary = await journal.ReadUndoTargetAsync(ct);
         return TypedResults.Ok(new LastBatchSummary(
@@ -577,6 +547,11 @@ public sealed partial class Renamer
     // The write gate, on the same terms.
     private static readonly string[] AnyWritePermissions =
         [.. RenamableKinds.All.Select(k => PermissionsFor(k).Write)];
+
+    // The kinds whose read, or write, permission the caller holds.
+    private static RenamerFileKind[] HeldKinds(ICurrentPrincipalAccessor principal, bool write) =>
+        [.. RenamableKinds.All.Where(k => principal.Current is { } current
+            && current.Has(write ? PermissionsFor(k).Write : PermissionsFor(k).Read))];
 
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
@@ -604,18 +579,15 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
-        // The tolerant options set OptionsStore uses, so the scan interprets it identically to a saved
-        // load; a null/blank/corrupt blob falls back to the persisted options (the original no-body
-        // behavior). Parsed here at enqueue time, then captured into the detached job closure - the job
-        // cannot re-read the request, exactly like readableKinds.
+        // A dry run on unsaved edits carries the panel's options. They are parsed here, because the
+        // detached job cannot read the request.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
-        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = HeldKinds(principal, write: false);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:scan-library",
+            OwnJobType("scan-library"),
             $"[{Name}] Scan library",
             (coreProgress, ct) => RunScanLibraryJobAsync(caller, readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
@@ -624,8 +596,9 @@ public sealed partial class Renamer
     }
 
     // Returns null when the blob is absent, blank or unparseable, so a corrupt override falls back
-    // to the saved options and does not fail the scan. Matches OptionsStore's tolerant read.
-    private static RenamerOptions? TryParseOptionsOverride(string? optionsJson)
+    // to the saved options and does not fail the scan. A blob that binds gets the repair a saved load
+    // gets.
+    private RenamerOptions? TryParseOptionsOverride(string? optionsJson)
     {
         if (string.IsNullOrWhiteSpace(optionsJson))
         {
@@ -634,7 +607,8 @@ public sealed partial class Renamer
 
         try
         {
-            return JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
+            var bound = JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
+            return bound is null ? null : StoredOptions.Repair(bound);
         }
         catch (JsonException)
         {
@@ -681,8 +655,47 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = HeldKinds(principal, write: false);
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
+    }
+
+    // Reads back one whole-library rename's counts, or 404 when the stored run is not runId. Only the
+    // latest run is kept, so a run that completed after the caller's reads as 404 rather than as the
+    // caller's own counts. As with /last-scan, the counts are stored per kind and summed over only the
+    // kinds the caller may read, and a blob that will not parse or carries an unknown schema version
+    // reads as 404 too.
+    internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenCode>> LibraryRenameResultAsync(
+        string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (!HasAnyReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        var json = await Store.GetAsync(LastLibraryRenameSummaryKey, ct);
+        if (string.IsNullOrEmpty(json))
+        {
+            return TypedResults.NotFound();
+        }
+
+        LibraryRenameSummary? summary;
+        try
+        {
+            summary = JsonSerializer.Deserialize<LibraryRenameSummary>(json, PreviewResponseJsonOptions);
+        }
+        catch (JsonException)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (summary is null
+            || summary.SchemaVersion != LibraryRenameSummary.CurrentSchemaVersion
+            || !string.Equals(summary.RunId, runId, StringComparison.Ordinal))
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(LibraryRenameSummaryView.From(summary, HeldKinds(principal, write: false)));
     }
 
     // One page of the whole-library dry run's rows, planned on demand through the planner the scan
@@ -716,8 +729,8 @@ public sealed partial class Renamer
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
         }
 
-        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
-        var lookups = BuildLookups(options);
+        var options = TryParseOptionsOverride(body?.Options) ?? await StoredOptions.LoadAsync(ct);
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         // A kind turned off is dropped before the walk, exactly as RunScanCoreAsync drops it. Left in,
         // a library-sized kind that is off fills the table with rows saying so and spends the request's
         // entity budget reaching them, while the counts beside that table exclude it, and the table and its
@@ -742,7 +755,7 @@ public sealed partial class Renamer
     // into the job closure, because the detached job cannot re-resolve the principal. A copy of the
     // principal is captured beside them, because holding a kind's write permission does not grant
     // write access to every entity of that kind and the job authorizes each candidate it derives.
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+    internal Results<Accepted<LibraryRenameEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
         ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
@@ -750,41 +763,30 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var writableKinds = HeldKinds(principal, write: true);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
+        var runId = Guid.NewGuid().ToString("N");
 
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:renamer-library",
-            $"[{Name}] Renamer library",
-            (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
+            OwnJobType("renamer-library"),
+            $"[{Name}] Rename library",
+            (coreProgress, ct) => RunRenamerLibraryJobAsync(
+                caller, writableKinds, new HostProgress(coreProgress), ct, runId: runId),
             exclusive: true);
 
-        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
+        return TypedResults.Accepted((string?)null, new LibraryRenameEnqueued(jobId, runId));
     }
 
     // Runs the template engine over fixed samples with the in-flight options from the request body.
     // Selection-less and pure: no planner, no database, no disk, so a hostile template cannot escape
-    // or amplify. The permission is enforced before any body read or engine work.
-    //
-    // The body is deserialized with RenamerOptions.JsonOptions, not the host's default minimal-API
-    // options, which carry no enum converter and would 400 a panel body holding string enum values.
-    // An empty or null-options body takes the defaults; malformed JSON is a 400.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers " +
-            "(PreviewAsync/RenamerEnqueue/UndoAsync/LastBatchAsync) and the test call sites that invoke " +
-            "it through an extension instance; making it static would churn those call sites without " +
-            "any behavior change.")]
+    // or amplify. The permission is enforced before any body read or engine work. An empty or
+    // null-options body takes the defaults; malformed JSON is a 400.
     internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewSampleAsync(
         HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // Enforce permission before touching the body - never read/parse for an unauthorized caller.
-        // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
-        // selection), so gate on holding any renamer-read permission rather than videos.read specifically.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        // Checked before the body is read. The samples are fixed and touch no library data, so any
+        // kind's read permission admits them.
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -808,8 +810,6 @@ public sealed partial class Renamer
             PreviewSampleRequest? req;
             try
             {
-                // Converter-aware parse: case-insensitive props + JsonStringEnumConverter, so a body
-                // carrying string enum values deserializes instead of 400ing on the host's default opts.
                 req = JsonSerializer.Deserialize<PreviewSampleRequest>(body, RenamerOptions.JsonOptions);
             }
             catch (JsonException)
@@ -821,7 +821,7 @@ public sealed partial class Renamer
             options = req?.Options;
         }
 
-        options ??= new RenamerOptions();
+        options = options is null ? new RenamerOptions() : StoredOptions.Repair(options);
 
         var results = SampleTokenSets.All
             .Select(sample => RenderSample(sample, options))
@@ -872,5 +872,12 @@ public sealed partial class Renamer
             Folder: result.FolderPath,
             Flags: flags.ToArray(),
             DroppedFields: dropped.ToArray());
+    }
+
+    // Adapts the host's core IJobProgress, handed to the IJobService.Enqueue delegate, to the
+    // extension IJobProgress the batch methods consume.
+    private sealed class HostProgress(Cove.Core.Interfaces.IJobProgress core) : Cove.Plugins.IJobProgress
+    {
+        public void Report(double percent, string? message = null) => core.Report(percent, message);
     }
 }

@@ -1,17 +1,7 @@
-using Renamer.Execution;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-/// <summary>
-/// Pure-string assertions for <see cref="VolumeClassifier"/>: two paths on one volume are the same volume,
-/// different volumes are cross-volume, and the volume key is what every cross-volume grouping agrees on.
-/// No disk, no TempDir.
-/// </summary>
-/// <remarks>
-/// Volume identity is expressed differently per platform, so each case runs on the platform whose semantics it
-/// asserts and skips with a reason on the other - a Windows drive literal has no root on Unix, and a Unix mount
-/// path has no meaning on Windows, so one shared assertion would be testing neither.
-/// </remarks>
 public sealed class VolumeClassifierTests
 {
     // The real mount table's stand-in. The Unix cases need no second drive.
@@ -61,7 +51,7 @@ public sealed class VolumeClassifierTests
     }
 
     [Fact]
-    public void InFolderRenamerPair_IsSameVolume_GatesTheFastPath()
+    public void InFolderRenamePair_IsSameVolume_GatesTheFastPath()
     {
         WindowsOnly();
 
@@ -103,7 +93,7 @@ public sealed class VolumeClassifierTests
     }
 
     [Fact]
-    public void InFolderRenamerPairOnAMount_IsSameVolume_GatesTheFastPath()
+    public void InFolderRenamePairOnAMount_IsSameVolume_GatesTheFastPath()
     {
         UnixOnly();
         Assert.True(VolumeClassifier.SameVolume("/mnt/media/clip.mkv", "/mnt/media/Renamed.mkv", Mounts));
@@ -116,21 +106,6 @@ public sealed class VolumeClassifierTests
         Assert.Equal(string.Empty, VolumeClassifier.VolumeKey("relative/a.mkv", Mounts));
     }
 
-    /// <summary>
-    /// The one case here that does not hand the classifier a mount table.
-    /// </summary>
-    /// <remarks>
-    /// Every case above passes <see cref="Mounts"/>, so all of them hold whatever the real table says
-    /// - and the real table is the input production actually routes on. That made the environment's own
-    /// contribution the single untested part of this class, which is the same shape as the defect
-    /// behind issue #108: a test that supplies the value the environment owns cannot notice the real
-    /// one being wrong.
-    /// <para>
-    /// <c>/dev/shm</c> is a tmpfs and therefore a distinct mount, measured present and writable with
-    /// no privilege in a Linux container. If the production table ever stops seeing past <c>/</c>, this
-    /// reds while every injected case stays green - which is exactly the split worth having.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void TheProductionMountTable_SeesPastRoot_AndSeparatesTwoRealMounts()
     {

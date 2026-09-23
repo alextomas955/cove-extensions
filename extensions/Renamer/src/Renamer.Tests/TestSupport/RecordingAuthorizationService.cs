@@ -2,24 +2,19 @@ using Cove.Core.Auth;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Records every entity the extension asks about and denies the ones a test names. All other members
-/// are unused and throw.
-/// </summary>
-/// <remarks>
-/// <c>AuthorizeManyAsync</c> counts the batch and then fans out to <c>AuthorizeAsync</c>, so every
-/// ask still funnels through one place.
-/// </remarks>
+// Records every entity the extension asks about and denies the ones a test names. All other members
+// are unused and throw. AuthorizeManyAsync counts the batch and then fans out to AuthorizeAsync, so
+// every ask still funnels through one place.
 public sealed class RecordingAuthorizationService : IAuthorizationService
 {
     public List<(string Permission, string EntityKind, int EntityId)> Asked { get; } = [];
 
-    /// <summary>How many batch calls were made, whatever each batch's size.</summary>
+    // How many batch calls were made, whatever each batch's size.
     public int BatchCalls { get; private set; }
 
     public CovePrincipal? LastPrincipal { get; private set; }
 
-    /// <summary>The entities to deny; anything absent is allowed.</summary>
+    // The entities to deny; anything absent is allowed.
     public HashSet<(string EntityKind, int EntityId)> Denied { get; } = [];
 
     public Task<AuthorizationResult> AuthorizeAsync(

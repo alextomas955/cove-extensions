@@ -1,37 +1,19 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Preview;
 
-/// <summary>
-/// Whole-batch wire shape: <c>/preview</c> now answers an object
-/// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
-/// each per-item object stays camelCase with <c>status</c> the string (so the UI's
-/// <c>status === "Renamer"</c> match survives) and carries its routing fields; the additive summary
-/// serializes camelCase with <c>confirmLevel</c> the string and <c>volumePairs</c> as
-/// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
-/// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
-/// </summary>
 public sealed class PreviewWholeBatchTests
 {
     // OS-aware absolute roots so routing to a different root yields a real cross-volume Move.
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
     private static string Fwd(string p) => p.Replace('\\', '/');
-
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(
-        DbContext db, RenamerOptions options, params string[] libraryPaths)
-    {
-        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, libraryPaths);
-        return ext;
-    }
 
     [Fact]
     public async Task PreviewAsync_ReturnsItemsAndSummary_WithRoutingFields_AndCamelCaseStringEnums()
@@ -66,7 +48,7 @@ public sealed class PreviewWholeBatchTests
                 ],
             };
 
-            var ext = await BuildExtensionAsync(db, options, srcFolder, PathRoot);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, srcFolder, PathRoot);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -141,7 +123,7 @@ public sealed class PreviewWholeBatchTests
                 ExcludePaths = [new ExcludeRule { Pattern = Fwd(SrcRoot), IsRegex = false }],
             };
 
-            var ext = await BuildExtensionAsync(db, options);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -177,7 +159,7 @@ public sealed class PreviewWholeBatchTests
     }
 
     [Fact]
-    public async Task PreviewAsync_SameVolumeRenamer_SummaryIsLight()
+    public async Task PreviewAsync_SameVolumeRename_SummaryIsLight()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -190,7 +172,7 @@ public sealed class PreviewWholeBatchTests
                 db, folderPath, "raw one.mkv", "First Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
 
-            var ext = await BuildExtensionAsync(db, new RenamerOptions { FilenameTemplate = "$title" });
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new RenamerOptions { FilenameTemplate = "$title" });
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(

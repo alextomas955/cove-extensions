@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
 
 namespace Renamer;
@@ -20,10 +19,9 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
         ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
     {
-        // Refuse a caller holding no renamer-write permission before any journal read or disk touch,
-        // so an unauthorized caller cannot learn whether a batch exists. The host's
-        // [RequiresPermission] filter is inert on minimal-API endpoints. The per-kind check below
-        // needs the batch to know the kinds, so it cannot be this gate.
+        // Refuse a caller holding no write permission before any journal read or disk touch, so an
+        // unauthorized caller cannot learn whether a batch exists. The per-kind check below needs the
+        // batch's kinds, so it cannot be this gate.
         if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
@@ -47,7 +45,7 @@ public sealed partial class Renamer
         string operationId = target.Value.OperationId;
 
         // Read before the per-kind gate: a settled operation answers "nothing to undo" for any caller
-        // holding a renamer write permission, and a 403 here would disclose which kinds it renamed.
+        // holding any kind's write permission, and a 403 here would disclose which kinds it renamed.
         var batch = await journal.ReadNextBatchAsync(
             operationId, IRevertJournal.FirstBatchTicks, IRevertJournal.FirstBatchRunId, ct);
         if (batch is null)
@@ -109,8 +107,7 @@ public sealed partial class Renamer
         }
 
         // Undo restores the paths the journal recorded and renders no name, so it loads no options.
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
-            cross: new CrossVolumeMover());
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus);
 
         // One accumulator for the whole operation: a per-batch one would report the last kind's
         // outcome as the run's. Pages fold into totals plus a bounded sample, because retaining every
@@ -155,8 +152,7 @@ public sealed partial class Renamer
 
                 // The cursor is the lowest sequence this page returned and the next page returns only
                 // rows strictly below it, so it decreases and the loop terminates whatever the outcomes
-                // were. A cursor that failed to advance would re-read one page forever, which is a hang
-                // rather than an error, so a test pins it.
+                // were.
                 page = await journal.ReadBatchPageAsync(
                     current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
             }

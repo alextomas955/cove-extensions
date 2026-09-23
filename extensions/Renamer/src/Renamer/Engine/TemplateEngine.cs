@@ -1,6 +1,5 @@
 using System.Text;
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Engine;
 
@@ -28,11 +27,9 @@ public static class Tokens
     public const string Ext = "ext";
 }
 
-// Evaluation order: (1) build the resolved token map (scalars, multi-value performers/tags,
-// derived $resolution); (2) render the filename and folder templates independently, collapsing
-// {} spans whose every inner token resolved empty; (3) apply case and transliteration transforms;
-// (4) sanitize per segment (filename as one segment so '/' is stripped; folder split on '/', each
-// piece cleaned, rejoined with '/'); (5) resolve the extension; (6) length-fit.
+// Renders in a fixed order: resolve the tokens, render each template collapsing a {} group whose tokens
+// are all empty, apply the case and transliteration transforms, sanitize each path segment, resolve
+// the extension, then fit the length.
 //
 // The engine is pure: no Path, File or database access. Path-traversal confinement ('..',
 // absolute paths) belongs to the executor, because the engine never sees the library root.
@@ -42,10 +39,9 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        Action<string>? logUnbalanced = null,
         IReadOnlyList<RenamerPerformer>? performers = null,
         IReadOnlyList<(int Id, string Name)>? tags = null)
-        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tags).result;
+        => RenderWithDropped(tokens, multiValues, options, performers, tags).result;
 
     // Also returns the DropOrder fields the length reducer dropped to make the name fit, as
     // reported by LengthReducer itself. Render delegates here, so there is one rendering path.
@@ -53,7 +49,6 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        Action<string>? logUnbalanced = null,
         IReadOnlyList<RenamerPerformer>? performers = null,
         IReadOnlyList<(int Id, string Name)>? tags = null)
     {
@@ -64,12 +59,12 @@ public static class TemplateEngine
         string ext = NormalizeExt(Resolve(resolved, Tokens.Ext));
 
         string filename = RenderFilename(
-            options.FilenameTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
+            options.FilenameTemplate, resolved, options, resolutionDropped: false);
 
         string folder = RenderFolder(
-            options.FolderTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
+            options.FolderTemplate, resolved, options, resolutionDropped: false);
 
-        return LengthReducer.FitWithDropped(
+        return LengthReducer.Fit(
             folder, filename, ext, options,
             // Re-render with the cumulative set of dropped fields forced empty.
             droppedFields =>
@@ -86,8 +81,8 @@ public static class TemplateEngine
                     droppedFields.Contains(Tokens.Resolution, StringComparer.OrdinalIgnoreCase);
 
                 return (
-                    RenderFolder(options.FolderTemplate, reduced, options, null, resolutionDropped),
-                    RenderFilename(options.FilenameTemplate, reduced, options, null, resolutionDropped));
+                    RenderFolder(options.FolderTemplate, reduced, options, resolutionDropped),
+                    RenderFilename(options.FilenameTemplate, reduced, options, resolutionDropped));
             });
     }
 
@@ -258,9 +253,11 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        string field)
+        string field,
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tags = null)
     {
-        var resolved = BuildResolvedMap(tokens, multiValues, options);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         return Resolve(resolved, field);
     }
 
@@ -275,7 +272,7 @@ public static class TemplateEngine
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         string raw = RenderDeDuped(
-            options.FilenameTemplate, resolved, suppressExt: true, null, resolutionDropped: false);
+            options.FilenameTemplate, resolved, suppressExt: true, resolutionDropped: false);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
@@ -314,10 +311,9 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
-        string raw = RenderDeDuped(template, resolved, suppressExt: true, logUnbalanced, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: true, resolutionDropped);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -328,7 +324,6 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
         if (string.IsNullOrEmpty(template))
@@ -336,7 +331,7 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderDeDuped(template, resolved, suppressExt: false, logUnbalanced, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: false, resolutionDropped);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
@@ -354,10 +349,9 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         bool suppressExt,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
-        var segs = Tokenizer.Scan(template, logUnbalanced);
+        var segs = Tokenizer.Scan(template);
         return RenderRaw(
             segs,
             WithDeDupedTitle(resolved, RendersResolution(segs), resolutionDropped),
@@ -438,7 +432,7 @@ public static class TemplateEngine
             }
             else if (seg.Kind == SegKind.GroupOpen)
             {
-                // Groups are flat, so a nested open is not expected; render it inline.
+                // A nested group renders inside this one.
                 i = RenderGroup(segs, i, resolved, suppressExt, inner);
             }
         }

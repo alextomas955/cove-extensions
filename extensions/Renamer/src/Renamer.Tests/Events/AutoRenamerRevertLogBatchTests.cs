@@ -4,17 +4,10 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The data-recovery spine for the auto-renamer hook: a rename driven by the <c>video.updated</c> event
-/// must open its own journal batch, and the row it writes must carry the parent entity id alongside the
-/// file id so /undo can publish the forward-equivalent event. The decoy video makes
-/// <c>videoId ≠ fileId</c>, so a row that confused the two is distinguishable from a correct one.
-/// </summary>
 public sealed class AutoRenamerRevertLogBatchTests
 {
     [Fact]
@@ -50,7 +43,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.False(File.Exists(oldFull));
 
             // (a) A fresh reader sees exactly one batch with the correct kind.
-            using var readBack = new CoveRevertJournal(db);
+            await using var readBack = new CoveRevertJournal(db);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
@@ -65,7 +58,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             // (c) Reverse-replay the batch restores disk + DB.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -91,10 +84,8 @@ public sealed class AutoRenamerRevertLogBatchTests
         }
     }
 
-    /// <summary>
-    /// Seeds one throwaway Video so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/> hands back a
-    /// Video id one ahead of its VideoFile id - guaranteeing videoId ≠ fileId.
-    /// </summary>
+    // Seeds one throwaway Video so the next SeedVideoAsync hands back a Video id one ahead of its
+    // VideoFile id - guaranteeing videoId ≠ fileId.
     private static async Task SeedDecoyVideoAsync(DbContext db)
     {
         db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });

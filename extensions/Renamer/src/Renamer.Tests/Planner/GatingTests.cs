@@ -1,14 +1,10 @@
+using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Gating: only-organized skips an unorganized item; require-fields skips an
-/// item whose required token projects empty. Gated = <see cref="RenamerStatus.SkipGated"/>
-/// (never <see cref="RenamerStatus.Failed"/>), with a reason - and zero mutation.
-/// </summary>
 public sealed class GatingTests
 {
     private static RenamerFile File(int id) =>
@@ -62,6 +58,42 @@ public sealed class GatingTests
         port.SeedEntity(Entity("My Film", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { RequiredFields = ["zzznope"] };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.SkipGated, item.Status);
+    }
+
+    [Theory]
+    [InlineData("performers")]
+    [InlineData("tags")]
+    [InlineData("resolution")]
+    public async Task RequireFields_AMultiValueOrDerivedToken_IsSatisfiedByTheItemThatHasIt(string field)
+    {
+        var port = new FakeRenamerDataPort();
+        var file = File(1) with { Width = 1920, Height = 1080 };
+        port.SeedEntity(Entity("My Film", organized: true, file) with
+        {
+            Performers = [new RenamerPerformer(3, "Jane", Favorite: false, Gender: null)],
+            TagRefs = [(4, "tagA")],
+        });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { RequiredFields = [field] };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
+    }
+
+    [Fact]
+    public async Task RequireFields_Performers_OnAnItemWithNone_SkipGated()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity("My Film", organized: true, File(1)));
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { RequiredFields = ["performers"] };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 

@@ -1,10 +1,10 @@
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 
 // The opt-in post-move step that deletes a source directory the move left empty. It is the one
 // destructive directory write the renamer slice performs: only if empty, non-recursive, never a drive
-// root, link-resolved, idempotent, and classifying instead of throwing.
+// root, never a link, idempotent, and classifying instead of throwing.
 //
 // It runs only on the move success path, after the database save and the on-disk path assertion both
 // pass, so a failed save that rolls the disk back never reaches a deletion that could not be undone. A
@@ -17,8 +17,8 @@ namespace Renamer.Execution;
 public static class EmptySourceFolderCleaner
 {
     // Deletes the directory only when it exists, holds no entry at all including untracked ones, is not
-    // a drive root or a parentless path, and resolves to a real directory and not a link target. Any
-    // other state is a no-op.
+    // a drive root or a parentless path, and is not itself a symlink or junction. Any other state is a
+    // no-op.
     //
     // A warning comes back when a guard refused or an IO or permission error interrupted the delete;
     // the warning is null when the directory was simply not eligible.
@@ -40,19 +40,9 @@ public static class EmptySourceFolderCleaner
             return (false, null);
         }
 
-        // Resolve to the real on-disk target so a junction or symlink is not deleted as if it were the
-        // empty directory it points at.
-        string? resolved = ResolveCanonical(native);
-        if (resolved is null)
-        {
-            return (false, "empty-folder cleanup skipped: source directory could not be resolved");
-        }
-
-        string deleteTarget = resolved;
-
-        // The resolved target is re-checked because a junction can resolve to a drive root, which the
-        // check on the unresolved path misses.
-        if (IsRootOrParentless(deleteTarget))
+        // A link's target can sit outside the library, and deleting it would leave the link dangling,
+        // so a linked folder is left as it is.
+        if (IsLink(native) is not false)
         {
             return (false, null);
         }
@@ -62,14 +52,14 @@ public static class EmptySourceFolderCleaner
         // common case and not an error.
         try
         {
-            if (Directory.EnumerateFileSystemEntries(deleteTarget).Any())
+            if (Directory.EnumerateFileSystemEntries(native).Any())
             {
                 return (false, null);
             }
 
             // A recursive delete would take whatever a racing writer dropped in between the empty check
             // and here, defeating that guard.
-            Directory.Delete(deleteTarget, recursive: false);
+            Directory.Delete(native, recursive: false);
             return (true, null);
         }
         catch (DirectoryNotFoundException)
@@ -104,12 +94,12 @@ public static class EmptySourceFolderCleaner
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
-    private static string? ResolveCanonical(string nativeDir)
+    // Null when the link state cannot be read, which the caller treats as a link.
+    private static bool? IsLink(string nativeDir)
     {
         try
         {
-            var link = Directory.ResolveLinkTarget(nativeDir, returnFinalTarget: true);
-            return link?.FullName ?? nativeDir;
+            return new DirectoryInfo(nativeDir).LinkTarget is not null;
         }
         catch (IOException)
         {
@@ -120,6 +110,4 @@ public static class EmptySourceFolderCleaner
             return null;
         }
     }
-
-
 }

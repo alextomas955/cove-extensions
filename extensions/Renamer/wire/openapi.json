@@ -345,6 +345,48 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.renamer/last-library-rename/{runId}": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryRenameSummaryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.renamer/renamer-library": {
       "post": {
         "tags": [
@@ -356,7 +398,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobEnqueued"
+                  "$ref": "#/components/schemas/LibraryRenameEnqueued"
                 }
               }
             }
@@ -698,6 +740,62 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "LibraryRenameEnqueued": {
+        "required": [
+          "jobId",
+          "runId"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      },
+      "LibraryRenameSummaryView": {
+        "required": [
+          "renamed",
+          "skipped",
+          "failed",
+          "stoppedForSpace",
+          "completedAtUtcTicks",
+          "kinds"
+        ],
+        "type": "object",
+        "properties": {
+          "renamed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stoppedForSpace": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenamerFileKind"
+            }
+          },
+          "completedAtUtcTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenamerFileKind"
             }
           }
         }
@@ -1250,12 +1348,13 @@
       },
       "RenamerStatus": {
         "enum": [
-          "renamer",
+          "rename",
           "move",
           "noOp",
           "skipCollision",
           "skipGated",
           "skipExcluded",
+          "skipRuleTimedOut",
           "skipLocked",
           "skipMissingSource",
           "skipNoSpace",

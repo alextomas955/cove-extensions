@@ -5,21 +5,11 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// A denied entity narrows a page of the whole-library walk without ending it: the entities after it
-/// are still reached, whether the denial empties the page or only shortens it.
-/// </summary>
-/// <remarks>
-/// Driven at a chunk size of two over four entities, which is the smallest fixture where a denial can
-/// both shorten a page and empty one. The cases above this tier page a whole kind at once, so neither
-/// shape occurs there.
-/// </remarks>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class AuthorizedPagingTests
 {
@@ -40,10 +30,8 @@ public sealed class AuthorizedPagingTests
         return ext;
     }
 
-    /// <summary>
-    /// Seeds <paramref name="count"/> single-file videos in one folder, titled "Film i" over
-    /// "raw i.mkv", and returns their entity ids in the order the walk pages them.
-    /// </summary>
+    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", and returns
+    // their entity ids in the order the walk pages them.
     private static async Task<int[]> SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
@@ -135,16 +123,6 @@ public sealed class AuthorizedPagingTests
         Assert.True(File.Exists(Path.Combine(dir.Root, "Film 3.mkv")), "Film 3.mkv missing");
     }
 
-    /// <summary>
-    /// A long denied region costs authorization calls proportional to the entities walked over the
-    /// page size, never one per denied entity.
-    /// </summary>
-    /// <remarks>
-    /// Twelve entities at a chunk of four, denied from the first page's last allowed entity to the
-    /// one before the last. Drawing a page sized to the chunk's remaining capacity makes every draw
-    /// after the first a page of one, which the per-entity <c>Asked</c> list cannot see: the walk asks
-    /// about the same twelve entities either way, and only the number of round trips differs.
-    /// </remarks>
     [Fact]
     public async Task ALongDeniedRegion_CostsOneCallPerPage_NotOnePerDeniedEntity()
     {

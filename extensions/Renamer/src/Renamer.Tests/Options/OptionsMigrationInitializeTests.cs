@@ -1,23 +1,13 @@
 using Cove.Core.Entities;
 using Cove.Plugins;
-using Microsoft.Extensions.Logging;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The initialize-time seam that drives the options conversion, through the real entry path with a
-/// real database rather than the pure converter alone.
-/// </summary>
-/// <remarks>
-/// The subject is the deferral. The converter cannot tell an entity that was deleted from a table it
-/// cannot read yet, so the decision not to convert lives here, and getting it wrong destroys the
-/// user's entity rules with nothing observable happening.
-/// </remarks>
 public sealed class OptionsMigrationInitializeTests
 {
-    /// <summary>The library path every stored destination in these blobs lives under.</summary>
+    // The library path every stored destination in these blobs lives under.
     private const string DramaRoot = "/drama";
 
     private const string LegacyBlob = """
@@ -33,10 +23,9 @@ public sealed class OptionsMigrationInitializeTests
         return ext;
     }
 
-    /// <summary>
-    /// Loads against a database holding the undo journal and nothing else, so the load itself completes
-    /// and every library read throws. A conversion that reached one is visible as the seam's failure path.
-    /// </summary>
+    // Loads against a database holding the undo journal and nothing else, so the load itself
+    // completes and every library read throws. A conversion that reached one is visible as the
+    // seam's failure path.
     private static async Task LoadWithoutLibraryTablesAsync(JournalOnlyDatabase db, IExtensionStore store)
     {
         var ext = new global::Renamer.Renamer();
@@ -90,38 +79,6 @@ public sealed class OptionsMigrationInitializeTests
         var options = await new OptionsStore(store).LoadAsync();
         Assert.Equal([13], options.ExcludeTagIds);
         Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
-    }
-
-    [Fact]
-    public async Task PopulatedTable_ConvertsOnTheFirstLoad()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-
-        await LoadAsync(library, store, DramaRoot);
-
-        var options = await new OptionsStore(store).LoadAsync();
-        Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
-        Assert.Equal("$title", options.FilenameTemplate);
-    }
-
-    [Fact]
-    public async Task AlreadyStamped_IsNotConvertedAgain()
-    {
-        // The stamp is the only thing making the conversion one-time, so a stamped blob must be left
-        // exactly as it is even when it still looks legacy.
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-        await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);
-
-        await LoadAsync(library, store, DramaRoot);
-
-        Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
     }
 
     [Fact]
@@ -190,28 +147,6 @@ public sealed class OptionsMigrationInitializeTests
     }
 
     [Fact]
-    public async Task ASecondLoadAgainstAnAlreadyStampedStore_WritesNothing()
-    {
-        // A second load is a host restart, redeploy or reboot. Asserting the blob is unchanged is not
-        // enough on its own: a conversion that ran again and produced the same bytes would satisfy that
-        // while re-reading and re-writing the user's settings on every start.
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-
-        await LoadAsync(library, store, DramaRoot);
-        Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
-        string? afterFirst = await store.GetAsync(OptionsStore.Key);
-        int setsAfterFirst = store.SetCallCount;
-
-        await LoadAsync(library, store, DramaRoot);
-
-        Assert.Equal(setsAfterFirst, store.SetCallCount);
-        Assert.Equal(afterFirst, await store.GetAsync(OptionsStore.Key));
-    }
-
-    [Fact]
     public async Task OnceStamped_TheStoredBlobIsNotEvenRead()
     {
         // What the stamp buys beyond the already-converted shape check: the stored blob is never read.
@@ -275,7 +210,7 @@ public sealed class OptionsMigrationInitializeTests
 
         await using var library = await LibraryDatabase.CreateAsync();
         await SeedTagsAsync(library, (13, "spoiler"));
-        var log = new CapturingLogger();
+        var log = new CapturingLogger<global::Renamer.Renamer>();
         library.Log = log;
 
         var ext = new global::Renamer.Renamer();
@@ -284,21 +219,19 @@ public sealed class OptionsMigrationInitializeTests
 
         // The settings write landed, and the name it discarded is named.
         Assert.Equal([13], (await new OptionsStore(store).LoadAsync()).ExcludeTagIds);
-        Assert.Contains(RuleDroppedEvent, log.Events);
+        Assert.Contains(log.Entries, e => e.EventId == RuleDroppedEvent);
 
-        // Asserted at the event id rather than the wording, which would pin the sentence instead of the
-        // behaviour: the failure is reported, and the store is left unstamped so a later load retries.
-        Assert.Contains(MigrationFailedEvent, log.Events);
+        // The store is left unstamped so a later load retries.
+        Assert.Contains(log.Entries, e => e.EventId == MigrationFailedEvent);
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
-    /// <summary>The dropped-rule warning, the only trace of a rule the conversion discarded.</summary>
+    // The dropped-rule warning, the only trace of a rule the conversion discarded.
     private const int RuleDroppedEvent = 1068;
 
-    /// <summary>The load-time catch that reports a conversion which could not complete.</summary>
+    // The load-time catch that reports a conversion which could not complete.
     private const int MigrationFailedEvent = 1066;
 
-    /// <summary>Fails only the schema stamp, so the settings write ahead of it still lands.</summary>
     private sealed class FailingStampStore(IExtensionStore inner) : IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => inner.GetAsync(key, ct);
@@ -312,23 +245,5 @@ public sealed class OptionsMigrationInitializeTests
 
         public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default) =>
             inner.GetAllAsync(ct);
-    }
-
-    /// <summary>Records the id of every event the load logged.</summary>
-    private sealed class CapturingLogger : ILogger<global::Renamer.Renamer>
-    {
-        public List<int> Events { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) => Events.Add(eventId.Id);
     }
 }

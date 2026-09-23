@@ -1,6 +1,5 @@
 using Renamer.Engine;
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
@@ -54,9 +53,7 @@ public class MultiValueTests
         Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
     }
 
-    // The whitelist/blacklist live on the id-carrying overloads, so these exercise the tag pairs
-    // rather than the bare name list. The names differ in case from nothing here on purpose: the
-    // filter no longer reads them at all.
+    // The whitelist and blacklist match on tag ids, never on names.
     private static readonly IReadOnlyList<(int Id, string Name)> ThreeTags =
         new[] { (1, "Charlie"), (2, "alice"), (3, "Bob") };
 

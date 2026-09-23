@@ -2,35 +2,11 @@
 
 User-facing changes, newest first.
 
-## 0.5.0 - Text documents, per-kind control, and resolution labels that match Cove
-
-**You need Cove 1.4.1.** An older host does not load Renamer at all: no Rename tab under Settings ->
-Extensions, and no "Rename selected" on your lists. Stay on 0.4.0 until you have upgraded Cove.
-Nothing below needs 1.4.1 to work; the floor moved because that is the host release this version is
-built and tested against.
+## 0.6.0 - Resolution labels that match Cove, and a settings page you can scan
 
 **Do a dry run before your first rename.** Resolution labels have changed, so a file you renamed
 under an older version can work out to a different name if you rename it again. Nothing renames on
 its own, and the dry run shows you every name that would change before anything touches disk.
-
-### Text documents
-
-Renamer now renames text documents, alongside videos, images and audio: the same templates, the
-same dry run, the same undo. A **Rename selected** action appears on your text lists, and you need
-the `texts.write` permission in Cove to use it. Nothing about the other kinds changes.
-
-### Turn kinds off, and give each one its own home
-
-A new **Per kind** list inside **Where files go** has one row per kind.
-
-- **Exclude** leaves that kind out of the dry run and out of **Rename all files** entirely, so it
-  adds nothing to the counts. Selecting items of that kind and using **Rename selected** reports
-  them as skipped and names the kind in the reason. Every kind starts on, which is what Renamer did
-  before.
-- **Own folder** sends that kind's items somewhere of their own when no routing rule matches them,
-  so you can keep text documents in one tree and videos in another. This is a default, not an
-  override: an item matched by a tag, studio, source-path or unorganized rule still goes where that
-  rule says, so nothing you have already routed by hand moves.
 
 ### Resolution labels now match the badge Cove shows
 
@@ -75,6 +51,8 @@ computed, which it could not before.
   a longer name is kept. A gender you leave out of **Gender order** sorts last rather than being
   dropped. Under **Advanced**, each control is named once instead of carrying a heading and a second
   label for the same thing.
+- Messages, badges and hints use plain punctuation. The badge for a rename that failed and was put
+  back reads **Failed and rolled back**, and the token boxes say **Type to add a token**.
 
 ### A dry run that states each number once
 
@@ -86,15 +64,74 @@ computed, which it could not before.
 - The Save bar steps aside while the dry-run dialog is open, instead of sitting over it with a
   clickable Save button.
 
+### For API users
+
+- The preview and dry-run endpoints now report an in-place rename with the status `rename`. It
+  used to read `renamer`. A dry-run summary saved by an earlier version reads as no dry run yet, so
+  run a new one after upgrading.
+- `POST /renamer-library` now also returns a `runId`. `GET /last-library-rename/{runId}` returns that
+  run's counts: files renamed, skipped and failed, and the kinds that stopped for lack of space.
+
 ### Fixes
 
+- **Rename all files** no longer scans the whole library before it starts. The scan only worded the
+  banner, and on a large library it doubled the work with no progress shown. The banner now reports
+  what the rename itself did: how many files it renamed, skipped and failed, and which kinds stopped
+  early for lack of space.
+- A whole-library rename that fails or is cancelled partway no longer says nothing was changed.
+  The banner says some files may already be renamed and points you to the undo line.
+- On macOS, a source-path rule now matches a path that differs from it only in letter case, the way
+  Renamer already compares file names there.
+- The Job Drawer names a whole-library run **Rename library** and an empty one **Nothing to
+  rename.** They read "Renamer library" and "Nothing to renamer."
+- On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a
+  sibling's only in upper and lower case. The rename already added the suffix; the dry run showed
+  both files under the one name.
+- With **Delete the source folder when a move leaves it empty** on, a source folder that is a
+  symlink is now left alone. Renamer used to delete the empty folder the link pointed at, which
+  could be outside your library, and leave a broken link behind.
+- The dead **Rename selected** row under Settings -> Operations -> Extension Tasks is gone. Its
+  **Run** button sent no selection and did nothing. **Rename selected** on your lists works as
+  before.
+- Someone whose Cove role can read only text documents now sees the undo footer and the live
+  preview. Both used to refuse them with a permission error.
+- If the settings page cannot load your saved settings, it now says so and offers **Retry**. It
+  used to show "Loading settings" forever.
+- **Required fields** now accepts `performers`, `tags` and `resolution`. Adding any of them used to
+  skip every item, even ones that had the value, because the check never saw those three tokens.
+  The check now reads each field the way your filename renders it, find-and-replace rules included,
+  so the dry run and the live preview agree about what gets skipped.
+- A source-path pattern that takes too long to check now leaves the file where it is, with the
+  badge **A regex rule timed out** naming the pattern. Before, a timed-out exclude rule let the file
+  be renamed anyway, and a timed-out routing rule sent it to the default folder.
 - Clicking the heading above a list of tags, performers or studios no longer deletes the first entry
   from it. It used to remove one with no message shown and nothing to put it back.
-- Undoing a text rename announces the right kind. The undo path published a video-updated event for
-  every kind, so other parts of Cove watching for the change were told about the wrong sort of item.
-  Nothing was renamed wrongly.
 - The note beside **Undo last rename** now says what undo does: it reverts the most recent rename
   that still has files to put back. It used to say only one batch is kept, which was out of date.
+
+## 0.5.0 - Text documents, and each kind settled on its own
+
+**Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->
+Extensions, no "Rename selected" on your lists - so stay on 0.4.0 until you have upgraded Cove. No
+feature below needs 1.4.1; the floor moved because 1.4.1 is the host release this version is built
+and tested against. If you are on 1.3.1 and do not want to upgrade Cove, 0.4.0 keeps working.
+
+- **Renamer now renames text documents.** They join videos, images and audio: the same templates,
+  the same dry run, the same undo. A **Rename selected** action appears on your text lists, and you
+  need `texts.write` in Cove to use it. Nothing about the other kinds changes.
+- **Each kind can be turned off on its own.** A new _Per kind_ list inside _Where files go_ has one
+  row per kind, with an **Exclude** button on each. A kind turned off is left out of the dry run and out of **Rename all files** entirely, so
+  it adds nothing to the counts; selecting items of that kind and using **Rename selected** reports
+  them as skipped and names the kind in the reason. Every kind starts on, which is what Renamer did
+  before.
+- **Each kind can have its own destination folder.** Press **Own folder** on a kind's row and its
+  items go there when no routing rule matches them - text documents to one tree and
+  videos to another, say. This is a default, not an override: an item matched by a tag, studio,
+  source-path or unorganized rule still goes where that rule says, so nothing you have already routed
+  by hand moves.
+- **Undoing a text rename now announces the right kind.** The undo path published a video-updated
+  event for every kind. Nothing was renamed wrongly, but other parts of Cove watching for the change
+  were told about the wrong sort of item.
 
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 

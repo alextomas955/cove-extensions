@@ -16,12 +16,9 @@ import {
   createApiClient,
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
-import { RENAMER_EXTENSION, seedVideo, pollUntil } from "../lib/renamer-fixtures.mjs";
+import { RENAMER_EXTENSION, seedVideo, pollUntil, ROUTE } from "../lib/renamer-fixtures.mjs";
 import { basename } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
-
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),

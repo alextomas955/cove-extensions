@@ -90,31 +90,25 @@ public class TokenizerTests
     }
 
     [Fact]
-    public void Unbalanced_StrayCloseBrace_BecomesLiteralAndLogs()
+    public void Unbalanced_StrayCloseBrace_BecomesLiteral()
     {
-        var logs = new List<string>();
-        var segs = Tokenizer.Scan("a}b", logs.Add);
+        var segs = Tokenizer.Scan("a}b");
         Assert.Equal(new[] { new Segment(SegKind.Literal, "a}b") }, segs);
-        Assert.Single(logs);
     }
 
     [Fact]
-    public void Unbalanced_UnclosedBrace_LogsAndDoesNotThrow()
+    public void Unbalanced_UnclosedBrace_DoesNotThrow()
     {
-        var logs = new List<string>();
-        var ex = Record.Exception(() => Tokenizer.Scan("$title {$studio", logs.Add));
+        var ex = Record.Exception(() => Tokenizer.Scan("$title {$studio"));
         Assert.Null(ex);
-        Assert.Single(logs);
     }
 
     [Fact]
     public void Adversarial_ManyOpenBraces_DoesNotThrowOrHang()
     {
         var template = new string('{', 100_000);
-        var logs = new List<string>();
-        var ex = Record.Exception(() => Tokenizer.Scan(template, logs.Add));
+        var ex = Record.Exception(() => Tokenizer.Scan(template));
         Assert.Null(ex);
-        Assert.Single(logs); // one summary log for the unclosed braces at EOF
     }
 
     [Fact]

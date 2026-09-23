@@ -4,29 +4,19 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Jobs;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// Batch core: the shared <c>RunRenamerBatchAsync</c> opens a scope via the captured
-/// <c>IServiceScopeFactory</c>, builds the port+executor over the real <c>CoveContext</c>,
-/// renames every id on disk + in the DB, and reports per-item progress plus a final <c>1.0</c>.
-/// Bad/empty input is a clean no-op that still reports the final <c>1.0</c>.
-/// </summary>
 public sealed class RenamerBatchJobTests
 {
-    /// <summary>
-    /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>, <c>Store</c>)
-    /// from a DI provider that registers the base <c>DbContext</c> scoped over the test's shared
-    /// in-memory SQLite connection, so each <c>CreateAsyncScope()</c> (including the per-worker scopes
-    /// the parallel batch opens) resolves a distinct context over the same database. A singleton
-    /// registration would hand every parallel worker the one seeded context - a <c>DbContext</c> is
-    /// not thread-safe, so concurrent workers on it throw/corrupt. The seed/assert context (<c>db</c>)
-    /// shares the connection, so rows the workers save are visible to the test's read-backs.
-    /// </summary>
+    // Wires the extension's captured seams (_scopeFactory, _eventBus, Store) from a DI provider
+    // that registers the base DbContext scoped over the test's shared in-memory SQLite connection,
+    // so each CreateAsyncScope() (including the per-worker scopes the parallel batch opens)
+    // resolves a distinct context over the same database. A singleton registration would hand every
+    // parallel worker the one seeded context - a DbContext is not thread-safe, so concurrent
+    // workers on it throw/corrupt. The seed/assert context (db) shares the connection, so rows the
+    // workers save are visible to the test's read-backs.
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync(SqliteConnection conn, IEventBus bus)
     {
         var services = new ServiceCollection();
@@ -40,23 +30,13 @@ public sealed class RenamerBatchJobTests
 
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
-        // These job tests assert batch renamer mechanics over height-less seed videos and expect a
-        // stable "$title.ext" output; pin the title-only template so the shipped default (which
-        // appends "[$resolution]") doesn't perturb the asserted names.
-        //
-        // SameVolumeConcurrency=1 is a test-harness requirement, not a product behavior under test:
-        // the batch opens one DI scope per worker, and BuildExtensionAsync registers DbContext scoped
-        // over a single shared in-memory SQLite connection (the connection is what keeps the :memory:
-        // database alive). In production each scope draws its own pooled connection, so parallel workers
-        // never share one; here they would, and two DbContexts racing on one SQLite connection
-        // intermittently throw inside EF's DbContextDependencies resolution. Serializing same-volume
-        // workers removes that harness-only race while still exercising the full per-item batch path
-        // (both items rename, per-item progress still ticks). The default (8) is covered implicitly by
-        // production and the E2E suite, which use real per-scope connections.
+        // "$title" keeps the seed videos, which have no height, from gaining a resolution suffix.
+        // SameVolumeConcurrency=1 because every DI scope here shares one in-memory SQLite connection,
+        // and two DbContexts racing on one connection throw inside EF.
         await new global::Renamer.Options.OptionsStore(store).SaveAsync(
             new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
+        await ext.InitializeAsync(provider);
         return ext;
     }
 
@@ -87,7 +67,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, v2]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [v1, v2], progress, default);
 
             // Disk: both renamed to "$title.mkv", old gone, content intact.
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
@@ -130,7 +110,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", []), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [], progress, default);
 
             // Untouched on disk; no renamer event published; only a final 1.0 reported.
             Assert.True(File.Exists(Path.Combine(dir.Root, "keep me.mkv")));
@@ -144,10 +124,6 @@ public sealed class RenamerBatchJobTests
         }
     }
 
-    /// <summary>
-    /// Two file rows whose folder paths differ only by a trailing separator name one file on disk. The
-    /// batch cannot tell which row owns it, so it renames neither and leaves the file alone.
-    /// </summary>
     [Fact]
     public async Task TwoRowsNamingOneSourceFile_RenameNeither_LeaveTheFileAlone()
     {
@@ -174,7 +150,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, video2.Id]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [v1, video2.Id], progress, default);
 
             // The file is untouched and neither row moved, so nothing renamed the file the other claims.
             Assert.True(File.Exists(Path.Combine(dir.Root, "a.mkv")));
@@ -197,10 +173,6 @@ public sealed class RenamerBatchJobTests
         }
     }
 
-    /// <summary>
-    /// The same id twice is one file, not two rows competing for it: the batch renames it once instead
-    /// of refusing it as a contested source or scheduling it on two workers.
-    /// </summary>
     [Fact]
     public async Task TheSameIdTwice_RenamesTheFileOnce()
     {
@@ -216,36 +188,13 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
 
             await ext.RunRenamerBatchAsync(
-                RenamerJob.Encode("video", [videoId, videoId]), new FakeJobProgress(), default);
+                RenamerFileKind.Video, [videoId, videoId], new FakeJobProgress(), default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("First Film.mkv", basename);
             Assert.Single(bus.Published);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task UnsupportedEntityType_IsCleanNoOp_ReportsFinalOne()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var bus = new CapturingEventBus();
-            var ext = await BuildExtensionAsync(conn, bus);
-            var progress = new FakeJobProgress();
-
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("gallery", [1, 2]), progress, default);
-
-            Assert.Empty(bus.Published);
-            Assert.Equal(1d, progress.LastPercent);
         }
         finally
         {

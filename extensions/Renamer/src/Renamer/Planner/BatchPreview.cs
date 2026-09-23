@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using Renamer.Execution;
 
 namespace Renamer.Planner;
 
@@ -49,12 +48,9 @@ public sealed record PreviewSummary(
 // its VolumeKey value, possibly "", and no method here throws on path content.
 public static class BatchPreview
 {
-    // Blast-radius thresholds for the confirm level. A same-drive-only batch is always Light: an
-    // in-place rename is an instant metadata change and trivially reversible, so its size never
-    // escalates the confirm. A cross-drive move copies real bytes across volumes, so it starts at
-    // Standard and escalates to Heavy when it is large by any of three independent measures: a lot of
-    // files, a lot of bytes, or a spread across several destination volumes. The exact numbers are a
-    // product judgment; the shape is the requirement.
+    // Confirm-level thresholds. A same-drive-only batch is always Light, because an in-place rename is
+    // instant and reversible. A cross-drive batch copies bytes, so it starts at Standard and is Heavy
+    // when it is large by file count, by bytes, or by the number of destination volumes.
     private const int HeavyItemCountThreshold = 50;
     private const long HeavyByteThreshold = 10L << 30;
     private const int HeavyVolumeCountThreshold = 2;
@@ -73,14 +69,11 @@ public static class BatchPreview
         ArgumentNullException.ThrowIfNull(sizeByFileId);
 
         var acting = items
-            .Where(i => i.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            .Where(i => i.Status is RenamerStatus.Rename or RenamerStatus.Move)
             .ToList();
 
-        // The cross/same split and the destination-volume grouping key both read one value,
-        // VolumeKey(NewFullPath), so the preview's per-volume aggregation matches what
-        // FreeSpaceGuard.Shortfall sums. A separately derived destination volume could diverge from the
-        // joined NewFullPath under UNC or normalization differences and skew the confirm level away from
-        // what the free-space guard saw.
+        // The split and the grouping both read VolumeKey(NewFullPath), the value FreeSpaceGuard.Shortfall
+        // sums, so the preview and the guard see the same volumes.
         var volumePairs = acting
             .Where(i => !VolumeClassifier.SameVolume(i.OldFullPath, i.NewFullPath, mountPoints))
             .GroupBy(i => (
@@ -107,17 +100,10 @@ public static class BatchPreview
     }
 
     // True when the item will act, will cross volumes, and its in-flight copy would overrun
-    // fullPathMax - the band the planner accepts but the executor cannot fit. The gap is a real platform
-    // limit: no \\?\ extended-length prefix is ever applied, and a cross-volume move copies to a name
-    // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before promoting
-    // it, while PathConfinement budgets only the final path. The suffix length is deliberately not fed
-    // back into that budget, which would drop fields and truncate earlier for every item near the limit.
-    //
-    // Internal so the aggregate count and the per-row flag on the preview response read this one
-    // comparison; a second copy could report a count with no flagged row under it.
-    //
-    // Same-volume items are excluded because DiskMover mints no temporary name, and non-acting items
-    // because nothing is copied for them.
+    // fullPathMax: the planner accepts it, but the move copies to a name PathOps.InFlightSuffixLength
+    // characters longer before promoting it, and no extended-length prefix is applied. The aggregate
+    // count and each row's flag both read this one comparison. Same-volume items are excluded because
+    // DiskMover mints no temporary name, and non-acting items because nothing is copied for them.
     internal static bool InFlightPathOverflows(
         RenamerPlanItem item,
         int fullPathMax,
@@ -125,9 +111,9 @@ public static class BatchPreview
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return item.Status is RenamerStatus.Renamer or RenamerStatus.Move
+        return item.Status is RenamerStatus.Rename or RenamerStatus.Move
             && !VolumeClassifier.SameVolume(item.OldFullPath, item.NewFullPath, mountPoints)
-            && item.NewFullPath.Length + CrossVolumeMover.InFlightSuffixLength > fullPathMax;
+            && item.NewFullPath.Length + PathOps.InFlightSuffixLength > fullPathMax;
     }
 
     // Internal so the whole-library scan's incremental aggregate and its per-caller readback merge

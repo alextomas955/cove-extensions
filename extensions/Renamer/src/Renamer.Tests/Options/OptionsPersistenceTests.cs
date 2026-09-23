@@ -5,26 +5,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The persistence contract every <see cref="RenamerOptions"/> member is held to: a value set on a
-/// member survives the serializer the store writes and reads blobs with.
-/// </summary>
-/// <remarks>
-/// The members are enumerated from the model rather than listed here, so one added later is covered
-/// with no edit to this file. Each case seeds one member with a value the defaults do not already
-/// hold, which is what makes a member that never reaches the blob fail rather than agree with the
-/// default it was compared against.
-/// <para>
-/// A member of a nested options record is reached by its own path, and the comparison reads that
-/// member back rather than the record holding it: a record compared whole passes when a member is
-/// missing from the blob, because the same serializer drops it from both sides.
-/// </para>
-/// <para>
-/// A record inside a list or a dictionary is compared whole, so this does not reach its members.
-/// <c>KindOptions</c> and the destination maps are covered that way, and by the suites that assert
-/// their stored shape directly.
-/// </para>
-/// </remarks>
 public sealed class OptionsPersistenceTests
 {
     public static TheoryData<string> PersistedMembers()
@@ -83,14 +63,14 @@ public sealed class OptionsPersistenceTests
         => [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanWrite && p.GetIndexParameters().Length == 0)];
 
-    /// <summary>An options record reached through a property, as opposed to a scalar or a collection.</summary>
+    // An options record reached through a property, as opposed to a scalar or a collection.
     private static bool IsNestedRecord(Type type)
         => type.IsClass
         && type != typeof(string)
         && !typeof(IEnumerable).IsAssignableFrom(type)
         && type.Assembly == typeof(RenamerOptions).Assembly;
 
-    /// <summary>The object holding the last segment, creating an absent record on the way.</summary>
+    // The object holding the last segment, creating an absent record on the way.
     private static object Owner(RenamerOptions root, string[] segments)
     {
         object current = root;
@@ -128,7 +108,7 @@ public sealed class OptionsPersistenceTests
 
     private static string Json(object? value) => JsonSerializer.Serialize(value, RenamerOptions.JsonOptions);
 
-    /// <summary>Builds a value of <paramref name="type"/> that <paramref name="current"/> does not already hold.</summary>
+    // Builds a value of type that current does not already hold.
     private static object? Distinct(Type type, object? current, int depth)
     {
         if (depth > 4)

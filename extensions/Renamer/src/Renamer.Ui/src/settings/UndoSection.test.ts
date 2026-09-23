@@ -1,28 +1,15 @@
 // @vitest-environment jsdom
-/**
- * What the panel says after an undo whose outcome nobody knows.
- *
- * `/undo` moves files back and cannot be repeated, so the sentence that closes it is the user's only
- * signal about whether to go and check. A transport failure leaves the request's fate unknown - the
- * server may have restored the whole batch, part of it, or none - and the one reading that must not be
- * available is a confident success.
- *
- * A DOM is needed because the subject is the hook's catch arm, and which sentence it picks is
- * observable only once React has committed. A render commits on React's own schedule, so each step
- * waits for the state its assertion is about rather than for a span.
- *
- * The stubs are the host seams and never the subject: the request module, whose real one reaches
- * `@cove/runtime/api`; the shared primitives, whose `react` import resolves only inside a consuming
- * bundle; and the dialog shell, which contributes only the confirm button this test presses.
- */
+// What the panel says after an undo whose outcome nobody knows. `/undo` cannot be repeated, so a
+// transport failure, where the server may have restored all, part or none of the batch, must never
+// read as a confident success. The request module is the one stand-in.
 import { test, expect, vi, beforeEach } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 
 const server = vi.hoisted(() => ({
-  /** Rejection handed to the undo POST, or null to answer it with a clean full restore. */
+  // Rejection handed to the undo POST, or null to answer it with a clean full restore.
   undoRejection: null as Error | null,
 }));
 
@@ -37,6 +24,7 @@ class FakeApiError extends Error {
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: FakeApiError,
+  errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   requestJson: (_path: string, options?: { method?: string }) => {
     if (options?.method !== "POST") {
       // An open batch written just now, so the panel offers the button rather than an expired line.
@@ -68,30 +56,9 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-vi.mock("lucide-react", () => ({ Undo2: () => null }));
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  return {
-    // The real route builder, re-exported rather than restated: a stand-in path shape here could
-    // drift from the one the section actually calls.
-    extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
-    Button: (props: { children?: ReactNode; onClick?: () => void }) =>
-      h("button", { onClick: props.onClick }, props.children),
-    StatusText: (props: { children?: ReactNode; kind?: string }) =>
-      h("div", { "data-status": props.kind }, props.children),
-    Spinner: () => null,
-  };
-});
-
-vi.mock("../common/ui/Dialog", async () => {
-  const { createElement: h } = await import("react");
-  return { Dialog: (props: { children?: ReactNode }) => h("div", null, props.children) };
-});
-
 const { UndoSection } = await import("./UndoSection");
 
-/** Mount the section, run the undo to its verdict, and hand back the text a user would read. */
+// Mount the section, run the undo to its verdict, and hand back the text a user would read.
 async function undoAndReadFeedback(): Promise<string> {
   const container = document.createElement("div");
   document.body.append(container);
@@ -113,7 +80,7 @@ async function undoAndReadFeedback(): Promise<string> {
   // restore it performed or says it could not confirm.
   await waitFor(
     "the undo to reach a verdict",
-    () => container.querySelector("[data-status]") !== null,
+    () => container.querySelector(".shrink-0 span.text-xs") !== null,
   );
 
   const text = container.textContent;
@@ -128,7 +95,7 @@ beforeEach(() => {
 });
 
 test("an undo whose response never arrived is not reported as a completed undo", async () => {
-  // the case. `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
+  // `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
   // a request whose fate is unknown: the connection dropped, or the body would not parse. The server
   // may already have moved part or all of the batch back.
   server.undoRejection = new TypeError("Failed to fetch");

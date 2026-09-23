@@ -1,25 +1,10 @@
 // @vitest-environment jsdom
-/**
- * That the row walk follows a page which carried no rows.
- *
- * The pure predicate has its own suite, and a green one there proves nothing on its own - a modal that
- * re-evaluates only when the row count moves never asks it again after the one page that moved nothing.
- * So this renders the real modal and answers `/scan-rows` with a scripted sequence in which a zero-row
- * page carries a live cursor, then reads the footer, which is where a user learns whether the walk is
- * finished.
- *
- * Three seams are stubbed and none is the subject. The host request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. The scan-job poller, so the summary lands without
- * a second of real polling. And the shared primitives plus the icon set, whose `react`/`lucide-react`
- * imports resolve only inside a consuming bundle: each stand-in renders the text-bearing props and the
- * children it is handed, so what the assertions read is this modal's own output.
- *
- * A render commits on React's own schedule, so each step waits for the state its assertion is about -
- * save one, marked where it stands, which waits on real elapsed time because it asserts that a stopped
- * walk stays stopped.
- */
+// The row walk follows a page that carried no rows. `/scan-rows` answers with a scripted sequence in
+// which a zero-row page carries a live cursor, and the test reads the footer, where a user learns
+// whether the walk is finished. The scan-job poller resolves at once. One test waits on real elapsed
+// time, because it asserts that a stopped walk stays stopped.
 import { test, expect, vi, beforeEach } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../../common/lib/flushRender";
@@ -29,16 +14,17 @@ import { type RenamerOptions } from "../options";
 import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
-/** The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails. */
+// The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
 const host = vi.hoisted(() => ({
   pages: [] as unknown[],
   rowReads: 0,
-  /** Past this the endpoint never answers, so a runaway walk fails a count instead of hanging. */
+  // Past this the endpoint never answers, so a runaway walk fails a count instead of hanging.
   readCap: 40,
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: (path: string) => {
     if (path.endsWith("/scan-library")) return Promise.resolve({ jobId: "scan-under-test" });
     if (path.endsWith("/last-scan")) return Promise.resolve(summary());
@@ -57,43 +43,19 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
 
 // The scan job's completion is not what is under test, so the poll resolves at once with the verdict
 // the modal reads before it requests the summary.
-vi.mock("../pollJob", () => ({
+vi.mock("../jobStatusStore", () => ({
   pollJob: () => ({
     done: Promise.resolve({ job: { status: "completed", progress: 1 }, failure: null }),
     cancel: () => undefined,
   }),
 }));
 
-vi.mock("lucide-react", () => ({
-  Search: () => null,
-  AlertTriangle: () => null,
-}));
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const stub = (name: string) =>
-    function Stub(props: Record<string, unknown>) {
-      return h("div", { "data-stub": name }, props.label as string, props.children as ReactNode);
-    };
-
-  return {
-    extensionApi: (await import("../../../../../../../shared/ui-shared/src/actions")).extensionApi,
-    // A real <button>, because whether it is disabled is the whole of what some assertions read.
-    Button: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) =>
-      h("button", { type: "button", disabled }, children),
-    ProgressBar: stub("ProgressBar"),
-    Spinner: stub("Spinner"),
-    StatusPill: stub("StatusPill"),
-    useOverlayKeys: () => undefined,
-  };
-});
-
 const sleep = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
-/** Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended. */
+// Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended.
 function walkFinished(modal: { text: () => string }): boolean {
   const text = modal.text();
   return text.includes("in scan order") && !text.includes("rows loaded");
@@ -106,7 +68,7 @@ function row(fileId: number): ScanRow {
     fileId,
     oldFullPath: `/media/raw-${fileId}.mkv`,
     newFullPath: `/media/Sorted/Clip ${fileId}.mkv`,
-    status: "renamer",
+    status: "rename",
     reason: null,
     suffixed: false,
     sanitized: false,
@@ -114,7 +76,7 @@ function row(fileId: number): ScanRow {
   };
 }
 
-/** A page that stopped on the server's entity budget rather than at the end of the library. */
+// A page that stopped on the server's entity budget rather than at the end of the library.
 function budgetStopped(rows: ScanRow[], afterEntityId: number): ScanRowsPage {
   return {
     rows,
@@ -124,7 +86,7 @@ function budgetStopped(rows: ScanRow[], afterEntityId: number): ScanRowsPage {
   };
 }
 
-/** The last page of a walk: no cursor survives it. */
+// The last page of a walk: no cursor survives it.
 function finalPage(rows: ScanRow[]): ScanRowsPage {
   return { rows, next: null, entitiesExamined: 500, budgetExhausted: false };
 }
@@ -136,7 +98,7 @@ function summary(): ScanSummaryView {
     willChange: 5,
     attention: 0,
     noChange: 0,
-    statusCounts: [{ status: "renamer", count: 5 }],
+    statusCounts: [{ status: "rename", count: 5 }],
     blastRadius: {
       totalCount: 5,
       sameVolumeCount: 5,
@@ -185,12 +147,10 @@ beforeEach(() => {
   host.rowReads = 0;
 });
 
-/**
- * The most reads the script below can honestly need. Two requests reach the endpoint on their own
- * account - the walk's primed first page and the continuation's one follow-up - and whichever of them
- * meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
- * leaves this behind immediately.
- */
+// The most reads the script below can honestly need. Two requests reach the endpoint on their own
+// account - the walk's primed first page and the continuation's one follow-up - and whichever of them
+// meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
+// leaves this behind immediately.
 const MOST_READS_A_FAILING_WALK_NEEDS = 4;
 
 test("the walk follows a page that carried no rows and reaches the end of the library", async () => {

@@ -6,12 +6,11 @@
 // cheapest file that carries it. `build.yml` selects them with `--grep @smoke` on a leg whose role is
 // newest-GA and nothing else, and states there why that leg asks only this much. It is a selection,
 // never a tier: every one of these runs in the full suite too.
-import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { test, expect, seedVideo, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
 
-const EXTENSION_ID = "com.alextomas955.renamer";
 const DEFAULT_FILENAME_TEMPLATE = "{$date - }$title{ [$resolution]}";
 
 /**
@@ -125,7 +124,7 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   });
   expect(preview.status).toBe(200);
   expect(preview.json.items).toHaveLength(1);
-  expect(preview.json.items[0].status).toBe("renamer");
+  expect(preview.json.items[0].status).toBe("rename");
   expect(preview.json.items[0].oldFullPath).toBe(originalPath);
   // This test sets no date and no resolution metadata, so both optional groups of the default
   // template collapse and the rendered name is fully determined.

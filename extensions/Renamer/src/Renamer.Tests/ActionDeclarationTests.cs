@@ -4,12 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
-/// <summary>
-/// The "Rename selected" bulk action is contributed through the extension's
-/// <c>GetUIManifest()</c> (not <c>GetActions()</c> - <c>FullExtensionBase</c> does not implement
-/// <c>IActionExtension</c>), and the <c>renamer-batch</c> job is registered via <c>DefineJobs()</c>.
-/// These assert the exact contributed shape the host renders/dispatches against.
-/// </summary>
 public sealed class ActionDeclarationTests
 {
     private static global::Renamer.Renamer NewExtension() => RenamerFixture.Create();
@@ -55,13 +49,10 @@ public sealed class ActionDeclarationTests
     }
 
     [Fact]
-    public void Jobs_RegistersTheRenamerBatchDefinition()
+    public void Jobs_RegistersNone_SoOnlyTheCheckedEndpointsCanStartARename()
     {
         var ext = NewExtension();
 
-        var job = Assert.Single(((IJobExtension)ext).Jobs);
-        Assert.Equal("renamer-batch", job.Id);
-        Assert.True(job.SupportsParameters);
-        Assert.True(job.ShowInTaskList);
+        Assert.Empty(((IJobExtension)ext).Jobs);
     }
 }

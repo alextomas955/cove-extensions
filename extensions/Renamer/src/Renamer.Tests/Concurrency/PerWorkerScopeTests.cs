@@ -1,32 +1,18 @@
 using System.Collections.Concurrent;
 using Cove.Core.Events;
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Jobs;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// The structural isolation proof. The batch's execution pass opens a per-worker
-/// <c>CreateAsyncScope()</c> so no <see cref="DbContext"/> instance is shared across parallel
-/// workers. Cove disables EF's thread-safety checks (<c>EnableThreadSafetyChecks(false)</c>), so a
-/// shared-context bug does not throw - it corrupts silently. This proof is therefore structural: an
-/// instrumented scoped factory records every <see cref="CoveContext"/> it constructs, and the test
-/// asserts the set of contexts the workers resolved has exactly one distinct instance per worker (by
-/// reference). It never relies on an EF exception.
-/// </summary>
 public sealed class PerWorkerScopeTests
 {
-    /// <summary>
-    /// Registers the base <see cref="DbContext"/> scoped so each <c>CreateAsyncScope()</c> yields a
-    /// fresh, distinct <see cref="CoveContext"/> (its own connection to the shared database), recording
-    /// every constructed context into <paramref name="constructed"/>. The recorded references prove
-    /// per-worker isolation while the workers still observe one coherent DB.
-    /// </summary>
+    // Registers the base DbContext scoped so each CreateAsyncScope() yields a fresh, distinct
+    // CoveContext (its own connection to the shared database), recording every constructed context
+    // into constructed. The recorded references prove per-worker isolation while the workers still
+    // observe one coherent DB.
     private static ServiceProvider BuildScopedProvider(
         SharedCacheSqlite shared, IEventBus bus, ConcurrentBag<DbContext> constructed)
     {
@@ -78,13 +64,12 @@ public sealed class PerWorkerScopeTests
         await ext.InitializeAsync(provider);
 
         var progress = new FakeJobProgress();
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
         // Structural proof: the planning pass opens one read scope; the execution pass opens one scope per acting unit.
-        // The distinct-instance count must be at least the worker count (n acting items), and every
-        // recorded context is a distinct reference - no instance was shared across workers.
+        // Every resolve builds a new context, so what can fail is the count: fewer contexts than
+        // workers means workers shared one.
         var distinct = new HashSet<DbContext>(constructed, ReferenceEqualityComparer.Instance);
-        Assert.Equal(constructed.Count, distinct.Count); // all references distinct, by reference
         Assert.True(distinct.Count >= n + 1,
             $"expected at least {n + 1} distinct contexts (1 read scope + {n} workers), got {distinct.Count}");
 

@@ -5,10 +5,10 @@ sidebar_position: 1
 
 # Architecture
 
-Rename turns an option change into a file moved on disk and a matching database update. This page
+Renamer turns an option change into a file moved on disk and a matching database update. This page
 traces that path for a contributor reading the code for the first time.
 
-Rename is a Cove extension in two halves:
+Renamer is a Cove extension in two halves:
 
 - **Backend** - a .NET 10 C# class library (`src/Renamer/`, built to `Renamer.dll`) that implements
   Cove's `IExtension` contract (deriving `FullExtensionBase` from `Cove.Plugins` / `Cove.Sdk`).
@@ -44,10 +44,9 @@ rename stops being recorded, so every rename is reversible until its window clos
 upgrading from the stored journal has it moved into the table once, on first load, after which both
 legacy keys are gone.
 
-Rows are written in groups rather than one at a time. A save per row costs a database round-trip per
-renamed file, which is several times the cost of the same-volume rename it records, and every worker
-of a parallel run queues behind it; measured against Postgres, grouping the writes takes 100,000 rows
-from about 294 seconds to about 8. What the group costs is the crash window: a host that dies
+Rows are written in groups rather than one at a time, because a save per row costs a database
+round-trip per renamed file and every worker of a parallel run queues behind it. What the group costs
+is the crash window: a host that dies
 mid-rename leaves up to one group of already-renamed files with no journal row, so undo cannot put
 those back. They are renamed correctly and recorded correctly in Cove's own tables, and only their
 reversal is lost. A read on the journal that is writing answers over the group it still holds, so the
@@ -136,14 +135,13 @@ the two never drift.
 - `DiskMover.cs` - the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` - the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `Planner/IRevertJournal.cs` - the undo seam: the only surface between the rename and undo paths
+- `IRevertJournal.cs` - the undo seam: the only surface between the rename and undo paths
   and where the journal is stored. A row exists exactly while its file still needs restoring, so what
   remains in the journal IS the work left.
 - `CoveRevertJournal.cs` - the journal over two tables the extension owns (`renamer_revert_batches`,
   `renamer_revert_rows`), created by the migration in `RevertJournalStorage.cs` and applied by the
   host. Rows are read a page at a time through a keyset cursor, so an undo restores a batch without
-  holding it in memory. A batch expires whole after a fixed retention window, and a batch offered
-  over the row cap is refused outright rather than recorded in part.
+  holding it in memory. A batch expires whole after a fixed retention window.
 - `RevertDelta.cs` - the sidecar and caption moves that rode along with one renamed file, recorded in
   the forward direction so undo replays what happened rather than recomputing a target from the names.
 - `UndoStopReason.cs` - why one entry stopped short, as a value. Exactly one reason is terminal - the
@@ -188,6 +186,9 @@ Minimal-API endpoints the frontend calls, mounted under
 - `POST /scan-rows` - one page of that dry run's rows, planned on demand, with an optional path search
   and status-bucket filter.
 - `POST /renamer-library` - enqueues the whole-library rename job.
+- `GET /last-library-rename/{runId}` - one whole-library rename's counts: renamed, skipped, failed,
+  and the kinds that stopped for lack of space, summed over the kinds the caller may read. `runId`
+  is what `POST /renamer-library` returned. Only the latest run is kept, so an earlier run reads as 404.
 - `GET /library-paths` - Cove's configured library paths. Every destination root is chosen from this
   list rather than typed, so a rule holds a reference to a folder Cove owns instead of a copy of its
   path.
@@ -205,7 +206,7 @@ Minimal-API endpoints the frontend calls, mounted under
   rule would be worse than the host control's permanent "Loading…". Asks about exactly the ids the
   rules name, so it is bounded by how many rules the user wrote, never by library size.
 
-The committed `wire/openapi.json` is the contract these twelve routes answer to. A test builds a real
+The committed `wire/openapi.json` is the contract these routes answer to. A test builds a real
 host over the shipped registrations, emits the document from them, and fails when the committed copy
 no longer matches - so the document cannot go stale without a red build, and the UI's TypeScript wire
 types are generated from it rather than declared a second time by hand.
@@ -259,10 +260,11 @@ scan and rename drop a disabled kind before reading it; the planner gates it, wh
 selection-based rename of a disabled kind meets. The manifest's description states the endpoint reach and the bulk action's narrower
 one together, because that description is what an operator reads before granting the extension access.
 
-The bulk-action registration, the job definition, and the optional auto-rename event hook live
-alongside in `src/Renamer/Renamer.cs` (shared batch core) and `src/Renamer/Renamer.Events.cs`
-(`video.updated` / `image.updated` auto-rename, opt-in and re-entrancy-guarded), with the
-background job runner in `src/Renamer/Jobs/`.
+The bulk-action registration lives in `src/Renamer/Renamer.Api.cs`, the selected-item job body in
+`src/Renamer/Renamer.Batch.cs`, and the optional auto-rename event hook in
+`src/Renamer/Renamer.Events.cs` (`video.updated` / `image.updated`, opt-in and re-entrancy-guarded).
+Renamer registers no host job definition, so every rename starts from one of its own endpoints and
+passes that endpoint's permission checks.
 
 ### Frontend - `src/Renamer.Ui/src/`
 
@@ -270,12 +272,12 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
 → Renamer** tab; it also registers the "Rename selected" bulk action on video, image and text lists.
 
 - `index.ts` - the bundle entry that registers the components and the bulk-action handler.
-- `RenamePage.tsx` / `RenameSettingsPanel.tsx` - the settings tab and its body (the controls + the
-  debounced live preview that calls `/preview-sample`).
+- `settings/RenamePage.tsx` - the settings page: the controls and the debounced live preview that
+  calls `/preview-sample`.
 - `DryRunModal.tsx` - the full-screen dry-run modal: scans the whole library, reads the scan's
   summary for its counts, walks its rows a page at a time through `useScanRows.ts` /
-  `scanRowsStore.ts`, and runs `/renamer-library` after confirmation. `Dialog.tsx` is the shared modal shell it
-  and the undo-confirm dialog use.
+  `scanRowsStore.ts`, and runs `/renamer-library` after confirmation. `Dialog.tsx` beside it is its
+  modal shell; the undo confirm uses the host's `ConfirmDialog`.
 
   The table has no column sorts. A sort needs the whole result set, and the whole result set is
   exactly what neither the store nor the browser holds any more; moving the sort to the server would
@@ -286,18 +288,19 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
   stay: the status filter, answered by the summary's counts, and the path search, answered by the page
   query using the same match rule the browser used to apply.
 
-- `renameSelected.ts` - the bulk-action handler: preview → confirm → `/renamer`, cancellable.
-- `pollJob.ts` / `jobPollLogic.ts` - the single poller over `GET /job-status/{jobId}`, and the pure
+- `rename-action/renameSelected.ts` and `confirmSummaryLogic.ts` - the bulk-action handler (preview,
+  confirm, `/renamer`, cancellable) and the pure confirm text it shows.
+- `jobStatusStore.ts` / `jobPollLogic.ts` - the single poller over `GET /job-status/{jobId}`, and the pure
   decision it takes on each read. Both bounds live in the logic module: a job that stops reporting
   progress and a job id that stops answering each end the wait. An expiry is kept distinct from the
   job's own reported failure, because only the second one means nothing was written.
-- `UndoSection.tsx` - the undo control backed by `/undo` and `/last-batch`.
-- `EntitySelectField.tsx` / `StudioMap.tsx`: the adapter over Cove's own entity selector (every
-  studio/tag/performer field in the panel goes through it, with the create affordance off) and the
-  per-studio destination-map editor. A rule stores the entity's stable id, and the host resolves that
-  id to a name for display: one cached lookup per configured rule, never a list sized by the library.
-- `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
-  `options.ts`, `preview.ts` - supporting UI, types, and the inline token validation. The `*Logic.ts`
+- `UndoSection.tsx` and `useLastBatch.ts` - the undo footer and its `/last-batch` and `/undo` calls.
+- `EntitySelectField.tsx` / `EntityDestinationsEditor.tsx`: the adapter over Cove's own entity
+  selector (every studio/tag/performer field in the panel goes through it, with the create affordance
+  off) and the per-studio and per-tag destination-map editor. A rule stores the entity's stable id,
+  and the host resolves that id to a name for display: one cached lookup per configured rule, never a list sized by the library.
+- `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateLogic.ts`, `presets.ts`,
+  `options.ts` - supporting UI, types, and the inline token validation. The `*Logic.ts`
   files hold the pure logic split out of their `.tsx` components; `warningBadgeLogic.ts` is keyed on
   the generated status union, so a status the backend grows fails the build rather than reaching a row
   with no badge. The shared UI primitives these render with live in `shared/ui-shared`.
@@ -326,8 +329,8 @@ These are the guarantees the design exists to protect. Preserve them when you ch
   performs zero mutation.
 - **Detached bodies read as System; request paths do not.** The two job bodies, the load-time
   migrations, the shared batch core and the auto-rename hook all run outside any request, so they
-  carry whichever principal happened to reach them, or none at all. Cove's per-principal query filters answer an under-privileged principal with zero rows and
-  no error, so each of those bodies takes its scope from the one elevating seam
+  carry whichever principal happened to reach them, or none at all. Cove's per-principal query
+  filters answer an under-privileged principal with zero rows and no error, so each of those bodies takes its scope from the one elevating seam
   (`Cove.Extensions.Shared/RunAsSystem.cs`) rather than opening a plain one. A request path is the
   opposite case and stays on its caller's principal, because elevating it would hand a restricted
   caller rows their own read is denied. Both halves are asserted per entry point, on the principal in
@@ -356,4 +359,4 @@ These are the guarantees the design exists to protect. Preserve them when you ch
 
 - To understand a rename end to end: `RenamerPlanner.cs` then `RenamerExecutor.cs`.
 - To understand the preview: `TemplateEngine.cs` and `Renamer.Api.cs`'s `PreviewSampleAsync`.
-- To understand the UI: `RenameSettingsPanel.tsx` and `renameSelected.ts`.
+- To understand the UI: `settings/RenamePage.tsx` and `rename-action/renameSelected.ts`.

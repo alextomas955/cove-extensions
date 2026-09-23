@@ -8,14 +8,8 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The text-document path end to end, against a real Cove entity graph and a real directory: the port
-/// hydrates a TextDocument and its TextFile onto the Renamer DTOs, the planner renders a name from the
-/// entity's own metadata, and the executor moves the file and updates the row. Proves the EF mapping,
-/// not just that a fake port returns what it was handed.
-/// </summary>
 [Collection(SubstDriveScope.CollectionName)]
-public sealed class TextRenamerIntegrationTests
+public sealed class TextRenameIntegrationTests
 {
     [Fact]
     public async Task LoadEntity_HydratesTheDocumentAndItsFile()
@@ -84,7 +78,7 @@ public sealed class TextRenamerIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-text", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-text");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
@@ -129,14 +123,13 @@ public sealed class TextRenamerIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             await port.ApplyAndSaveAsync(
-            [
                 new RenamerFileMutation(
                     titlelessFileId, "notes renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titlelessId, "field notes")),
+                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titlelessId, "field notes")));
+            await port.ApplyAndSaveAsync(
                 new RenamerFileMutation(
                     titledFileId, "manual renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titledId, "manual")),
-            ]);
+                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titledId, "manual")));
 
             db.ChangeTracker.Clear();
             var titles = await db.Set<TextDocument>().AsNoTracking()
@@ -175,14 +168,14 @@ public sealed class TextRenamerIntegrationTests
             await journal.BeginBatchAsync("run-text", "run-text", RenamerFileKind.Text, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
             var forward = await new RenamerExecutor(
-                port, new CapturingEventBus(), journal, "run-text", new DiskMover())
+                port, new CapturingEventBus(), journal, "run-text")
                 .ExecuteAsync(plan, options, default);
             Assert.Single(forward.Renamed);
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);

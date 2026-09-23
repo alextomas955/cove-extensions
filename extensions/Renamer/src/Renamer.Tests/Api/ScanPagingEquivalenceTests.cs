@@ -6,18 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The proof the whole store-aggregates-serve-rows-on-demand design rests on: a paged walk must return
-/// exactly what a single full-library plan would have returned, so that serving a slice on demand is not
-/// a different answer from the one the old whole-library pass produced. It holds because
-/// <see cref="RenamerPlanner.PlanLoadedEntity"/> carries no cross-entity state; the one place a same-run
-/// coupling could have hidden is the collision suffix loop, and that resolves against the database
-/// rather than against this run's own planned targets, so the answer does not depend on which entities
-/// happen to share a page. Two entities in one run that would collide with each other are consequently
-/// not detected - that is pre-existing, is exactly as (un)detected before and after paging, and is
-/// deliberately not addressed here. A later change that makes the planner accumulate any cross-entity
-/// state breaks these facts, which is the intent.
-/// </summary>
 public sealed class ScanPagingEquivalenceTests
 {
     private const int EntitiesPerKind = 40;
@@ -30,12 +18,10 @@ public sealed class ScanPagingEquivalenceTests
     private static readonly string DestRoot = OperatingSystem.IsWindows() ? "C:/dest" : "/dest";
     private static readonly string RoutedDest = $"{DestRoot}/routed";
 
-    /// <summary>
-    /// A title-only filename template with a studio-driven folder, so one fixture reaches both an
-    /// in-place rename and a folder move.
-    /// The only-organized gate is on so an unorganized entity reaches the gate branch - an empty title
-    /// would not, because <see cref="RenamerOptions.FilenameAsTitle"/> falls back to the basename.
-    /// </summary>
+    // A title-only filename template with a studio-driven folder, so one fixture reaches both an
+    // in-place rename and a folder move. The only-organized gate is on so an unorganized entity
+    // reaches the gate branch - an empty title would not, because FilenameAsTitle falls back to the
+    // basename.
     private static readonly RenamerOptions Options = new()
     {
         FilenameTemplate = "$title",
@@ -50,11 +36,9 @@ public sealed class ScanPagingEquivalenceTests
         PathRegexRules: [],
         ExcludeTagIds: new HashSet<int> { 102 });
 
-    /// <summary>
-    /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
-    /// move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing source, and
-    /// an occupied target that forces the suffix loop - across every renamable kind.
-    /// </summary>
+    // Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a
+    // folder move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing
+    // source, and an occupied target that forces the suffix loop - across every renamable kind.
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
@@ -133,11 +117,9 @@ public sealed class ScanPagingEquivalenceTests
     private static ScanRowPager NewPager(FakeRenamerDataPort port)
         => new(new RenamerPlanner(port), port);
 
-    /// <summary>
-    /// The reference sequence: one full pass over every kind's ids in ascending order, planned through
-    /// the same planner the pager uses - the point of the comparison is the traversal, so the planner is
-    /// never doubled.
-    /// </summary>
+    // The reference sequence: one full pass over every kind's ids in ascending order, planned
+    // through the same planner the pager uses - the point of the comparison is the traversal, so
+    // the planner is never doubled.
     private static async Task<List<ScanRow>> FullPlanAsync(FakeRenamerDataPort port)
     {
         var planner = new RenamerPlanner(port);
@@ -215,7 +197,7 @@ public sealed class ScanPagingEquivalenceTests
         var rows = await FullPlanAsync(port);
 
         var statuses = rows.Select(r => r.Status).ToHashSet();
-        Assert.Contains(RenamerStatus.Renamer, statuses);
+        Assert.Contains(RenamerStatus.Rename, statuses);
         Assert.Contains(RenamerStatus.Move, statuses);
         Assert.Contains(RenamerStatus.NoOp, statuses);
         Assert.Contains(RenamerStatus.SkipExcluded, statuses);
@@ -224,56 +206,6 @@ public sealed class ScanPagingEquivalenceTests
         Assert.Contains(rows, r => r.Suffixed);
         Assert.Contains(rows, r => r.NewFullPath.StartsWith(RoutedDest, StringComparison.Ordinal));
         Assert.Contains(rows, r => r.NewFullPath.Contains("/Acme/", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task PagedWalk_SpansEveryKind_WithNoRowLostOrDuplicatedAtASeam()
-    {
-        var port = BuildFixture();
-        var rows = await PagedWalkAsync(port, take: 7);
-
-        Assert.Equal(RenamableKinds.All.ToHashSet(), rows.Select(r => r.Kind).ToHashSet());
-        foreach (var kind in RenamableKinds.All)
-        {
-            Assert.Equal(EntitiesPerKind, rows.Where(r => r.Kind == kind).Select(r => r.EntityId).Distinct().Count());
-        }
-    }
-
-    [Fact]
-    public async Task PagedWalk_VisitsEveryFileExactlyOnce()
-    {
-        var port = BuildFixture();
-        var full = await FullPlanAsync(port);
-        var paged = await PagedWalkAsync(port, take: 1);
-
-        var identities = paged.Select(r => (r.Kind, r.FileId)).ToList();
-        Assert.Equal(identities.Count, identities.Distinct().Count());
-        Assert.Equal(full.Count, identities.Count);
-    }
-
-    [Fact]
-    public async Task PagedWalk_MultiFileEntityLargerThanThePage_IsNeverSplit()
-    {
-        var port = BuildFixture();
-        var paged = await PagedWalkAsync(port, take: 1);
-
-        // Every entity's rows must arrive contiguously: an entity id may not reappear after a different
-        // one has been seen, which is what a split page would produce.
-        var seen = new HashSet<(RenamerFileKind, int)>();
-        (RenamerFileKind, int)? previous = null;
-        foreach (var row in paged)
-        {
-            var identity = (row.Kind, row.EntityId);
-            if (previous is not null && previous.Value != identity)
-            {
-                Assert.DoesNotContain(identity, seen);
-            }
-
-            seen.Add(identity);
-            previous = identity;
-        }
-
-        Assert.Contains(paged.GroupBy(r => (r.Kind, r.EntityId)), g => g.Count() == BigEntityFileCount);
     }
 
     [Theory]

@@ -1,15 +1,6 @@
-/**
- * Behavior contract for the poll decision both job pollers take.
- *
- * The claims under test are the two that make a poller bounded: a job that stops reporting progress
- * ends the run, and a job id that stops resolving ends it too even while the stall budget has room.
- * Both were unbounded - one cleared its interval only on a terminal status, the other swallowed every
- * read failure - so a wedged job left a poll per second running with the button stuck disabled.
- *
- * Time and read outcomes are inputs, so every case here is exact at one-millisecond granularity with
- * no clock and no fake timers. Every expectation is a literal; none is obtained by calling the module
- * a second way.
- */
+// The poll decision both job pollers take stays bounded: a job that stops reporting progress ends the
+// run, and a job id that stops resolving ends it even while the stall budget has room. Time and read
+// outcomes are inputs, so every case is exact with no clock and no fake timers.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
@@ -18,11 +9,10 @@ import {
   JOB_STALL_BUDGET_MS,
   advanceStallClock,
   decidePoll,
-  nextFailureCount,
   type PollContext,
 } from "./jobPollLogic";
 
-/** A context with room on both bounds, so each case below varies only what it is about. */
+// A context with room on both bounds, so each case below varies only what it is about.
 function ctx(overrides: Partial<PollContext> = {}): PollContext {
   return {
     msSinceProgress: 0,
@@ -146,13 +136,6 @@ test("the stall clock restarts only when progress actually moves", () => {
   assert.deepEqual(advanceStallClock(start, 0.26, 50_000), { progress: 0.26, sinceMs: 50_000 });
   // Backwards is still movement: the host can revise progress down, and a revised figure is news.
   assert.deepEqual(advanceStallClock(start, 0.2, 50_000), { progress: 0.2, sinceMs: 50_000 });
-});
-
-test("a successful read clears the consecutive-failure count", () => {
-  assert.equal(nextFailureCount(0, false), 1);
-  assert.equal(nextFailureCount(4, false), 5);
-  assert.equal(nextFailureCount(4, true), 0);
-  assert.equal(nextFailureCount(0, true), 0);
 });
 
 test("the shipped bounds are far enough out that a healthy run is never abandoned", () => {

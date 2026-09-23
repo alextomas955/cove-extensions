@@ -5,24 +5,10 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Collisions;
 
-/// <summary>
-/// Case-only renamer behaviour on a case-insensitive volume (integration, SQLite + a real temp dir).
-/// Proves two things the executor's collision loop must get right:
-/// <list type="bullet">
-/// <item>A pure case-fix renamer (<c>movie.mkv</c> → <c>Movie.mkv</c>) - where the only thing occupying
-/// the target name is the source file itself - completes as a clean <see cref="RenamerStatus.Renamer"/>
-/// to <c>Movie.mkv</c>, not a needlessly suffixed <c>Movie (1).mkv</c> and not a collision skip.</item>
-/// <item>A different file already at the case-variant target name still collides: a third source
-/// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
-/// cross-file no-clobber guarantee is preserved.</item>
-/// </list>
-/// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
-/// <c>File.Exists</c> check is the one under test.
-/// </summary>
-public sealed class CaseOnlyRenamerTests
+public sealed class CaseOnlyRenameTests
 {
     [Fact]
-    public async Task CaseOnlyRenamer_OfFileOntoItself_IsCleanRenamer_NotSuffixed()
+    public async Task CaseOnlyRename_OfFileOntoItself_IsCleanRename_NotSuffixed()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
 
@@ -43,19 +29,19 @@ public sealed class CaseOnlyRenamerTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, folderPath + "/movie.mkv", folderPath + "/Movie.mkv",
-                    RenamerStatus.Renamer, "Movie.mkv", folderPath),
+                    RenamerStatus.Rename, "Movie.mkv", folderPath),
             ]);
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
             // case-corrected target - not a suffixed Movie (1).mkv.
             var renamedItem = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.Empty(result.Skipped);
             Assert.Empty(result.Failed);
             Assert.EndsWith("Movie.mkv", renamedItem.NewPath);
@@ -98,12 +84,12 @@ public sealed class CaseOnlyRenamerTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(sourceId, folderPath + "/other.mkv", folderPath + "/Movie.mkv",
-                    RenamerStatus.Renamer, "Movie.mkv", folderPath),
+                    RenamerStatus.Rename, "Movie.mkv", folderPath),
             ]);
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 

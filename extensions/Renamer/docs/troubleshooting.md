@@ -22,19 +22,20 @@ unless its name was adjusted. A row that won't be renamed has a badge that gives
 
 ### Rows that need attention
 
-| Badge                                                  | Why it stopped                                                           | What to do                                                                   |
-| ------------------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| **Needs a required field**                             | A token in **Required fields** is empty for this item.                   | Fill in that field in Cove, or remove it from **Required fields**.           |
-| **An exclude rule matched**                            | One of your exclude rules covers this item.                              | Nothing, if that's intended. Otherwise edit **Excludes** under **Advanced**. |
-| **Name conflict**                                      | Another file already has the new name, and Renamer never overwrites.     | Rename or remove the other file, or change your template.                    |
-| **File missing on disk**                               | Cove has a record for a file that isn't there.                           | Check where the file went, then rescan the library in Cove.                  |
-| **File in use**                                        | Another program had the file open.                                       | Close that program and run again.                                            |
-| **Permission denied**                                  | Cove isn't allowed to write to the destination, or to move the file.     | Fix the folder permissions for the account Cove runs as.                     |
-| **File is outside your Cove library**                  | The file isn't under any of Cove's library paths.                        | Add its folder to Cove's library paths, or pick a library path in **Under**. |
-| **The rule's destination is no longer a library path** | The library path a rule points at was removed from Cove.                 | Pick another path for the rule, or add the folder back in Cove.              |
-| **Destination outside its own root**                   | The folder template isn't relative, or it climbs out of its destination. | Make the folder template relative, such as `$studio/$year`.                  |
-| **Path too long**                                      | The full path would be longer than **Full-path max length**.             | Shorten the folder template or the filename template.                        |
-| **Cancelled** (gray)                                   | Cove shut down during the run. Nothing was half-written.                 | Run the rename again. It picks this file up.                                 |
+| Badge                                                  | Why it stopped                                                            | What to do                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Needs a required field**                             | A token in **Required fields** is empty for this item.                    | Fill in that field in Cove, or remove it from **Required fields**.           |
+| **An exclude rule matched**                            | One of your exclude rules covers this item.                               | Nothing, if that's intended. Otherwise edit **Excludes** under **Advanced**. |
+| **A regex rule timed out**                             | A path pattern took too long on this item's folder, so it was left alone. | Simplify the pattern the reason names.                                       |
+| **Name conflict**                                      | Another file already has the new name, and Renamer never overwrites.      | Rename or remove the other file, or change your template.                    |
+| **File missing on disk**                               | Cove has a record for a file that isn't there.                            | Check where the file went, then rescan the library in Cove.                  |
+| **File in use**                                        | Another program had the file open.                                        | Close that program and run again.                                            |
+| **Permission denied**                                  | Cove isn't allowed to write to the destination, or to move the file.      | Fix the folder permissions for the account Cove runs as.                     |
+| **File is outside your Cove library**                  | The file isn't under any of Cove's library paths.                         | Add its folder to Cove's library paths, or pick a library path in **Under**. |
+| **The rule's destination is no longer a library path** | The library path a rule points at was removed from Cove.                  | Pick another path for the rule, or add the folder back in Cove.              |
+| **Destination outside its own root**                   | The folder template isn't relative, or it climbs out of its destination.  | Make the folder template relative, such as `$studio/$year`.                  |
+| **Path too long**                                      | The full path would be longer than **Full-path max length**.              | Shorten the folder template or the filename template.                        |
+| **Cancelled** (gray)                                   | Cove shut down during the run. Nothing was half-written.                  | Run the rename again. It picks this file up.                                 |
 
 ### Red badges
 
@@ -43,19 +44,21 @@ unless its name was adjusted. A row that won't be renamed has a badge that gives
   temporary path is too long. Shorten the destination folder or the filename template for this file.
 - **Copy did not verify.** The copy to the other drive didn't match the original, so the file was
   left where it was. Check the destination drive before you try again.
-- **Failed — rolled back.** The rename of this file failed part-way, and Renamer put it back as it
+- **Failed and rolled back.** The rename of this file failed part-way, and Renamer put it back as it
   was.
 
 ## Rename messages
 
 After a rename from the Renamer page, a message under the buttons tells you how it went.
 
-| Message                                                  | What it means                                                                                                                                                                                    |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Rename finished. The scan found 412 files to rename.** | The run completed. The numbers come from the scan before the run, so a file can still have been skipped. Run a dry run to see where things stand.                                                |
-| **Stopped: insufficient free space for Video.**          | A destination drive filled up. That kind stopped and the others carried on. Files renamed before the stop stay renamed, and undo covers them.                                                    |
-| **Couldn't rename - _reason_. Nothing was changed.**     | Cove reported that the job failed before writing anything. Fix the cause it names and run again.                                                                                                 |
-| **Couldn't confirm the rename - _reason_.**              | Renamer stopped waiting before the job reported back. The job may still be running and may have renamed files. Reload the page and check your library and the undo line before you run it again. |
+| Message                                                                | What it means                                                                                                                                                                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Rename finished. 412 files renamed, 3 skipped.**                     | The run completed. Skipped files are ones a rule or a check left alone; run a dry run to see why.                                                                                                |
+| **Rename finished. Couldn't read how many files it renamed.**          | The run completed, but its counts weren't available. Run a dry run to see where things stand.                                                                                                    |
+| **Rename stopped early: not enough free space for Videos.**            | A destination drive filled up. That kind stopped and the others carried on. Files renamed before the stop stay renamed, and undo covers them.                                                    |
+| **Couldn't rename: _reason_. Nothing was changed; you can try again.** | Cove refused to start the rename, so nothing was written. Fix the cause it names and run again.                                                                                                  |
+| **The rename stopped before it finished: _reason_.**                   | The rename failed or was cancelled partway. Files renamed before it stopped stay renamed, and undo covers them. Check the undo line and run a dry run before you try again.                      |
+| **Couldn't confirm the rename: _reason_.**                             | Renamer stopped waiting before the job reported back. The job may still be running and may have renamed files. Reload the page and check your library and the undo line before you run it again. |
 
 ### Two records point at the same file
 
@@ -77,7 +80,7 @@ deleted, usually because something had it open. Delete it yourself once it is fr
 - **If Cove was killed during a rename, the last few hundred files may not be undoable.** Renamer
   records moves in groups, and a crash loses the group it had not written yet. Those files are renamed
   correctly and Cove knows where they are. Only the automatic undo is lost for them.
-- **A companion file can stay behind.** The result then reads, for example, "Undone - 40 files moved
+- **A companion file can stay behind.** The result then reads, for example, "Undone: 40 files moved
   back to their original names. 2 companion files stayed behind", followed by which ones and why.
 - **Undo doesn't re-create a folder that was deleted.** If **Delete the source folder when a move
   leaves it empty** removed a folder, undo doesn't bring it back.

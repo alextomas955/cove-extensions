@@ -135,8 +135,6 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
 }) => {
   const { owner, harness, routeBase } = authz;
 
-  // what this does and does not gate, measured rather than assumed.
-  //
   // `RequireCovePermission` is evaluated against the caller's permissions: the host returns true as
   // soon as `principal.Has(permission)` does, and never consults role content rules. So it refuses a
   // caller holding no permission - asserted below - and it does not refuse one that holds the
@@ -155,8 +153,8 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
   });
   const withoutPermission = createApiClient(() => harness.baseUrl, noPermission.token);
 
-  // every route, not a chosen few: each one declares the any-of gate its handler re-checks, so a
-  // caller holding no renamer permission is refused at all twelve doors.
+  // Every route declares the any-of gate its handler re-checks, so a caller holding no renamer
+  // permission is refused at each one.
   const everyRoute = [
     { method: "post", path: "preview", body: { entityType: "video", ids: [] } },
     { method: "post", path: "renamer", body: { entityType: "video", ids: [] } },

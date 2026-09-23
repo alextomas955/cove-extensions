@@ -1,24 +1,8 @@
 using Renamer.Execution;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// Pins the agreement between the length the planner reads and the segment
-/// <see cref="CrossVolumeMover"/> actually appends.
-/// </summary>
-/// <remarks>
-/// The preview's in-flight overflow warning derives its band from
-/// <see cref="CrossVolumeMover.InFlightSuffixLength"/>, while the cost the executor really pays is
-/// whatever the minter appends. Narrowing the minted segment without the declaration would leave the
-/// warning firing on a band that no longer overruns, and a warning on a correct plan teaches a user to
-/// ignore the warning.
-/// <para>
-/// The measured value comes from the minter, never from a recomposition of the marker and the character
-/// count: a pin that rebuilt the string would agree with a rewritten minter forever. pure - minting is
-/// string arithmetic and touches no disk, so this needs no temp directory and none of the cross-volume
-/// fixtures.
-/// </para>
-/// </remarks>
 public sealed class InFlightSuffixLengthPinTests
 {
     private const string FinalFull = "/dest/Film.mkv";
@@ -31,7 +15,7 @@ public sealed class InFlightSuffixLengthPinTests
         // The copy must land in the destination directory beside the final name, or the promote would stop
         // being a same-directory (atomic) rename - so the minted path extends the final one.
         Assert.StartsWith(FinalFull, minted, StringComparison.Ordinal);
-        Assert.Equal(CrossVolumeMover.InFlightSuffixLength, minted.Length - FinalFull.Length);
+        Assert.Equal(PathOps.InFlightSuffixLength, minted.Length - FinalFull.Length);
     }
 
     [Fact]

@@ -5,21 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Options;
-using Renamer.Tests.Execution;
+using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// A whole-library rename walked a chunk at a time: every entity still renames, each chunk opens its
-/// own batch under one operation id, and a chunk is planned against what the chunks before it did.
-/// </summary>
-/// <remarks>
-/// Driven at a chunk size of one or two so the multi-chunk paths cost a handful of rows rather than a
-/// library-sized fixture. The shared-cache SQLite database is the same one the parallel-batch tier
-/// uses, because each worker resolves its own context.
-/// </remarks>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ChunkedRenameTests
 {
@@ -48,11 +39,8 @@ public sealed class ChunkedRenameTests
         return ext;
     }
 
-    /// <summary>
-    /// Seeds <paramref name="count"/> single-file videos in one folder, titled "Film i" over
-    /// "raw i.mkv", with real bytes on disk. Their entity ids ascend with i, which is the order the
-    /// walk pages them in.
-    /// </summary>
+    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", with real
+    // bytes on disk. Their entity ids ascend with i, which is the order the walk pages them in.
     private static async Task SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
@@ -150,7 +138,6 @@ public sealed class ChunkedRenameTests
         }
     }
 
-    /// <summary>Cancels the run as soon as a report reaches <paramref name="threshold"/>.</summary>
     private sealed class CancelAtProgress(CancellationTokenSource cts, double threshold) : IJobProgress
     {
         public void Report(double percent, string? message = null)
@@ -290,13 +277,10 @@ public sealed class ChunkedRenameTests
     [Fact]
     public async Task AChunkThatDoesNotFit_StopsTheRun_AndLeavesTheEarlierChunkRenamedAndUndoable()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst gives a distinct path root (NOT a real second drive) on Windows only.
-        }
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
-        using var drive = new SubstDrive();
+        using var drive = new SecondVolume();
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
@@ -339,9 +323,10 @@ public sealed class ChunkedRenameTests
             var ext = await BuildAsync(shared, options, keepFwd, moveFwd, destRootFwd);
             var progress = new FakeJobProgress();
 
-            // Only the subst root is short, so the first chunk's in-place rename is unaffected and the
-            // second chunk's cross-volume move cannot fit.
-            long Probe(string vol) => vol.Length > 0 && vol[0] == drive.Root[0] ? 1L : 1L << 40;
+            // Only the second volume is short, so the first chunk's in-place rename is unaffected and
+            // the second chunk's cross-volume move cannot fit.
+            string shortVolume = VolumeClassifier.VolumeKey(destRootFwd);
+            long Probe(string vol) => vol == shortVolume ? 1L : 1L << 40;
 
             await ext.RunRenamerKindAsync(
                 new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, Probe, ChunkEntities: 1),

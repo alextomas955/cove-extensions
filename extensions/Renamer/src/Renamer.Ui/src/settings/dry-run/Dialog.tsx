@@ -1,17 +1,7 @@
 /**
- * Shared modal shell for the Review and Undo-confirm dialogs.
- *
- * Matches Cove's own `ConfirmDialog` look via semantic tokens (scrim `bg-black/60`, panel
- * `bg-surface rounded-lg border border-border shadow-xl p-6`) so the extension dialog reads as
- * native. Adds an intentional a11y improvement over the host baseline:
- * `role="dialog"` + `aria-modal` + `aria-labelledby`, a minimal focus trap, Esc-to-cancel, and
- * scrim-click-to-cancel - all suppressed while an operation is `pending`.
- *
- * Import audit (see `primitives.tsx`'s header for the full sweep): the barrel-exported
- * `ConfirmDialog` is not a swap for this `Dialog`. It has none of the above - no `role="dialog"`,
- * no focus trap, no Esc-to-cancel, no scrim-click-cancel, no size variants - because it's built for
- * a single destructive-delete use case with a fixed `max-w-sm`. Swapping it in for `DryRunModal`/
- * `UndoSection` would regress the accessibility this shell exists to provide.
+ * The Dry Run modal's shell: a wide panel with the shared overlay hook's dialog mode (focus trap,
+ * Escape and backdrop-click cancel) suspended while an operation is `pending`. A short confirm uses
+ * the host's `ConfirmDialog` instead, which is fixed at a narrow width.
  */
 import { useCallback, useRef, type ReactNode } from "react";
 import { useOverlayKeys } from "@cove-extensions/ui-shared";
@@ -21,7 +11,6 @@ export function Dialog({
   describedById,
   pending = false,
   onCancel,
-  size = "lg",
   children,
 }: {
   /** id of the element that labels the dialog (the title) - wired to aria-labelledby. */
@@ -31,7 +20,6 @@ export function Dialog({
   /** while true, Esc / scrim-click / programmatic close are suppressed (operation in flight). */
   pending?: boolean;
   onCancel: () => void;
-  size?: "sm" | "lg" | "xl";
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -50,8 +38,6 @@ export function Dialog({
     closeOnOutsideClick: false,
   });
 
-  const maxW = size === "sm" ? "max-w-sm" : size === "xl" ? "max-w-5xl" : "max-w-2xl";
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60" onClick={requestCancel} aria-hidden="true" />
@@ -61,7 +47,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={describedById}
-        className={`relative ${maxW} w-full mx-4 rounded-lg border border-border bg-surface p-6 shadow-xl`}
+        className="relative mx-4 w-full max-w-5xl rounded-lg border border-border bg-surface p-6 shadow-xl"
       >
         {children}
       </div>

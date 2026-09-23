@@ -1,11 +1,13 @@
+using Renamer.Engine;
+
 
 namespace Renamer.Planner;
 
 /// <summary>One physical file row in the renamer's own vocabulary.</summary>
 /// <remarks>
-/// Mapped at the port boundary so the production <c>Renamer.csproj</c> takes no runtime dependency
-/// on Cove.Core. A null media-metadata field means the kind does not carry that token and the
-/// projector omits it. <c>ParentFolderPath</c> is denormalized forward-slash form; <c>Format</c> is
+/// Mapped at the port boundary so the planner and engine take no dependency on Cove.Core. A null
+/// media-metadata field means the kind does not carry that token and the projector omits it.
+/// <c>ParentFolderPath</c> is denormalized forward-slash form; <c>Format</c> is
 /// the token source for <c>$ext</c> and may be empty; <c>Captions</c> is empty for non-video kinds.
 /// <c>SizeBytes</c> feeds the per-volume free-space sum, where <c>0</c> never pushes a volume over
 /// its headroom. <c>BitRate</c> is bits/sec, <c>null</c> where none is stored, and renders as kbps.
@@ -43,15 +45,6 @@ public enum RenamerEntityKind
 public readonly record struct NameResolution(
     bool TableHasRows,
     IReadOnlyList<(int Id, string Name)> Matches);
-
-/// <summary>One performer of a media item in the renamer's own vocabulary.</summary>
-/// <remarks>
-/// The <c>$performers</c> token renders <see cref="Name"/>; <see cref="Id"/>, <see cref="Favorite"/>
-/// and <see cref="Gender"/> drive the ordering and gender filtering applied before the max-count
-/// limit. <see cref="Gender"/> is the Cove gender enum's string name, converted at the port
-/// boundary, or <c>null</c> when unset.
-/// </remarks>
-public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string? Gender);
 
 /// <summary>A loaded library item in the renamer's own vocabulary.</summary>
 /// <remarks>
@@ -95,11 +88,18 @@ public sealed record RenamerEntity(
 /// <summary>The database seam between the planner and executor and a live <c>CoveContext</c>.</summary>
 /// <remarks>
 /// This interface speaks only in the Renamer-owned records above, never in Cove.Core entity types,
-/// because the production <c>Renamer.csproj</c> takes no runtime dependency on Cove.Core. The
-/// Cove-backed implementation maps live entity graphs into these records at the boundary.
+/// so the planner and engine depend on nothing of Cove's. The Cove-backed implementation maps live
+/// entity graphs into these records at the boundary.
 /// </remarks>
 public interface IRenamerDataPort
 {
+    // EF Core translates an in list to one bound parameter per id, so an unchunked load would exceed
+    // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
+    // at one round-trip per chunk. The in list is provider-agnostic: the provider is host-supplied,
+    // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
+    // on SQLite.
+    const int LoadChunkSize = 200;
+
     /// <summary>The absolute library paths Cove is configured to scan, in configuration order.</summary>
     /// <remarks>
     /// A destination's folder template resolves against a library path, never against the file's own
@@ -206,20 +206,15 @@ public interface IRenamerDataPort
     Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default);
 
     /// <summary>
-    /// Applies each mutation to basename, parent folder and caption filenames, persists them in one
-    /// save, and returns each saved file's recomputed path.
+    /// Applies the mutation to the file's basename, parent folder and caption filenames, saves it, and
+    /// returns the path Cove recomputed for the file, in forward-slash form.
     /// </summary>
     /// <remarks>
-    /// An implementation throws on a save failure, such as a unique-index violation, so the caller's
-    /// catch can roll the on-disk move back. Both callers pass a single mutation, so an
-    /// implementation may cost a query per element.
+    /// Throws on a save failure, such as a unique-index violation, so the caller's catch can roll the
+    /// on-disk move back, and when the file row no longer exists.
     /// </remarks>
-    Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
+    Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default);
 }
-
-/// <summary>A saved file row's recomputed identity, read back after a save for the path assertion and event.</summary>
-/// <remarks><c>RecomputedPath</c> is the path Cove recomputed on save, in forward-slash form.</remarks>
-public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
 /// <summary>One file's intended database mutation, handed to <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>.</summary>
 /// <remarks>

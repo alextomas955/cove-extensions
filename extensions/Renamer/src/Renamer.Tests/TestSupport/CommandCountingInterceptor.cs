@@ -5,29 +5,21 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Counts the commands a context executes, so a test can prove a path issues a bounded number of
-/// round-trips rather than one per item.
-/// </summary>
-/// <remarks>
-/// The reader count is of commands and not of rows: EF may split one query with includes into a
-/// small, constant number of readers, so an assertion built on it compares two populations or a
-/// stated bound rather than an exact number. <see cref="NonQueryTexts"/> carries the SQL of every
-/// non-query so a test can count the statements one table saw.
-/// </remarks>
+// Counts the commands a context executes, so a test can prove a path issues a bounded number of
+// round-trips rather than one per item. The reader count is of commands and not of rows: EF may
+// split one query with includes into a small, constant number of readers, so an assertion built on
+// it compares two populations or a stated bound rather than an exact number. NonQueryTexts carries
+// the SQL of every non-query so a test can count the statements one table saw.
 public sealed class CommandCountingInterceptor : DbCommandInterceptor
 {
     public int ReaderCount { get; set; }
 
-    /// <summary>The SQL of every executed non-query, in execution order.</summary>
+    // The SQL of every executed non-query, in execution order.
     public ConcurrentQueue<string> NonQueryTexts { get; } = new();
 
-    /// <summary>How many executed non-queries deleted FROM <paramref name="table"/>.</summary>
-    /// <remarks>
-    /// Matched on the delete target and not on the table appearing anywhere in the statement: a delete
-    /// from one table can name another in its WHERE clause, and counting those would report one sweep
-    /// as several.
-    /// </remarks>
+    // How many executed non-queries deleted FROM table. Matched on the delete target and not on the
+    // table appearing anywhere in the statement: a delete from one table can name another in its
+    // WHERE clause, and counting those would report one sweep as several.
     public int DeletesAgainst(string table) => NonQueryTexts.Count(
         sql => Regex.IsMatch(
             sql, $"""DELETE\s+FROM\s+"?{Regex.Escape(table)}"?""",

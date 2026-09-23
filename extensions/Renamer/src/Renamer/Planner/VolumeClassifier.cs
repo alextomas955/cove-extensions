@@ -1,4 +1,4 @@
-namespace Renamer.Execution;
+namespace Renamer.Planner;
 
 // The same-volume decision, and the volume key every cross-volume grouping is keyed on. A same-volume
 // result routes a move to the atomic File.Move path; a cross-volume result routes it to the verified

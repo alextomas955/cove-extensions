@@ -1,12 +1,7 @@
-using Renamer.Execution;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// Pins the path string math the planner, the executor and the undo replayer all share, at its
-/// boundary cases: an empty part on either side of a join, a separator that arrived in the other
-/// form, and a dot that is not an extension boundary. Pure, with no disk.
-/// </summary>
 public sealed class PathOpsTests
 {
     [Theory]

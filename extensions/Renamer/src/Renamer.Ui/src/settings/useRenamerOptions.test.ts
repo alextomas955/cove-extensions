@@ -1,21 +1,6 @@
 // @vitest-environment jsdom
-/**
- * Wiring contract for the options hook: what it puts on screen from one `GET /options`, and what it
- * sends back.
- *
- * The endpoint decides whether a save is allowed - it holds the stored blob and the conversion state -
- * and these tests hold the panel to that answer, because a hook that ignored it would offer a Save the
- * server refuses and report the 409 as the user's failure.
- *
- * Two seams are stubbed, and neither is the subject. The request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. And the shared barrel, which this hook reaches
- * transitively for one route builder; the stand-in re-exports the real one rather than restating a
- * path shape that could then drift.
- *
- * A DOM is needed because the subject is a hook and the answer is observable only once React has run
- * its effects. Renders are flushed with `act`, which returns when React has committed and the effects
- * it started have settled. `node:assert` is unreachable here, so the assertions are vitest's `expect`.
- */
+// What the options hook shows from one `GET /options`, and what it sends back. The endpoint decides
+// whether a save is allowed, and a hook that ignored it would offer a Save the server refuses.
 import { test, expect, vi, beforeEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -24,16 +9,17 @@ import { useRenamerOptions, type UseRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
 import type { OptionsView } from "./options";
 
-/** The stubbed endpoint's script, hoisted so the module factory below can reach it. */
+// The stubbed endpoint's script, hoisted so the module factory below can reach it.
 const endpoint = vi.hoisted(() => ({
-  /** What `GET /options` answers. */
+  // What `GET /options` answers.
   view: null as OptionsView | null,
-  /** Every non-GET call, in order. */
+  // Every non-GET call, in order.
   sent: [] as { path: string; method: string; body: unknown }[],
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: () => Promise.resolve(structuredClone(endpoint.view)),
   request: (path: string, init: RequestInit) => {
     endpoint.sent.push({
@@ -45,28 +31,22 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-vi.mock("@cove-extensions/ui-shared", async () => ({
-  extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
-}));
-
 // `act` refuses to run without it, and React reads it off the global rather than from an import.
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-/**
- * Apply a synchronous change and return once React has committed it and the effects it started have
- * settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
- * caller reads committed state rather than whatever a fixed wait happened to catch.
- */
+// Apply a synchronous change and return once React has committed it and the effects it started have
+// settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
+// caller reads committed state rather than whatever a fixed wait happened to catch.
 const commit = (change: () => void) =>
   act(async () => {
     change();
     await Promise.resolve();
   });
 
-/** Mount the hook and hand back its latest return value plus a teardown. */
+// Mount the hook and hand back its latest return value plus a teardown.
 async function mountHook() {
   let latest: UseRenamerOptions | null = null;
   function Probe() {

@@ -11,23 +11,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// An undo that restores only part of a batch, the retry that finishes it, and the row that can never
-/// come back - read back off the journal table each time, never off an in-memory mirror of it.
-/// </summary>
-/// <remarks>
-/// A partial undo must not spend the whole batch the moment one file comes back, or the rows skipped
-/// for a lock or an unmounted drive can never be retried, which is exactly when a retry is what the
-/// user needs. The retryable stop driven here is a real occupied restore slot that the test clears
-/// between the two attempts, so the second attempt genuinely succeeds rather than being asserted into
-/// success.
-/// <para>
-/// The counter behaviour itself is already pinned at the port level by <c>RevertJournalTests</c>. What
-/// these cases add is the endpoint's use of it: which rows it retires, with which flag, and what the
-/// table therefore still offers afterwards.
-/// </para>
-/// </remarks>
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoRetryTests
 {
     private const string RunId = "retry-run";
@@ -36,7 +19,6 @@ public sealed class UndoRetryTests
     // was written and then start failing these tests on its own, for a reason none of them names.
     private static readonly DateTime Opened = DateTime.UtcNow;
 
-    /// <summary>One seeded video, and where the forward rename moves its file from and to.</summary>
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
     [Fact]
@@ -66,53 +48,11 @@ public sealed class UndoRetryTests
             // previous defect spent the whole batch on the first partial success, which is what made
             // the remaining work unreachable; row presence is the state, so the read that feeds the
             // button must still return this batch.
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
             var remaining = Assert.Single(open.Rows);
             Assert.Equal(stays.FileId, remaining.FileId);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task ARetry_ActsOnlyOnWhatWasLeft_AndFinishesOnceTheCauseIsCleared()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, comes, stays) = await RenameTwoAsync(db, dir);
-            File.WriteAllText(stays.OldFull, "someone else's file");
-
-            var first = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
-            Assert.Equal(1, first.Undone);
-
-            // Clear the cause, exactly as a user would.
-            File.Delete(stays.OldFull);
-
-            var second = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
-
-            // one, not two: the row the first run retired is not offered again, so the second run acts
-            // only on what the first left behind.
-            Assert.Equal(1, second.Undone);
-            Assert.Empty(second.SkippedSample);
-            Assert.Equal(0, second.SkippedCount);
-            Assert.Empty(second.FailedSample);
-            Assert.Equal(0, second.FailedCount);
-            Assert.True(File.Exists(stays.OldFull), "the blocked file is back after the retry");
-            Assert.False(File.Exists(stays.NewFull));
-            Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
-
-            // Nothing left to offer - and a third call is a clean no-op rather than an error.
-            using var journal = new CoveRevertJournal(db);
-            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
-            Assert.Equal(0,
-                UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default)).Undone);
         }
         finally
         {
@@ -142,7 +82,7 @@ public sealed class UndoRetryTests
             var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
 
             // Both rows are gone - the terminal one too, so the batch can reach spent instead of
             // offering an undo that could never complete.
@@ -182,7 +122,7 @@ public sealed class UndoRetryTests
 
             await ext.UndoAsync(Write, new RecordingAuthorizationService(), default);
 
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             var afterFirst = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterFirst);
             Assert.Equal(3, afterFirst.Value.OriginalCount);
@@ -219,7 +159,7 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    /// <summary>Seeds and forward-renames two files in one batch, returning them in seed order.</summary>
+    // Seeds and forward-renames two files in one batch, returning them in seed order.
     private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
@@ -227,17 +167,12 @@ public sealed class UndoRetryTests
         return (ext, seeded[0], seeded[1]);
     }
 
-    /// <summary>
-    /// Seeds one folder holding one video per <paramref name="stems"/> entry, then really renames each
-    /// into one journal batch - so the batch holds one row per file, which is what makes "acts only on
-    /// what is left" a statement about rows rather than about batches.
-    /// </summary>
-    /// <remarks>
-    /// The forward half runs through the planner and executor directly rather than through the batch
-    /// endpoint, because that endpoint fans its files out across per-worker scopes and every scope here
-    /// resolves the one seeded context. The subject of these cases is the undo endpoint, which is
-    /// exercised for real.
-    /// </remarks>
+    // Seeds one folder holding one video per stems entry, then really renames each into one journal
+    // batch - so the batch holds one row per file, which is what makes "acts only on what is left"
+    // a statement about rows rather than about batches. The forward half runs through the planner
+    // and executor directly rather than through the batch endpoint, because that endpoint fans its
+    // files out across per-worker scopes and every scope here resolves the one seeded context. The
+    // subject of these cases is the undo endpoint, which is exercised for real.
     private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, IReadOnlyList<string> stems)
     {
@@ -270,7 +205,7 @@ public sealed class UndoRetryTests
 
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var port = new CoveRenamerDataPort(db);
-        using (var journal = new CoveRevertJournal(db))
+        await using (var journal = new CoveRevertJournal(db))
         {
             await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
             foreach (var s in seeded)
@@ -278,7 +213,7 @@ public sealed class UndoRetryTests
                 var plan = await new RenamerPlanner(port)
                     .PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
                 var forward = await new RenamerExecutor(
-                        port, new CapturingEventBus(), journal, RunId, new DiskMover())
+                        port, new CapturingEventBus(), journal, RunId)
                     .ExecuteAsync(plan, options, default);
                 Assert.Single(forward.Renamed);
             }

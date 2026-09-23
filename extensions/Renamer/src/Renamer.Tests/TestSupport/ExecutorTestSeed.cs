@@ -1,24 +1,13 @@
 using Cove.Core.Entities;
-using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Renamer.Tests.Execution;
+namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Shared seeding helpers for the executor integration tier. Seeds a Folder + Video +
-/// VideoFile graph on a real <see cref="CoveContext"/> whose <c>Folder.Path</c> is the test's real
-/// temp-directory root, so the planner's relative target + the DB Path-recompute + the on-disk move
-/// all align on the same absolute location.
-/// </summary>
 internal static class ExecutorTestSeed
 {
-    /// <summary>
-    /// Seeds a Folder (Path = <paramref name="folderPath"/>) + a Video titled <paramref name="title"/>
-    /// + a single VideoFile (<paramref name="basename"/>). Returns the (folderId, videoId, fileId).
-    /// A null <paramref name="date"/> leaves <c>$date</c>/<c>$year</c> absent. The
-    /// <c>$resolution</c> label needs both dimensions, so leaving either
-    /// <paramref name="height"/> or <paramref name="width"/> at 0 renders none.
-    /// </summary>
+    // Seeds a Folder (Path = folderPath) + a Video titled title + a single VideoFile (basename).
+    // Returns the (folderId, videoId, fileId). A null date leaves $date/$year absent. The
+    // $resolution label needs both dimensions, so leaving either height or width at 0 renders none.
     public static async Task<(int folderId, int videoId, int fileId)> SeedVideoAsync(
         DbContext db, string folderPath, string basename, string title,
         bool organized = true, DateOnly? date = null, int height = 0, int width = 0,
@@ -47,15 +36,10 @@ internal static class ExecutorTestSeed
         return (folder.Id, video.Id, file.Id);
     }
 
-    /// <summary>
-    /// Seeds <paramref name="count"/> videos with one VideoFile each, in a single save, and returns
-    /// the video ids in seed order. <paramref name="shape"/> names each one's folder, basename and
-    /// title; videos naming the same folder path share one Folder row.
-    /// </summary>
-    /// <remarks>
-    /// A save per row on one context rescans every entity the context already tracks, so a loop over
-    /// <see cref="SeedVideoAsync"/> costs the square of the row count.
-    /// </remarks>
+    // Seeds count videos with one VideoFile each, in a single save, and returns the video ids in
+    // seed order. shape names each one's folder, basename and title; videos naming the same folder
+    // path share one Folder row. A save per row on one context rescans every entity the context
+    // already tracks, so a loop over SeedVideoAsync costs the square of the row count.
     public static async Task<IReadOnlyList<int>> SeedVideosAsync(
         DbContext db, int count, Func<int, (string FolderPath, string Basename, string Title)> shape,
         bool organized = true, CancellationToken ct = default)
@@ -89,10 +73,8 @@ internal static class ExecutorTestSeed
         return [.. videos.Select(v => v.Id)];
     }
 
-    /// <summary>
-    /// Seeds a Folder (Path = <paramref name="folderPath"/>) + an Image titled <paramref name="title"/>
-    /// + a single ImageFile (<paramref name="basename"/>). Returns the (folderId, imageId, fileId).
-    /// </summary>
+    // Seeds a Folder (Path = folderPath) + an Image titled title + a single ImageFile (basename).
+    // Returns the (folderId, imageId, fileId).
     public static async Task<(int folderId, int imageId, int fileId)> SeedImageAsync(
         DbContext db, string folderPath, string basename, string title,
         bool organized = true, CancellationToken ct = default)
@@ -118,10 +100,8 @@ internal static class ExecutorTestSeed
         return (folder.Id, image.Id, file.Id);
     }
 
-    /// <summary>
-    /// Seeds a Folder (Path = <paramref name="folderPath"/>) + an Audio titled <paramref name="title"/>
-    /// + a single AudioFile (<paramref name="basename"/>). Returns the (folderId, audioId, fileId).
-    /// </summary>
+    // Seeds a Folder (Path = folderPath) + an Audio titled title + a single AudioFile (basename).
+    // Returns the (folderId, audioId, fileId).
     public static async Task<(int folderId, int audioId, int fileId)> SeedAudioAsync(
         DbContext db, string folderPath, string basename, string title,
         bool organized = true, CancellationToken ct = default)
@@ -147,11 +127,8 @@ internal static class ExecutorTestSeed
         return (folder.Id, audio.Id, file.Id);
     }
 
-    /// <summary>
-    /// Seeds a Folder (Path = <paramref name="folderPath"/>) + a TextDocument titled
-    /// <paramref name="title"/> + a single TextFile (<paramref name="basename"/>). Returns the
-    /// (folderId, textDocumentId, fileId).
-    /// </summary>
+    // Seeds a Folder (Path = folderPath) + a TextDocument titled title + a single TextFile
+    // (basename). Returns the (folderId, textDocumentId, fileId).
     public static async Task<(int folderId, int textId, int fileId)> SeedTextAsync(
         DbContext db, string folderPath, string basename, string title,
         bool organized = true, CancellationToken ct = default)
@@ -177,10 +154,8 @@ internal static class ExecutorTestSeed
         return (folder.Id, text.Id, file.Id);
     }
 
-    /// <summary>
-    /// Adds another VideoFile in the same folder to an existing video (for collision/multi-file seeds).
-    /// A <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
-    /// </summary>
+    // Adds another VideoFile in the same folder to an existing video (for collision/multi-file
+    // seeds). A height of 0 renders no $resolution label.
     public static async Task<int> SeedAdditionalFileAsync(
         DbContext db, int folderId, int videoId, string basename, int height = 0, int width = 0,
         CancellationToken ct = default)
@@ -199,11 +174,9 @@ internal static class ExecutorTestSeed
         return file.Id;
     }
 
-    /// <summary>Reads a Video's stored title from the row, discarding whatever the tracker still holds.</summary>
-    /// <remarks>
-    /// The tracker is cleared first because a failed save leaves the modified entity attached, so a
-    /// tracked read would report a title that never committed.
-    /// </remarks>
+    // Reads a Video's stored title from the row, discarding whatever the tracker still holds. The
+    // tracker is cleared first because a failed save leaves the modified entity attached, so a
+    // tracked read would report a title that never committed.
     public static async Task<string?> ReadVideoTitleAsync(DbContext db, int videoId, CancellationToken ct = default)
     {
         db.ChangeTracker.Clear();
@@ -211,7 +184,7 @@ internal static class ExecutorTestSeed
             .Where(v => v.Id == videoId).Select(v => v.Title).SingleAsync(ct);
     }
 
-    /// <summary>Reads back a file row's current (Basename, recomputed Path) from a fresh tracker read.</summary>
+    // Reads back a file row's current (Basename, recomputed Path) from a fresh tracker read.
     public static async Task<(string basename, string path)> ReadFileAsync(DbContext db, int fileId, CancellationToken ct = default)
     {
         var f = await db.Set<BaseFileEntity>().AsNoTracking().FirstAsync(x => x.Id == fileId, ct);

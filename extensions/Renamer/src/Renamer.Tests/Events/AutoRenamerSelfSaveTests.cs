@@ -1,24 +1,9 @@
 using Cove.Plugins;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The auto-renamer hook must not act on the update event its own save raised.
-/// </summary>
-/// <remarks>
-/// The plan-is-empty guard breaks the loop only where the plan converges: rename, re-enter, find
-/// nothing left to do, stop. Two routing rules whose destinations are each other's patterns never
-/// converge - each pass matches, acts and re-raises - so no per-pass check can stop it, and because
-/// one entity can hold several files a pass can raise more events than the one that started it.
-/// <para>
-/// Every expected path below is written out from the arrangement by hand. Asking the resolver or the
-/// planner where the file should be would produce an expectation that agrees with the code under test
-/// however far the two drift, which is the one failure these assertions exist to catch.
-/// </para>
-/// </remarks>
 public sealed class AutoRenamerSelfSaveTests
 {
     [Fact]

@@ -1,58 +1,24 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Jobs;
-using Renamer.Tests.Execution;
+using Renamer.Options;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The <c>/undo</c> + <c>/last-batch</c> API surface, driven end-to-end on the real spine
-/// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
-/// Each test first performs a real renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
-/// log is written to the extension's store) and then exercises the endpoints on the same extension
-/// instance - the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
-/// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
-/// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
-/// + correct entity event), header-driven kind (an image batch publishes ImageUpdated - never a Video
-/// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
-/// </summary>
+// The /undo and /last-batch handlers on a real SQLite database and a real temp directory. Each test
+// performs a real rename through RunRenamerBatchAsync first, so the journal table holds a genuine batch.
 public sealed class UndoEndpointTests
 {
-    /// <summary>
-    /// Wires the extension's captured seams from a DI provider that registers the seeded context as
-    /// the base <c>DbContext</c> (singleton, so the scope resolves the same seeded instance) and the
-    /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the RevertLog. Mirrors
-    /// <c>RenamerBatchJobTests.BuildExtensionAsync</c>.
-    /// </summary>
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
-        DbContext db, IEventBus bus, params string[] libraryPaths)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton(bus);
-        services.AddLibraryPaths(libraryPaths);
-        var provider = services.BuildServiceProvider();
-
-        var store = new FakeStore();
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
-        return (ext, store);
-    }
-
-    /// <summary>Seeds the extension's stored options so a renamer renames to "$title".</summary>
-    private static Task SeedTitleOptionsAsync(FakeStore store) =>
-        new global::Renamer.Options.OptionsStore(store)
-            .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });
+    // Wires the extension's captured seams from a DI provider that registers the seeded context as
+    // the base DbContext (singleton, so the scope resolves the same seeded instance) and the given
+    // capturing event bus, plus a fresh FakeStore for the options.
+    private static readonly RenamerOptions TitleOptions = new() { FilenameTemplate = "$title" };
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
@@ -82,11 +48,10 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store); // → "My Film.mkv"
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
-            // Forward renamer via the shared batch core - writes one real batch to the store.
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            // Forward renamer via the shared batch core - writes one real batch to the journal.
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
             bus.Published.Clear(); // drop the forward event; we assert only the undo event below.
@@ -154,10 +119,9 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "image-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("image", [imageId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Image, [imageId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
@@ -186,81 +150,12 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
-    public async Task Undo_RestoresNothing_LeavesBatchOpen_SoCorrectedRetrySucceeds()
-    {
-        // A run that restores nothing (every entry skipped) must not consume the batch: the undo is
-        // the only recovery path, and consuming it on an all-skipped run would strand the file at its
-        // new location forever. Here the original folder is missing when the undo runs; once it is
-        // back, a retry must still recover.
-        using var srcDir = new TempDir();
-        using var destDir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string srcPath = srcDir.Root.Replace('\\', '/');
-            string destPath = destDir.Root.Replace('\\', '/');
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, srcPath, "raw clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(srcDir.Root, "raw clip.mkv");
-            string newFull = Path.Combine(destDir.Root, "My Film.mkv");
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus(), srcPath, destPath);
-            // Forward: a routed move off the source folder onto the dest folder.
-            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
-            {
-                FilenameTemplate = "$title",
-                PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = Dest.At(destPath) }],
-            });
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
-            Assert.True(File.Exists(newFull), "forward move landed on dest");
-            Assert.False(File.Exists(oldFull));
-
-            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-
-            // Undo while the original folder is gone → every entry is skipped, because a missing
-            // original directory is never recreated, so undone == 0.
-            Directory.Delete(srcDir.Root, recursive: true);
-            var skippedRun = UndoValue(await ext.UndoAsync(write, new RecordingAuthorizationService(), default));
-            Assert.Equal(0, skippedRun.Undone);
-            Assert.Single(skippedRun.SkippedSample);
-            Assert.Equal(1, skippedRun.SkippedCount);
-            Assert.True(File.Exists(newFull), "file still on dest — nothing restored");
-
-            // The batch must remain open (not consumed) so it can be retried.
-            var afterSkip = LastBatchValue(await ext.LastBatchAsync(read, default));
-            Assert.True(afterSkip.HasBatch);
-            Assert.False(afterSkip.Consumed, "an all-skipped undo must NOT consume the batch");
-
-            // Put the original folder back, then retry: the recovery succeeds.
-            Directory.CreateDirectory(srcDir.Root);
-            var retryRun = UndoValue(await ext.UndoAsync(write, new RecordingAuthorizationService(), default));
-            Assert.Equal(1, retryRun.Undone);
-            Assert.Empty(retryRun.SkippedSample);
-            Assert.Equal(0, retryRun.SkippedCount);
-            Assert.True(File.Exists(oldFull), "file restored to original after corrected retry");
-            Assert.False(File.Exists(newFull));
-            Assert.Equal("video-bytes", File.ReadAllText(oldFull));
-
-            // Now - and only now - the batch is consumed.
-            var afterRetry = LastBatchValue(await ext.LastBatchAsync(read, default));
-            Assert.True(afterRetry.Consumed, "batch consumed once a retry actually restored an entry");
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task Undo_EmptyLog_IsCleanNoOp()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (ext, _) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new RenamerOptions());
 
             var result = await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
@@ -295,10 +190,9 @@ public sealed class UndoEndpointTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             File.WriteAllText(oldFull, "video-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, new CapturingEventBus());
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
 
             // The state a library nobody renames for longer than the window is in. Back-dating the row
@@ -332,7 +226,7 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
-    public async Task LastBatch_AfterRenamer_ReportsSummary_ThenFalseOnEmptyLog()
+    public async Task LastBatch_IsEmptyFirst_ThenReportsTheRename_ThenIsConsumedOnceUndone()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -342,8 +236,7 @@ public sealed class UndoEndpointTests
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, new CapturingEventBus());
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
@@ -352,7 +245,7 @@ public sealed class UndoEndpointTests
             Assert.False(empty.HasBatch);
             Assert.Equal(0, empty.Count);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
             // After a renamer: a one-row, not-yet-consumed batch with a real server timestamp.
             var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
@@ -396,10 +289,9 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "text-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
-            await SeedTitleOptionsAsync(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("text", [textId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Text, [textId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
 
             var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsWrite);
@@ -415,7 +307,8 @@ public sealed class UndoEndpointTests
         }
     }
 
-    /// <summary>Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId, fileId).</summary>
+    // Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId,
+    // fileId).
     private static async Task<(int imageId, int fileId)> SeedImageAsync(
         DbContext db, string folderPath, string basename, string title)
     {

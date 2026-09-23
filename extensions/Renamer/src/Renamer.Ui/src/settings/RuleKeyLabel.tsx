@@ -14,8 +14,6 @@ import { EntityReferenceValue } from "@cove/runtime/components";
 
 import type { EntityReferenceType } from "@cove/runtime/components";
 
-import { orphanedRuleLabel } from "./ruleKeyLabelLogic";
-
 /** What a rule key is labelled with, and whether the entity behind it still exists. */
 export function RuleKeyLabel({
   entityType,
@@ -31,5 +29,10 @@ export function RuleKeyLabel({
     return <EntityReferenceValue entityType={entityType} value={id} />;
   }
 
-  return <span className="text-muted-foreground">{orphanedRuleLabel(entityType, id)}</span>;
+  // The id is the only handle the user has left for deciding whether to delete the row.
+  return (
+    <span className="text-muted-foreground">
+      Deleted {entityType} (was #{id}). This rule no longer applies.
+    </span>
+  );
 }

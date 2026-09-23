@@ -1,4 +1,3 @@
-/** Behavior contract for the pure dry-run logic. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
@@ -23,24 +22,23 @@ import {
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
 
-/**
- * Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
- * hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
- * under test passes however far the two sides drift, and a drift means a row appearing in a segment it
- * was never counted in.
- *
- * Keyed by the generated wire union rather than by `string`, so a status added on the server is a
- * compile error here instead of a table that quietly stops covering it. That does not let the two
- * agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
- * hand transcription this table exists to be.
- */
+// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
+// hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
+// under test passes however far the two sides drift, and a drift means a row appearing in a segment it
+// was never counted in.
+//
+// Keyed by the generated wire union rather than by `string`, so a status added on the server is a
+// compile error here instead of a table that quietly stops covering it. That does not let the two
+// agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
+// hand transcription this table exists to be.
 const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
-  renamer: "will-change",
+  rename: "will-change",
   move: "will-change",
   noOp: "no-change",
   skipCollision: "attention",
   skipGated: "attention",
   skipExcluded: "attention",
+  skipRuleTimedOut: "attention",
   skipLocked: "attention",
   skipMissingSource: "attention",
   // `ScanBucket.Of` classifies this like any other, and nothing a scan counts ever carries it: the
@@ -80,11 +78,9 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("all"), "all");
 });
 
-/**
- * A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
- * nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
- * open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
- */
+// A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
+// nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
+// open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
 const STALLED_WALK = {
   loadedRows: 6,
   targetRows: 35,
@@ -122,7 +118,7 @@ test("a page already in flight does not continue", () => {
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 3 },
+      { status: "rename", count: 3 },
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
@@ -158,7 +154,7 @@ test("summaryCounts over an empty status list returns all zeros", () => {
 test("summaryCounts counts an unknown status as attention and still sums correctly", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 2 },
+      { status: "rename", count: 2 },
       { status: "skipInvented", count: 3 },
     ],
   });
@@ -301,7 +297,7 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   const early = etaFromSamples([
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow seed (rate #1)
-    { timeMs: 7400, progress: 0.52 }, // one fast poll (rate #2 — now shown)
+    { timeMs: 7400, progress: 0.52 }, // one fast poll (rate #2 - now shown)
   ]);
   assert.ok(early !== null && early < 60, `expected under a minute once warmed, got ${early}`);
 });
@@ -321,7 +317,7 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
-      { timeMs: 1000, progress: 0.2 }, // flat — skipped, not a rate
+      { timeMs: 1000, progress: 0.2 }, // flat - skipped, not a rate
       { timeMs: 2000, progress: 0.3 }, // rate #1 only
     ]),
     null,
@@ -340,13 +336,11 @@ test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
   assert.equal(ETA_SMOOTHING, 0.3);
 });
 
-/**
- * The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
- * `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
- * serializer. Written out here rather than read from the generated wire types, because a key spelled
- * wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
- * not the type-check, not the request, not this suite if it asked the module for the name it already uses.
- */
+// The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
+// `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
+// serializer. Written out here rather than read from the generated wire types, because a key spelled
+// wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
+// not the type-check, not the request, not this suite if it asked the module for the name it already uses.
 const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
 
 test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {

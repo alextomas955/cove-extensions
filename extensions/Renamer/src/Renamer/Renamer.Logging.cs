@@ -45,9 +45,7 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId} done: {Renamed} renamed, {Skipped} skipped, {Failed} failed")]
     private partial void LogBatchDone(string runId, int renamed, int skipped, int failed);
 
-    // A batch plans and classifies every id before it reports any progress percentage, so a large
-    // library sits at zero with no other signal. These lines make a long wait legible as planning
-    // rather than a hang.
+    // These trace a batch's planning in Cove's log.
 
     [LoggerMessage(
         EventId = 1005, Level = LogLevel.Information,
@@ -56,12 +54,12 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1006, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: planning {Index}/{Count} id={EntityId} — {ActingFiles} file(s) will act")]
+        Message = "[Renamer] batch {RunId}: planning {Index}/{Count} id={EntityId}: {ActingFiles} file(s) will act")]
     private partial void LogItemPlanned(string runId, int index, int count, int entityId, int actingFiles);
 
     [LoggerMessage(
         EventId = 1007, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: planning complete — {Acting} file(s) will act across {Planned} item(s)")]
+        Message = "[Renamer] batch {RunId}: planning complete: {Acting} file(s) will act across {Planned} item(s)")]
     private partial void LogPlanningDone(string runId, int acting, int planned);
 
     // The one trace of a refused source-path claim: the rename cannot tell which of the rows owns the
@@ -85,11 +83,10 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1040, Level = LogLevel.Information,
-        Message = "[Renamer] library renamer: {Kind} — {Count} item(s) to plan")]
+        Message = "[Renamer] library rename: {Kind}: {Count} item(s) to plan")]
     private partial void LogLibraryKind(RenamerFileKind kind, int count);
 
-    // The whole-library dry run reports progress only when it finishes, so these trace its planning
-    // the way the rename batch traces its own and keep a large scan legible in Cove's log.
+    // These trace the whole-library dry run's planning in Cove's log.
 
     [LoggerMessage(
         EventId = 1050, Level = LogLevel.Information,
@@ -103,7 +100,7 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1052, Level = LogLevel.Information,
-        Message = "[Renamer] scan library: complete — {Files} file(s) planned from {Total} item(s)")]
+        Message = "[Renamer] scan library: complete: {Files} file(s) planned from {Total} item(s)")]
     private partial void LogScanDone(int files, int total);
 
     [LoggerMessage(
@@ -240,4 +237,9 @@ public sealed partial class Renamer
         EventId = 1030, Level = LogLevel.Warning,
         Message = "[Renamer] routing: skipped invalid source-path regex '{Pattern}': {Reason}")]
     private partial void LogInvalidRouteRegex(string pattern, string reason);
+
+    [LoggerMessage(
+        EventId = 1075, Level = LogLevel.Warning,
+        Message = "[Renamer] library rename {RunId}: completed, but its counts could not be stored")]
+    private partial void LogLibraryRenameSummaryNotStored(Exception ex, string runId);
 }

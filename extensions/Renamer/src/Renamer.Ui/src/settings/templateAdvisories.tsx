@@ -9,7 +9,7 @@
  */
 import { AlertTriangle } from "lucide-react";
 
-import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templateValidation";
+import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templateLogic";
 
 /**
  * Renders one amber line for unbalanced braces, one per unknown $token (with a best-effort
@@ -17,7 +17,7 @@ import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templ
  * include "empty" (passed in via emptySamples; reuses the existing debounced preview, no new
  * request). Renders nothing when there are no issues. never feeds Save and never moves the caret.
  */
-export function TemplateValidation({
+export function TemplateAdvisories({
   value,
   emptySamples = [],
 }: {
@@ -26,30 +26,20 @@ export function TemplateValidation({
 }) {
   const lines: string[] = [];
   if (!bracesBalanced(value)) {
-    lines.push("Unmatched { or } — it'll still render, but check your groups.");
+    lines.push("Unmatched { or }. It'll still render, but check your groups.");
   }
   for (const tok of unknownTokens(value)) {
     const suggestion = suggestFor(tok);
     lines.push(
       suggestion
-        ? `${tok} isn't a known token — it'll render as empty. Did you mean ${suggestion}?`
-        : `${tok} isn't a known token — it'll render as empty.`,
+        ? `${tok} isn't a known token. It'll render as empty. Did you mean ${suggestion}?`
+        : `${tok} isn't a known token. It'll render as empty.`,
     );
   }
   for (const label of emptySamples) {
     lines.push(`This template produces an empty name for the "${label}" sample.`);
   }
-  if (lines.length === 0) return null;
-  return (
-    <div className="mt-1 space-y-1" role="status" aria-live="polite">
-      {lines.map((line) => (
-        <p key={line} className="flex items-start gap-1 text-xs text-amber-400">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span>{line}</span>
-        </p>
-      ))}
-    </div>
-  );
+  return <AdvisoryLines lines={lines} />;
 }
 
 /**
@@ -66,10 +56,14 @@ export function TokenAdvisory({ values }: { values: string[] }) {
     const bare = suggestion ? suggestion.slice(1) : undefined;
     lines.push(
       bare
-        ? `"${value}" isn't a known token — it'll be ignored. Did you mean ${bare}?`
-        : `"${value}" isn't a known token — it'll be ignored.`,
+        ? `"${value}" isn't a known token. It'll be ignored. Did you mean ${bare}?`
+        : `"${value}" isn't a known token. It'll be ignored.`,
     );
   }
+  return <AdvisoryLines lines={lines} />;
+}
+
+function AdvisoryLines({ lines }: Readonly<{ lines: string[] }>) {
   if (lines.length === 0) return null;
   return (
     <div className="mt-1 space-y-1" role="status" aria-live="polite">

@@ -120,10 +120,10 @@ export interface LibraryPathsState {
  * `"unreadable"` and `"no-library-paths"` are deliberately not one value: only the second names a
  * repair, and offering it after a failed read tells a user to do something they have already done.
  */
-export type DestinationNotice = "none" | "unreadable" | "no-library-paths";
+type DestinationNotice = "none" | "unreadable" | "no-library-paths";
 
 /** What a destination editor draws for one stored root. */
-export interface DestinationPickerState {
+interface DestinationPickerState {
   /** The library path `root` names, or `undefined` when it names none. */
   readonly chosen: string | undefined;
   /** The stored root is not one of Cove's library paths, so the rule is skipped. */

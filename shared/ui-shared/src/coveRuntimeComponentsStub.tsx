@@ -33,3 +33,32 @@ export function EntityReferenceMultiSelector({
 export function EntityReferenceValue({ value }: Readonly<{ value: unknown }>) {
   return <span>{`entity ${String(value)}`}</span>;
 }
+
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Delete",
+  onConfirm,
+  onCancel,
+}: Readonly<{
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void | Promise<void>;
+  onCancel: () => void;
+}>) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-label={title}>
+      <p>{message}</p>
+      <button type="button" onClick={onCancel}>
+        Cancel
+      </button>
+      <button type="button" onClick={() => void onConfirm()}>
+        {confirmLabel}
+      </button>
+    </div>
+  );
+}

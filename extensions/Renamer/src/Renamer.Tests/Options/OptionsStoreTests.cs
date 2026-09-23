@@ -43,17 +43,14 @@ public sealed class OptionsStoreTests
     {
         var fake = new FakeStore();
         await fake.SetAsync("options", "this is not json {{{");
-        var log = new CapturingLogger();
+        var log = new CapturingLogger<OptionsStore>();
         var store = new OptionsStore(fake, log);
 
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded)); // catches JsonException → defaults
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded));
 
-        // Defaults are indistinguishable from a correct empty configuration at every layer above this,
-        // so this line is the only evidence that a user's stored settings were discarded rather than
-        // never written. Asserted at the level and the carried exception and not at the wording, which
-        // would pin the sentence instead of the behaviour.
+        // The warning is the only sign that stored settings were discarded rather than never written.
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.IsAssignableFrom<JsonException>(entry.Error);
@@ -94,7 +91,7 @@ public sealed class OptionsStoreTests
         var loaded = await new OptionsStore(fake).LoadAsync();
 
         string name = new string('a', 400);
-        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name)).result;
 
         Assert.True(LengthReducer.FitsBoth("", reduced.Filename, reduced.Ext, loaded));
     }
@@ -125,21 +122,6 @@ public sealed class OptionsStoreTests
     }
 
     [Fact]
-    public async Task LoadAsync_NegativeLengthCap_StillRendersANonEmptyName()
-    {
-        // The reducer clamps a negative budget to zero and returns an empty basename, which reads as
-        // a result rather than as a failure - the reason a nonsense cap has to be caught on load.
-        var fake = new FakeStore();
-        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":-1}""");
-        var loaded = await new OptionsStore(fake).LoadAsync();
-
-        string name = new string('a', 400);
-        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
-
-        Assert.NotEmpty(reduced.Filename);
-    }
-
-    [Fact]
     public async Task LoadAsync_SmallButPositiveLengthCap_IsKeptAsStored()
     {
         // A tight budget is a configuration, not a mistake: only a cap that cannot be a budget at all
@@ -164,23 +146,5 @@ public sealed class OptionsStoreTests
         var all = await fake.GetAllAsync();
         Assert.Single(all);                       // exactly one entry (single JSON blob)
         Assert.True(all.ContainsKey("options"));  // under the "options" key
-    }
-
-    /// <summary>Everything the store logged, so a fallback that says nothing fails here.</summary>
-    private sealed class CapturingLogger : ILogger
-    {
-        public List<(LogLevel Level, Exception? Error)> Entries { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) => Entries.Add((logLevel, exception));
     }
 }

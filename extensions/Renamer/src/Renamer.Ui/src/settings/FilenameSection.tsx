@@ -6,6 +6,7 @@
  * grid cell (with the bad-blob recovery banner) so the card sits beside the sticky live-preview
  * column.
  */
+import type { SetOption } from "./useRenamerOptions";
 import type { Ref, RefObject } from "react";
 
 import { type RenamerOptions, type LibraryPathsState } from "./options";
@@ -20,7 +21,7 @@ import {
 import { DestinationField } from "./DestinationField";
 import { PerKindRows } from "./PerKindRows";
 import { TokenLegend } from "./TokenLegend";
-import { TemplateValidation } from "./templateAdvisories";
+import { TemplateAdvisories } from "./templateAdvisories";
 import { PRESETS } from "./presets";
 
 /**
@@ -55,7 +56,7 @@ function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void })
 
 export interface FilenameSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   insertToken: (token: string) => void;
   filenameRef: Ref<HTMLInputElement>;
   folderRef: Ref<HTMLInputElement>;
@@ -131,7 +132,7 @@ export function FilenameSection({
               />
             )}
           </Field>
-          <TemplateValidation value={options.filenameTemplate} emptySamples={emptySamples} />
+          <TemplateAdvisories value={options.filenameTemplate} emptySamples={emptySamples} />
           <TokenLegend
             onInsert={insertToken}
             filenameTemplate={options.filenameTemplate}

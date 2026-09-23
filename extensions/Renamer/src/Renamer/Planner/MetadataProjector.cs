@@ -14,14 +14,11 @@ namespace Renamer.Planner;
 // together, so a kind carrying only one of them, or neither, never gets it.
 public static class MetadataProjector
 {
-    // Projects one file into the engine's token inputs: the case-insensitive single-value token map, the
-    // performer and tag name side-input that keeps $performers rendering and the title-performer drop
-    // name-based, the per-performer records the engine orders and filters by before the max-count limit,
-    // and the tag id/name pairs the tag whitelist and blacklist match on by id.
+    // Projects one file into the engine's token inputs: the case-insensitive single-value token map, and
+    // the performer and tag names that keep $performers rendering and the title-performer drop
+    // name-based. The engine takes the entity's performer records and tag ids alongside these.
     public static (IReadOnlyDictionary<string, string> tokens,
-                   IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-                   IReadOnlyList<RenamerPerformer> performers,
-                   IReadOnlyList<(int Id, string Name)> tagRefs)
+                   IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -93,28 +90,19 @@ public static class MetadataProjector
             [Tokens.Tags] = entity.Tags,
         };
 
-        return (tokens, multi, entity.Performers, entity.TagRefs);
+        return (tokens, multi);
     }
 
     // The title an item with none falls back to: its first file's basename without the extension, or
-    // null when the item already has a title, the FilenameAsTitle fallback is off, or the item has no
-    // files. This is the canonical statement of why the fallback is recorded rather than repeated; the
-    // sites that carry the value onward point here.
+    // null when the item has a title, the FilenameAsTitle fallback is off, or it has no files.
     //
-    // Derived per run, the title is a function of the basename the previous run wrote, and the rename is
-    // a function of the title, so any template rendering more than a bare $title wraps its own
-    // decorations again on every pass and the name grows without bound. No cure keeps both directions
-    // live: parsing the template back out of its own output is post-hoc cleanup, and refusing the
-    // fallback for a decorated template only converts the runaway into a required-fields skip. So the
-    // derivation is broken: the executor records this value on the entity in the same save as the
-    // rename, after which the item has a title and this path never runs for it again.
-    //
-    // Entity-level, not per-file: a title belongs to the item, so deriving it from the file being
-    // projected gives a multi-file item as many titles as it has files, and leaves the recorded one
-    // decided by whichever file the executor saved last.
+    // A title derived on every run would come from the name the previous run wrote, so any template
+    // rendering more than $title would wrap its decorations again each pass. The executor therefore
+    // records this value on the entity in the same save as the rename, after which the item has a
+    // title. It is taken from the first file, because a title belongs to the item.
     internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
         => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
-            ? BasenameStem(entity.Files[0].Basename)
+            ? PathOps.StemOf(entity.Files[0].Basename)
             : null;
 
     // Renders a stored duration in seconds through the user-configured format. Both inputs are untrusted
@@ -142,17 +130,6 @@ public static class MetadataProjector
         {
             tokens[key] = value;
         }
-    }
-
-    // The basename with its extension stripped, for use as a fallback title. The extension is dropped
-    // only when a non-empty stem precedes the last dot, so a dotless name ("README") and a leading-dot
-    // name (".gitignore") keep their whole basename: a leading-dot title reads better whole than split.
-    // This is a title-readability rule, and it differs on that edge from ResolveExt, which treats a
-    // leading dot as the extension boundary.
-    private static string BasenameStem(string basename)
-    {
-        var dot = basename.LastIndexOf('.');
-        return dot > 0 ? basename[..dot] : basename;
     }
 
     // The file's actual on-disk extension, falling back to the metadata Format only when the basename

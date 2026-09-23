@@ -1,19 +1,13 @@
 using Cove.Plugins;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The opt-in + gating half of auto-renamer: with the flag off (default) the hook does nothing, and
-/// with the flag on but the planner's require-fields gate excluding the item, it still does nothing
-/// - no junk names on incomplete metadata.
-/// </summary>
 public sealed class AutoRenamerGateTests
 {
     [Fact]
-    public async Task FlagOff_FiringUpdated_PerformsNoRenamer_NoEvents()
+    public async Task FlagOff_FiringUpdated_PerformsNoRename_NoEvents()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -44,7 +38,7 @@ public sealed class AutoRenamerGateTests
     }
 
     [Fact]
-    public async Task FlagOn_ButRequireFieldsGateExcludes_PerformsNoRenamer()
+    public async Task FlagOn_ButRequireFieldsGateExcludes_PerformsNoRename()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

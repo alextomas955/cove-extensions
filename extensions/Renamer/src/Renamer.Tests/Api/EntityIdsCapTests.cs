@@ -2,53 +2,19 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The preview and renamer endpoints accept a caller-supplied id array, which is an unbounded fan-out:
-/// preview runs the planner (DB hits) per id on the request thread, and renamer fans the same ids into
-/// one job. Both reject an over-cap array with a 400 before any per-id work, so a runaway/oversized
-/// request can't tie up a request thread or enqueue a giant job. An absent array is rejected the same
-/// way, with its own code.
-/// </summary>
 public sealed class EntityIdsCapTests
 {
     // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.
     private const int Cap = 1000;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
-
-    /// <summary>Records every <c>Enqueue</c>; all other members are unused and throw.</summary>
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<(string type, string description)> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add((type, description));
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
-    private static global::Renamer.Renamer NewExtension()
-    {
-        var ext = RenamerFixture.Create();
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
-        return ext;
-    }
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
@@ -61,7 +27,7 @@ public sealed class EntityIdsCapTests
             var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            var ext = NewExtension();
+            var ext = RenamerFixture.CreateWithStore();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
 
@@ -85,7 +51,7 @@ public sealed class EntityIdsCapTests
     [Fact]
     public async Task RenamerEnqueue_OverCapIds_Returns400_AndDoesNotEnqueue()
     {
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
@@ -102,7 +68,7 @@ public sealed class EntityIdsCapTests
     public async Task RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
     {
         // Exactly at the cap is allowed - the bound rejects only what exceeds it.
-        var ext = NewExtension();
+        var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap).ToArray();
@@ -131,14 +97,6 @@ public sealed class EntityIdsCapTests
         return data;
     }
 
-    /// <summary>
-    /// An omitted or explicitly-null <c>entityIds</c> is a 400 carrying its own code, not a 500.
-    /// </summary>
-    /// <remarks>
-    /// Driven over the real route rather than by calling the handler with a null argument: a direct
-    /// call supplies the null itself, so it says nothing about what the host's model binding actually
-    /// produces for these two bodies - which is the whole question.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(AbsentIdArrayRequests))]
     public async Task AbsentIdArray_Returns400_MissingEntityIds(string path, string permission, string body)

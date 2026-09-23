@@ -7,6 +7,7 @@
  * no folder of its own. Presentational; every edit flows up through the `set` callback the panel
  * threads in from useRenamerOptions.
  */
+import type { SetOption } from "./useRenamerOptions";
 import type { ReactNode } from "react";
 
 import { Button, StatusText } from "@cove-extensions/ui-shared";
@@ -23,9 +24,9 @@ import {
   type RenamerOptions,
 } from "./options";
 
-export interface PerKindRowsProps {
+interface PerKindRowsProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   library: LibraryPathsState;
 }
 

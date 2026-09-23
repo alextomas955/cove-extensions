@@ -1,6 +1,6 @@
 using Renamer.Options;
 
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Planner;
 
@@ -149,8 +149,7 @@ public static class PathConfinement
 
     // True when candidate is root itself or lies under it. Separators are normalized and the compare is
     // ordinal with a trailing separator on the root, so a sibling ".../rootEvil" is not mistaken for a
-    // child of ".../root". Internal so the disk-resolving canonical guard in Renamer.Execution reuses
-    // this one definition of boundary-aware containment; tests reach it through InternalsVisibleTo.
+    // child of ".../root".
     internal static bool IsUnderRoot(string candidate, string root)
     {
         string c = NormalizeSlash(candidate).TrimEnd('/');

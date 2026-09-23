@@ -86,17 +86,6 @@ public sealed class TransportSmokeTests
         Assert.False(summary.HasBatch); // fresh store: no batch to undo
     }
 
-    /// <summary>
-    /// The wire casing as the host actually writes it, read off the raw response body.
-    /// </summary>
-    /// <remarks>
-    /// Every other casing assertion in this suite serializes a DTO with options the test supplies, so it
-    /// proves only that the test's serializer works. This one names nothing: the bytes come from the
-    /// host's own pipeline over real HTTP, which is the only place the contract is actually settled.
-    /// Both halves are covered here because they have different sources - property casing is the host's
-    /// <c>JsonSerializerDefaults.Web</c> default, while the enum strings come from
-    /// <c>CamelCaseStringEnumConverter</c> on the enum types.
-    /// </remarks>
     [Fact]
     public async Task LastScan_WritesCamelCaseProperties_AndCamelCaseStringEnums()
     {
@@ -119,7 +108,7 @@ public sealed class TransportSmokeTests
 
         // RenamerFileKind, RenamerStatus and ConfirmLevel, each as the camelCase string the UI matches.
         // A numeric enum here is the defect the converter exists to prevent: the panel compares against
-        // "renamer"/"noOp", so a 0 reads as a non-rename and the renamer silently never fires.
+        // "rename"/"noOp", so a 0 reads as a non-rename and the rename silently never fires.
         Assert.Contains("\"kinds\":[\"video\"]", body, StringComparison.Ordinal);
         Assert.Contains("\"status\":\"noOp\"", body, StringComparison.Ordinal);
         Assert.Contains("\"confirmLevel\":\"light\"", body, StringComparison.Ordinal);

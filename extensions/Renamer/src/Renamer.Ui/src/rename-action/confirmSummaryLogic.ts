@@ -10,7 +10,7 @@
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {
@@ -48,6 +48,10 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipGated: { clause: "need a required field", reason: "needs a required field" },
   skipCollision: { clause: "have a name conflict", reason: "name conflict" },
   skipExcluded: { clause: "are excluded by a rule", reason: "excluded by a rule" },
+  skipRuleTimedOut: {
+    clause: "have a regex rule that timed out",
+    reason: "a regex rule timed out",
+  },
   skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
   skipUnanchored: { clause: "sit outside your Cove library", reason: "outside your Cove library" },
   skipRootMissing: {
@@ -63,7 +67,7 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   // copy stays because retiring live user-facing text is a decision of its own.
   skipLocked: { clause: "are in use", reason: "in use" },
   // Not a skip: the two statuses counted by `willRename`, and the item that needs no change.
-  renamer: null,
+  rename: null,
   move: null,
   noOp: null,
   // Executor-only, and produced only after this confirm: by the time a move fails, the OS refuses it,
@@ -96,10 +100,8 @@ function formatSize(bytes: number): string {
 
 /**
  * The per-cross-volume blast-radius lines: one "↪ N items (X MB) move from A to B." line per pair,
- * each size in the largest unit that leaves a figure to read.
- * Single source shared by the bulk-action window.confirm and the settings-panel Review dialog, so
- * both rename entry points describe a cross-drive batch identically. A same-drive batch has no
- * `volumePairs` and yields an empty array.
+ * each size in the largest unit that leaves a figure to read. A same-drive batch has no `volumePairs`
+ * and yields none.
  */
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
@@ -109,46 +111,34 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 }
 
 /**
- * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
- * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
- * Single source shared by both rename confirm surfaces.
+ * The call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive warning, Standard
+ * a plainer cross-drive notice, and Light the plain rename prompt.
  */
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
-  return level === "heavy"
-    ? `This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. ` +
+  switch (level) {
+    case "heavy":
+      return (
+        `This is a LARGE cross-drive move. Files will be COPIED across drives, which can take a while. ` +
         `Click OK only if you are sure; Cancel to stop. ${reversibility}`
-    : level === "standard"
-      ? `This moves files across drives. Click OK to proceed, or Cancel to stop. ${reversibility}`
-      : `Click OK to rename, or Cancel to stop. ${reversibility}`;
+      );
+    case "standard":
+      return `This moves files across drives. Click OK to proceed, or Cancel to stop. ${reversibility}`;
+    default:
+      return `Click OK to rename, or Cancel to stop. ${reversibility}`;
+  }
 }
 
-/**
- * Build the exact text for the in-flow window.confirm gate shown before a bulk rename runs.
- *
- * - N = items that will actually change (status Rename | Move); M = total selected.
- * - One `⚠` line per non-zero warning kind: skips (split into gated / collision sub-counts),
- *   numbered (suffixed), cleaned (sanitized).
- * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
- * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
- *
- * Blast radius: when `summary` is supplied and the batch moves files across
- * drives, the confirm wording scales with `summary.confirmLevel` - an explicit "N items (X MB) move
- * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
- * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.
- * Pure (no DOM/fetch) so it stays unit-reasonable.
- */
-export function buildConfirmSummary(
-  items: PreviewItemView[],
-  summary?: PreviewSummary,
-): {
-  text: string;
-  willRenameCount: number;
-} {
-  const willRename = items.filter((it) => it.status === "renamer" || it.status === "move");
-  const n = willRename.length;
-  const m = items.length;
+function plural(n: number): string {
+  return n === 1 ? "" : "s";
+}
 
+interface SkipTally {
+  kinds: (SkipClause & { count: number })[];
+  unclassified: number;
+}
+
+function tallySkips(items: PreviewItemView[]): SkipTally {
   const tally = new Map<string, number>();
   // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
   // would count it here and lose it again below, where the clause list reads only declared keys.
@@ -162,15 +152,30 @@ export function buildConfirmSummary(
   }
   // Read in the map's declaration order, never the tally's - that one follows whatever order the items
   // happened to arrive in, which would let the same selection word its sentence differently twice.
-  const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
+  const kinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
     const count = tally.get(status) ?? 0;
     return clause !== null && count > 0 ? [{ ...clause, count }] : [];
   });
-  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
-  const numbered = willRename.filter((it) => it.suffixed).length;
-  const cleaned = willRename.filter((it) => it.sanitized).length;
+  return { kinds, unclassified };
+}
 
-  const warningLines: string[] = [];
+function skipLine({ kinds, unclassified }: SkipTally): string | null {
+  const skipped = kinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
+  if (skipped === 0) return null;
+  // If only one reason kind, collapse to the compact "(reason)" form.
+  const onlyKind = kinds.length === 1 ? kinds[0] : undefined;
+  if (onlyKind && unclassified === 0) return `⚠ ${skipped} skipped (${onlyKind.reason}).`;
+  const clauses = kinds.map((kind) => `${kind.count} ${kind.clause}`);
+  if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
+  return `⚠ ${skipped} skipped: ${clauses.join(", ")}.`;
+}
+
+function warningLines(
+  items: PreviewItemView[],
+  willRename: PreviewItemView[],
+  summary?: PreviewSummary,
+): string[] {
+  const lines: string[] = [];
   // First, and phrased as a failure rather than an advisory: every other line here describes a rename
   // that will happen differently, while this one describes files the executor will not be able to move
   // at all. It reads the aggregate count, never a list of paths - a selection reaches library size, and
@@ -178,39 +183,58 @@ export function buildConfirmSummary(
   // characters: what the user can act on is the remedy, so that is what the line carries.
   const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
   if (inFlightOverflow > 0) {
-    warningLines.push(
-      `⚠ ${inFlightOverflow} cannot be copied across drives — the temporary copy's path would be too ` +
-        `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
+    const them = inFlightOverflow === 1 ? "it" : "them";
+    lines.push(
+      `⚠ ${inFlightOverflow} cannot be copied across drives: the temporary copy's path would be too ` +
+        `long. Shorten the destination folder or the filename template for ${them}.`,
     );
   }
-  if (skipped > 0) {
-    // If only one reason kind, collapse to the compact "(reason)" form.
-    const onlyKind = skipKinds.length === 1 ? skipKinds[0] : undefined;
-    if (onlyKind && unclassified === 0) {
-      warningLines.push(`⚠ ${skipped} skipped (${onlyKind.reason}).`);
-    } else {
-      const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
-      if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
-      warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);
-    }
-  }
-  if (cleaned > 0) {
-    warningLines.push(`⚠ ${cleaned} had illegal characters cleaned up.`);
-  }
+  const skips = skipLine(tallySkips(items));
+  if (skips !== null) lines.push(skips);
+  const cleaned = willRename.filter((it) => it.sanitized).length;
+  if (cleaned > 0) lines.push(`⚠ ${cleaned} had illegal characters cleaned up.`);
+  const numbered = willRename.filter((it) => it.suffixed).length;
   if (numbered > 0) {
-    warningLines.push(`⚠ ${numbered} got a number added to avoid a name clash (e.g. "name (1)").`);
+    lines.push(`⚠ ${numbered} got a number added to avoid a name clash (e.g. "name (1)").`);
   }
+  return lines;
+}
+
+/**
+ * Build the exact text for the in-flow window.confirm gate shown before a bulk rename runs.
+ *
+ * - N = items that will actually change (status Rename | Move); M = total selected.
+ * - One `⚠` line per non-zero warning kind: skips (split into gated / collision sub-counts),
+ *   numbered (suffixed), cleaned (sanitized).
+ * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
+ * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
+ *
+ * When the batch moves files across drives, a line per volume pair is added and the call-to-action
+ * scales with `summary.confirmLevel`.
+ */
+export function buildConfirmSummary(
+  items: PreviewItemView[],
+  summary?: PreviewSummary,
+): {
+  text: string;
+  willRenameCount: number;
+} {
+  const willRename = items.filter((it) => it.status === "rename" || it.status === "move");
+  const n = willRename.length;
+  const m = items.length;
+
+  const warnings = warningLines(items, willRename, summary);
 
   // Blast-radius lines (additive): one per cross-volume (from → to) pair, when the backend reports
   // any. A same-drive-only batch has no volumePairs and these lines are absent.
   const blastLines = buildBlastLines(summary);
 
-  const warningBlock = warningLines.length > 0 ? `${warningLines.join("\n")}\n\n` : "";
+  const warningBlock = warnings.length > 0 ? `${warnings.join("\n")}\n\n` : "";
   const blastBlock = blastLines.length > 0 ? `${blastLines.join("\n")}\n\n` : "";
 
   if (n === 0) {
     const text =
-      `Nothing will be renamed — all ${m} selected item${m === 1 ? "" : "s"} ` +
+      `Nothing will be renamed: all ${m} selected item${plural(m)} ` +
       `are skipped or already named correctly.\n\n` +
       warningBlock +
       `Click OK to dismiss.`;
@@ -218,9 +242,7 @@ export function buildConfirmSummary(
   }
 
   const header =
-    n === m
-      ? `Rename ${n} selected item${n === 1 ? "" : "s"}?`
-      : `Rename ${n} of ${m} selected items?`;
+    n === m ? `Rename ${n} selected item${plural(n)}?` : `Rename ${n} of ${m} selected items?`;
 
   const examples = willRename.slice(0, SAMPLE_LIMIT).map((it) => {
     const oldName = basename(it.oldFullPath);
@@ -230,9 +252,6 @@ export function buildConfirmSummary(
   const remaining = n - examples.length;
   if (remaining > 0) examples.push(`  … and ${remaining} more.`);
 
-  // The call-to-action scales with the blast radius. A Heavy cross-drive move (many files / many
-  // bytes / several volumes) gets the strongest wording; Standard is a plainer cross-drive notice;
-  // Light (same-drive only, or no summary) keeps the original reassuring line.
   const level: ConfirmLevel = summary?.confirmLevel ?? "light";
   const callToAction = confirmCallToAction(level);
 

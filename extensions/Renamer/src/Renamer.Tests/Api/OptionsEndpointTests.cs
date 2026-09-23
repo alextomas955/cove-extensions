@@ -12,15 +12,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The settings endpoints, driven over the real transport: <c>GET /options</c> and <c>PUT /options</c>.
-/// </summary>
-/// <remarks>
-/// The round-trip test takes its request body from the server's own response rather than serializing one
-/// the test composed. A body the test writes proves only that the test's serializer agrees with itself,
-/// and the whole point of these endpoints is that the wire spelling and the stored spelling differ: the
-/// wire is camelCase, the store holds the PascalCase spelling every installed blob already uses.
-/// </remarks>
 public sealed class OptionsEndpointTests
 {
     private const string Route = TransportHost.BaseRoute + "/options";

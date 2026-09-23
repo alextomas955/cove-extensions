@@ -5,14 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// A database carrying the undo journal and nothing else: the extension can complete the load-time
-/// check that reads the journal, and every read of a library table throws.
-/// </summary>
-/// <remarks>
-/// The journal is created from the shipped migrations rather than from the entity model, so this
-/// fixture is wrong in the same way production would be wrong, rather than in its own way.
-/// </remarks>
+// A database carrying the undo journal and nothing else: the extension can complete the load-time
+// check that reads the journal, and every read of a library table throws. The journal is created
+// from the shipped migrations rather than from the entity model, so this fixture is wrong in the
+// same way production would be wrong, rather than in its own way.
 internal sealed class JournalOnlyDatabase : IAsyncDisposable
 {
     private readonly SqliteConnection _conn;
