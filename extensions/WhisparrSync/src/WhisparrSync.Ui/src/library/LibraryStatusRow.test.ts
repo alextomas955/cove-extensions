@@ -8,8 +8,8 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement, useState, type ReactNode } from "react";
 
 import { press, render } from "../common/lib/testRender";
-import { FILE_MARKER } from "../common/ui/stateVocabularyLogic";
-import { NOT_LINKED_ON_THIS_PAGE, STILL_COUNTING } from "../common/ui/copy";
+import { FILE_MARKER, NOT_LINKED_MARKER } from "../common/ui/stateVocabularyLogic";
+import { STILL_COUNTING } from "../common/ui/copy";
 import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -211,8 +211,8 @@ test("the row counts the cards nothing could be asked about", async () => {
   showBadges();
   const page = await pageOf([{ excluded: false, present: true, monitored: true }, null, null]);
 
-  expect(page.textContent).toContain(NOT_LINKED_ON_THIS_PAGE);
-  const linked = /(\d+)\s*not linked/.exec(page.textContent);
+  expect(page.textContent).toContain(NOT_LINKED_MARKER.label);
+  const linked = new RegExp(`(\\d+)\\s*${NOT_LINKED_MARKER.label}`).exec(page.textContent);
   expect(linked?.[1]).toBe("2");
 });
 
@@ -239,7 +239,7 @@ test("the figures account for every card on the page", async () => {
     figure("Not added"),
     figure("Excluded"),
     figure("Status unknown"),
-    figure(NOT_LINKED_ON_THIS_PAGE),
+    figure(NOT_LINKED_MARKER.label),
   ];
 
   expect(drawn, `the row read "${text}"`).toEqual([1, 1, 1, 1, 1, 1]);

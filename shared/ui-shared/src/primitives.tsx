@@ -1344,7 +1344,7 @@ export function Badge({ children, mono = false }: { children: ReactNode; mono?: 
   );
 }
 
-export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
+export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "cyan" | "violet" | "gray";
 
 /** A theme color at partial alpha, in the same form the host's own stylesheet emits. */
 const tint = (variable: string, percent: number) =>
@@ -1378,6 +1378,22 @@ const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?
         borderColor: tint("--color-green-500", 40),
         backgroundColor: tint("--color-green-500", 10),
       },
+    },
+    cyan: {
+      className: "text-cyan-400",
+      style: {
+        borderColor: tint("--color-cyan-400", 40),
+        backgroundColor: tint("--color-cyan-400", 10),
+      },
+    },
+    // The host emits no `text-violet-*` utility, so the text color is inlined with the rest.
+    violet: {
+      style: {
+        color: "var(--color-violet-400)",
+        borderColor: tint("--color-violet-400", 40),
+        backgroundColor: tint("--color-violet-400", 10),
+      },
+      className: "",
     },
     gray: { className: "border-border bg-card text-muted" },
   };

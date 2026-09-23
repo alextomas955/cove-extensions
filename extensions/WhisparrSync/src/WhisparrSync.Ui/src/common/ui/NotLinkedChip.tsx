@@ -5,19 +5,23 @@
  * namespace, the library carries no identifier in it for this one, and so the instance was never
  * asked. Drawn rather than left blank, because a card with no badge among cards that have one
  * reads as an oversight and cannot be told from one still being read.
+ *
+ * Drawn as the same `StatusPill` a state is, so a reader meets one badge family rather than two.
  */
-import { Unlink } from "lucide-react";
+import { StatusPill } from "@cove-extensions/ui-shared";
 
-import { NOT_LINKED, NOT_LINKED_REASON } from "./copy";
-
-const CHIP_CLASS =
-  "inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-secondary";
+import { NOT_LINKED_REASON } from "./copy";
+import { StateGlyph } from "./StateGlyph";
+import { NOT_LINKED_MARKER } from "./stateVocabularyLogic";
 
 export function NotLinkedChip() {
   return (
-    <span className={CHIP_CLASS} title={NOT_LINKED_REASON}>
-      <Unlink className="h-3 w-3" aria-hidden="true" />
-      {NOT_LINKED}
-    </span>
+    <StatusPill
+      variant={NOT_LINKED_MARKER.variant}
+      title={NOT_LINKED_REASON}
+      icon={<StateGlyph iconKey={NOT_LINKED_MARKER.iconKey} />}
+    >
+      {NOT_LINKED_MARKER.label}
+    </StatusPill>
   );
 }

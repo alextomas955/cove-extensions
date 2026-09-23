@@ -11,7 +11,6 @@ import { Spinner, StatusPill } from "@cove-extensions/ui-shared";
 import {
   CHECKING_WHISPARR,
   LIBRARY_COUNTS_ARE_FOR_THIS_PAGE,
-  NOT_LINKED_ON_THIS_PAGE,
   NOT_LINKED_REASON,
   STILL_COUNTING,
   WHISPARR_STATUS_ROW,
@@ -21,6 +20,8 @@ import { StateGlyph } from "../common/ui/StateGlyph";
 import {
   describeState,
   FILE_MARKER,
+  NOT_LINKED_MARKER,
+  type StateDescription,
   type WhisparrEntityState,
 } from "../common/ui/stateVocabularyLogic";
 import type { LibraryCardKind } from "../wire/api";
@@ -36,14 +37,22 @@ const PILL_ORDER: readonly WhisparrEntityState[] = [
   "excluded",
 ];
 
-// Drawn at a count of zero too: the row is the key to the glyphs on the cards below it, and a key
-// that drops its empty entries changes as you page.
-function StatePill({ state, count }: { state: WhisparrEntityState; count: number }) {
-  const description = describeState(state);
+// Every figure on the row is one of these, states and markers alike, so the whole row reads as one
+// badge family and the key matches the marks on the cards below it.
+function CountPill({
+  description,
+  count,
+  title,
+}: {
+  description: StateDescription;
+  count: number;
+  title?: string;
+}) {
   return (
     <StatusPill
       variant={description.variant}
       shape="tag"
+      title={title}
       icon={<StateGlyph iconKey={description.iconKey} />}
     >
       <span className="font-semibold tabular-nums text-foreground">{count}</span>
@@ -84,11 +93,14 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
           className={`flex flex-wrap items-center gap-2 transition-opacity ${counting ? "opacity-60" : ""}`}
         >
           {PILL_ORDER.map((state) => (
-            <StatePill key={state} state={state} count={tally.states[state]} />
+            <CountPill key={state} description={describeState(state)} count={tally.states[state]} />
           ))}
           {/* Only where a card is in it, so an answered page owes the reader no entry. */}
           {tally.states.statusUnknown === 0 ? null : (
-            <StatePill state="statusUnknown" count={tally.states.statusUnknown} />
+            <CountPill
+              description={describeState("statusUnknown")}
+              count={tally.states.statusUnknown}
+            />
           )}
           {/* Beside the states, not among them: a monitored and an unmonitored card can each hold a
             file, so it partitions nothing.
@@ -97,14 +109,7 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
             or performer path carries one, so a figure drawn there would read as none held when
             nothing was ever asked. */}
           {kind !== "video" ? null : (
-            <StatusPill
-              variant={FILE_MARKER.variant}
-              shape="tag"
-              icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
-            >
-              <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
-              <span className="text-secondary">{FILE_MARKER.label}</span>
-            </StatusPill>
+            <CountPill description={FILE_MARKER} count={tally.inLibrary} />
           )}
           {/* The cards nothing was asked about. Without it the figures account for fewer cards than
             the page holds, and a reader cannot tell the difference from a read that went missing.
@@ -112,17 +117,11 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
             Drawn as a pill carrying the same glyph the cards do, because the row is the key to the
             marks below it. Only where a card is in it: it is not a state every page has one of. */}
           {answered - tally.counted === 0 ? null : (
-            <StatusPill
-              variant="gray"
-              shape="tag"
-              icon={<StateGlyph iconKey="unlink" />}
+            <CountPill
+              description={NOT_LINKED_MARKER}
+              count={answered - tally.counted}
               title={NOT_LINKED_REASON}
-            >
-              <span className="font-semibold tabular-nums text-foreground">
-                {answered - tally.counted}
-              </span>
-              <span className="text-secondary">{NOT_LINKED_ON_THIS_PAGE}</span>
-            </StatusPill>
+            />
           )}
         </span>
         {/* A page is answered a batch at a time, so a subtotal is on screen well before the read
