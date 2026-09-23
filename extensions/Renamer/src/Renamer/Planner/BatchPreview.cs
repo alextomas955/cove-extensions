@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using Renamer.Execution;
 
 namespace Renamer.Planner;
 
@@ -109,7 +108,7 @@ public static class BatchPreview
     // True when the item will act, will cross volumes, and its in-flight copy would overrun
     // fullPathMax - the band the planner accepts but the executor cannot fit. The gap is a real platform
     // limit: no \\?\ extended-length prefix is ever applied, and a cross-volume move copies to a name
-    // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before promoting
+    // PathOps.InFlightSuffixLength characters longer beside the destination before promoting
     // it, while PathConfinement budgets only the final path. The suffix length is deliberately not fed
     // back into that budget, which would drop fields and truncate earlier for every item near the limit.
     //
@@ -127,7 +126,7 @@ public static class BatchPreview
 
         return item.Status is RenamerStatus.Rename or RenamerStatus.Move
             && !VolumeClassifier.SameVolume(item.OldFullPath, item.NewFullPath, mountPoints)
-            && item.NewFullPath.Length + CrossVolumeMover.InFlightSuffixLength > fullPathMax;
+            && item.NewFullPath.Length + PathOps.InFlightSuffixLength > fullPathMax;
     }
 
     // Internal so the whole-library scan's incremental aggregate and its per-caller readback merge

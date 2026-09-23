@@ -1,6 +1,6 @@
 using Renamer.Options;
 
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Planner;
 

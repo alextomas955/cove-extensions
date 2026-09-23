@@ -102,7 +102,7 @@ public sealed partial class Renamer
             int afterId = 0;
             while (true)
             {
-                var chunk = await port.LoadEntityIdPageAsync(kind, afterId, CoveRenamerDataPort.LoadChunkSize, ct);
+                var chunk = await port.LoadEntityIdPageAsync(kind, afterId, IRenamerDataPort.LoadChunkSize, ct);
                 if (chunk.Count == 0)
                 {
                     break;

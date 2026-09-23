@@ -1,6 +1,7 @@
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Engine;
 using Renamer.Planner;
 
 namespace Renamer.Execution;
@@ -150,12 +151,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-    // EF Core translates an in list to one bound parameter per id, so an unchunked load would exceed
-    // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
-    // at one round-trip per chunk. The in list is provider-agnostic: the provider is host-supplied,
-    // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
-    // on SQLite.
-    internal const int LoadChunkSize = 200;
 
     // The single source of truth for studio-hierarchy depth. Two things stay bound to it: the
     // WalkParentStudios ancestor-hop bound, and the number of ".ThenInclude(s => s!.Parent)" hops each
@@ -187,7 +182,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         where T : BaseEntity
     {
         var result = new List<RenamerEntity>(ids.Count);
-        foreach (var chunk in ids.Chunk(LoadChunkSize))
+        foreach (var chunk in ids.Chunk(IRenamerDataPort.LoadChunkSize))
         {
             var rows = await query.Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
             result.AddRange(rows.Select(map));
@@ -301,7 +296,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an in
         // list, and a whole run of planned paths would approach the provider's parameter cap.
-        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
+        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(IRenamerDataPort.LoadChunkSize))
         {
             // Where the volume treats a path and its case-variant as one file, so must this query.
             // Equality here is the database collation's, and a case-sensitive collation over a

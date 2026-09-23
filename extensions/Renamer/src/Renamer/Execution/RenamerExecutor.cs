@@ -3,7 +3,7 @@ using Renamer.Options;
 using Renamer.Planner;
 
 using static global::Renamer.Execution.KindEvents;
-using static global::Renamer.Execution.PathOps;
+using static global::Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 

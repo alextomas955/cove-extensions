@@ -1,9 +1,9 @@
-namespace Renamer.Planner;
+namespace Renamer.Execution;
 
 /// <summary>The undo seam between the rename and undo paths and where the revert journal is stored.</summary>
 /// <remarks>
-/// Speaks only in the Renamer-owned records below, never an EF or Cove.Core type, for the reason
-/// <see cref="IRenamerDataPort"/> gives. A row exists exactly while its file still needs restoring,
+/// Speaks only in the Renamer-owned records below, never an EF type. A row exists exactly while its
+/// file still needs restoring,
 /// so there is no per-row status to disagree with the row's own presence; the per-batch counters
 /// carry the totals the panel reports.
 /// </remarks>

@@ -11,7 +11,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// <see cref="RenamerExecutor"/>) so the new→old direction is exercised. Each test sets up a
 /// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
 /// physical disk - no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
-/// the new (subst) location and a hand-built <see cref="global::Renamer.Planner.RevertBatch"/> whose row records
+/// the new (subst) location and a hand-built <see cref="global::Renamer.Execution.RevertBatch"/> whose row records
 /// OldPath on the temp root and NewPath on the subst root, then reverse-replays it.
 ///
 /// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> - after undo the file is back at old
@@ -309,7 +309,7 @@ public sealed class CrossVolumeUndoTests
 
     /// <summary>
     /// Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
-    /// <see cref="RevertBatch"/> whose single row records OldPath on the temp root and
+    /// <c>RevertBatch</c> whose single row records OldPath on the temp root and
     /// NewPath on the subst root. The old folder is pre-seeded too so the reverse save's recomputed
     /// Path resolves to the old path. Returns the live port, the batch, and (videoId, fileId).
     /// </summary>

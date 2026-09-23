@@ -5,8 +5,8 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Execution;
 using Renamer.Options;
+using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
@@ -98,12 +98,12 @@ public sealed class RenameChunkPlanningLoadTests
     [Fact]
     public async Task PlanningPass_CostsTheSameReads_ForTenTimesAsManyEntitiesInOneLoadChunk()
     {
-        // Both populations sit inside a single CoveRenamerDataPort.LoadChunkSize, so a bulk load plans
+        // Both populations sit inside a single IRenamerDataPort.LoadChunkSize, so a bulk load plans
         // either in the same number of round-trips. Ten times the entities for the same reads is the
         // property under test - a read per id would make the larger run cost ten times the smaller.
         const int few = 12;
         const int many = 120;
-        Assert.True(many <= CoveRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
+        Assert.True(many <= IRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
 
         int readsForFew = await PlanningReadsAsync(few);
         int readsForMany = await PlanningReadsAsync(many);

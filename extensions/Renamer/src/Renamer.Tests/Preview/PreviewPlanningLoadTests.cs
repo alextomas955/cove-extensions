@@ -2,8 +2,8 @@ using Cove.Core.Auth;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Renamer.Execution;
 using Renamer.Options;
+using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
@@ -45,7 +45,7 @@ public sealed class PreviewPlanningLoadTests
     {
         const int few = 12;
         const int many = 120;
-        Assert.True(many <= CoveRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
+        Assert.True(many <= IRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
 
         int readsForFew = await PreviewReadsAsync(few);
         int readsForMany = await PreviewReadsAsync(many);

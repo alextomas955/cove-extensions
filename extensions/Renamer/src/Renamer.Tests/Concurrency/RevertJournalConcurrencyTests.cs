@@ -1,5 +1,4 @@
 using Renamer.Execution;
-using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;

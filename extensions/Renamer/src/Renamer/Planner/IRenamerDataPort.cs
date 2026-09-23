@@ -1,3 +1,5 @@
+using Renamer.Engine;
+
 
 namespace Renamer.Planner;
 
@@ -43,15 +45,6 @@ public enum RenamerEntityKind
 public readonly record struct NameResolution(
     bool TableHasRows,
     IReadOnlyList<(int Id, string Name)> Matches);
-
-/// <summary>One performer of a media item in the renamer's own vocabulary.</summary>
-/// <remarks>
-/// The <c>$performers</c> token renders <see cref="Name"/>; <see cref="Id"/>, <see cref="Favorite"/>
-/// and <see cref="Gender"/> drive the ordering and gender filtering applied before the max-count
-/// limit. <see cref="Gender"/> is the Cove gender enum's string name, converted at the port
-/// boundary, or <c>null</c> when unset.
-/// </remarks>
-public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string? Gender);
 
 /// <summary>A loaded library item in the renamer's own vocabulary.</summary>
 /// <remarks>
@@ -100,6 +93,13 @@ public sealed record RenamerEntity(
 /// </remarks>
 public interface IRenamerDataPort
 {
+    // EF Core translates an in list to one bound parameter per id, so an unchunked load would exceed
+    // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
+    // at one round-trip per chunk. The in list is provider-agnostic: the provider is host-supplied,
+    // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
+    // on SQLite.
+    const int LoadChunkSize = 200;
+
     /// <summary>The absolute library paths Cove is configured to scan, in configuration order.</summary>
     /// <remarks>
     /// A destination's folder template resolves against a library path, never against the file's own

@@ -135,7 +135,7 @@ the two never drift.
 - `DiskMover.cs` - the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` - the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `Planner/IRevertJournal.cs` - the undo seam: the only surface between the rename and undo paths
+- `IRevertJournal.cs` - the undo seam: the only surface between the rename and undo paths
   and where the journal is stored. A row exists exactly while its file still needs restoring, so what
   remains in the journal IS the work left.
 - `CoveRevertJournal.cs` - the journal over two tables the extension owns (`renamer_revert_batches`,

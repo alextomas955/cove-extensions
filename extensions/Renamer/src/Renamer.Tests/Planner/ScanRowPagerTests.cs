@@ -1,5 +1,4 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -308,9 +307,9 @@ public sealed class ScanRowPagerTests
     public async Task PagedRows_CarryTheOverflowFlag_OnlyForTheCrossVolumeRowPastTheBoundary()
     {
         // The longest final path whose cross-volume copy still fits: the copy is minted
-        // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before being
+        // PathOps.InFlightSuffixLength characters longer beside the destination before being
         // promoted, and the planner budgets only the final path.
-        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+        int longestThatFits = Budget - PathOps.InFlightSuffixLength;
 
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(SourceRoot, DestRoot);

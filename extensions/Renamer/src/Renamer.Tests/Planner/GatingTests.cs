@@ -1,3 +1,4 @@
+using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;

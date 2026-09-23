@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
 
 namespace Renamer;

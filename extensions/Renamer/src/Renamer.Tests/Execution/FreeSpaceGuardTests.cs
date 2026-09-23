@@ -1,4 +1,5 @@
 using Renamer.Execution;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 

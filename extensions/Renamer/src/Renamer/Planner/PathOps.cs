@@ -1,4 +1,4 @@
-namespace Renamer.Execution;
+namespace Renamer.Planner;
 
 // The pure path string math the engine, the planner and the execution slice share.
 //
@@ -98,4 +98,12 @@ internal static class PathOps
     // StringComparer does not reach, such as a database query whose collation need not agree with the
     // volume.
     internal static bool PathsIgnoreCase => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+
+    // A cross-volume copy is written beside its destination under this marker plus InFlightRandomChars
+    // hex characters, then promoted. The planner measures a destination against that longer name.
+    internal const string InFlightMarker = ".rnm";
+
+    internal const int InFlightRandomChars = 8;
+
+    internal static readonly int InFlightSuffixLength = InFlightMarker.Length + InFlightRandomChars;
 }

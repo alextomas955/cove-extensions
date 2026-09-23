@@ -1,4 +1,4 @@
-using Renamer.Execution;
+using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -215,7 +215,7 @@ public sealed class DestAnchoredMaxPathTests
         // above would be a skip and this one would be the only survivor. Read from the minter's own
         // declaration, so a narrowing of the minted name moves this case with it.
         var item = await PlanAtBudgetAsync(
-            BoundaryAbsoluteLength + CrossVolumeMover.InFlightSuffixLength);
+            BoundaryAbsoluteLength + PathOps.InFlightSuffixLength);
 
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(BoundaryBasename, item.NewBasename);

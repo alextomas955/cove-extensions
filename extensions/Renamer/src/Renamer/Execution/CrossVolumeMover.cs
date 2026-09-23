@@ -1,3 +1,5 @@
+using Renamer.Planner;
+
 namespace Renamer.Execution;
 
 // The executor's cross-volume tier, used where DiskMover's atomic same-volume File.Move is
@@ -10,15 +12,6 @@ public sealed class CrossVolumeMover
     // Matches File.Copy throughput on multi-GB sequential I/O; the 4 KiB default and CopyTo's 80 KiB
     // are both too small.
     private const int BufferSize = 1 << 20;
-
-    // The fixed marker opening the minted segment, so an orphan is recognisable as this extension's.
-    private const string InFlightMarker = ".rnm";
-
-    private const int InFlightRandomChars = 8;
-
-    // How many characters MintInFlightPath appends. internal so the planner's in-flight overflow
-    // warning derives the length from here and cannot drift from the minter.
-    internal static readonly int InFlightSuffixLength = InFlightMarker.Length + InFlightRandomChars;
 
     // Test-only seam, invoked on the closed in-flight copy between the copy and the verify so a test
     // can corrupt it. It is also the only way a test learns the minted name, which is unguessable by
@@ -214,8 +207,8 @@ public sealed class CrossVolumeMover
     // the real segment.
     internal static string MintInFlightPath(string finalFull) =>
         finalFull
-        + InFlightMarker
-        + System.Security.Cryptography.RandomNumberGenerator.GetHexString(InFlightRandomChars, lowercase: true);
+        + PathOps.InFlightMarker
+        + System.Security.Cryptography.RandomNumberGenerator.GetHexString(PathOps.InFlightRandomChars, lowercase: true);
 
     // Reads the source once, feeding each slice to both the destination stream and a running hash, so
     // the source is never read a second time. XxHash3 is an integrity check, not a security control.

@@ -1,5 +1,4 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 using Renamer.Options;
 
 namespace Renamer.Planner;
@@ -142,7 +141,7 @@ public sealed class ScanRowPager(
     // Ids are pulled in batches so a filtered page issues one id query per batch rather than one per
     // entity, and the same batch feeds one chunked graph load. Bound to the port's own chunk decision so
     // there is a single number.
-    private const int IdBatchSize = CoveRenamerDataPort.LoadChunkSize;
+    private const int IdBatchSize = IRenamerDataPort.LoadChunkSize;
 
     // Trims and lower-cases a search query; a blank query becomes null, meaning no filter.
     internal static string? NormalizeQuery(string? query)

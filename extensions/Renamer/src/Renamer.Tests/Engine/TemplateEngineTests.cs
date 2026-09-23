@@ -1,6 +1,5 @@
 using Renamer.Engine;
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 

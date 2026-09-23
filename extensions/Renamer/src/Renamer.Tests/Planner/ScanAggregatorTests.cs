@@ -1,5 +1,4 @@
 using Renamer.Contracts;
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 
@@ -233,10 +232,10 @@ public sealed class ScanAggregatorTests
     public void Fold_CountsAnOverflow_OnlyForTheCrossVolumeItemPastTheBoundary()
     {
         // The longest final path whose cross-volume copy still fits, because the copy is minted
-        // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before being
+        // PathOps.InFlightSuffixLength characters longer beside the destination before being
         // promoted. Three items positioned around it: the boundary itself, one character past it, and a
         // same-volume item of that same over-boundary length, which mints no temporary name at all.
-        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+        int longestThatFits = Budget - PathOps.InFlightSuffixLength;
         string fitsName = NameForPathLength(longestThatFits);
         string overName = NameForPathLength(longestThatFits + 1);
 
@@ -274,8 +273,8 @@ public sealed class ScanAggregatorTests
         // The whole-library figure a large-library user reads. It is re-derived by summing the per-kind
         // summaries, so it is zero whenever either the per-kind fold or the merge is left unwired, and a
         // count of zero reads as "no overflows" on exactly the libraries most likely to have them.
-        string overName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
-        string fitsName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength);
+        string overName = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
+        string fitsName = NameForPathLength(Budget - PathOps.InFlightSuffixLength);
 
         var aggregator = new ScanAggregator(Budget, Mounts);
         var sizes = new Dictionary<int, long>();

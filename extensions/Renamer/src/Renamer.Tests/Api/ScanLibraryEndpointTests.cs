@@ -354,7 +354,7 @@ public sealed class ScanLibraryEndpointTests
             await using var db = new CoveContext(options, principalAccessor: null);
             await db.Database.EnsureCreatedAsync();
 
-            int n = CoveRenamerDataPort.LoadChunkSize + 25;  // spans two chunks
+            int n = IRenamerDataPort.LoadChunkSize + 25;  // spans two chunks
             var ids = await ExecutorTestSeed.SeedVideosAsync(db, n, k => ($"media/{k}", $"c{k}.mkv", $"C{k}"));
 
             var port = new CoveRenamerDataPort(db);
@@ -362,7 +362,7 @@ public sealed class ScanLibraryEndpointTests
             var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
 
             Assert.Equal(n, loaded.Count);
-            int expectedChunks = (n + CoveRenamerDataPort.LoadChunkSize - 1) / CoveRenamerDataPort.LoadChunkSize;
+            int expectedChunks = (n + IRenamerDataPort.LoadChunkSize - 1) / IRenamerDataPort.LoadChunkSize;
             // A bounded number of queries per chunk - far fewer than N. The video query is a split
             // query, so EF issues one reader for the roots and one for each collection it includes
             // (files, their captions, performers, tags). That count is bounded by the query's shape
