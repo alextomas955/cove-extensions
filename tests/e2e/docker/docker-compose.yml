@@ -13,9 +13,24 @@
 # Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
 # DockerComposeEnvironment) is the actual entry point; see tests/e2e/README.md.
 
+# Every stack joins one network that already exists. A network per stack is a bridge per stack, and
+# each new bridge takes a host IPv4 address; Chromium drops every in-flight request when a host address
+# appears, so a bridge created mid-run blanks whatever page a browser is loading at that moment.
+# `lib/global-setup.mjs` creates the network before any browser starts.
+networks:
+  default:
+    name: ${COVE_E2E_NETWORK:-cove-e2e-shared}
+    external: true
+
 services:
   db:
     image: pgvector/pgvector:pg18
+    # One network is one DNS namespace, and every stack's database answers to `db` there. The cove
+    # service dials this per-stack alias instead.
+    networks:
+      default:
+        aliases:
+          - db-${COVE_E2E_STACK:?set by tests/e2e/lib/harness.mjs, one value per stack}
     environment:
       POSTGRES_DB: cove
       POSTGRES_USER: cove
@@ -46,7 +61,7 @@ services:
       - "${COVE_E2E_PORT:-0}:5073"
     environment:
       COVE__Postgres__Managed: "false"
-      COVE__Postgres__ConnectionString: "Host=db;Port=5432;Database=cove;Username=cove;Password=cove"
+      COVE__Postgres__ConnectionString: "Host=db-${COVE_E2E_STACK};Port=5432;Database=cove;Username=cove;Password=cove"
       COVE_HOME: /config
       COVE__GeneratedPath: /generated
       COVE__CachePath: /cache

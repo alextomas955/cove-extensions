@@ -5,6 +5,7 @@
 // Built on Testcontainers (https://node.testcontainers.org/). Its Ryuk sidecar reaps containers,
 // networks and volumes even when the test process is killed rather than exiting gracefully, and it
 // owns port resolution and health-check waiting.
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
@@ -110,7 +111,13 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
     .withWaitStrategy("db-1", Wait.forHealthCheck());
 
-  const composeEnv = { COVE_E2E_IMAGE: resolveCoveImage(image), ...env };
+  // Names this stack's database on the shared network. Workers are separate processes, so the value
+  // has to be unique across them, not only within one.
+  const composeEnv = {
+    COVE_E2E_IMAGE: resolveCoveImage(image),
+    COVE_E2E_STACK: randomUUID().slice(0, 8),
+    ...env,
+  };
   environment = environment.withEnvironment(composeEnv);
 
   const started = await environment.up();
