@@ -13,7 +13,7 @@ import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequ
 import type { JobEnqueued, RenamerJobStatus, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
 import { JobUnresponsiveError } from "./jobPollLogic";
-import { pollJob, type JobInfo } from "./pollJob";
+import { pollJob } from "./jobStatusStore";
 import {
   buildRenameLibraryError,
   buildRenameLibrarySuccess,
@@ -68,18 +68,19 @@ export function useRenameLibrary(): UseRenameLibrary {
   }, []);
 
   /** Run one poll to settlement while keeping it reachable by the unmount cleanup. */
-  const runPoll = useCallback(async (jobId: string, onProgress?: (job: JobInfo) => void) => {
-    const poll = pollJob(jobId, onProgress);
-    activePoll.current = poll.cancel;
-    try {
-      const { failure } = await poll.done;
-      // The job reported that the work stopped. The wording is decidePoll's, including what it says
-      // when a failed job names no reason, so the banner reads exactly as it always has.
-      if (failure !== null) throw new Error(failure);
-    } finally {
-      activePoll.current = null;
-    }
-  }, []);
+  const runPoll = useCallback(
+    async (jobId: string, onProgress?: (job: RenamerJobStatus) => void) => {
+      const poll = pollJob(jobId, onProgress);
+      activePoll.current = poll.cancel;
+      try {
+        const { failure } = await poll.done;
+        if (failure !== null) throw new Error(failure);
+      } finally {
+        activePoll.current = null;
+      }
+    },
+    [],
+  );
 
   /**
    * The shared "Rename all files" handler - called identically by the panel-level button and

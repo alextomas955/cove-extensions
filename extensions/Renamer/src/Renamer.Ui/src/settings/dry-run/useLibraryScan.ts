@@ -9,10 +9,15 @@
 import { useEffect, useRef, useState } from "react";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { JobEnqueued, ScanLibraryRequest, ScanSummaryView } from "../../wire/api";
+import type {
+  JobEnqueued,
+  RenamerJobStatus,
+  ScanLibraryRequest,
+  ScanSummaryView,
+} from "../../wire/api";
 import { api } from "../../common/lib/extension";
 import { JobUnresponsiveError } from "../jobPollLogic";
-import { pollJob, type JobInfo } from "../pollJob";
+import { pollJob } from "../jobStatusStore";
 import {
   etaFromSamples,
   formatEta,
@@ -52,30 +57,21 @@ export interface LibraryScan {
   progress: ScanDisplay | null;
 }
 
-/**
- * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job
- * reaches its own verdict - or `onExpire` when the run ended on a bound instead. The loop, its two
- * bounds and the hand-declared response shape all live in that module; what this hook adds is the
- * React lifecycle: start on a job id, stop on unmount or job change, so no timer leaks and no state
- * updates fire after unmount.
- *
- * A cancelled poll rejects too, and that rejection is this hook's own cleanup - nothing to report to
- * a component that is already gone - so only an expiry is passed on.
- */
+// Calls onDone with the job's failure, null on completion, once it reaches its own verdict, or
+// onExpire when the run ended on a bound. The poll stops on unmount or a job change; a cancelled poll
+// also rejects, and that is this hook's own cleanup, so only an expiry is passed on.
 function usePollJob(
   jobId: string | null,
-  onDone: (job: JobInfo) => void,
-  onProgress?: (job: JobInfo) => void,
+  onDone: (failure: string | null) => void,
+  onProgress?: (job: RenamerJobStatus) => void,
   onExpire?: (message: string) => void,
 ) {
   useEffect(() => {
     if (!jobId) return;
     const poll = pollJob(jobId, onProgress);
     poll.done
-      .then(({ job }) => {
-        // A resolve and a reject verdict both hand the job back: the caller reads its status to
-        // decide between the summary and an error, which is the split it has always made.
-        onDone(job);
+      .then(({ failure }) => {
+        onDone(failure);
       })
       .catch((err: unknown) => {
         if (err instanceof JobUnresponsiveError) onExpire?.(err.message);
@@ -143,9 +139,9 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
 
   usePollJob(
     jobId,
-    (job) => {
-      if (job.status !== "completed") {
-        setError(job.error ?? "the scan job did not complete");
+    (failure) => {
+      if (failure !== null) {
+        setError(failure);
         return;
       }
       requestJson<ScanSummaryView>(LAST_SCAN_PATH)

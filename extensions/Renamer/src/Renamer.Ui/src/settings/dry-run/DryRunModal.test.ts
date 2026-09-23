@@ -58,7 +58,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
 
 // The scan job's completion is not what is under test, so the poll resolves at once with the verdict
 // the modal reads before it requests the summary.
-vi.mock("../pollJob", () => ({
+vi.mock("../jobStatusStore", () => ({
   pollJob: () => ({
     done: Promise.resolve({ job: { status: "completed", progress: 1 }, failure: null }),
     cancel: () => undefined,

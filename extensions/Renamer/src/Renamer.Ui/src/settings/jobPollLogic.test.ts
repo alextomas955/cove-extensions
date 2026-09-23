@@ -18,7 +18,6 @@ import {
   JOB_STALL_BUDGET_MS,
   advanceStallClock,
   decidePoll,
-  nextFailureCount,
   type PollContext,
 } from "./jobPollLogic";
 
@@ -146,13 +145,6 @@ test("the stall clock restarts only when progress actually moves", () => {
   assert.deepEqual(advanceStallClock(start, 0.26, 50_000), { progress: 0.26, sinceMs: 50_000 });
   // Backwards is still movement: the host can revise progress down, and a revised figure is news.
   assert.deepEqual(advanceStallClock(start, 0.2, 50_000), { progress: 0.2, sinceMs: 50_000 });
-});
-
-test("a successful read clears the consecutive-failure count", () => {
-  assert.equal(nextFailureCount(0, false), 1);
-  assert.equal(nextFailureCount(4, false), 5);
-  assert.equal(nextFailureCount(4, true), 0);
-  assert.equal(nextFailureCount(0, true), 0);
 });
 
 test("the shipped bounds are far enough out that a healthy run is never abandoned", () => {

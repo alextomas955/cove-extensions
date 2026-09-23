@@ -93,11 +93,6 @@ export function advanceStallClock(clock: StallClock, progress: number, nowMs: nu
   return progress === clock.progress ? clock : { progress, sinceMs: nowMs };
 }
 
-/** The consecutive-failure count after one read. A single success clears the whole streak. */
-export function nextFailureCount(current: number, readSucceeded: boolean): number {
-  return readSucceeded ? 0 : current + 1;
-}
-
 /**
  * Decide what the poller does after `observation`.
  *
