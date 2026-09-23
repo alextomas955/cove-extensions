@@ -26,7 +26,13 @@ import {
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
-import { callbackSecret, deliveryNaming, restartWorker, videosIn } from "../../lib/steps.mjs";
+import {
+  callbackSecret,
+  deliveryNaming,
+  instanceSettings,
+  restartWorker,
+  videosIn,
+} from "../../lib/steps.mjs";
 
 // A HAND-SET CEILING, not a measurement of what is stored today. A number derived from the current
 // size would agree with the code forever and report nothing.
@@ -189,7 +195,10 @@ test("what the extension persists is one bounded key, after a run that exercised
       "Cove already held a video before any delivery",
     ).toEqual([]);
     const initial = await readOptions(api);
-    expect(initial?.ImportRefusals ?? [], "the extension already held refusals").toEqual([]);
+    expect(
+      instanceSettings(initial ?? {}).ImportRefusals ?? [],
+      "the extension already held refusals",
+    ).toEqual([]);
 
     // ---- the backstop, twice ----
     // The interval has no control in the page, so it is written through Cove's own extension-data
@@ -332,7 +341,7 @@ test("what the extension persists is one bounded key, after a run that exercised
       "the run that is supposed to have driven several imports registered nothing",
     ).toBeGreaterThan(1);
 
-    const outstanding = (await readOptions(api)).ImportRefusals ?? [];
+    const outstanding = instanceSettings(await readOptions(api)).ImportRefusals ?? [];
     expect(
       outstanding.length,
       `the run that is supposed to have driven refusals recorded none: ${JSON.stringify(outstanding)}`,
