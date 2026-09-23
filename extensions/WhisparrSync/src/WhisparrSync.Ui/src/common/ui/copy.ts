@@ -13,9 +13,6 @@ export const WHISPARR_STATUS_ROW = "Whisparr";
 export const LIBRARY_COUNTS_ARE_FOR_THIS_PAGE =
   "These counts are for the cards on this page, not for the whole library.";
 
-/** The trailing count on that row, which names its own scope because the pills beside it do not. */
-export const NOT_ADDED_ON_THIS_PAGE = "not added on this page";
-
 /** The row while its cards are still being read. */
 export const CHECKING_WHISPARR = "Checking Whisparr…";
 
