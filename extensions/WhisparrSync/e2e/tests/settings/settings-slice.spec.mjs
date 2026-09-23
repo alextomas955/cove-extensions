@@ -429,7 +429,7 @@ test("both generations are configured independently, and only a generation chang
     await after.selectV3.click();
     await expect(draftedGenerationIn(page)).toContainText(GENERATION_LABELS.v3);
     await expect(after.addressField).toHaveValue(v3Address);
-    // The one thing the control that used to announce a switch never did: say what is outstanding.
+    // The control names the generation it drafts, and the bar says what is outstanding.
     await expect(
       page.getByText(
         "The Whisparr generation is not saved yet. Saving changes the generation Cove uses and reloads the page.",
