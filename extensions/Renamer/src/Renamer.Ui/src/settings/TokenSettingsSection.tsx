@@ -4,6 +4,7 @@
  * (so an unused token never shows noise); when none is used, an empty-state offers one-click token
  * insertion. Presentational - edits flow up through set/setMulti/insertToken.
  */
+import type { SetOption } from "./useRenamerOptions";
 import type { ReactNode } from "react";
 
 import {
@@ -91,9 +92,9 @@ const SEPARATOR_OPTIONS: readonly SeparatorOption[] = [
   { value: " - ", label: "Dash ( - )" },
 ];
 
-export interface TokenSettingsSectionProps {
+interface TokenSettingsSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
   insertToken: (token: string) => void;
 }

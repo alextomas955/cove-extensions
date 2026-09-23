@@ -55,7 +55,7 @@ function ticksToEpochMs(ticks: number): number {
 }
 
 /** What the panel needs to render and to decide whether to offer the button at all. */
-export interface UndoPanelStatus {
+interface UndoPanelStatus {
   /** The single line stating what happened, what is left, and until when. */
   line: string;
   /** How many files the button would act on. This is the figure the confirm must quote. */

@@ -10,7 +10,7 @@
  */
 
 /** What the caller does with the settled request. */
-export type PreviewAction = "commit" | "discard" | "report-failure";
+type PreviewAction = "commit" | "discard" | "report-failure";
 
 /**
  * A settled preview request, tagged with the generation it was issued under.
@@ -18,7 +18,7 @@ export type PreviewAction = "commit" | "discard" | "report-failure";
  * `aborted` distinguishes a cancellation the hook itself caused from a request that genuinely failed.
  * It rides on the rejected arm only, because a resolved response was never aborted.
  */
-export type SettledPreview =
+type SettledPreview =
   | { generation: number; outcome: "resolved" }
   | { generation: number; outcome: "rejected"; aborted: boolean };
 

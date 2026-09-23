@@ -48,7 +48,7 @@ export interface ScanDisplay {
 }
 
 /** What the scan is doing, as a view renders it. */
-export interface LibraryScan {
+interface LibraryScan {
   /** The finished scan's aggregate, or null while it is still running or has failed. */
   summary: ScanSummaryView | null;
   /** Set once the scan cannot produce a summary. Terminal: no summary is coming. */

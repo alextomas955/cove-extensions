@@ -13,7 +13,7 @@ import {
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
 
-export interface LastBatch {
+interface LastBatch {
   summary: LastBatchSummary | null;
   /** When the summary was read, so an expiry decision describes the data and not the render. */
   loadedAtMs: number;

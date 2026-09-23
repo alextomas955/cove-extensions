@@ -19,7 +19,7 @@ import type { OrphanedRulesView } from "../wire/api";
 const ORPHANED_RULES_PATH = api("orphaned-rules");
 
 /** Rule keys whose entity is gone, as sets for a per-row lookup. */
-export interface OrphanedRules {
+interface OrphanedRules {
   studios: ReadonlySet<number>;
   tags: ReadonlySet<number>;
 }

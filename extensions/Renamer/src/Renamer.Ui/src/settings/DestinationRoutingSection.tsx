@@ -8,6 +8,7 @@
  * decided server-side, so reordering these cards is safe. Presentational - every field flows up
  * through `set`.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { useState } from "react";
 
 import {
@@ -41,9 +42,9 @@ function normalizeSidecarExtension(raw: string): string {
   return v.toLowerCase();
 }
 
-export interface DestinationRoutingSectionProps {
+interface DestinationRoutingSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   /** Cove's library paths, so every destination here offers them as choices. */
   library: LibraryPathsState;
 }

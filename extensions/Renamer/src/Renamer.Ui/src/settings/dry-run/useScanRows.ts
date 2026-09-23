@@ -21,7 +21,7 @@ import {
 
 const SCAN_ROWS_PATH = api("scan-rows");
 
-export interface UseScanRows {
+interface UseScanRows {
   rows: ScanRow[];
   /** Requests the next page. Safe to call on every scroll frame - overlapping calls collapse into one. */
   loadMore: () => void;

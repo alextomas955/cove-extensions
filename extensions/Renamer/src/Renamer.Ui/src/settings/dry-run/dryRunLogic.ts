@@ -60,7 +60,7 @@ export function bucketWireValue(filter: DryRunFilter): string {
  * The state of a paged row walk that a continuation decision reads. Declared structurally rather than
  * over the wire types, so this module keeps to its relative siblings and stays environment-free.
  */
-export interface WalkProgress {
+interface WalkProgress {
   /** Rows accumulated across every page of the walk so far. */
   readonly loadedRows: number;
   /** How many rows the viewport and its prefetch window want loaded. */
@@ -157,7 +157,7 @@ export function bucketTotal(counts: DryRunCounts | null, filter: DryRunFilter): 
 }
 
 /** What the row list's footer reports: how far the walk got, and whether it finished. */
-export interface RowsFooter {
+interface RowsFooter {
   /** Rows accumulated across every page walked so far. */
   readonly loaded: number;
   /** How many rows the scan counted in this bucket. */

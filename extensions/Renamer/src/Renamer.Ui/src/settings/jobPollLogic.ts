@@ -41,8 +41,7 @@ export const JOB_FAILURE_ALLOWANCE = 30;
 const UNNAMED_FAILURE = "the job did not complete";
 
 /** One read of the job endpoint: either a status came back, or the read itself failed. */
-export type PollObservation =
-  { read: "ok"; status: string; error?: string | null } | { read: "failed" };
+type PollObservation = { read: "ok"; status: string; error?: string | null } | { read: "failed" };
 
 /** What the caller measured up to this read. Both bounds are parameters, never read from a clock. */
 export interface PollContext {
@@ -62,7 +61,7 @@ export interface PollContext {
  * watching - under which the job may still be running and may already have renamed files. Collapsing
  * the two would let a banner claim nothing changed when something might have.
  */
-export type PollDecision =
+type PollDecision =
   | { action: "continue" }
   | { action: "resolve" }
   | { action: "reject"; message: string }

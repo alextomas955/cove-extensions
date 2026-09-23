@@ -4,6 +4,7 @@
  * pre-routing excludes, and field rewriting & name shaping. Presentational - every field flows up
  * through `set`.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { type ReactNode } from "react";
 
 import {
@@ -78,9 +79,9 @@ function SubBlock({
   );
 }
 
-export interface AdvancedSectionProps {
+interface AdvancedSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
 }
 
 export function AdvancedSection({ options, set }: AdvancedSectionProps) {

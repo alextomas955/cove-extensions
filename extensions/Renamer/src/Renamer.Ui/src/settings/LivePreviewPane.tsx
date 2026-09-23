@@ -8,7 +8,7 @@ import { PreviewCard } from "./PreviewCard";
 import type { PreviewSampleResult } from "../wire/api";
 import { StatusText, Spinner } from "@cove-extensions/ui-shared";
 
-export interface LivePreviewPaneProps {
+interface LivePreviewPaneProps {
   preview: PreviewSampleResult[] | null;
   previewError: boolean;
 }

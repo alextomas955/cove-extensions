@@ -8,7 +8,7 @@
  * separator + literals inside the group) so no preset ever leaves dangling punctuation. The
  * engine has no `${token}` form - never use it here.
  */
-export interface Preset {
+interface Preset {
   label: string;
   filenameTemplate: string;
 }

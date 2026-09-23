@@ -16,6 +16,9 @@ import { api } from "../common/lib/extension";
 
 const OPTIONS_PATH = api("options");
 
+/** Sets one option on the unsaved copy. */
+export type SetOption = <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+
 export interface UseRenamerOptions {
   options: RenamerOptions | null;
   loading: boolean;
@@ -31,7 +34,7 @@ export interface UseRenamerOptions {
   load: () => Promise<void>;
   onSave: () => Promise<void>;
   discard: () => void;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
 }
 

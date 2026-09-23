@@ -4,15 +4,16 @@
  * the run-result banner with its jump-to-Undo link). Presentational: the actual scan+rename job and
  * its feedback live in useRenameLibrary; this only renders state and calls the passed-in handlers.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { AlertTriangle } from "lucide-react";
 
 import { type RenamerOptions } from "./options";
 import { Toggle, SectionCard, Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { type RunLibraryFeedback } from "./useRenameLibrary";
 
-export interface RunAutomationSectionProps {
+interface RunAutomationSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   dirty: boolean;
   renamingLibrary: boolean;
   runLibraryFeedback: RunLibraryFeedback;

@@ -3,6 +3,7 @@
  * filename-as-title) and the required-fields token list. Presentational; every edit flows up through
  * the `set` callback the panel threads in from useRenamerOptions.
  */
+import type { SetOption } from "./useRenamerOptions";
 import { type RenamerOptions } from "./options";
 import { Toggle, TagListInput, SectionCard } from "@cove-extensions/ui-shared";
 import { BARE_TOKENS } from "./templateLogic";
@@ -42,9 +43,9 @@ function RequiredFields({
   );
 }
 
-export interface WhatGetsRenamedSectionProps {
+interface WhatGetsRenamedSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
 }
 
 export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionProps) {

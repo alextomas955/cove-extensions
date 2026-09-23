@@ -34,7 +34,6 @@ export function EntitySelectField({
   entityType,
   label,
   labelStyle,
-  helper,
   values,
   onChange,
   placeholder,
@@ -43,7 +42,6 @@ export function EntitySelectField({
   entityType: EntityReferenceType;
   label: string;
   labelStyle?: "micro" | "group";
-  helper?: string;
   /** The stored stable ids. Controlled: persistence stays with the panel. */
   values: number[];
   onChange: (values: number[]) => void;
@@ -62,7 +60,7 @@ export function EntitySelectField({
   };
 
   return (
-    <FieldGroup label={label} labelStyle={labelStyle} helper={helper}>
+    <FieldGroup label={label} labelStyle={labelStyle}>
       <EntityReferenceMultiSelector {...declared} />
     </FieldGroup>
   );

@@ -6,6 +6,7 @@
  * grid cell (with the bad-blob recovery banner) so the card sits beside the sticky live-preview
  * column.
  */
+import type { SetOption } from "./useRenamerOptions";
 import type { Ref, RefObject } from "react";
 
 import { type RenamerOptions, type LibraryPathsState } from "./options";
@@ -55,7 +56,7 @@ function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void })
 
 export interface FilenameSectionProps {
   options: RenamerOptions;
-  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  set: SetOption;
   insertToken: (token: string) => void;
   filenameRef: Ref<HTMLInputElement>;
   folderRef: Ref<HTMLInputElement>;

@@ -29,7 +29,7 @@ interface JobOutcome {
 }
 
 /** A running poll: the promise the caller awaits, and the handle that stops it. */
-export interface JobPoll {
+interface JobPoll {
   /**
    * Resolves on the job's own verdict. Rejects with {@link JobUnresponsiveError} when the run ended
    * on a bound instead, and with a plain Error on {@link JobPoll.cancel}.
