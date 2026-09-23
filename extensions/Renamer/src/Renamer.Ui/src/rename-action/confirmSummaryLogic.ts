@@ -100,10 +100,8 @@ function formatSize(bytes: number): string {
 
 /**
  * The per-cross-volume blast-radius lines: one "↪ N items (X MB) move from A to B." line per pair,
- * each size in the largest unit that leaves a figure to read.
- * Single source shared by the bulk-action window.confirm and the settings-panel Review dialog, so
- * both rename entry points describe a cross-drive batch identically. A same-drive batch has no
- * `volumePairs` and yields an empty array.
+ * each size in the largest unit that leaves a figure to read. A same-drive batch has no `volumePairs`
+ * and yields none.
  */
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
@@ -113,9 +111,8 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 }
 
 /**
- * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
- * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
- * Single source shared by both rename confirm surfaces.
+ * The call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive warning, Standard
+ * a plainer cross-drive notice, and Light the plain rename prompt.
  */
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
@@ -136,11 +133,8 @@ function confirmCallToAction(level: ConfirmLevel): string {
  * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
- * Blast radius: when `summary` is supplied and the batch moves files across
- * drives, the confirm wording scales with `summary.confirmLevel` - an explicit "N items (X MB) move
- * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
- * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.
- * Pure (no DOM/fetch) so it stays unit-reasonable.
+ * When the batch moves files across drives, a line per volume pair is added and the call-to-action
+ * scales with `summary.confirmLevel`.
  */
 export function buildConfirmSummary(
   items: PreviewItemView[],
@@ -234,9 +228,6 @@ export function buildConfirmSummary(
   const remaining = n - examples.length;
   if (remaining > 0) examples.push(`  … and ${remaining} more.`);
 
-  // The call-to-action scales with the blast radius. A Heavy cross-drive move (many files / many
-  // bytes / several volumes) gets the strongest wording; Standard is a plainer cross-drive notice;
-  // Light (same-drive only, or no summary) keeps the original reassuring line.
   const level: ConfirmLevel = summary?.confirmLevel ?? "light";
   const callToAction = confirmCallToAction(level);
 

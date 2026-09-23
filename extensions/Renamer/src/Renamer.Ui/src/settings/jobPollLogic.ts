@@ -1,39 +1,22 @@
 /**
  * The pure decision the job poller takes on each read of the run's status.
  *
- * Import-free (no React, no request helper, no clock) so it stays L0 - deterministic and testable with
- * no environment. Elapsed time and the read outcome are parameters rather than things this module
- * reaches for, which is what makes every boundary below exact without fake timers.
+ * Elapsed time and the read outcome are parameters, so every boundary is testable without a clock.
  *
- * Two bounds, because a poller can be wedged in two unrelated ways: the job can stop making progress,
- * and the job id can stop resolving at all. Neither is detectable by testing status strings, which is
- * why the decision lives here rather than inline at two call sites that disagreed about it.
+ * Two bounds, because a poll can be wedged two ways: the job stops making progress, or its id stops
+ * resolving.
  */
 
 /**
- * How long a job may report no new progress before the UI stops waiting for it, in milliseconds.
- *
- * This bounds unresponsiveness, not the job. A whole-library rename legitimately runs for hours, so a
- * budget measured from the job's start would be a timeout that abandons healthy runs - the specific
- * mistake to avoid here. The clock this is compared against restarts every time progress actually
- * moves (see {@link advanceStallClock}), so a job that keeps reporting is never abandoned however long
- * it takes.
- *
- * The value is a judgement about the longest legitimate silence, not a measurement: the longest known
- * gap between two progress reports is the persist step at the end of a library-sized scan, which
- * reports nothing while it writes. Ten minutes is well clear of that and still ends a wedged run
- * inside the span of a user's attention. Evidence that would change it: an observed healthy run that
- * goes quiet for longer.
+ * How long a job may report no new progress before the UI stops waiting, in milliseconds. The clock
+ * restarts whenever progress moves, so a whole-library rename that keeps reporting is never abandoned.
+ * It must stay above the longest silent step, the persist at the end of a library-sized scan.
  */
 export const JOB_STALL_BUDGET_MS = 10 * 60 * 1000;
 
 /**
- * How many consecutive unanswered status reads are tolerated before the run ends.
- *
- * Counted in polls, not seconds, because this module does not own the poll interval. A transient
- * failure is one or two reads; this many in a row means the id is not coming back - the host
- * restarted and lost the job, or it never existed. Tolerating them unconditionally is what made the
- * request-per-second leak reachable.
+ * How many consecutive failed status reads end the run: the host restarted and lost the job, or it
+ * never existed. Counted in polls, because this module does not own the interval.
  */
 export const JOB_FAILURE_ALLOWANCE = 30;
 
@@ -54,12 +37,8 @@ export interface PollContext {
 }
 
 /**
- * What the poller does next.
- *
- * `expire` is deliberately not `reject`. They mean different things to the person reading the banner:
- * a rejection is the job reporting that the work stopped, while an expiry is the UI giving up on
- * watching - under which the job may still be running and may already have renamed files. Collapsing
- * the two would let a banner claim nothing changed when something might have.
+ * What the poller does next. `reject` is the job reporting that the work stopped; `expire` is the UI
+ * giving up on watching a job that may still be running and may already have renamed files.
  */
 type PollDecision =
   | { action: "continue" }
@@ -67,13 +46,7 @@ type PollDecision =
   | { action: "reject"; message: string }
   | { action: "expire"; message: string };
 
-/**
- * Raised when a poll ends on an `expire` decision rather than on the job's own verdict.
- *
- * A distinct type, so that the {@link PollDecision} split survives into the caller's `catch`: a caller
- * that cannot tell an expiry from a rejection has to guess, and the honest-looking guess - "nothing
- * was changed" - is the false one.
- */
+/** Raised when a poll ends on an `expire` decision, so a caller's catch can tell it from a rejection. */
 export class JobUnresponsiveError extends Error {}
 
 /** The progress value last seen, and when it was first seen, on the caller's clock. */
@@ -82,12 +55,7 @@ export interface StallClock {
   sinceMs: number;
 }
 
-/**
- * Restart the stall clock if and only if progress moved.
- *
- * Any change counts, including downwards: the host can revise progress down, and a revised figure is
- * still evidence the job is alive. Equality is the only thing that means silence.
- */
+/** Restart the stall clock when progress changed in either direction; equality is silence. */
 export function advanceStallClock(clock: StallClock, progress: number, nowMs: number): StallClock {
   return progress === clock.progress ? clock : { progress, sinceMs: nowMs };
 }
@@ -95,15 +63,9 @@ export function advanceStallClock(clock: StallClock, progress: number, nowMs: nu
 /**
  * Decide what the poller does after `observation`.
  *
- * The order of the checks is the contract. A read failure is judged on its own allowance, because a
- * job id that stops resolving is not a job that is still running and no amount of stall budget makes
- * it one. A terminal status then beats the stall budget, since news that the job finished is the news
- * the budget was waiting for. Only after both does the stall budget apply.
- *
- * An unrecognised status is treated as "still going", never as success. This module is handed a
- * status as a plain string, so a vocabulary the caller has not been told about arrives here as one
- * - and that must degrade to an expiry carrying a message rather than to a banner announcing a
- * rename that may not have happened.
+ * The order is the contract: a failed read is judged on its own allowance, then a terminal status wins
+ * over the stall budget, and only then does the budget apply. An unrecognised status counts as still
+ * running, never as success, so it ends in an expiry and not in a banner announcing a rename.
  */
 export function decidePoll(observation: PollObservation, context: PollContext): PollDecision {
   if (observation.read === "failed") {

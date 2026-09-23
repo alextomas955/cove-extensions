@@ -1,19 +1,11 @@
 /**
- * useRenamePreview - the debounced live-preview data hook (R9).
+ * The live preview: a debounced POST to /preview-sample with the unsaved options. The engine renders
+ * every name; the hook only fetches.
  *
- * Live preview: a ~250ms-debounced POST to /preview-sample with the in-flight options. The
- * hook owns the fetch, its debounce, and cancellation on every re-run - the panel consumes only the
- * resulting {@link PreviewSampleResult}[] and an error flag, never the request directly. The backend
- * engine is the single source of truth; this never re-implements naming.
- *
- * Cancellation contract: each options/loading change advances a generation, schedules a fresh debounce
- * timer, clears the prior one and aborts the prior request. Clearing the timer cancels only a request
- * that has not been issued yet; once the debounce has elapsed the POST is in flight, and two
- * overlapping requests settle in completion order rather than issue order, so the slower earlier one
- * would repaint the pane last. {@link decideSettledPreview} is what forbids that: a response is
- * committed only while the generation it was issued under is still the one in force. A failed refresh
- * keeps the last good preview and only raises `previewError`; an abort raises nothing, because the hook
- * aborts what it supersedes and that is not the user's error.
+ * Each options change supersedes the request before it. Two requests already in flight settle in
+ * completion order, so {@link decideSettledPreview} commits a response only while the generation it
+ * was issued under is still current. A failed refresh keeps the last good preview and raises
+ * `previewError`; an abort raises nothing, because the hook caused it.
  */
 import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";

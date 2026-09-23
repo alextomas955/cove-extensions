@@ -189,8 +189,7 @@ export function RenamePage() {
       {/* Two-pane shell, narrowed to the two naming cards: they take 2/3 via col-span-2, the live
           preview 1/3, sticky on lg+. Every other panel renders as a full-width sibling below this
           grid, so the preview's sticky containing block is that column's height, not the whole page.
-          Standard grid-cols-3 + col-span-2 only — the host Tailwind never compiles arbitrary [..]
-          values for this bundle (verified live). */}
+          Standard grid-cols-3 + col-span-2 only: the host stylesheet has no arbitrary [..] values. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <FilenameSection
           library={library}

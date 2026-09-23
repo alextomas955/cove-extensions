@@ -1,11 +1,7 @@
 /**
- * useRenameLibrary - the "Run for the whole library" job data layer (R9).
- *
- * Owns the shared "Rename all files" flow the panel button and the Dry Run modal both trigger:
- * enqueue the rename-library job, poll it to completion, and report renamed/skipped counts. Also
- * owns the dry-run modal open state, live job progress, and the undo-refresh key that tells
- * UndoSection to re-read /last-batch after a rename succeeds. The panel consumes this hook; the
- * sections stay presentational.
+ * The "Rename all files" flow the panel button and the Dry Run modal share: enqueue the rename-library
+ * job, poll it to the end and report the counts. Also holds the modal's open state, the live job
+ * progress, and the key that tells the undo footer to re-read after a rename.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";

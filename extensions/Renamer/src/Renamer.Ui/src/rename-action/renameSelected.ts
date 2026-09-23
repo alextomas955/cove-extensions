@@ -1,15 +1,11 @@
 /**
- * The in-flow confirm gate shown before a bulk rename runs. Registered as the `renameSelected`
- * action handler (index.ts) so the host's HandlerName dispatch invokes it for the bulk "Rename
- * selected" action. It cannot render a React modal (the host exposes no dialog API to extension
- * action handlers), so the in-flow gate is the native, blocking, accessible `window.confirm`.
+ * The confirm gate before a bulk rename, registered as the `renamerSelected` action handler. The host
+ * gives action handlers no dialog API, so the gate is `window.confirm`.
  *
- * Flow: POST /preview with the real selection → build the confirm summary → window.confirm.
- *   - Cancel               → return { cancelled: true } (no /renamer, host suppresses the toast).
- *   - OK but N == 0         → return { cancelled: true } (nothing to do; no pointless /renamer).
- *   - OK and N >= 1         → POST /renamer → return {} (host shows its queued toast).
- * Request errors are not swallowed (the host's onError alert shows the failure) - except the
- * SDK's spurious res.json() throw on the empty-200 /renamer response, which is success.
+ * It previews the selection and confirms. Cancel, or a selection with nothing to rename, returns
+ * `{ cancelled: true }`, which the host treats as no action. OK posts /renamer and returns `{}`.
+ * Request errors reach the host's error alert, except the SDK's parse error on the empty 200 /renamer
+ * answers with, which is success.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 

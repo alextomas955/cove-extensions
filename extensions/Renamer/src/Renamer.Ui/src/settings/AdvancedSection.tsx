@@ -355,9 +355,8 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             }}
             makeRow={() => ({ targetToken: TOKEN_OPTIONS[0].value, find: "", replace: "" })}
             renderRow={(row, _i, update) => {
-              // A rule saved before this dropdown existed (or via a hand-edited blob) may hold a
-              // token outside the 18 - surface it as an extra option so the Select shows the real
-              // stored value instead of silently displaying the first option while state differs.
+              // A stored rule can name a token outside the list, so it is added as an option and the
+              // Select shows the real value.
               const tokenOptions = TOKEN_OPTIONS.some((o) => o.value === row.targetToken)
                 ? TOKEN_OPTIONS
                 : [
