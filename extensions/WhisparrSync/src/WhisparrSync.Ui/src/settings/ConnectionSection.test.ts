@@ -145,7 +145,9 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   const pill = [...set.querySelectorAll("span")].filter(
     (span) =>
       span.textContent === "Key is set" &&
-      span.childElementCount === 0 &&
+      // The innermost span carrying the wording: the pill holds a glyph, and the span positioning
+      // it reports the same text.
+      span.querySelector("span") === null &&
       grid?.contains(span) !== true,
   );
   expect(pill, "the key field reported nothing about the stored key").toHaveLength(1);

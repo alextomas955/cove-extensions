@@ -17,8 +17,10 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   return {
     extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
     Spinner: () => h("span", null, "checking"),
+    // The mark is rendered, not dropped: a stub that discards `icon` lets a pill that carries none
+    // pass.
     StatusPill: (props: { children: ReactNode; icon?: ReactNode }) =>
-      h("span", null, props.children),
+      h("span", null, props.icon, props.children),
   };
 });
 

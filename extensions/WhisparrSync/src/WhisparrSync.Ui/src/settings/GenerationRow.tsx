@@ -9,6 +9,7 @@ import { FieldGroup, StatusPill, StatusText } from "@cove-extensions/ui-shared";
 
 import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
+import { StateGlyph } from "../common/ui/StateGlyph";
 import {
   CARD_GENERATIONS,
   generationLabel,
@@ -77,7 +78,7 @@ function GenerationOption({
         <span className="min-w-0 text-sm font-medium text-foreground">{label}</span>
         <span className="flex-1" />
         {selected ? (
-          <StatusPill variant="accent" shape="tag">
+          <StatusPill variant="accent" shape="tag" icon={<StateGlyph iconKey="check" />}>
             Selected
           </StatusPill>
         ) : (
