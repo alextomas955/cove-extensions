@@ -4,15 +4,7 @@
  * The API key travels in only. No prop can carry a stored key, so the pill reports presence and
  * never a value.
  */
-import {
-  Field,
-  INPUT_CLASS,
-  SectionCard,
-  Spinner,
-  StatusPill,
-  StatusText,
-  TextInput,
-} from "@cove-extensions/ui-shared";
+import { Field, SectionCard, Spinner, StatusText, TextInput } from "@cove-extensions/ui-shared";
 
 import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
@@ -20,6 +12,7 @@ import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { READ_IS_STALE } from "../common/ui/copy";
 import { GenerationRow } from "./GenerationRow";
+import { KeyStateField } from "./KeyStatePill";
 import {
   describeRecorded,
   detectionOutcome,
@@ -130,21 +123,17 @@ export function ConnectionSection({
           helper="Leave blank to keep the key already stored for this generation."
         >
           {(id) => (
-            <input
+            <KeyStateField
               id={id}
-              type="password"
               value={draft.apiKey}
-              onChange={(e) => {
-                onKeyChange(e.target.value);
-              }}
-              className={INPUT_CLASS}
-              autoComplete="off"
+              storedKeyIsSet={stored === null ? null : stored.keyIsSet}
+              onChange={onKeyChange}
             />
           )}
         </Field>
 
         <div className="flex items-center gap-3">
-          <KeyState stored={stored} draft={draft} />
+          <KeyIntent draft={draft} />
           {stored?.keyIsSet === true && !draft.keyCleared ? (
             <OptionallyDisabled
               name="Clear stored key"
@@ -206,29 +195,16 @@ function RecordedLines({
   );
 }
 
-// Whether a key is stored, and what the next save would do to it. Never any part of the value.
-// Each state is a distinct sentence, so nothing here is signalled by colour alone.
-function KeyState({
-  stored,
-  draft,
-}: {
-  stored: WhisparrSyncGenerationSettingsView | null;
-  draft: SettingsDraft;
-}) {
+// What the next save would do to the key, which is a different statement from what is stored. Each
+// state is a distinct sentence, so nothing here is signalled by colour alone.
+function KeyIntent({ draft }: { draft: SettingsDraft }) {
   if (draft.keyCleared) {
-    return <StatusPill variant="amber">Key will be removed when you save</StatusPill>;
+    return <StatusText kind="warning">Key will be removed when you save</StatusText>;
   }
   if (draft.apiKey !== "") {
-    return <StatusPill variant="accent">New key will be saved</StatusPill>;
+    return <StatusText kind="muted">New key will be saved</StatusText>;
   }
-  if (stored === null) {
-    return null;
-  }
-  return stored.keyIsSet ? (
-    <StatusPill variant="green">Key is set</StatusPill>
-  ) : (
-    <StatusPill variant="gray">Key not stored</StatusPill>
-  );
+  return null;
 }
 
 function TestResult({ test, card }: { test: TransientTest; card: CardGeneration }) {
