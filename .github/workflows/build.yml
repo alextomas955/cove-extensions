@@ -376,20 +376,16 @@ jobs:
           E2E_PATH: ${{ matrix.extension.e2ePath }}
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
 
-      # Every harness in this suite is its own compose stack, so a run attaches and detaches
-      # containers from bridge networks once per test. Each attachment creates a veth on the host,
-      # the kernel runs IPv6 address configuration on it, and Chromium's network-change notifier
-      # reads that as the network changing and ABORTS whatever requests are in flight. The browser
-      # here runs on the host and loads the app over a published port, so the requests it aborts are
-      # the app's own script and stylesheet chunks: the page then renders nothing, on the right URL,
-      # with no script error and no failed navigation to point at.
-      #
-      # That is chromium bug 974711 and docker/for-linux#914. Both report the same finding, that it
-      # happens once per attach or detach and only where IPv6 is enabled on the host, and neither has
-      # a Chromium flag to turn the notifier off.
+      # Chromium aborts every in-flight request when a host IP address appears. The browser here runs
+      # on the host and loads the app over a published port, so what it aborts is the app's own script
+      # chunks, and the page renders nothing on the right URL. A run has two sources of new addresses.
+      # A container attachment creates a veth, and the kernel runs IPv6 address configuration on it;
+      # this step stops that. A new bridge takes an IPv4 address; the harness creates one shared
+      # network before any browser starts and every stack joins it (tests/e2e/lib/global-setup.mjs).
       #
       # `default` is the template the kernel applies to interfaces created AFTER it is set, so this
-      # reaches each new veth and leaves the runner's existing interfaces alone.
+      # reaches each new veth and leaves the runner's existing interfaces alone. There is no Chromium
+      # flag for the notifier (chromium 974711, docker/for-linux#914).
       #
       # The values are printed because a runner that has IPv6 off already, or a kernel that refuses
       # the write, would otherwise look identical to one where this worked.
