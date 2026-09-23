@@ -213,7 +213,7 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public async Task PreviewSample_WithoutVideosRead_Returns403_BeforeReadingBody()
+    public async Task PreviewSample_WithNoReadPermission_Returns403_BeforeReadingBody()
     {
         var ext = NewExtension();
 
@@ -226,6 +226,17 @@ public sealed class PreviewSampleEndpointTests
         var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), default);
 
         Assert.Equal(403, StatusOf(result)); // permission denied
+    }
+
+    [Fact]
+    public async Task PreviewSample_AdmitsACallerWhoCanReadOnlyTexts()
+    {
+        var ext = NewExtension();
+        var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsRead);
+
+        var result = await ext.PreviewSampleAsync(RequestWithBody(PascalCaseEnvelope), textsOnly, default);
+
+        Assert.IsType<Ok<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
     }
 
     [Fact]

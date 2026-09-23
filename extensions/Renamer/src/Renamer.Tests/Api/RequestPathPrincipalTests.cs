@@ -117,6 +117,18 @@ public sealed class RequestPathPrincipalTests
         Assert.NotNull(summary);
     }
 
+    [Fact]
+    public async Task LastBatch_AdmitsACallerWhoCanReadOnlyTexts()
+    {
+        await using var library = await LibraryDatabase.CreateAsync();
+        var ext = await LoadedExtensionAsync(library);
+        library.Principals.Set(Caller(Permissions.TextsRead));
+
+        var result = await ext.LastBatchAsync(library.Principals, default);
+
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.LastBatchSummary>>(result.Result);
+    }
+
     /// <summary>
     /// Every command recorded since the last clear ran as the caller - a <see cref="PrincipalKind.User"/>
     /// - and none as System, over a non-empty recording.

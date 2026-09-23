@@ -534,15 +534,8 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
-        // consumed flag only - no paths). A user who can renamer any kind may see it, so gate on holding
-        // any renamer-read permission rather than videos.read specifically. The summary does not carry
-        // the batch kind, so a per-kind gate would require reading the full batch for a metadata probe.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        // The summary carries no paths and no kind, so any kind's read permission admits it.
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -777,14 +770,9 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewSampleAsync(
         HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // Enforce permission before touching the body - never read/parse for an unauthorized caller.
-        // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
-        // selection), so gate on holding any renamer-read permission rather than videos.read specifically.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        // Checked before the body is read. The samples are fixed and touch no library data, so any
+        // kind's read permission admits them.
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }

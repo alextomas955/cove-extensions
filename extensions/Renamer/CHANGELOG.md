@@ -64,6 +64,8 @@ computed, which it could not before.
 
 ### Fixes
 
+- Someone whose Cove role can read only text documents now sees the undo footer and the live
+  preview. Both used to refuse them with a permission error.
 - If the settings page cannot load your saved settings, it now says so and offers **Retry**. It
   used to show "Loading settings" forever.
 - **Required fields** now accepts `performers`, `tags` and `resolution`. Adding any of them used to
