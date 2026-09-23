@@ -56,7 +56,7 @@ public sealed class AdvancedOptionDefaultsTests
 
     [Fact]
     public void ThereAreNoRefusalsByDefault()
-        => Assert.Empty(new WhisparrSyncOptions().ImportRefusals);
+        => Assert.Empty(new WhisparrSyncOptions().Instance().ImportRefusals);
 
     // The host comes from the default record, not from a blank literal, so a non-blank default
     // fails here too.
@@ -79,7 +79,7 @@ public sealed class AdvancedOptionDefaultsTests
         WhisparrSyncSettingsSaveRequest save)
     {
         var defaults = new WhisparrSyncOptions();
-        var configured = defaults with
+        var configured = (defaults with
         {
             DefaultMonitorScope = MonitorScope.AllScenes,
             MetadataProviderEndpoints = new MetadataProviderEndpoints { V3 = "http://provider.invalid/v3" },
@@ -93,7 +93,8 @@ public sealed class AdvancedOptionDefaultsTests
                 LastError = "the host refused the path",
                 BackstopPositionLost = true,
             },
-            ImportRefusals =
+        }).WithInstance(
+            importRefusals:
             [
                 new ImportRootRefusals
                 {
@@ -108,8 +109,7 @@ public sealed class AdvancedOptionDefaultsTests
                         },
                     ],
                 },
-            ],
-        };
+            ]);
 
         AssertTheyMatch(defaults, SettingsProjector.Apply(defaults, save));
         AssertTheyMatch(configured, SettingsProjector.Apply(configured, save));
@@ -135,6 +135,13 @@ public sealed class AdvancedOptionDefaultsTests
         Assert.Equal(before.UpgradeBehavior, after.UpgradeBehavior);
         Assert.Equal(before.BackstopIntervalSeconds, after.BackstopIntervalSeconds);
         Assert.Equal(before.ImportHealth, after.ImportHealth);
-        Assert.Equal(before.ImportRefusals, after.ImportRefusals);
+        // Read per slot rather than through the selection: a save that moves the selection changes
+        // which instance is in view, and both slots have to survive it untouched.
+        Assert.Equal(
+            before.Instance(WhisparrGeneration.V3).ImportRefusals,
+            after.Instance(WhisparrGeneration.V3).ImportRefusals);
+        Assert.Equal(
+            before.Instance(WhisparrGeneration.V2).ImportRefusals,
+            after.Instance(WhisparrGeneration.V2).ImportRefusals);
     }
 }

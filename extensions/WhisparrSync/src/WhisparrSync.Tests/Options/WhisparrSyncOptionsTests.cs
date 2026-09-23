@@ -32,8 +32,8 @@ public sealed class WhisparrSyncOptionsTests
 
         Assert.Equal(saved, loaded);
         Assert.Equal(saved.GetHashCode(), loaded.GetHashCode());
-        Assert.Equal(2, loaded.ImportRefusals.Count);
-        Assert.Equal(2, loaded.ImportRefusals[0].NewestPaths.Count);
+        Assert.Equal(2, loaded.Instance().ImportRefusals.Count);
+        Assert.Equal(2, loaded.Instance().ImportRefusals[0].NewestPaths.Count);
     }
 
     // The discriminating case for the count that precedes the elements in each component stream. A
@@ -44,22 +44,20 @@ public sealed class WhisparrSyncOptionsTests
     {
         var saved = Populated();
 
-        var oneRootFewer = saved with { ImportRefusals = [saved.ImportRefusals[0]] };
-        var onePathFewer = saved with
-        {
-            ImportRefusals =
+        var oneRootFewer = saved.WithInstance(importRefusals: [saved.Instance().ImportRefusals[0]]);
+        var onePathFewer = saved.WithInstance(
+            importRefusals:
             [
-                saved.ImportRefusals[0] with
+                saved.Instance().ImportRefusals[0] with
                 {
-                    NewestPaths = [saved.ImportRefusals[0].NewestPaths[0]],
+                    NewestPaths = [saved.Instance().ImportRefusals[0].NewestPaths[0]],
                 },
-                saved.ImportRefusals[1],
-            ],
-        };
+                saved.Instance().ImportRefusals[1],
+            ]);
 
         Assert.NotEqual(saved, oneRootFewer);
         Assert.NotEqual(saved, onePathFewer);
-        Assert.NotEqual(saved.ImportRefusals[0], onePathFewer.ImportRefusals[0]);
+        Assert.NotEqual(saved.Instance().ImportRefusals[0], onePathFewer.Instance().ImportRefusals[0]);
     }
 
     // Storing a spelling rather than an ordinal is what keeps a stored blob readable after a member
@@ -195,17 +193,19 @@ public sealed class WhisparrSyncOptionsTests
             {
               "SelectedGeneration": "v3",
               "V3": { "Address": "http://v3-host:6969/" },
-              "ImportRefusals": [
-                {
-                  "Root": "/whisparr-media",
-                  "CountSinceLastSuccess": 3,
-                  "NewestPaths": [
-                    { "Path": "/whisparr-media/a.mp4", "Cause": "notFoundUnderAnyRoot" },
-                    { "Path": "/whisparr-media/b.mp4", "Cause": "ambiguousCandidates" },
-                    { "Path": "/whisparr-media/c.mp4", "Cause": "unreadable" }
-                  ]
-                }
-              ]
+              "InstanceSettingsV3": {
+                "ImportRefusals": [
+                  {
+                    "Root": "/whisparr-media",
+                    "CountSinceLastSuccess": 3,
+                    "NewestPaths": [
+                      { "Path": "/whisparr-media/a.mp4", "Cause": "notFoundUnderAnyRoot" },
+                      { "Path": "/whisparr-media/b.mp4", "Cause": "ambiguousCandidates" },
+                      { "Path": "/whisparr-media/c.mp4", "Cause": "unreadable" }
+                    ]
+                  }
+                ]
+              }
             }
             """);
 
@@ -219,7 +219,7 @@ public sealed class WhisparrSyncOptionsTests
                 ImportRefusalCause.AmbiguousCandidates,
                 ImportRefusalCause.Unreadable,
             ],
-            Assert.Single(loaded.ImportRefusals).NewestPaths.Select(entry => entry.Cause));
+            Assert.Single(loaded.Instance().ImportRefusals).NewestPaths.Select(entry => entry.Cause));
     }
 
     // A literal rather than something serialized here, so it stays the blob an install holds rather
@@ -256,7 +256,7 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(
             WhisparrSyncOptions.DefaultBackstopIntervalSeconds, loaded.BackstopIntervalSeconds);
         Assert.Equal(new ImportHealthAggregate(), loaded.ImportHealth);
-        Assert.Empty(loaded.ImportRefusals);
+        Assert.Empty(loaded.Instance().ImportRefusals);
     }
 
     // Two types of this name, held apart by a file-scoped using alias, is a defect a legal edit
@@ -504,21 +504,23 @@ public sealed class WhisparrSyncOptionsTests
             OptionsStore.Key,
             $$"""
             {
-              "ImportRefusals": [
-                {
-                  "Root": "/whisparr/media",
-                  "CountSinceLastSuccess": 1,
-                  "NewestPaths": [
-                    { "Path": "{{stored}}", "Cause": "unreadable" }
-                  ]
-                }
-              ]
+              "InstanceSettingsV3": {
+                "ImportRefusals": [
+                  {
+                    "Root": "/whisparr/media",
+                    "CountSinceLastSuccess": 1,
+                    "NewestPaths": [
+                      { "Path": "{{stored}}", "Cause": "unreadable" }
+                    ]
+                  }
+                ]
+              }
             }
             """);
 
         var loaded = await new OptionsStore(store).LoadAsync();
 
-        var entry = Assert.Single(Assert.Single(loaded.ImportRefusals).NewestPaths);
+        var entry = Assert.Single(Assert.Single(loaded.Instance().ImportRefusals).NewestPaths);
         Assert.Equal(ImportRefusalEntry.PathMaxLength, entry.Path.Length);
         Assert.Equal(ImportRefusalCause.Unreadable, entry.Cause);
     }
@@ -534,24 +536,26 @@ public sealed class WhisparrSyncOptionsTests
             OptionsStore.Key,
             """
             {
-              "ImportRefusals": [
-                {
-                  "Root": "/whisparr/media",
-                  "CountSinceLastSuccess": 2,
-                  "NewestPaths": null
-                }
-              ]
+              "InstanceSettingsV3": {
+                "ImportRefusals": [
+                  {
+                    "Root": "/whisparr/media",
+                    "CountSinceLastSuccess": 2,
+                    "NewestPaths": null
+                  }
+                ]
+              }
             }
             """);
 
         var loaded = await new OptionsStore(store).LoadAsync();
 
-        var entry = Assert.Single(loaded.ImportRefusals);
+        var entry = Assert.Single(loaded.Instance().ImportRefusals);
         Assert.NotNull(entry.NewestPaths);
         Assert.Empty(entry.NewestPaths);
 
         var refused = ImportRefusalProjector.Refuse(
-            loaded.ImportRefusals,
+            loaded.Instance().ImportRefusals,
             entry.Root,
             "/whisparr/media/scene-a/file.mp4",
             ImportRefusalCause.Unreadable);
@@ -561,7 +565,7 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Empty(ImportRefusalProjector.Succeed(refused, entry.Root));
 
         var line = Assert.Single(
-            ImportBannerView.From(loaded.ImportRefusals, loaded.ImportHealth).Roots);
+            ImportBannerView.From(loaded.Instance().ImportRefusals, loaded.ImportHealth).Roots);
         Assert.Equal("/whisparr/media", line.Root);
         Assert.Empty(line.NewestPaths);
     }
@@ -652,7 +656,7 @@ public sealed class WhisparrSyncOptionsTests
     private static readonly DateTimeOffset V3Watermark = new(2026, 8, 30, 10, 15, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset V2Watermark = new(2026, 8, 29, 22, 5, 0, TimeSpan.Zero);
 
-    private static WhisparrSyncOptions Populated() => new()
+    private static WhisparrSyncOptions Populated() => new WhisparrSyncOptions
     {
         SelectedGeneration = WhisparrGeneration.V3,
         V3 = new WhisparrSyncGenerationConnection
@@ -682,8 +686,9 @@ public sealed class WhisparrSyncOptionsTests
             LastError = "the path named in the delivery is under no library root",
             ConsecutiveFailures = 3,
             BackstopPositionLost = true,
-        },
-        ImportRefusals =
+        }
+    }.WithInstance(
+        importRefusals:
         [
             new ImportRootRefusals
             {
@@ -716,6 +721,5 @@ public sealed class WhisparrSyncOptionsTests
                     },
                 ],
             },
-        ],
-    };
+        ]);
 }

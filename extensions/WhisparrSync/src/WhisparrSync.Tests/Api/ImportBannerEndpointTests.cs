@@ -186,13 +186,12 @@ public sealed class ImportBannerEndpointTests
     {
         var (_, options) = await StoredAsync(new WhisparrSyncOptions
         {
-            ImportRefusals = [RootWith("/whisparr-media", 2, 1)],
             ImportHealth = new ImportHealthAggregate
             {
                 RecordsContained = 41,
                 LastContainedAtUtc = Contained,
             },
-        });
+        }.WithInstance(importRefusals: [RootWith("/whisparr-media", 2, 1)]));
 
         var view = ViewIn(await global::WhisparrSync.WhisparrSync.ReadImportBannerAsync(
             Configure(), options, TestCt));
@@ -229,7 +228,13 @@ public sealed class ImportBannerEndpointTests
     {
         var (_, options) = await StoredAsync(new WhisparrSyncOptions
         {
-            ImportRefusals =
+            ImportHealth = new ImportHealthAggregate
+            {
+                RecordsContained = 41,
+                LastContainedAtUtc = Contained,
+            },
+        }.WithInstance(
+            importRefusals:
             [
                 new ImportRootRefusals
                 {
@@ -244,13 +249,7 @@ public sealed class ImportBannerEndpointTests
                         },
                     ],
                 },
-            ],
-            ImportHealth = new ImportHealthAggregate
-            {
-                RecordsContained = 41,
-                LastContainedAtUtc = Contained,
-            },
-        });
+            ]));
 
         var body = Serialize(ViewIn(await global::WhisparrSync.WhisparrSync.ReadImportBannerAsync(
             Configure(), options, TestCt)));
@@ -294,7 +293,7 @@ public sealed class ImportBannerEndpointTests
 
     private static Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
         params ImportRootRefusals[] refusals)
-        => StoredAsync(new WhisparrSyncOptions { ImportRefusals = [.. refusals] });
+        => StoredAsync(new WhisparrSyncOptions().WithInstance(importRefusals: [.. refusals]));
 
     private static async Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
         WhisparrSyncOptions stored)

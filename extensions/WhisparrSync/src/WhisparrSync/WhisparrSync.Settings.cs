@@ -186,7 +186,10 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals, stored.ImportHealth));
+        // The banner reports the instance in use. The other generation's refusals name roots this
+        // one does not declare.
+        var instance = stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration);
+        return TypedResults.Ok(ImportBannerView.From(instance.ImportRefusals, stored.ImportHealth));
     }
 
     // The configure tier, for the reason above. The answer's size is the stored aggregate's, not
@@ -203,8 +206,9 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var instance = stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration);
         return TypedResults.Ok(
-            FolderAgreementView.From(stored.OutboundRefusals, stored.OutboundMappings));
+            FolderAgreementView.From(instance.OutboundRefusals, instance.OutboundMappings));
     }
 
     // A typed mapping is stored only where the probe found the library's own sample file at the
@@ -282,15 +286,21 @@ public sealed partial class WhisparrSync
         Task<WhisparrSyncOptions> StoreAsync(string? mapping, bool clearRefusal)
             => gate.MutateAsync(
                 options,
-                stored => stored with
-                {
-                    OutboundMappings = OutboundRefusalProjector.WithMapping(
-                        stored.OutboundMappings, coveRoot, mapping),
-                    OutboundRefusals = clearRefusal
-                        ? OutboundRefusalProjector.Fold(
-                            stored.OutboundRefusals, refused: null, [coveRoot])
-                        : stored.OutboundRefusals,
-                },
+                stored => stored.WithInstanceSettingsFor(
+                    stored.SelectedGeneration,
+                    stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration) with
+                    {
+                        OutboundMappings = OutboundRefusalProjector.WithMapping(
+                            stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundMappings,
+                            coveRoot,
+                            mapping),
+                        OutboundRefusals = clearRefusal
+                            ? OutboundRefusalProjector.Fold(
+                                stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
+                                refused: null,
+                                [coveRoot])
+                            : stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
+                    }),
                 ct);
 
         static FolderMappingSaveResult Answering(

@@ -26,6 +26,7 @@ public sealed partial class WhisparrSync
     // or not the run finished.
     private static async Task RecordRootReadingsAsync(
         IServiceScopeFactory scopes,
+        WhisparrGeneration generation,
         IReadOnlyList<FolderAddressRefusal>? refused,
         IReadOnlyList<string>? addressed)
     {
@@ -39,11 +40,16 @@ public sealed partial class WhisparrSync
 
         await services.GetRequiredService<OptionsWriteGate>().MutateAsync(
             services.GetRequiredService<OptionsStore>(),
-            stored => stored with
-            {
-                OutboundRefusals = OutboundRefusalProjector.Fold(
-                    stored.OutboundRefusals, refused, addressed),
-            },
+            stored => stored.WithInstanceSettingsFor(
+                generation,
+                stored.InstanceSettingsOrEmptyFor(generation) with
+                {
+                    OutboundRefusals = OutboundRefusalProjector.Fold(
+                        stored.InstanceSettingsOrEmptyFor(generation).OutboundRefusals,
+                        refused,
+                        addressed),
+                    RootsEstablished = true,
+                }),
             CancellationToken.None).ConfigureAwait(false);
     }
 
@@ -130,6 +136,7 @@ public sealed partial class WhisparrSync
 
             await RecordRootReadingsAsync(
                 scopes,
+                target.Binding.Generation,
                 [.. readings
                     .Where(reading => reading.Refusal is not null)
                     .Select(reading => new FolderAddressRefusal(

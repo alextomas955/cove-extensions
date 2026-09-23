@@ -165,7 +165,7 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal([VerifiedPath], Assert.Single(ingest.Library.Scans));
         Assert.Equal(
             OtherWhisparrRoot,
-            Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
+            Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals).Root);
     }
 
     [Fact]
@@ -228,14 +228,12 @@ public sealed class ImportCoreIdempotencyTests
             var options = new OptionsStore(Store);
             var stored = await options.LoadAsync(TestContext.Current.CancellationToken);
             await options.SaveAsync(
-                stored with
-                {
-                    ImportRefusals = ImportRefusalProjector.Refuse(
-                        stored.ImportRefusals,
+                stored.WithInstance(
+                    importRefusals: ImportRefusalProjector.Refuse(
+                        stored.Instance().ImportRefusals,
                         root,
                         ReportedPath,
-                        ImportRefusalCause.NotFoundUnderAnyRoot),
-                },
+                        ImportRefusalCause.NotFoundUnderAnyRoot)),
                 TestContext.Current.CancellationToken);
         }
 

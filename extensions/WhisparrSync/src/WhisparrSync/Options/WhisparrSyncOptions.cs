@@ -153,6 +153,93 @@ public sealed record WhisparrSyncGenerationConnection
     public DateTimeOffset? BackstopWatermarkUtc { get; init; }
 }
 
+/// <summary>What one generation's instance answered about the folders it holds.</summary>
+/// <remarks>
+/// Every member here is keyed on a path the connected instance declares, and the two generations
+/// declare different roots. A folder one instance was shown to hold says nothing about the other, so
+/// an answer is kept under the generation that gave it.
+/// <para>
+/// Held in a nullable slot per generation. Null means that generation has never answered, which is a
+/// different state from one whose folders all resolved and left nothing outstanding.
+/// </para>
+/// </remarks>
+public sealed record WhisparrSyncGenerationInstanceSettings
+{
+    private readonly List<OutboundRootMapping> _outboundMappings = [];
+    private readonly List<OutboundRootRefusal> _outboundRefusals = [];
+    private readonly List<ImportRootRefusals> _importRefusals = [];
+
+    /// <summary>The paths an operator stated for this generation, one per Cove library root.</summary>
+    public List<OutboundRootMapping> OutboundMappings
+    {
+        get => _outboundMappings;
+        init => _outboundMappings = value ?? [];
+    }
+
+    /// <summary>The Cove library roots this generation established no path for.</summary>
+    public List<OutboundRootRefusal> OutboundRefusals
+    {
+        get => _outboundRefusals;
+        init => _outboundRefusals = value ?? [];
+    }
+
+    /// <summary>The roots of this generation whose imports Cove could not open.</summary>
+    public List<ImportRootRefusals> ImportRefusals
+    {
+        get => _importRefusals;
+        init => _importRefusals = value ?? [];
+    }
+
+    /// <summary>Whether a run has established this generation's library roots.</summary>
+    /// <remarks>
+    /// An import refusal creates this record without any run having compared folders. Without this
+    /// member the folder section would read that empty outbound pair as every folder resolving.
+    /// </remarks>
+    public bool RootsEstablished { get; init; }
+
+    // Record value equality compares the List members by reference, so a JSON round-trip, which
+    // allocates fresh lists, would never be Equal to the original. Both Equals and GetHashCode run
+    // off the same component list.
+    public bool Equals(WhisparrSyncGenerationInstanceSettings? other)
+        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var component in EqualityComponents())
+        {
+            hash.Add(component);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private IEnumerable<object?> EqualityComponents()
+    {
+        yield return RootsEstablished;
+
+        // Each count precedes its entries so two component streams cannot line up by borrowing a
+        // member from either side of a list.
+        yield return OutboundMappings.Count;
+        foreach (var mapping in OutboundMappings)
+        {
+            yield return mapping;
+        }
+
+        yield return OutboundRefusals.Count;
+        foreach (var refusal in OutboundRefusals)
+        {
+            yield return refusal;
+        }
+
+        yield return ImportRefusals.Count;
+        foreach (var refusals in ImportRefusals)
+        {
+            yield return refusals;
+        }
+    }
+}
+
 /// <summary>
 /// Which metadata provider configured in Cove counts as the identity source, per generation.
 /// </summary>
@@ -465,9 +552,6 @@ public sealed record WhisparrSyncOptions
 {
     public const int DefaultBackstopIntervalSeconds = 900;
 
-    private readonly List<OutboundRootRefusal> _outboundRefusals = [];
-    private readonly List<OutboundRootMapping> _outboundMappings = [];
-
     /// <summary>The shortest interval a stored value is honoured at.</summary>
     /// <remarks>
     /// A pass cannot run more often than the worker wakes, and the worker builds its wake period from
@@ -549,43 +633,50 @@ public sealed record WhisparrSyncOptions
 
     public ImportHealthAggregate ImportHealth { get; init; } = new();
 
-    /// <summary>The refusals outstanding, one entry per Whisparr root that has any.</summary>
-    /// <remarks>
-    /// A root's entry is removed by its own next success. Bounded by the Whisparr root count, and
-    /// each entry is a fixed size.
-    /// </remarks>
-    public List<ImportRootRefusals> ImportRefusals { get; init; } = [];
+    /// <summary>What v3 answered about the folders it holds, or null when it never has.</summary>
+    public WhisparrSyncGenerationInstanceSettings? InstanceSettingsV3 { get; init; }
+
+    /// <summary>What v2 answered about the folders it holds, or null when it never has.</summary>
+    public WhisparrSyncGenerationInstanceSettings? InstanceSettingsV2 { get; init; }
 
     /// <summary>
-    /// One entry per Cove library root the last run over it established no instance path for.
+    /// What <paramref name="generation"/> answered about its folders, or null when it never has.
     /// </summary>
-    /// <remarks>
-    /// A root a run addressed loses its entry. Bounded by the host's library root count, which an
-    /// operator created by hand.
-    /// <para>
-    /// Emptied at the accessor rather than by an initialiser, so a stored blob naming this member as
-    /// null binds it as empty.
-    /// </para>
-    /// </remarks>
-    public List<OutboundRootRefusal> OutboundRefusals
-    {
-        get => _outboundRefusals;
-        init => _outboundRefusals = value ?? [];
-    }
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="generation"/> is not one this record carries a slot for.
+    /// </exception>
+    public WhisparrSyncGenerationInstanceSettings? InstanceSettingsFor(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => InstanceSettingsV3,
+            WhisparrGeneration.V2 => InstanceSettingsV2,
+            _ => throw new ArgumentOutOfRangeException(nameof(generation), generation, null),
+        };
 
     /// <summary>
-    /// One entry per Cove library root an operator has stated the instance's own path for.
+    /// What <paramref name="generation"/> answered about its folders, empty where it never has.
     /// </summary>
     /// <remarks>
-    /// Read in place of the roots the instance declares, never alongside them. Still only a candidate:
-    /// the probe decides on the save and on every later run. Bounded by the host's library root count.
-    /// Emptied at the accessor for the same reason <see cref="OutboundRefusals"/> is.
+    /// For a caller that only reads the entries. A caller that has to tell a generation which has
+    /// never answered from one whose folders all resolved reads <see cref="InstanceSettingsFor"/>
+    /// and keeps the null.
     /// </remarks>
-    public List<OutboundRootMapping> OutboundMappings
-    {
-        get => _outboundMappings;
-        init => _outboundMappings = value ?? [];
-    }
+    public WhisparrSyncGenerationInstanceSettings InstanceSettingsOrEmptyFor(
+        WhisparrGeneration generation)
+        => InstanceSettingsFor(generation) ?? new WhisparrSyncGenerationInstanceSettings();
+
+    /// <summary>This record with <paramref name="generation"/>'s instance settings replaced.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="generation"/> is not one this record carries a slot for.
+    /// </exception>
+    public WhisparrSyncOptions WithInstanceSettingsFor(
+        WhisparrGeneration generation, WhisparrSyncGenerationInstanceSettings settings)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => this with { InstanceSettingsV3 = settings },
+            WhisparrGeneration.V2 => this with { InstanceSettingsV2 = settings },
+            _ => throw new ArgumentOutOfRangeException(nameof(generation), generation, null),
+        };
 
     /// <summary>The connection stored for <paramref name="generation"/>, or null when none is.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -647,6 +738,11 @@ public sealed record WhisparrSyncOptions
         yield return SelectedGeneration;
         yield return V3;
         yield return V2;
+
+        // The write gate writes nothing when a fold answers a value equal to the one it was given, so
+        // a slot left out here makes every write through it vanish with nothing reported.
+        yield return InstanceSettingsV3;
+        yield return InstanceSettingsV2;
         yield return DefaultMonitorScope;
         yield return MetadataProviderEndpoints;
         yield return CallbackHost;
@@ -656,22 +752,5 @@ public sealed record WhisparrSyncOptions
 
         // The count precedes the entries so two component streams cannot line up by borrowing a
         // member from either side of the list.
-        yield return ImportRefusals.Count;
-        foreach (var refusals in ImportRefusals)
-        {
-            yield return refusals;
-        }
-
-        yield return OutboundRefusals.Count;
-        foreach (var refusal in OutboundRefusals)
-        {
-            yield return refusal;
-        }
-
-        yield return OutboundMappings.Count;
-        foreach (var mapping in OutboundMappings)
-        {
-            yield return mapping;
-        }
     }
 }

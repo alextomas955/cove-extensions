@@ -326,21 +326,29 @@ public sealed partial class WhisparrSync
         // this run could not settle.
         var readings = new ConcurrentDictionary<string, AddressedFolder>(StringComparer.Ordinal);
 
+        // The generation the pass aimed at, not the one selected when it ends: a selection change
+        // during a pass would otherwise file what this instance established under the other one.
+        WhisparrGeneration? aimedAt = null;
+
         await SyncLibraryJob.RunAsync(
             SyncLibraryJob.Decode(parameters), scopes, AimAsync, progress, ct).ConfigureAwait(false);
 
         // Before the cancellation check, for the reason RecordRootReadingsAsync states: what a run
         // established about a root holds whether or not the run went on to finish.
-        await RecordRootReadingsAsync(
-            scopes,
-            [.. readings.Values
-                .Where(reading => reading.Refusal is not null)
-                .Select(reading => new FolderAddressRefusal(
-                    reading.CoveRoot, reading.Refusal!.Value, reading.Tried))],
-            [.. readings.Values
-                .Where(reading => reading.Refusal is null)
-                .Select(reading => reading.CoveRoot)])
-            .ConfigureAwait(false);
+        if (aimedAt is { } generation)
+        {
+            await RecordRootReadingsAsync(
+                scopes,
+                generation,
+                [.. readings.Values
+                    .Where(reading => reading.Refusal is not null)
+                    .Select(reading => new FolderAddressRefusal(
+                        reading.CoveRoot, reading.Refusal!.Value, reading.Tried))],
+                [.. readings.Values
+                    .Where(reading => reading.Refusal is null)
+                    .Select(reading => reading.CoveRoot)])
+                .ConfigureAwait(false);
+        }
 
         ct.ThrowIfCancellationRequested();
 
@@ -358,6 +366,8 @@ public sealed partial class WhisparrSync
             {
                 return null;
             }
+
+            aimedAt = target.Binding.Generation;
 
             return SyncPassFor(target) switch
             {
