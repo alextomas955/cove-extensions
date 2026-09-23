@@ -71,25 +71,9 @@ public static class WhisparrCredentialSchema
         CREATE TABLE IF NOT EXISTS whisparrsync_credentials (
             generation           TEXT   NOT NULL,
             api_key              TEXT   NOT NULL,
+            address              TEXT   NOT NULL DEFAULT '',
             updated_at_utc_ticks BIGINT NOT NULL,
             PRIMARY KEY (generation)
         );
-        """;
-
-    /// <summary>The migration that adds the address, frozen as the one above is.</summary>
-    public const string Migration003Name = "003_add_whisparrsync_credential_address";
-
-    /// <summary>
-    /// Adds the address column beside the key, so an outbound request is built from one row.
-    /// </summary>
-    /// <remarks>
-    /// Defaulted to the empty string rather than backfilled from the options blob, which this
-    /// statement cannot read. An installation upgrading carries no address here until its next
-    /// settings save, and a resolution finding none falls back to the stored options so that
-    /// installation keeps working. See <c>ICredentialPort</c>.
-    /// </remarks>
-    public const string Migration003UpSql =
-        """
-        ALTER TABLE whisparrsync_credentials ADD COLUMN address TEXT NOT NULL DEFAULT '';
         """;
 }

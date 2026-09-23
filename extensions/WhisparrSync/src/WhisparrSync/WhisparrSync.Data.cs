@@ -34,6 +34,5 @@ public sealed partial class WhisparrSync
     {
         Migration(WhisparrCredentialSchema.Migration001Name, WhisparrCredentialSchema.Migration001UpSql);
         Migration(WhisparrSecretSchema.Migration002Name, WhisparrSecretSchema.Migration002UpSql);
-        Migration(WhisparrCredentialSchema.Migration003Name, WhisparrCredentialSchema.Migration003UpSql);
     }
 }

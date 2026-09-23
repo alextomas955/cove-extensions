@@ -120,7 +120,6 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IImportPathPort, ImportPathPort>();
         services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
             services.GetRequiredService<IWhisparrInstanceFactory>(),
-            services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<ICredentialPort>(),
             services.GetRequiredService<ReportedRootCache>(),
             _log));

@@ -151,10 +151,12 @@ internal sealed class MonitorHost : IAsyncDisposable
                 generation, new WhisparrSyncGenerationConnection { Address = StoredAddress }),
             TestCt);
 
+        // The address goes in beside the key, which is what a save writes. A row holding the key
+        // alone is a row no save produces.
         var credentials = new RecordingCredentialPort();
         if (apiKey is not null)
         {
-            credentials.Holding(generation, apiKey);
+            credentials.Holding(generation, StoredAddress, apiKey);
         }
 
         var builder = WebApplication.CreateSlimBuilder();
@@ -199,7 +201,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IReportedRootPort>(
             resolved => new ReportedRootPort(
                 resolved.GetRequiredService<IWhisparrInstanceFactory>(),
-                options,
                 credentials,
                 new ReportedRootCache(TimeProvider.System),
                 NullLogger.Instance));

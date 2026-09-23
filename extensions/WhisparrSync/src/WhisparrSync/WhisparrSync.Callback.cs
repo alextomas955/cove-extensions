@@ -278,7 +278,7 @@ public sealed partial class WhisparrSync
         // handing an empty pair to the port, so an unconfigured connection reaches nothing that
         // could make a request.
         var resolution = await OutboundPair
-            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+            .ResolveAsync(credentials, generation, ct).ConfigureAwait(false);
         if (resolution.Binding is not { } binding)
         {
             return TypedResults.Ok(

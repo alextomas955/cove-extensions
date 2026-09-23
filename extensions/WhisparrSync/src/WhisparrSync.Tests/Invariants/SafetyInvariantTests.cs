@@ -662,7 +662,7 @@ public sealed class SafetyInvariantTests
         private readonly FollowUpScanCoalescer _followUp;
         private readonly IReportedRootPort _reportedRoots;
         private readonly ICredentialPort _credentials =
-            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, ApiKey);
+            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, Address, ApiKey);
 
         public Ingest()
         {
@@ -695,7 +695,6 @@ public sealed class SafetyInvariantTests
             _followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
             _reportedRoots = new ReportedRootPort(
                 new FixedInstanceFactory(Client),
-                _options,
                 _credentials,
                 new ReportedRootCache(clock),
                 NullLogger.Instance);

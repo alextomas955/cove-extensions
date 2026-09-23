@@ -24,7 +24,7 @@ public sealed class SettingsEndpointTests
     public async Task AReadAsAConfigureTierCallerAnswersWithTheStoredConnections()
     {
         var (store, options) = await SeededAsync();
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
         var writesBefore = store.SetCallCount;
 
         var view = await ReadAsync(options, credentials, Configure());
@@ -57,7 +57,7 @@ public sealed class SettingsEndpointTests
     public async Task AReadHoldingOnlyTheLibraryReadTierIsRefusedAndDisclosesNothing()
     {
         var (store, options) = await SeededAsync();
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
 
         var result = await global::WhisparrSync.WhisparrSync.ReadSettingsAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), options, credentials, TestCt);
@@ -135,7 +135,7 @@ public sealed class SettingsEndpointTests
     public async Task ASaveCarryingNoKeyKeepsTheStoredOne(KeyWriteSignal signal, string? submitted)
     {
         var (_, options) = await SeededAsync();
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
 
         var view = await SaveAsync(
             options,
@@ -154,7 +154,7 @@ public sealed class SettingsEndpointTests
     public async Task AnExplicitClearRemovesTheStoredKey()
     {
         var (_, options) = await SeededAsync();
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
 
         var view = await SaveAsync(
             options,
@@ -200,7 +200,7 @@ public sealed class SettingsEndpointTests
     {
         var (_, options) = await SeededAsync();
         using var gate = new OptionsWriteGate();
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
 
         var view = await RegisterAsync(
             options,
@@ -231,7 +231,7 @@ public sealed class SettingsEndpointTests
         var view = await RegisterAsync(
             options,
             gate,
-            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
+            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey),
             new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
             wouldLockDown: true);
 
@@ -252,7 +252,7 @@ public sealed class SettingsEndpointTests
         var view = await RegisterAsync(
             options,
             gate,
-            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
+            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey),
             new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
             wouldLockDown: false);
 
