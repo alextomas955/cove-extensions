@@ -172,40 +172,25 @@ public class CoveRenamerDataPort : IRenamerDataPort
             return [];
         }
 
-        var result = new List<RenamerEntity>(ids.Count);
-        switch (kind)
+        return kind switch
         {
-            case RenamerFileKind.Video:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await VideoQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapVideoEntity));
-                }
-                break;
-            case RenamerFileKind.Image:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await ImageQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapImageEntity));
-                }
-                break;
-            case RenamerFileKind.Audio:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await AudioQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapAudioEntity));
-                }
-                break;
-            case RenamerFileKind.Text:
-                foreach (var chunk in ids.Chunk(LoadChunkSize))
-                {
-                    var rows = await TextQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
-                    result.AddRange(rows.Select(MapTextEntity));
-                }
-                break;
-            default:
-                // Gallery is not yet a renamable kind.
-                return [];
+            RenamerFileKind.Video => await LoadChunkedAsync(VideoQuery(), ids, MapVideoEntity, ct),
+            RenamerFileKind.Image => await LoadChunkedAsync(ImageQuery(), ids, MapImageEntity, ct),
+            RenamerFileKind.Audio => await LoadChunkedAsync(AudioQuery(), ids, MapAudioEntity, ct),
+            RenamerFileKind.Text => await LoadChunkedAsync(TextQuery(), ids, MapTextEntity, ct),
+            _ => [],
+        };
+    }
+
+    private static async Task<IReadOnlyList<RenamerEntity>> LoadChunkedAsync<T>(
+        IQueryable<T> query, IReadOnlyList<int> ids, Func<T, RenamerEntity> map, CancellationToken ct)
+        where T : BaseEntity
+    {
+        var result = new List<RenamerEntity>(ids.Count);
+        foreach (var chunk in ids.Chunk(LoadChunkSize))
+        {
+            var rows = await query.Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+            result.AddRange(rows.Select(map));
         }
 
         return result;
@@ -379,17 +364,18 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         return kind switch
         {
-            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking()
-                .Where(v => v.Id > afterEntityId).OrderBy(v => v.Id).Take(take).Select(v => v.Id).ToArrayAsync(ct),
-            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking()
-                .Where(i => i.Id > afterEntityId).OrderBy(i => i.Id).Take(take).Select(i => i.Id).ToArrayAsync(ct),
-            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking()
-                .Where(a => a.Id > afterEntityId).OrderBy(a => a.Id).Take(take).Select(a => a.Id).ToArrayAsync(ct),
-            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking()
-                .Where(t => t.Id > afterEntityId).OrderBy(t => t.Id).Take(take).Select(t => t.Id).ToArrayAsync(ct),
+            RenamerFileKind.Video => await IdPageAsync<Video>(afterEntityId, take, ct),
+            RenamerFileKind.Image => await IdPageAsync<Image>(afterEntityId, take, ct),
+            RenamerFileKind.Audio => await IdPageAsync<Audio>(afterEntityId, take, ct),
+            RenamerFileKind.Text => await IdPageAsync<TextDocument>(afterEntityId, take, ct),
             _ => [],
         };
     }
+
+    private async Task<IReadOnlyList<int>> IdPageAsync<T>(int afterEntityId, int take, CancellationToken ct)
+        where T : BaseEntity
+        => await _db.Set<T>().AsNoTracking()
+            .Where(e => e.Id > afterEntityId).OrderBy(e => e.Id).Take(take).Select(e => e.Id).ToArrayAsync(ct);
 
     // The (ParentFolderId, Basename) unique-index pre-check: true when another file row already
     // occupies the slot. The source row is excluded, so a case-only rename onto itself is not a
@@ -407,7 +393,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // nothing, so a preview does not persist a destination folder.
     public async Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default)
     {
-        var normalized = folderPath.Replace('\\', '/');
+        var normalized = PathOps.NormalizeSlash(folderPath);
         var existing = await _db.Set<Folder>().AsNoTracking()
             .FirstOrDefaultAsync(f => normalized == f.Path, ct);
         return existing?.Id;
@@ -416,14 +402,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // The read-only disk probe backing the preview's missing-source warning.
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
     {
-        var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
-        return Task.FromResult(System.IO.File.Exists(native));
+        return Task.FromResult(System.IO.File.Exists(PathOps.ToNative(fullPath)));
     }
 
     // Returns the tracked folder entity, creating and saving one when the path has none.
     private async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
     {
-        var normalized = folderPath.Replace('\\', '/');
+        var normalized = PathOps.NormalizeSlash(folderPath);
         var existing = await _db.Set<Folder>().FirstOrDefaultAsync(f => normalized == f.Path, ct);
         if (existing is not null)
         {
