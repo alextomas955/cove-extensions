@@ -21,11 +21,9 @@ import { FilenameSection } from "./FilenameSection";
 import { TokenSettingsSection } from "./TokenSettingsSection";
 import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
 
-/**
- * Options seeded so every conditional control is actually on screen. An empty list draws no chip and
- * no button, and a format matching a preset reveals no custom input, so a run against the defaults
- * would pass on a panel where half the controls it claims to cover were never rendered.
- */
+// Options seeded so every conditional control is actually on screen. An empty list draws no chip and
+// no button, and a format matching a preset reveals no custom input, so a run against the defaults
+// would pass on a panel where half the controls it claims to cover were never rendered.
 function seededOptions(): RenamerOptions {
   const base = someOptions();
   return {
@@ -61,7 +59,7 @@ function seededOptions(): RenamerOptions {
 
 const LIBRARY: LibraryPathsState = { paths: ["/media"], loading: false, failed: false };
 
-/** Every section that renders a field, each in a block naming it, in one document. */
+// Every section that renders a field, each in a block naming it, in one document.
 function Panel() {
   const options = seededOptions();
   const noop = () => undefined;
@@ -133,20 +131,18 @@ async function renderPanel() {
   };
 }
 
-/**
- * The HTML labelable elements. `button` is on this list, which is the whole reason a heading over a
- * chip row activates a chip.
- */
+// The HTML labelable elements. `button` is on this list, which is the whole reason a heading over a
+// chip row activates a chip.
 const LABELABLE = 'button, input:not([type="hidden"]), select, textarea, meter, output, progress';
 
-/** What clicking a label activates: its `for` target when it has one, else its first labelable child. */
+// What clicking a label activates: its `for` target when it has one, else its first labelable child.
 function activationTarget(label: HTMLLabelElement): Element | null {
   const forId = label.getAttribute("for");
   if (forId !== null) return label.ownerDocument.getElementById(forId);
   return label.querySelector(LABELABLE);
 }
 
-/** The heading a user reads for this label - the Field's own text, not the control's contents. */
+// The heading a user reads for this label - the Field's own text, not the control's contents.
 function headingOf(label: Element): string {
   const first = label.firstElementChild;
   if (first?.tagName === "SPAN") {
@@ -160,10 +156,8 @@ function sectionOf(el: Element): string {
   return el.closest("[data-section]")?.getAttribute("data-section") ?? "(no section)";
 }
 
-/**
- * The nearest card heading above an element. Two fields share the label "Separator" - one per token
- * group - so a report naming only the section and the label cannot say which of them is broken.
- */
+// The nearest card heading above an element. Two fields share the label "Separator" - one per token
+// group - so a report naming only the section and the label cannot say which of them is broken.
 function cardOf(el: Element): string {
   for (let scope = el.parentElement; scope !== null; scope = scope.parentElement) {
     const heading = scope.querySelector("h3, h4");
@@ -199,21 +193,17 @@ function accessibleName(el: Element): string {
   return (el.closest("label")?.textContent ?? "").trim();
 }
 
-/**
- * The one shape where a label activating a button is right: the label wraps that button and nothing
- * else labelable, so it names exactly the control it operates. A switch is the case in hand.
- */
+// The one shape where a label activating a button is right: the label wraps that button and nothing
+// else labelable, so it names exactly the control it operates. A switch is the case in hand.
 function namesOnlyThatControl(label: HTMLLabelElement, target: Element): boolean {
   const labelable = [...label.querySelectorAll(LABELABLE)];
   return labelable.length === 1 && labelable[0] === target;
 }
 
-/**
- * The gap this allowance records: the host draws the entity selector's input, and on the Cove floor
- * this extension declares it exposes neither an id to point `htmlFor` at nor a name hook, so that
- * input carries no accessible name of its own. Its block is named instead, and a group name does not
- * name a nested textbox. A Cove release exposing a name hook on the selector closes it.
- */
+// The gap this allowance records: the host draws the entity selector's input, and on the Cove floor
+// this extension declares it exposes neither an id to point `htmlFor` at nor a name hook, so that
+// input carries no accessible name of its own. Its block is named instead, and a group name does not
+// name a nested textbox. A Cove release exposing a name hook on the selector closes it.
 const HOST_SELECTOR_INPUT = {
   reason: "the host entity selector's own search input, unnamed on the declared Cove floor",
   matches: (el: Element) => el.closest(`[${HOST_SELECTOR_MARK}]`) !== null,

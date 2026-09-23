@@ -14,11 +14,11 @@ import { type RenamerOptions } from "../options";
 import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
-/** The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails. */
+// The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
 const host = vi.hoisted(() => ({
   pages: [] as unknown[],
   rowReads: 0,
-  /** Past this the endpoint never answers, so a runaway walk fails a count instead of hanging. */
+  // Past this the endpoint never answers, so a runaway walk fails a count instead of hanging.
   readCap: 40,
 }));
 
@@ -55,7 +55,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended. */
+// Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended.
 function walkFinished(modal: { text: () => string }): boolean {
   const text = modal.text();
   return text.includes("in scan order") && !text.includes("rows loaded");
@@ -76,7 +76,7 @@ function row(fileId: number): ScanRow {
   };
 }
 
-/** A page that stopped on the server's entity budget rather than at the end of the library. */
+// A page that stopped on the server's entity budget rather than at the end of the library.
 function budgetStopped(rows: ScanRow[], afterEntityId: number): ScanRowsPage {
   return {
     rows,
@@ -86,7 +86,7 @@ function budgetStopped(rows: ScanRow[], afterEntityId: number): ScanRowsPage {
   };
 }
 
-/** The last page of a walk: no cursor survives it. */
+// The last page of a walk: no cursor survives it.
 function finalPage(rows: ScanRow[]): ScanRowsPage {
   return { rows, next: null, entitiesExamined: 500, budgetExhausted: false };
 }
@@ -147,12 +147,10 @@ beforeEach(() => {
   host.rowReads = 0;
 });
 
-/**
- * The most reads the script below can honestly need. Two requests reach the endpoint on their own
- * account - the walk's primed first page and the continuation's one follow-up - and whichever of them
- * meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
- * leaves this behind immediately.
- */
+// The most reads the script below can honestly need. Two requests reach the endpoint on their own
+// account - the walk's primed first page and the continuation's one follow-up - and whichever of them
+// meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
+// leaves this behind immediately.
 const MOST_READS_A_FAILING_WALK_NEEDS = 4;
 
 test("the walk follows a page that carried no rows and reaches the end of the library", async () => {

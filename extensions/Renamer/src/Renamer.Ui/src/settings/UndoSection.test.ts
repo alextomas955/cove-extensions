@@ -9,7 +9,7 @@ import { createRoot } from "react-dom/client";
 import { waitFor } from "../common/lib/flushRender";
 
 const server = vi.hoisted(() => ({
-  /** Rejection handed to the undo POST, or null to answer it with a clean full restore. */
+  // Rejection handed to the undo POST, or null to answer it with a clean full restore.
   undoRejection: null as Error | null,
 }));
 
@@ -58,7 +58,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
 
 const { UndoSection } = await import("./UndoSection");
 
-/** Mount the section, run the undo to its verdict, and hand back the text a user would read. */
+// Mount the section, run the undo to its verdict, and hand back the text a user would read.
 async function undoAndReadFeedback(): Promise<string> {
   const container = document.createElement("div");
   document.body.append(container);

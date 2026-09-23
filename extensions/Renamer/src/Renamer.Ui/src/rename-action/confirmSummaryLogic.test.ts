@@ -82,13 +82,11 @@ test("a confirm built without a summary still promises the undo", () => {
   assert.match(text, /You can undo this afterwards\./);
 });
 
-/**
- * The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
- * the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
- * Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
- * `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
- * rename simply never appears.
- */
+// The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
+// the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
+// Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
+// `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
+// rename simply never appears.
 const OVERFLOW_COUNT_WIRE_FIELD = "inFlightPathOverflowCount";
 
 test("a cross-drive batch whose temporary copies will not fit says so before the user approves", () => {
@@ -115,15 +113,13 @@ test("a confirm built without a summary says nothing about an overflow either", 
   assert.doesNotMatch(text, /cannot be copied across drives/);
 });
 
-/**
- * The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
- * members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
- * rest are executor-only and are produced after this confirm has already been approved.
- *
- * Written out because the failure this guards is silent. A status with no clause is not counted, so the
- * headline the user approves a rename against reads lower than the truth, and where it is the only
- * reason anything was skipped the explanation disappears from the dialog altogether.
- */
+// The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
+// members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
+// rest are executor-only and are produced after this confirm has already been approved.
+//
+// Written out because the failure this guards is silent. A status with no clause is not counted, so the
+// headline the user approves a rename against reads lower than the truth, and where it is the only
+// reason anything was skipped the explanation disappears from the dialog altogether.
 const PLANNER_SKIP_STATUSES = [
   "skipGated",
   "skipCollision",

@@ -13,7 +13,7 @@ import { type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
 import type { PreviewSampleResult } from "../wire/api";
 
-/** Every POST the hook issued, each holding its own settle handles. */
+// Every POST the hook issued, each holding its own settle handles.
 const host = vi.hoisted(() => ({
   calls: [] as {
     aborted: () => boolean;
@@ -55,10 +55,8 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/**
- * Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
- * real elapsed time, because a debounce is a timer and nothing renders while it runs.
- */
+// Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
+// real elapsed time, because a debounce is a timer and nothing renders while it runs.
 const PAST_DEBOUNCE_MS = 400;
 
 function sample(label: string): PreviewSampleResult[] {
@@ -74,7 +72,7 @@ function sample(label: string): PreviewSampleResult[] {
   ];
 }
 
-/** Mount the hook and hand back its latest return value, a way to change its options, and a teardown. */
+// Mount the hook and hand back its latest return value, a way to change its options, and a teardown.
 function mountHook(initial: RenamerOptions) {
   let latest: UseRenamePreview | null = null;
   function Probe({ options }: { options: RenamerOptions }) {

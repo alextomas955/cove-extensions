@@ -4,22 +4,20 @@ import assert from "node:assert/strict";
 import { buildUndoFeedback, buildUndoStatus, RETENTION_WINDOW_MS } from "./undoLogic";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
-/**
- * The window in milliseconds, transcribed by hand rather than read from the module, and the same
- * number `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` transcribes on the server side. Three
- * hand-written copies of one constant is the price of it having no wire field; an expectation computed
- * from `RETENTION_WINDOW_MS` would agree with it however far it drifted from the server.
- */
+// The window in milliseconds, transcribed by hand rather than read from the module, and the same
+// number `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` transcribes on the server side. Three
+// hand-written copies of one constant is the price of it having no wire field; an expectation computed
+// from `RETENTION_WINDOW_MS` would agree with it however far it drifted from the server.
 const SEVEN_DAYS_MS = 604_800_000;
 
-/** .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds. */
+// .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds.
 const TICKS_AT_EPOCH = 62135596800000 * 10000;
 
 function ticksFor(epochMs: number): number {
   return epochMs * 10000 + TICKS_AT_EPOCH;
 }
 
-/** A batch that opened at `writtenMs`, with the three figures the server guarantees sum to `count`. */
+// A batch that opened at `writtenMs`, with the three figures the server guarantees sum to `count`.
 function summary(
   writtenMs: number,
   counts: { count: number; remainingCount: number; unrestorableCount?: number },
@@ -35,7 +33,7 @@ function summary(
   };
 }
 
-/** An undo response with every channel empty, so each case declares only what it is about. */
+// An undo response with every channel empty, so each case declares only what it is about.
 function undoResult(overrides: Partial<UndoResult>): UndoResult {
   return {
     undone: 0,
@@ -53,10 +51,10 @@ function error(reason: string) {
   return { fileId: 1, oldPath: "a.mp4", newPath: "b.mp4", reason };
 }
 
-/** Written just before New Year so the expiry lands in the FOLLOWING year, whatever the locale. */
+// Written just before New Year so the expiry lands in the FOLLOWING year, whatever the locale.
 const WRITTEN_MS = Date.UTC(2026, 11, 30, 12, 0, 0);
 
-/** The line without its trailing expiry clause, which is a locale-formatted date. */
+// The line without its trailing expiry clause, which is a locale-formatted date.
 function lineBeforeExpiry(line: string): string {
   const parts = line.split(" · ");
   return parts.slice(0, -1).join(" · ");

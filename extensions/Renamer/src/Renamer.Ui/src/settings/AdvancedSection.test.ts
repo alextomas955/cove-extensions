@@ -37,7 +37,7 @@ async function renderAdvanced() {
   };
 }
 
-/** How many text nodes read exactly `text`. */
+// How many text nodes read exactly `text`.
 function textNodes(container: HTMLElement, text: string): number {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let found = 0;
@@ -68,7 +68,7 @@ const SHIPS = [
   "Only when the name appears as a whole word.",
 ];
 
-/** Every sentence and its count, so a run names each one that disagrees. */
+// Every sentence and its count, so a run names each one that disagrees.
 function counts(container: HTMLElement, sentences: readonly string[]): Record<string, number> {
   return Object.fromEntries(sentences.map((s) => [s, textNodes(container, s)]));
 }

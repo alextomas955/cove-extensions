@@ -22,17 +22,15 @@ import {
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
 
-/**
- * Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
- * hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
- * under test passes however far the two sides drift, and a drift means a row appearing in a segment it
- * was never counted in.
- *
- * Keyed by the generated wire union rather than by `string`, so a status added on the server is a
- * compile error here instead of a table that quietly stops covering it. That does not let the two
- * agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
- * hand transcription this table exists to be.
- */
+// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
+// hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
+// under test passes however far the two sides drift, and a drift means a row appearing in a segment it
+// was never counted in.
+//
+// Keyed by the generated wire union rather than by `string`, so a status added on the server is a
+// compile error here instead of a table that quietly stops covering it. That does not let the two
+// agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
+// hand transcription this table exists to be.
 const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   rename: "will-change",
   move: "will-change",
@@ -80,11 +78,9 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("all"), "all");
 });
 
-/**
- * A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
- * nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
- * open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
- */
+// A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
+// nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
+// open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
 const STALLED_WALK = {
   loadedRows: 6,
   targetRows: 35,
@@ -340,13 +336,11 @@ test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
   assert.equal(ETA_SMOOTHING, 0.3);
 });
 
-/**
- * The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
- * `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
- * serializer. Written out here rather than read from the generated wire types, because a key spelled
- * wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
- * not the type-check, not the request, not this suite if it asked the module for the name it already uses.
- */
+// The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
+// `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
+// serializer. Written out here rather than read from the generated wire types, because a key spelled
+// wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
+// not the type-check, not the request, not this suite if it asked the module for the name it already uses.
 const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
 
 test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {

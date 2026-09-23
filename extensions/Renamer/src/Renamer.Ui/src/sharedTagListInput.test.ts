@@ -61,11 +61,9 @@ function chips(container: HTMLElement): string[] {
   );
 }
 
-/**
- * Types into the box. Nothing to wait for: React flushes the work an event scheduled before it
- * dispatches the next one, so the key press after this already runs a handler that has the text.
- * What the test then reads off the screen is what the test waits for.
- */
+// Types into the box. Nothing to wait for: React flushes the work an event scheduled before it
+// dispatches the next one, so the key press after this already runs a handler that has the text.
+// What the test then reads off the screen is what the test waits for.
 function type(container: HTMLElement, text: string) {
   const el = input(container);
   // React tracks the input's own `value` property, so assigning to it looks like no change at all.
@@ -75,7 +73,7 @@ function type(container: HTMLElement, text: string) {
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/** Presses a key and reports whether the component handled it, which it signals by suppressing it. */
+// Presses a key and reports whether the component handled it, which it signals by suppressing it.
 async function press(container: HTMLElement, key: string): Promise<boolean> {
   const el = input(container);
   const activeBefore = el.getAttribute("aria-activedescendant");
@@ -106,15 +104,13 @@ async function focus(container: HTMLElement) {
   );
 }
 
-/**
- * Picks a suggestion with the mouse, as a browser drives it: `mousedown`, then `click`. Reports
- * whether the list suppressed the `mousedown`, which is what keeps the caret in the box.
- *
- * jsdom runs no default action for `mousedown`, so the focus move a real browser performs is
- * performed here, and only when the component did not suppress the event. A browser also flushes
- * React's pending work before dispatching the click, so the blur's commit is settled first - which is
- * what turns "the box lost focus" into "the half-typed query became a chip".
- */
+// Picks a suggestion with the mouse, as a browser drives it: `mousedown`, then `click`. Reports
+// whether the list suppressed the `mousedown`, which is what keeps the caret in the box.
+//
+// jsdom runs no default action for `mousedown`, so the focus move a real browser performs is
+// performed here, and only when the component did not suppress the event. A browser also flushes
+// React's pending work before dispatching the click, so the blur's commit is settled first - which is
+// what turns "the box lost focus" into "the half-typed query became a chip".
 async function clickOption(container: HTMLElement, label: string): Promise<boolean> {
   const option = [...container.querySelectorAll('[role="option"]')].find(
     (o) => o.textContent.trim() === label,

@@ -12,13 +12,13 @@ import { waitFor } from "../common/lib/flushRender";
 import type { DryRunCounts } from "./dry-run/dryRunLogic";
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
 
-/** The stubbed endpoint's script, hoisted so the module factories below can reach it. */
+// The stubbed endpoint's script, hoisted so the module factories below can reach it.
 const host = vi.hoisted(() => ({
-  /** Every path the hook requested, in order. */
+  // Every path the hook requested, in order.
   reads: [] as string[],
-  /** The status every job-status read answers with. */
+  // The status every job-status read answers with.
   status: "running",
-  /** The progress every job-status read answers with. Held constant to starve the stall clock. */
+  // The progress every job-status read answers with. Held constant to starve the stall clock.
   progress: 0.25,
 }));
 
@@ -43,7 +43,7 @@ vi.mock("./jobPollLogic", async (importOriginal) => ({
   JOB_FAILURE_ALLOWANCE: 1,
 }));
 
-/** The scan counts the Dry Run modal hands the shared handler, so no scan job runs first. */
+// The scan counts the Dry Run modal hands the shared handler, so no scan job runs first.
 const COUNTS: DryRunCounts = { willChange: 3, attention: 0, noChange: 0, scanned: 3 };
 
 const sleep = (ms: number) =>
@@ -51,7 +51,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Mount the hook and hand back its latest return value plus a teardown. */
+// Mount the hook and hand back its latest return value plus a teardown.
 async function mountHook() {
   let latest: UseRenameLibrary | null = null;
   function Probe() {

@@ -11,7 +11,7 @@ import { waitFor } from "../common/lib/flushRender";
 import { DestinationField } from "./DestinationField";
 import { CONTAINING_ROOT, type Destination, type LibraryPathsState } from "./options";
 
-/** A template a user typed as a path, which is what the hint exists to catch. */
+// A template a user typed as a path, which is what the hint exists to catch.
 const TYPED_PATH = "D:/Media/Studio";
 
 async function renderField(library: LibraryPathsState, template = TYPED_PATH) {

@@ -9,11 +9,11 @@ import { useRenamerOptions, type UseRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
 import type { OptionsView } from "./options";
 
-/** The stubbed endpoint's script, hoisted so the module factory below can reach it. */
+// The stubbed endpoint's script, hoisted so the module factory below can reach it.
 const endpoint = vi.hoisted(() => ({
-  /** What `GET /options` answers. */
+  // What `GET /options` answers.
   view: null as OptionsView | null,
-  /** Every non-GET call, in order. */
+  // Every non-GET call, in order.
   sent: [] as { path: string; method: string; body: unknown }[],
 }));
 
@@ -37,18 +37,16 @@ declare global {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-/**
- * Apply a synchronous change and return once React has committed it and the effects it started have
- * settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
- * caller reads committed state rather than whatever a fixed wait happened to catch.
- */
+// Apply a synchronous change and return once React has committed it and the effects it started have
+// settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
+// caller reads committed state rather than whatever a fixed wait happened to catch.
 const commit = (change: () => void) =>
   act(async () => {
     change();
     await Promise.resolve();
   });
 
-/** Mount the hook and hand back its latest return value plus a teardown. */
+// Mount the hook and hand back its latest return value plus a teardown.
 async function mountHook() {
   let latest: UseRenamerOptions | null = null;
   function Probe() {

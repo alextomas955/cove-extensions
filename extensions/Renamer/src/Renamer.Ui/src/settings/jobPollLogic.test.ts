@@ -12,7 +12,7 @@ import {
   type PollContext,
 } from "./jobPollLogic";
 
-/** A context with room on both bounds, so each case below varies only what it is about. */
+// A context with room on both bounds, so each case below varies only what it is about.
 function ctx(overrides: Partial<PollContext> = {}): PollContext {
   return {
     msSinceProgress: 0,

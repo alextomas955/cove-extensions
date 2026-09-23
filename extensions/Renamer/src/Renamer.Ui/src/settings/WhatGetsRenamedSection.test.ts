@@ -31,7 +31,7 @@ async function renderSection() {
   };
 }
 
-/** The last element whose whole text is `text`. */
+// The last element whose whole text is `text`.
 function innermost(container: HTMLElement, text: string): Element | undefined {
   return [...container.querySelectorAll("*")].filter((e) => e.textContent.trim() === text).at(-1);
 }
