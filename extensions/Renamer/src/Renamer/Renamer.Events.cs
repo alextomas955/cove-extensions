@@ -2,7 +2,6 @@ using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer;
@@ -50,7 +49,7 @@ public sealed partial class Renamer
 
         try
         {
-            var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+            var options = await StoredOptions.LoadAsync(ct);
             if (!options.AutoRenamerOnUpdate)
             {
                 return; // opt-in, default off — do no database work when disabled.

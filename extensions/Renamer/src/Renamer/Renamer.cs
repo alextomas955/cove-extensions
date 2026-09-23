@@ -259,6 +259,8 @@ public sealed partial class Renamer : FullExtensionBase
         }
     }
 
+    private OptionsStore StoredOptions => new(Store, _log);
+
     // Maps a Cove entity-type string to a RenamerFileKind, case-insensitively. Gallery and unknown
     // types return false with the kind defaulted. Hand-written, not Enum.Parse: Cove's type strings
     // do not map one to one onto the enum names.

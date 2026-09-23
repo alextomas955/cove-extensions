@@ -26,7 +26,7 @@ public sealed partial class Renamer
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
         Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
-        var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = overrideOptions ?? await StoredOptions.LoadAsync(ct);
 
         // Held for the whole run, and deliberately not elevated: the decision reads the caller from
         // its argument, not from the ambient principal. The calls are sequential from the page loop,
@@ -172,7 +172,7 @@ public sealed partial class Renamer
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
         Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
     {
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         // Held for the whole run, and deliberately not elevated: the decision reads the caller from
         // its argument, not from the ambient principal. The calls are sequential from the page loop,
@@ -217,11 +217,11 @@ public sealed partial class Renamer
 
             // A kind that ran out of room stops, and the walk moves to the next kind, which may sit on
             // another volume. The refusal is collected because the run's own final report is the only
-            // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
+            // one the host keeps: SliceProgress holds back a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
             string? shortfall = await RunRenamerKindAsync(
                 new RenameRun(kind, count, operationId, options, freeSpaceProbe), allowedIds,
-                new KindSliceProgress(progress, planned, count, total), ct);
+                new SliceProgress(progress, planned, count, total, holdFinal: true), ct);
             if (shortfall is not null)
             {
                 refused.Add(kind);
@@ -236,25 +236,5 @@ public sealed partial class Renamer
                 ? "Library rename complete."
                 : $"Stopped: insufficient free space for {string.Join(", ", refused)}. "
                     + "Files renamed before each stop stay renamed.");
-    }
-
-    // Maps one kind's [0, 1] batch progress onto that kind's share of a whole-library run. The run's
-    // own final report owns 1.0, and a batch reports 1.0 on every exit it has, so the last kind's is
-    // dropped. total is never zero: a kind is only run when it has ids.
-    private sealed class KindSliceProgress(
-        Cove.Plugins.IJobProgress inner, int offset, int share, int total) : Cove.Plugins.IJobProgress
-    {
-        public void Report(double percent, string? message = null)
-        {
-            // Clamped because the slice arithmetic trusts its input: a batch reporting below 0 maps
-            // under the offset this kind starts at, stepping the bar backward.
-            double scaled = (offset + (Math.Clamp(percent, 0d, 1d) * share)) / total;
-            if (scaled >= 1d)
-            {
-                return;
-            }
-
-            inner.Report(scaled, message);
-        }
     }
 }

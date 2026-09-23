@@ -47,13 +47,23 @@ public sealed partial class Renamer
     private readonly record struct ChunkOutcome(
         int Renamed, int Skipped, int Failed, int ContestedFiles, string? Shortfall);
 
-    // Maps one chunk's own progress onto its share of a run over `total` entities.
-    private sealed class ChunkSliceProgress(IJobProgress inner, int offset, int share, int total) : IJobProgress
+    // Maps one slice's progress onto its share of a run over `total` entities, clamped so a report
+    // below 0 cannot step the bar backward. With holdFinal a report that would complete the run is
+    // dropped, so only the caller's own closing report lands the bar.
+    private sealed class SliceProgress(
+        IJobProgress inner, int offset, int share, int total, bool holdFinal = false) : IJobProgress
     {
         public void Report(double percent, string? message = null)
-            => inner.Report(
-                Math.Clamp((offset + (Math.Clamp(percent, 0d, 1d) * share)) / Math.Max(total, 1), 0d, 1d),
-                message);
+        {
+            double scaled = Math.Clamp(
+                (offset + (Math.Clamp(percent, 0d, 1d) * share)) / Math.Max(total, 1), 0d, 1d);
+            if (holdFinal && scaled >= 1d)
+            {
+                return;
+            }
+
+            inner.Report(scaled, message);
+        }
     }
 
     // The free-space reading the up-front refusal and the in-flight re-check share. An unprobeable
@@ -90,7 +100,7 @@ public sealed partial class Renamer
             return;
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         int taken = 0;
         Task<IReadOnlyList<int>> NextChunk(CancellationToken token)
@@ -214,7 +224,7 @@ public sealed partial class Renamer
 
             var outcome = await RunRenameChunkAsync(
                 run, chunk, lookups, journal, freeSpaceProbe,
-                new ChunkSliceProgress(progress, entitiesDone, chunk.Count, run.TotalEntities), ct);
+                new SliceProgress(progress, entitiesDone, chunk.Count, run.TotalEntities), ct);
 
             renamed += outcome.Renamed;
             skipped += outcome.Skipped;

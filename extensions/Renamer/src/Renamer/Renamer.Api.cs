@@ -245,7 +245,7 @@ public sealed partial class Renamer
         }
 
         var stored = await Store.GetAsync(OptionsStore.Key, ct);
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
 
         return TypedResults.Ok(new OptionsView(
             options,
@@ -295,7 +295,7 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
         }
 
-        await new OptionsStore(Store, _log).SaveAsync(options, ct);
+        await StoredOptions.SaveAsync(options, ct);
         return TypedResults.NoContent();
     }
 
@@ -350,7 +350,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
         int[] studioIds = [.. options.StudioDestinations.Keys];
         int[] tagIds = [.. options.TagDestinations.Keys];
 
@@ -413,7 +413,7 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
         }
 
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = await StoredOptions.LoadAsync(ct);
         var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
@@ -557,6 +557,11 @@ public sealed partial class Renamer
     private static readonly string[] AnyWritePermissions =
         [.. RenamableKinds.All.Select(k => PermissionsFor(k).Write)];
 
+    // The kinds whose read, or write, permission the caller holds.
+    private static RenamerFileKind[] HeldKinds(ICurrentPrincipalAccessor principal, bool write) =>
+        [.. RenamableKinds.All.Where(k => principal.Current is { } current
+            && current.Has(write ? PermissionsFor(k).Write : PermissionsFor(k).Read))];
+
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
 
@@ -587,7 +592,7 @@ public sealed partial class Renamer
         // detached job cannot read the request.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
-        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = HeldKinds(principal, write: false);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
@@ -612,7 +617,7 @@ public sealed partial class Renamer
         try
         {
             var bound = JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
-            return bound is null ? null : new OptionsStore(Store, _log).Repair(bound);
+            return bound is null ? null : StoredOptions.Repair(bound);
         }
         catch (JsonException)
         {
@@ -659,7 +664,7 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = HeldKinds(principal, write: false);
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
     }
 
@@ -694,7 +699,7 @@ public sealed partial class Renamer
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
         }
 
-        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
+        var options = TryParseOptionsOverride(body?.Options) ?? await StoredOptions.LoadAsync(ct);
         var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         // A kind turned off is dropped before the walk, exactly as RunScanCoreAsync drops it. Left in,
         // a library-sized kind that is off fills the table with rows saying so and spends the request's
@@ -728,7 +733,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var writableKinds = HeldKinds(principal, write: true);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
@@ -794,7 +799,7 @@ public sealed partial class Renamer
             options = req?.Options;
         }
 
-        options = options is null ? new RenamerOptions() : new OptionsStore(Store, _log).Repair(options);
+        options = options is null ? new RenamerOptions() : StoredOptions.Repair(options);
 
         var results = SampleTokenSets.All
             .Select(sample => RenderSample(sample, options))
