@@ -81,7 +81,7 @@ public sealed partial class Renamer
         {
             await WriteScanSummaryAsync(aggregator, ct);
             LogScanDone(0, 0);
-            progress.Report(1d, "Scan complete — nothing to scan.");
+            progress.Report(1d, "Scan complete. Nothing to scan.");
             return;
         }
 

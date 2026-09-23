@@ -57,7 +57,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
         ) : summaryError ? (
           <div className="flex flex-wrap items-center justify-end gap-3">
             <StatusText kind="error">
-              Couldn&apos;t check for a recent rename — {summaryError}.
+              Couldn&apos;t check for a recent rename: {summaryError}.
             </StatusText>
             <Button variant="ghost" onClick={() => void reload()}>
               Retry

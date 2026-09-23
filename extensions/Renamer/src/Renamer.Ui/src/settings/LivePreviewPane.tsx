@@ -19,7 +19,7 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
       <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)] lg:sticky lg:top-16">
         <div className="text-base font-semibold text-foreground">Live preview</div>
         {previewError ? (
-          <StatusText kind="error">Preview unavailable — saved naming still works.</StatusText>
+          <StatusText kind="error">Preview unavailable. Saved naming still works.</StatusText>
         ) : null}
         {preview != null ? (
           <div className="space-y-3">

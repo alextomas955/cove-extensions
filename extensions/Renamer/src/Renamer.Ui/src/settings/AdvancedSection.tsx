@@ -207,7 +207,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               }}
               ordered
               suggestions={BARE_TOKENS}
-              placeholder="Add a token — type to search"
+              placeholder="Type to add a token"
               ariaLabel="Drop order"
             />
             <TokenAdvisory values={options.dropOrder} />
@@ -275,7 +275,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             never want this extension to touch. All three flow through set() like every other control. */}
       <CollapsibleSection
         title="Excludes"
-        summary="Skip items by tag, studio, or source path — before any routing"
+        summary="Skip items by tag, studio, or source path, before any routing"
       >
         <EntitySelectField
           entityType="tag"

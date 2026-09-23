@@ -186,15 +186,15 @@ test("the last millisecond inside the window is not expired", () => {
 test("a clean undo reads as a success and counts the files it moved", () => {
   assert.deepEqual(buildUndoFeedback(undoResult({ undone: 12 })), {
     kind: "success",
-    text: "Undone — 12 files moved back to their original names.",
+    text: "Undone: 12 files moved back to their original names.",
   });
   assert.deepEqual(buildUndoFeedback(undoResult({ undone: 1 })), {
     kind: "success",
-    text: "Undone — 1 file moved back to their original names.",
+    text: "Undone: 1 file moved back to their original names.",
   });
   assert.deepEqual(buildUndoFeedback(undoResult({})), {
     kind: "success",
-    text: "Undone — 0 files moved back to their original names.",
+    text: "Undone: 0 files moved back to their original names.",
   });
 });
 
@@ -212,7 +212,7 @@ test("a partial undo counts the problems from the totals, never from the samples
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undo finished with problems — 500 files couldn't be moved back (access denied). The rest were restored.",
+    text: "Undo finished with problems: 500 files couldn't be moved back (access denied). The rest were restored.",
   });
 });
 
@@ -222,7 +222,7 @@ test("one problem file is one file", () => {
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undo finished with problems — 1 file couldn't be moved back (gone). The rest were restored.",
+    text: "Undo finished with problems: 1 file couldn't be moved back (gone). The rest were restored.",
   });
 });
 
@@ -243,7 +243,7 @@ test("a problem count with an empty sample names no reason rather than an undefi
   const feedback = buildUndoFeedback(undoResult({ undone: 0, failedCount: 7 }));
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Couldn't undo — unknown reason. Nothing was changed.",
+    text: "Couldn't undo: unknown reason. Nothing was changed.",
   });
 });
 
@@ -253,7 +253,7 @@ test("an undo that restored nothing says nothing was changed", () => {
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Couldn't undo — access denied. Nothing was changed.",
+    text: "Couldn't undo: access denied. Nothing was changed.",
   });
 });
 
@@ -267,7 +267,7 @@ test("a stranded companion is reported beside a run that otherwise succeeded", (
   );
   assert.deepEqual(feedback, {
     kind: "error",
-    text: "Undone — 12 files moved back to their original names. 2 companion files stayed behind (poster.jpg is still under the renamed name).",
+    text: "Undone: 12 files moved back to their original names. 2 companion files stayed behind (poster.jpg is still under the renamed name).",
   });
 });
 
@@ -299,6 +299,6 @@ test("a stranded companion rides on a partial undo too", () => {
   );
   assert.equal(
     feedback.text,
-    "Undo finished with problems — 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
+    "Undo finished with problems: 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
   );
 });

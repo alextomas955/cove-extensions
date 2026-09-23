@@ -54,7 +54,7 @@ function dirname(p: string): string {
 
 // An attention row's cell is left empty; its badge is the row's only statement of the reason.
 function newNameLabel(bucket: string, nameChanged: boolean, newName: string): string {
-  if (bucket === "no-change") return "— unchanged";
+  if (bucket === "no-change") return "(unchanged)";
   if (bucket !== "will-change") return "";
   return nameChanged ? newName : "(name unchanged)";
 }
@@ -65,8 +65,8 @@ function emptyText(loading: boolean, complete: boolean, searching: boolean): str
     return searching ? "Nothing in your library matches that search." : "No rows in this view.";
   }
   return searching
-    ? "No matches yet — there is more of your library left to search."
-    : "No rows yet — there is more of your library left to read.";
+    ? "No matches yet. There is more of your library left to search."
+    : "No rows yet. There is more of your library left to read.";
 }
 
 function DryRunRow({
@@ -264,7 +264,7 @@ export function DryRunRows({
       {error ? (
         <div className="mt-3">
           <ErrorBox>
-            Couldn&apos;t load more rows — {error}. The rows above are still accurate; try again.
+            Couldn&apos;t load more rows: {error}. The rows above are still accurate; try again.
           </ErrorBox>
         </div>
       ) : null}

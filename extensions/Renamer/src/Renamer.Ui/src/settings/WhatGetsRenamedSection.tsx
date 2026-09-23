@@ -34,7 +34,7 @@ function RequiredFields({
           values={values}
           onChange={onChange}
           suggestions={BARE_TOKENS}
-          placeholder="Add a token — type to search"
+          placeholder="Type to add a token"
           ariaLabel="Required fields"
         />
         <TokenAdvisory values={values} />

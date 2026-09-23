@@ -18,10 +18,10 @@ async function render(props: Parameters<typeof RuleKeyLabel>[0]): Promise<string
 
 test("a deleted entity names its kind, the id it held, and that the rule is inert", async () => {
   expect(await render({ entityType: "studio", id: 210, orphaned: true })).toBe(
-    "Deleted studio (was #210) — this rule no longer applies",
+    "Deleted studio (was #210). This rule no longer applies.",
   );
   expect(await render({ entityType: "tag", id: 7, orphaned: true })).toBe(
-    "Deleted tag (was #7) — this rule no longer applies",
+    "Deleted tag (was #7). This rule no longer applies.",
   );
 });
 

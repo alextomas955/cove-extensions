@@ -73,7 +73,7 @@ export function decidePoll(observation: PollObservation, context: PollContext): 
       return {
         action: "expire",
         message:
-          "Cove stopped answering when asked about this job. It may still be running — check your library before trying again",
+          "Cove stopped answering when asked about this job. It may still be running, so check your library before trying again",
       };
     }
     return { action: "continue" };
@@ -88,7 +88,7 @@ export function decidePoll(observation: PollObservation, context: PollContext): 
     return {
       action: "expire",
       message:
-        "the job stopped reporting progress. It may still be running — check your library before trying again",
+        "the job stopped reporting progress. It may still be running, so check your library before trying again",
     };
   }
 

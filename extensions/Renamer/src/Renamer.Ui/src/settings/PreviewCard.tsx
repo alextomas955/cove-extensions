@@ -17,7 +17,7 @@ function flagMessage(flag: string, r: PreviewSampleResult): string | null {
       return "⚠ Adjusted: illegal characters were stripped or replaced.";
     case "length-reduced":
       return r.droppedFields.length > 0
-        ? `⚠ Shortened to fit the path limit — dropped: ${r.droppedFields.join(", ")}.`
+        ? `⚠ Shortened to fit the path limit. Dropped: ${r.droppedFields.join(", ")}.`
         : "⚠ Shortened to fit the path limit.";
     case "gating-skip":
       return "⚠ Would be skipped: a required field is missing for this sample.";

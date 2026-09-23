@@ -297,7 +297,7 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   const early = etaFromSamples([
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow seed (rate #1)
-    { timeMs: 7400, progress: 0.52 }, // one fast poll (rate #2 — now shown)
+    { timeMs: 7400, progress: 0.52 }, // one fast poll (rate #2 - now shown)
   ]);
   assert.ok(early !== null && early < 60, `expected under a minute once warmed, got ${early}`);
 });
@@ -317,7 +317,7 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
-      { timeMs: 1000, progress: 0.2 }, // flat — skipped, not a rate
+      { timeMs: 1000, progress: 0.2 }, // flat - skipped, not a rate
       { timeMs: 2000, progress: 0.3 }, // rate #1 only
     ]),
     null,

@@ -102,8 +102,8 @@ export function DestinationField({
             value={value.template}
             message={
               showPicker
-                ? "This is a folder template, not a path — pick the root beside it instead."
-                : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+                ? "This is a folder template, not a path. Pick the root beside it instead."
+                : "This is a folder template, not a path. The whole thing becomes folder names under this destination's root."
             }
           />
           {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by

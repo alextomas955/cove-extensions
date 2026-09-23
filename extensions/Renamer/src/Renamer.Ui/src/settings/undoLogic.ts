@@ -125,7 +125,7 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   if (problemCount === 0) {
     return {
       kind: stranded ? "error" : "success",
-      text: `Undone — ${result.undone} ${plural(result.undone, "file", "files")} moved back to their original names.${stranded}`,
+      text: `Undone: ${result.undone} ${plural(result.undone, "file", "files")} moved back to their original names.${stranded}`,
     };
   }
 
@@ -140,11 +140,11 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   if (result.undone > 0) {
     return {
       kind: "error",
-      text: `Undo finished with problems — ${problemCount} ${plural(problemCount, "file", "files")} couldn't be moved back (${firstReason}). The rest were restored.${stranded}`,
+      text: `Undo finished with problems: ${problemCount} ${plural(problemCount, "file", "files")} couldn't be moved back (${firstReason}). The rest were restored.${stranded}`,
     };
   }
 
-  return { kind: "error", text: `Couldn't undo — ${firstReason}. Nothing was changed.` };
+  return { kind: "error", text: `Couldn't undo: ${firstReason}. Nothing was changed.` };
 }
 
 /**
@@ -161,11 +161,11 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 export function buildUndoUnconfirmed(detail: string): UndoFeedback {
   return {
     kind: "error",
-    text: `Couldn't confirm the undo — ${detail}. Some files may already have been moved back; check the batch before trying again.`,
+    text: `Couldn't confirm the undo: ${detail}. Some files may already have been moved back; check the batch before trying again.`,
   };
 }
 
 /** Compose the sentence for an undo the server answered with a refusal, which moved nothing. */
 export function buildUndoRefused(detail: string): UndoFeedback {
-  return { kind: "error", text: `Couldn't undo — ${detail}. Nothing was changed.` };
+  return { kind: "error", text: `Couldn't undo: ${detail}. Nothing was changed.` };
 }

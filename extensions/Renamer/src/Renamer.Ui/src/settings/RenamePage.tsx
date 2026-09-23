@@ -64,7 +64,7 @@ function SaveBar({
         <div className="min-w-0 flex-1">
           {saveError ? (
             <StatusText kind="error">
-              Couldn't save settings — {saveError}. Your changes are still here; try Save again.
+              Couldn't save settings: {saveError}. Your changes are still here; try Save again.
             </StatusText>
           ) : savedFlash ? (
             <StatusText kind="success">Settings saved.</StatusText>
@@ -135,9 +135,7 @@ export function RenamePage() {
   if (loadError) {
     return (
       <div className="space-y-3">
-        <StatusText kind="error">
-          Couldn't load your saved settings — {loadError}. Retry.
-        </StatusText>
+        <StatusText kind="error">Couldn't load your saved settings: {loadError}. Retry.</StatusText>
         <div>
           <Button variant="ghost" onClick={() => void load()}>
             Retry

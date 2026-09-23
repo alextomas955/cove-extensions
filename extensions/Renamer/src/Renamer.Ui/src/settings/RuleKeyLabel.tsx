@@ -32,7 +32,7 @@ export function RuleKeyLabel({
   // The id is the only handle the user has left for deciding whether to delete the row.
   return (
     <span className="text-muted-foreground">
-      Deleted {entityType} (was #{id}) — this rule no longer applies
+      Deleted {entityType} (was #{id}). This rule no longer applies.
     </span>
   );
 }

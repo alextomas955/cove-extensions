@@ -55,7 +55,7 @@ function input(container: HTMLElement, placeholder: string): HTMLInputElement {
   return el;
 }
 
-const DROP_ORDER_PLACEHOLDER = "Add a token — type to search";
+const DROP_ORDER_PLACEHOLDER = "Type to add a token";
 const ARTICLES_PLACEHOLDER = "Add article, press Enter";
 const DROP_ORDER_EXPLANATION = "Fields dropped (top first) when the name is too long.";
 

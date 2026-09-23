@@ -54,12 +54,12 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1006, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: planning {Index}/{Count} id={EntityId} — {ActingFiles} file(s) will act")]
+        Message = "[Renamer] batch {RunId}: planning {Index}/{Count} id={EntityId}: {ActingFiles} file(s) will act")]
     private partial void LogItemPlanned(string runId, int index, int count, int entityId, int actingFiles);
 
     [LoggerMessage(
         EventId = 1007, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: planning complete — {Acting} file(s) will act across {Planned} item(s)")]
+        Message = "[Renamer] batch {RunId}: planning complete: {Acting} file(s) will act across {Planned} item(s)")]
     private partial void LogPlanningDone(string runId, int acting, int planned);
 
     // The one trace of a refused source-path claim: the rename cannot tell which of the rows owns the
@@ -100,7 +100,7 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1052, Level = LogLevel.Information,
-        Message = "[Renamer] scan library: complete — {Files} file(s) planned from {Total} item(s)")]
+        Message = "[Renamer] scan library: complete: {Files} file(s) planned from {Total} item(s)")]
     private partial void LogScanDone(int files, int total);
 
     [LoggerMessage(

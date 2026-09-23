@@ -36,7 +36,7 @@ const STATUS_BADGES: Record<RenamerStatus, Badge | null> = {
   skipRuleTimedOut: { label: "A regex rule timed out", variant: "amber" },
   skipLocked: { label: "File in use", variant: "amber" },
   skipMissingSource: { label: "File missing on disk", variant: "amber" },
-  failed: { label: "Failed — rolled back", variant: "red" },
+  failed: { label: "Failed and rolled back", variant: "red" },
   skipUnanchored: { label: "File is outside your Cove library", variant: "amber" },
   skipRootMissing: {
     label: "The rule's destination is no longer a library path",

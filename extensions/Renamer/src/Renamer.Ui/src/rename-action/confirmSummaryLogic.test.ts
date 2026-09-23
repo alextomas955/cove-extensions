@@ -187,7 +187,7 @@ test("two kinds are listed as clauses behind one total", () => {
     summary({ totalCount: 2 }),
   );
 
-  assert.match(text, /⚠ 2 skipped — /);
+  assert.match(text, /⚠ 2 skipped: /);
   assert.match(text, /1 need a required field/);
   assert.match(text, /1 would make too long a path/);
 });

@@ -57,18 +57,18 @@ test("the success sentence never states how many files were renamed", () => {
 test("a failed run names the failure and says the library is untouched", () => {
   assert.equal(
     buildRenameLibraryError("500 the job did not complete"),
-    "Couldn't rename — 500 the job did not complete. Nothing was changed; you can try again.",
+    "Couldn't rename: 500 the job did not complete. Nothing was changed; you can try again.",
   );
 });
 
 test("a run the UI stopped watching claims nothing about what the job did", () => {
   const unconfirmed = buildRenameLibraryUnconfirmed(
-    "the job stopped reporting progress. It may still be running — check your library before trying again",
+    "the job stopped reporting progress. It may still be running, so check your library before trying again",
   );
 
   assert.equal(
     unconfirmed,
-    "Couldn't confirm the rename — the job stopped reporting progress. It may still be running — check your library before trying again.",
+    "Couldn't confirm the rename: the job stopped reporting progress. It may still be running, so check your library before trying again.",
   );
   assert.ok(!unconfirmed.includes("Nothing was changed"));
 });

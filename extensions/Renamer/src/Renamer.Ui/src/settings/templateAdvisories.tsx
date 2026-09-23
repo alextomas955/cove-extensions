@@ -26,14 +26,14 @@ export function TemplateAdvisories({
 }) {
   const lines: string[] = [];
   if (!bracesBalanced(value)) {
-    lines.push("Unmatched { or } — it'll still render, but check your groups.");
+    lines.push("Unmatched { or }. It'll still render, but check your groups.");
   }
   for (const tok of unknownTokens(value)) {
     const suggestion = suggestFor(tok);
     lines.push(
       suggestion
-        ? `${tok} isn't a known token — it'll render as empty. Did you mean ${suggestion}?`
-        : `${tok} isn't a known token — it'll render as empty.`,
+        ? `${tok} isn't a known token. It'll render as empty. Did you mean ${suggestion}?`
+        : `${tok} isn't a known token. It'll render as empty.`,
     );
   }
   for (const label of emptySamples) {
@@ -56,8 +56,8 @@ export function TokenAdvisory({ values }: { values: string[] }) {
     const bare = suggestion ? suggestion.slice(1) : undefined;
     lines.push(
       bare
-        ? `"${value}" isn't a known token — it'll be ignored. Did you mean ${bare}?`
-        : `"${value}" isn't a known token — it'll be ignored.`,
+        ? `"${value}" isn't a known token. It'll be ignored. Did you mean ${bare}?`
+        : `"${value}" isn't a known token. It'll be ignored.`,
     );
   }
   return <AdvisoryLines lines={lines} />;

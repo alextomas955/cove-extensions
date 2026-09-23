@@ -110,7 +110,7 @@ export function DryRunModal({
 
       {scan.error !== null && (
         <div className="mb-4">
-          <ErrorBox>Couldn&apos;t scan your library — {scan.error}. Close and try again.</ErrorBox>
+          <ErrorBox>Couldn&apos;t scan your library: {scan.error}. Close and try again.</ErrorBox>
         </div>
       )}
 
@@ -120,7 +120,7 @@ export function DryRunModal({
         <>
           {counts.scanned === 0 ? (
             <p id={DESC_ID} className="py-8 text-center text-sm text-secondary">
-              No items match your current settings — nothing to rename.
+              No items match your current settings. Nothing to rename.
             </p>
           ) : (
             <>

@@ -117,7 +117,7 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
   return level === "heavy"
-    ? `This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. ` +
+    ? `This is a LARGE cross-drive move. Files will be COPIED across drives, which can take a while. ` +
         `Click OK only if you are sure; Cancel to stop. ${reversibility}`
     : level === "standard"
       ? `This moves files across drives. Click OK to proceed, or Cancel to stop. ${reversibility}`
@@ -177,7 +177,7 @@ export function buildConfirmSummary(
   const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
   if (inFlightOverflow > 0) {
     warningLines.push(
-      `⚠ ${inFlightOverflow} cannot be copied across drives — the temporary copy's path would be too ` +
+      `⚠ ${inFlightOverflow} cannot be copied across drives: the temporary copy's path would be too ` +
         `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
     );
   }
@@ -189,7 +189,7 @@ export function buildConfirmSummary(
     } else {
       const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
       if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
-      warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);
+      warningLines.push(`⚠ ${skipped} skipped: ${clauses.join(", ")}.`);
     }
   }
   if (cleaned > 0) {
@@ -208,7 +208,7 @@ export function buildConfirmSummary(
 
   if (n === 0) {
     const text =
-      `Nothing will be renamed — all ${m} selected item${m === 1 ? "" : "s"} ` +
+      `Nothing will be renamed: all ${m} selected item${m === 1 ? "" : "s"} ` +
       `are skipped or already named correctly.\n\n` +
       warningBlock +
       `Click OK to dismiss.`;

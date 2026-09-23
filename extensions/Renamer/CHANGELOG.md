@@ -51,6 +51,8 @@ computed, which it could not before.
   a longer name is kept. A gender you leave out of **Gender order** sorts last rather than being
   dropped. Under **Advanced**, each control is named once instead of carrying a heading and a second
   label for the same thing.
+- Messages, badges and hints use plain punctuation. The badge for a rename that failed and was put
+  back reads **Failed and rolled back**, and the token boxes say **Type to add a token**.
 
 ### A dry run that states each number once
 

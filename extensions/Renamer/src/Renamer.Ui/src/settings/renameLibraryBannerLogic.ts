@@ -18,7 +18,7 @@ export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
 
 /** The banner for a run the job itself reported as failed or cancelled. */
 export function buildRenameLibraryError(detail: string): string {
-  return `Couldn't rename — ${detail}. Nothing was changed; you can try again.`;
+  return `Couldn't rename: ${detail}. Nothing was changed; you can try again.`;
 }
 
 /**
@@ -29,5 +29,5 @@ export function buildRenameLibraryError(detail: string): string {
  * falsehood about a destructive operation.
  */
 export function buildRenameLibraryUnconfirmed(detail: string): string {
-  return `Couldn't confirm the rename — ${detail}.`;
+  return `Couldn't confirm the rename: ${detail}.`;
 }

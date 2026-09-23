@@ -19,7 +19,7 @@ const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
   skipRuleTimedOut: "A regex rule timed out",
   skipLocked: "File in use",
   skipMissingSource: "File missing on disk",
-  failed: "Failed — rolled back",
+  failed: "Failed and rolled back",
   skipUnanchored: "File is outside your Cove library",
   skipRootMissing: "The rule's destination is no longer a library path",
   skipNotAllowed: "Destination outside its own root",
@@ -54,7 +54,7 @@ test("a skipped row's variant marks whether the user lost the file or only the r
   assert.deepEqual(badgesFor(row("skipExcluded")), [
     { label: "An exclude rule matched", variant: "amber" },
   ]);
-  assert.deepEqual(badgesFor(row("failed")), [{ label: "Failed — rolled back", variant: "red" }]);
+  assert.deepEqual(badgesFor(row("failed")), [{ label: "Failed and rolled back", variant: "red" }]);
 });
 
 test("an acting row reports what the planner had to change about its name", () => {
