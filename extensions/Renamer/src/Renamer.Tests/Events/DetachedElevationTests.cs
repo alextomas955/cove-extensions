@@ -11,7 +11,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class DetachedElevationTests
 {
     // The hand-written legacy journal header shape: run, opened-at, kind, status.
@@ -235,9 +234,7 @@ public sealed class DetachedElevationTests
         var command = Assert.Single(library.CommandsExecuted);
         var tables = await TablesByOwnershipAsync(library);
 
-        // What was examined before what it showed: this case is worth nothing unless the statement really
-        // does reach both kinds of table, and an EF release that stopped emitting one of the names would
-        // otherwise leave it asserting the trivial case in silence.
+        // The premise: the statement names a table of each kind.
         Assert.Contains(tables.Own, t => command.Sql.Contains(t, StringComparison.OrdinalIgnoreCase));
         Assert.Contains(tables.Cove, t => command.Sql.Contains(t, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(PrincipalKind.Anonymous, command.Principal);
@@ -245,8 +242,7 @@ public sealed class DetachedElevationTests
         Assert.True(
             NamesATableCoveOwns(tables, command),
             "a command that reached a table Cove owns was classified as if it had not: it named a table "
-                + "this extension owns too, which is what used to take it out of the Cove-read set and "
-                + $"excuse it from the System requirement in one step. SQL: {command.Sql}");
+                + $"this extension owns too, and so escaped the System requirement. SQL: {command.Sql}");
     }
 
     // Every command recorded since the last clear ran as System, and at least one was recorded -

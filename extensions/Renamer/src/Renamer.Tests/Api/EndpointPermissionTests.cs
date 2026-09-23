@@ -98,7 +98,6 @@ public sealed class EndpointPermissionTests
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
-        // Audio is officially supported (kept in v1.6) and gated on audios.write - videos.write is denied.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         Assert.Equal(403, StatusOf(await ext.RenamerEnqueue(
             new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs,

@@ -4,7 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalBlobMigrationTests
 {
     // A hand-written header: run R1, opened 3 Aug 2026 10:00 UTC, video, still replayable.

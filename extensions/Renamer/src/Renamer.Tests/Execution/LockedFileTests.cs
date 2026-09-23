@@ -8,7 +8,7 @@ public sealed class LockedFileTests
     [Fact]
     public void LockedSource_FileShareNone_SkippedNotThrown_SourceIntact()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs Windows mandatory locking — FileShare.None does not block a reader on Unix");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs Windows mandatory locking: FileShare.None does not block a reader on Unix");
 
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "data");

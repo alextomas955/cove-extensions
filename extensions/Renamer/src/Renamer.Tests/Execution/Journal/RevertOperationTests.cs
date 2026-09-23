@@ -1,10 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertOperationTests
 {
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);

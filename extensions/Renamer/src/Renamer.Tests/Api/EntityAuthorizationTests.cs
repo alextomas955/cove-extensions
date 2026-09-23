@@ -10,7 +10,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class EntityAuthorizationTests
 {
     private static global::Renamer.Renamer NewExtension()

@@ -31,19 +31,9 @@ public sealed class RenamerBatchJobTests
 
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
-        // These job tests assert batch renamer mechanics over height-less seed videos and expect a
-        // stable "$title.ext" output; pin the title-only template so the shipped default (which
-        // appends "[$resolution]") doesn't perturb the asserted names.
-        //
-        // SameVolumeConcurrency=1 is a test-harness requirement, not a product behavior under test:
-        // the batch opens one DI scope per worker, and BuildExtensionAsync registers DbContext scoped
-        // over a single shared in-memory SQLite connection (the connection is what keeps the :memory:
-        // database alive). In production each scope draws its own pooled connection, so parallel workers
-        // never share one; here they would, and two DbContexts racing on one SQLite connection
-        // intermittently throw inside EF's DbContextDependencies resolution. Serializing same-volume
-        // workers removes that harness-only race while still exercising the full per-item batch path
-        // (both items rename, per-item progress still ticks). The default (8) is covered implicitly by
-        // production and the E2E suite, which use real per-scope connections.
+        // "$title" keeps the seed videos, which have no height, from gaining a resolution suffix.
+        // SameVolumeConcurrency=1 because every DI scope here shares one in-memory SQLite connection,
+        // and two DbContexts racing on one connection throw inside EF.
         await new global::Renamer.Options.OptionsStore(store).SaveAsync(
             new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
         ((IStatefulExtension)ext).SetStore(store);

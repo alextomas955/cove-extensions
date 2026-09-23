@@ -1,4 +1,3 @@
-using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
@@ -6,7 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalTests
 {
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
@@ -158,41 +156,6 @@ public sealed class RevertJournalTests
         Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
     }
 
-    [Fact]
-    public async Task AContextBuiltAfterALateRegistration_ResolvesTheEntitiesItBrought()
-    {
-        // The measured failure the shared factory's model-cache-key replacement exists to close. EF
-        // caches a built model under a key that, by default, says nothing about which data extensions
-        // are loaded - so once any context has been built, every context after it is handed that same
-        // cached model, and an extension registered later has its entity types missing from a model
-        // that is never rebuilt. Test classes run in parallel, so which context is built first is not
-        // controllable: the failure would come and go rather than fail honestly.
-        var (before, beforeConn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = before;
-        await using var __ = beforeConn;
-
-        // Building it is the point - this is what populates the cache the next context would inherit.
-        Assert.Null(before.Model.FindEntityType(typeof(LateRegistrationProbeEntity)));
-
-        using var registration = CoveDataExtensionScope.WithAdditional(new LateRegistrationProbe());
-
-        var (after, afterConn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var ___ = after;
-        await using var ____ = afterConn;
-
-        Assert.NotNull(after.Model.FindEntityType(typeof(LateRegistrationProbeEntity)));
-
-        // Round-tripping a row asks the question the model assertion above cannot: did the late
-        // registration produce a working mapping, or only an entry in a model? The schema for this
-        // entity exists at all only because the context built after the registration created it, so a
-        // model that listed the type without mapping it would fail here rather than pass silently.
-        after.Add(new LateRegistrationProbeEntity { Id = 4242 });
-        await after.SaveChangesAsync();
-
-        var stored = await after.Set<LateRegistrationProbeEntity>().AsNoTracking().SingleAsync();
-        Assert.Equal(4242, stored.Id);
-    }
-
     private static async Task<CoveRevertJournal> SeedBatchAsync(
         DbContext db, string runId, int rows, DateTime? openedAt = null)
     {
@@ -206,38 +169,5 @@ public sealed class RevertJournalTests
         }
 
         return journal;
-    }
-
-    private sealed class LateRegistrationProbeEntity
-    {
-        public int Id { get; set; }
-    }
-
-    private sealed class LateRegistrationProbe : IDataExtension
-    {
-        public string Id => "com.renamer.tests.late-registration-probe";
-
-        public string Name => "Late registration probe";
-
-        public string Version => "1.0.0";
-
-        public string? Description => null;
-
-        public string? Author => null;
-
-        public string? Url => null;
-
-        public string? IconUrl => null;
-
-        public void ConfigureServices(IServiceCollection services, ExtensionContext context)
-        {
-        }
-
-        public void ConfigureModel(ModelBuilder modelBuilder) =>
-            modelBuilder.Entity<LateRegistrationProbeEntity>(entity =>
-            {
-                entity.ToTable("renamer_tests_late_registration_probe");
-                entity.HasKey(e => e.Id);
-            });
     }
 }

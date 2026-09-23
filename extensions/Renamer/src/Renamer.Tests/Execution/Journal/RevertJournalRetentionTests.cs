@@ -5,11 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Renamer.Execution;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalRetentionTests
 {
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);

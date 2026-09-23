@@ -6,7 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RequestPathPrincipalTests
 {
     [Fact]

@@ -7,7 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalPagingTests
 {
     // 10 rows read 3 at a time is four pages - three full and a short last one, so both boundary shapes

@@ -3,7 +3,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalConcurrencyTests
 {
     private const int N = 200;

@@ -291,7 +291,6 @@ public sealed class UndoReplayerTests
             var result = await new UndoReplayer(port, undoBus, cross: recordingCross)
                 .RevertAsync(batch!, default);
 
-            // The entry was undone via the verbatim v1.3 DiskMover path; the cross mover was never invoked.
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);

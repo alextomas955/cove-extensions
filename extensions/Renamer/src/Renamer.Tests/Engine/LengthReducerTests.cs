@@ -90,9 +90,7 @@ public class LengthReducerTests
         Assert.True(r.Filename.Length < LongTemplateFixture.LongTitle.Length);
     }
 
-    // ---- Deep-folder case: a short filename in a deep folder is still caught by the full-path cap ----
-
-    // ---- A2: the engine surfaces the actually-dropped fields (truthful, not diffed) ----
+    // ---- the engine reports the fields it dropped ----
 
     [Fact]
     public void RenderWithDropped_ShortName_DropsNothing()

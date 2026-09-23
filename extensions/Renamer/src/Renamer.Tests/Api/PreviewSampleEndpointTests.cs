@@ -174,7 +174,7 @@ public sealed class PreviewSampleEndpointTests
         Assert.Contains("length-reduced", video.Flags);
         Assert.NotEmpty(video.DroppedFields);
         // videoCodec/audioCodec/resolution are early in the default DropOrder and present in the
-        // template - they must be among the named dropped fields (A2 wiring, not a string diff).
+        // template - they must be among the named dropped fields.
         Assert.Contains("videoCodec", video.DroppedFields);
         Assert.Contains("audioCodec", video.DroppedFields);
     }
@@ -299,13 +299,8 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_SingleCanonicalPascalCaseKey_RendersTheLiveTemplate()
     {
-        // Characterization of the wire-fix: the dual-source preview bug was that a legacy blob's
-        // stale camelCase `filenameTemplate` rode into the body after the live PascalCase `FilenameTemplate`
-        // and won under System.Text.Json case-insensitive last-write-wins. The real fix is client-side
-        // (frontend `normalizeOptions` now sends one canonical key per property). This test documents the
-        // backend contract the fix relies on: given a clean single-PascalCase-key body (no camelCase
-        // duplicate - the shape the normalized frontend now always sends), the endpoint renders using that
-        // live template value. No backend normalize is added - the binder is unchanged.
+        // A body holding one PascalCase key per property renders with that value. A camelCase duplicate
+        // would win under case-insensitive last-write-wins binding, so the panel sends only this shape.
         const string body = """
             {
               "Options": {

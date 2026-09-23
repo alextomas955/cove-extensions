@@ -7,7 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Undo;
 
-[Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoSidecarRestoreTests
 {
     private static readonly DateTime Opened = new(2026, 8, 11, 9, 0, 0, DateTimeKind.Utc);

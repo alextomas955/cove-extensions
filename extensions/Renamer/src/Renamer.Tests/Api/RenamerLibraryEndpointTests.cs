@@ -13,6 +13,7 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class RenamerLibraryEndpointTests
 {
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync(
