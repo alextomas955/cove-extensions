@@ -512,13 +512,18 @@ jobs:
           done <<< "$contexts"
 
       # Same reason as the dump above: keep the report for a retry-rescued flake, not only a red job.
+      # Keyed on error-context.md, which Playwright writes once per failed attempt; test-results itself
+      # always holds .last-run.json. The html reporter the config turns on in CI copies each attempt's
+      # trace and screenshots into playwright-report, so a missing report is a reporter fault and fails
+      # the step rather than uploading nothing.
       - name: Upload Playwright report
-        if: always() && steps.check.outputs.has_suite == 'true' && hashFiles('tests/e2e/test-results/**') != ''
+        if: always() && steps.check.outputs.has_suite == 'true' && hashFiles('tests/e2e/test-results/**/error-context.md') != ''
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-e2e-report
           path: tests/e2e/playwright-report/
           retention-days: 7
+          if-no-files-found: error
 
   # ---- The C# suite. It needs a real CoveContext, so it needs Cove's own source. This job supplies
   # that by shallow-cloning the release tag the version axis resolved, once per version on that axis.

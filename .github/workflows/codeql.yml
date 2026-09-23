@@ -46,6 +46,11 @@ jobs:
             build-mode: manual
           - language: javascript-typescript
             build-mode: none
+          # The workflows themselves: script injection from untrusted event fields, and permissions
+          # broader than a job needs. Runs on fork and Dependabot pull requests too, which the Sonar
+          # workflow cannot, and those are where workflow injection matters.
+          - language: actions
+            build-mode: none
     steps:
       - uses: actions/checkout@v7
 
