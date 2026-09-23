@@ -66,3 +66,12 @@ test("a press over the pill reaches the field under it", async () => {
     "the pill takes presses meant for the field",
   ).toBe(true);
 });
+
+test("the field refuses the credential a browser saved for this origin", async () => {
+  const host = await render(field(true));
+  const input = host.querySelector("input");
+
+  // `off` is ignored on a password field, so the sign-in password gets filled in here and reads as
+  // a typed key. Only `new-password` suppresses it.
+  expect(input?.getAttribute("autocomplete")).toBe("new-password");
+});
