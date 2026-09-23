@@ -152,10 +152,17 @@ function saveOutcome(save: SaveState): SaveOutcome {
   return save.status === "saved" ? { kind: "saved", message: "Settings saved." } : { kind: "none" };
 }
 
-// The controls the shared reason disables: connection test, registration, replacement-file
-// behaviour, library sync. The bar's save control is not one of them: nothing can be unsaved
-// before the settings have arrived, so the bar is not drawn while the reason stands.
-const SHARED_REASON_CONTROLS = 4;
+// The bar's save control is not among them: nothing can be unsaved before the settings have
+// arrived, so the bar is not drawn while the reason stands. Nor are the key controls, which are
+// drawn only for a stored key the same unread settings withhold.
+const CONTROLS_THE_SHARED_REASON_DISABLES = [
+  "the control that selects the other generation",
+  "the connection test",
+  "the callback registration",
+  "the replacement-file choice",
+  "the library sync",
+];
+const SHARED_REASON_CONTROLS = CONTROLS_THE_SHARED_REASON_DISABLES.length;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null

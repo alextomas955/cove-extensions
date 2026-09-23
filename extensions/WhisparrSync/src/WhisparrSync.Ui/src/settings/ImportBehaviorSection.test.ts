@@ -83,11 +83,15 @@ test("the control cannot be used before the stored value has arrived", async () 
   expect(read.querySelector("select")?.disabled).toBe(false);
 });
 
-test("the shared reason takes the control out without repeating itself beside it", async () => {
-  const host = await renderNode(
-    section({ sharedReason: "Cove could not read the stored connection." }),
-  );
+test("the shared reason takes the control out, and the control says so once", async () => {
+  const reason = "Cove could not read the stored connection.";
+  const host = await renderNode(section({ sharedReason: reason }));
 
   expect(host.querySelector("select")?.disabled).toBe(true);
-  expect(host.textContent).not.toContain("Cove could not read the stored connection.");
+  const named = host.querySelector("label")?.textContent ?? "";
+  expect(named.startsWith("Replacement files"), "the control does not open with its own name").toBe(
+    true,
+  );
+  expect(named.endsWith(reason), "the control does not close with its reason").toBe(true);
+  expect(host.textContent.split(reason).length - 1, "the reason is stated more than once").toBe(1);
 });
