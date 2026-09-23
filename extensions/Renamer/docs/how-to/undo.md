@@ -40,8 +40,5 @@ The **Undo** link in the message after a rename takes you to the same place.
 - **Undo can't restore names from before Renamer.** It only reverses Renamer's own renames. To change
   your mind about a template later, pick a new one and rename again.
 
-The small note at the foot of the page says "Only one batch is kept". That describes an older version.
-Undo now behaves as described above.
-
 For the rare cases where undo cannot put everything back, see
 [Troubleshooting](../troubleshooting#undo).
