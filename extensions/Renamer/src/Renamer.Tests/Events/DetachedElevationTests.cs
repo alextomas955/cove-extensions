@@ -67,9 +67,9 @@ public sealed class DetachedElevationTests
     {
         await using var library = await LibraryDatabase.CreateAsync();
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
+        await store.SetAsync(JournalBlobMigration.SchemaKey, JournalBlobMigration.CurrentSchema);
         await store.SetAsync(
-            RevertLog.Key,
+            JournalBlobMigration.Key,
             string.Join("\n", $"#batch|R1|{LegacyOpened.Ticks}|Video|open", "7|70|/lib/a.mkv"));
 
         var ext = RenamerFixture.Create();

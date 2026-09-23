@@ -429,21 +429,22 @@ public sealed class UndoReplayerTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             // Seed a file at its current (new) location so a same-folder same-drive undo can restore it.
-            var (_, _, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "raw.mkv");
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             File.WriteAllText(newFull, "legacy-bytes");
 
-            // Hand-build the stored journal an installation upgrading into the table still carries: flat
-            // `fileId|old|new` rows with no batch header. The migration reads it as one implicit Video
-            // batch (EntityId := FileId) and moves it into the table, which is where undo now looks.
+            // Hand-build the stored journal an installation upgrading into the table still carries: one
+            // batch header and an entityId|fileId|old row. The migration moves it into the table, which is
+            // where undo now looks.
             string oldPath = oldFull.Replace('\\', '/');
-            string newPath = newFull.Replace('\\', '/');
             var store = new FakeStore();
-            await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
-            await store.SetAsync(RevertLog.Key, $"{fileId}|{oldPath}|{newPath}");
+            await store.SetAsync(JournalBlobMigration.SchemaKey, JournalBlobMigration.CurrentSchema);
+            await store.SetAsync(
+                JournalBlobMigration.Key,
+                $"#batch|R1|{DateTime.UtcNow.Ticks}|Video|open\n{videoId}|{fileId}|{oldPath}");
 
             using var journal = new CoveRevertJournal(db);
             Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, DateTime.UtcNow));
@@ -451,7 +452,6 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Single(batch!.Rows);
-            // The stored row carries no entityId field; the parser sets EntityId = FileId as documented.
             Assert.Equal(fileId, batch.Rows[0].FileId);
 
             // Replay: the volume class is derived from the recorded old/new path roots (same dir → same

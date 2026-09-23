@@ -13,24 +13,14 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The <c>/undo</c> + <c>/last-batch</c> API surface, driven end-to-end on the real spine
-/// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
-/// Each test first performs a real renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
-/// log is written to the extension's store) and then exercises the endpoints on the same extension
-/// instance - the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
-/// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
-/// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
-/// + correct entity event), header-driven kind (an image batch publishes ImageUpdated - never a Video
-/// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
-/// </summary>
+// The /undo and /last-batch handlers on a real SQLite database and a real temp directory. Each test
+// performs a real rename through RunRenamerBatchAsync first, so the journal table holds a genuine batch.
 public sealed class UndoEndpointTests
 {
     /// <summary>
     /// Wires the extension's captured seams from a DI provider that registers the seeded context as
     /// the base <c>DbContext</c> (singleton, so the scope resolves the same seeded instance) and the
-    /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the RevertLog. Mirrors
-    /// <c>RenamerBatchJobTests.BuildExtensionAsync</c>.
+    /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the options.
     /// </summary>
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
         DbContext db, IEventBus bus, params string[] libraryPaths)
