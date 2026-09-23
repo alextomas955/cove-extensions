@@ -216,11 +216,9 @@ public sealed class ImportRefusalProjectorTests
     public void TheStoredAggregateCarriesTheSpellingTheBannerIsReadBy()
     {
         var stored = JsonSerializer.Serialize(
-            new WhisparrSyncOptions
-            {
-                ImportRefusals = ImportRefusalProjector.Refuse(
-                    [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot),
-            },
+            new WhisparrSyncOptions().WithInstance(
+                importRefusals: ImportRefusalProjector.Refuse(
+                    [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot)),
             WhisparrSyncOptions.JsonOptions);
 
         Assert.Contains(

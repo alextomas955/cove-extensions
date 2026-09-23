@@ -289,12 +289,10 @@ public sealed class FolderAgreementMappingTests
     }
 
     private static WhisparrSyncOptions Mapping(string? mapping)
-        => new()
-        {
-            OutboundMappings = mapping is null
+        => new WhisparrSyncOptions().WithInstance(
+            outboundMappings: mapping is null
                 ? []
-                : [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }],
-        };
+                : [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }]);
 
     private static int Probes(BodyRecordingHandler handler)
         => handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal));
@@ -304,11 +302,9 @@ public sealed class FolderAgreementMappingTests
     {
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
-            new WhisparrSyncOptions
-            {
-                OutboundMappings =
-                    [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }],
-            },
+            new WhisparrSyncOptions().WithInstance(
+                outboundMappings:
+                    [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }]),
             TestContext.Current.CancellationToken);
 
         var declared = new CountingInstanceRoots(["/data"]);
