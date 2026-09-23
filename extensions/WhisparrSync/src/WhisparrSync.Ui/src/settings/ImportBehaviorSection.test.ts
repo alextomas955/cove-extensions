@@ -27,22 +27,14 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     SectionCard: (props: { title?: string; description?: string; children: ReactNode }) =>
       h("section", null, props.title, props.description, props.children),
     StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
-    Spinner: () => h("span", null, "…"),
   };
 });
 
 const { ImportBehaviorSection } = await import("./ImportBehaviorSection");
 
-function section(overrides: {
-  behavior?: UpgradeBehavior | null;
-  saving?: boolean;
-  saveError?: string | null;
-  sharedReason?: string | null;
-}) {
+function section(overrides: { behavior?: UpgradeBehavior | null; sharedReason?: string | null }) {
   return createElement(ImportBehaviorSection, {
     behavior: overrides.behavior === undefined ? "add" : overrides.behavior,
-    saving: overrides.saving ?? false,
-    saveError: overrides.saveError ?? null,
     sharedReason: overrides.sharedReason ?? null,
     onChange: () => undefined,
   });
@@ -72,13 +64,6 @@ test("the control cannot be used before the stored value has arrived", async () 
   expect(unread.querySelector("select")?.disabled).toBe(true);
   // The control: without this, the check above would pass for a select that is never enabled.
   expect(read.querySelector("select")?.disabled).toBe(false);
-});
-
-test("a save in flight is announced busy and the control is not usable", async () => {
-  const host = await renderNode(section({ saving: true }));
-
-  expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
-  expect(host.querySelector("select")?.disabled).toBe(true);
 });
 
 test("the shared reason takes the control out without repeating itself beside it", async () => {

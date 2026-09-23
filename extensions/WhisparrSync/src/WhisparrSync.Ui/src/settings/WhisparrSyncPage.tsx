@@ -8,12 +8,12 @@ import { ImportBanner } from "./ImportBanner";
 import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { SyncLibrarySection } from "./SyncLibrarySection";
-import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
+import { valuesForCard } from "./connectLogic";
+import { testsStoredConnection, unsavedFields } from "./settingsDraftLogic";
 import { syncSentences } from "./syncLibraryLogic";
-import { useConnection } from "./useConnection";
+import { useSettingsDraft } from "./useSettingsDraft";
 import { useFolderAgreement } from "./useFolderAgreement";
 import { useImportBanner } from "./useImportBanner";
-import { useImportBehavior } from "./useImportBehavior";
 import { useSyncLibrary } from "./useSyncLibrary";
 import { useRegistration } from "./useRegistration";
 
@@ -27,14 +27,22 @@ import { useRegistration } from "./useRegistration";
  * Tailwind token classes only, because the host's Tailwind JIT never scans this bundle.
  */
 export function WhisparrSyncPage() {
-  const { state, editAddress, editKey, clearStoredKey, showCard, test, save } =
-    useConnection(reloadPage);
+  const {
+    state,
+    editAddress,
+    editKey,
+    clearStoredKey,
+    editBehavior,
+    chooseGeneration,
+    test,
+    save,
+  } = useSettingsDraft(reloadPage);
   const registration = useRegistration();
   const banner = useImportBanner();
   const agreement = useFolderAgreement();
-  const upgrade = useImportBehavior();
   const sync = useSyncLibrary();
-  const stored = valuesForCard(state.settings, state.card);
+  const stored = valuesForCard(state.settings, state.draft.generation);
+  const unsaved = unsavedFields(state.settings, state.draft);
   const now = useNow();
 
   // One reason stated once, rather than the same sentence beside each control that shares it.
@@ -61,30 +69,20 @@ export function WhisparrSyncPage() {
 
       <GenerationCards
         settings={state.settings}
-        card={state.card}
+        card={state.draft.generation}
         now={now}
-        onShowCard={showCard}
+        onShowCard={chooseGeneration}
       />
 
       <ConnectionSection
-        card={state.card}
+        card={state.draft.generation}
         stored={stored}
         readFailed={state.read.failed}
         draft={state.draft}
         test={state.test}
         save={state.save}
-        noOpSave={isNoOpSave(
-          stored,
-          state.settings?.selectedGeneration ?? null,
-          state.card,
-          state.draft,
-        )}
-        testsStored={testsStoredConnection(
-          stored,
-          state.settings?.selectedGeneration ?? null,
-          state.card,
-          state.draft,
-        )}
+        noOpSave={unsaved.length === 0}
+        testsStored={testsStoredConnection(state.settings, state.draft)}
         sharedReason={sharedReason}
         now={now}
         onAddressChange={editAddress}
@@ -108,11 +106,9 @@ export function WhisparrSyncPage() {
       />
 
       <ImportBehaviorSection
-        behavior={upgrade.behavior}
-        saving={upgrade.saving}
-        saveError={upgrade.saveError}
+        behavior={state.draft.upgradeBehavior}
         sharedReason={sharedReason}
-        onChange={upgrade.choose}
+        onChange={editBehavior}
       />
 
       <SyncLibrarySection
