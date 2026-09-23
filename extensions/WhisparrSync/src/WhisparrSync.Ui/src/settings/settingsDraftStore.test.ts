@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { WhisparrSyncSettingsView } from "../wire/api";
-import { createConnectionStore, INITIAL_CONNECTION_STATE } from "./connectionStore";
+import { createSettingsDraftStore, INITIAL_SETTINGS_STATE } from "./settingsDraftStore";
 
 const NOTHING_STORED: WhisparrSyncSettingsView = {
   selectedGeneration: "v3",
@@ -25,14 +25,14 @@ const NOTHING_STORED: WhisparrSyncSettingsView = {
 describe("the state before a read and the state after an empty one", () => {
   // If the two coincided, a momentary blank would read as a report that nothing is configured.
   it("are different states", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.beginRead();
     store.loaded(NOTHING_STORED);
 
-    expect(store.getSnapshot()).not.toEqual(INITIAL_CONNECTION_STATE);
-    expect(INITIAL_CONNECTION_STATE.settings).toBeNull();
+    expect(store.getSnapshot()).not.toEqual(INITIAL_SETTINGS_STATE);
+    expect(INITIAL_SETTINGS_STATE.settings).toBeNull();
     expect(store.getSnapshot().settings).not.toBeNull();
-    expect(INITIAL_CONNECTION_STATE.read.reading).toBe(true);
+    expect(INITIAL_SETTINGS_STATE.read.reading).toBe(true);
     expect(store.getSnapshot().read.reading).toBe(false);
   });
 });
@@ -41,7 +41,7 @@ describe("a read that answers after the operator has started typing", () => {
   // A first read can land while someone is mid-address. Overwriting the field would look like it
   // clearing itself.
   it("leaves what they entered alone", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.editAddress("http://half-typed");
     store.loaded({
       ...NOTHING_STORED,
@@ -53,7 +53,7 @@ describe("a read that answers after the operator has started typing", () => {
   });
 
   it("seeds the form from the answer when nothing has been entered", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded({
       ...NOTHING_STORED,
       v3: { ...NOTHING_STORED.v3, address: "http://stored:6969" },
@@ -65,7 +65,7 @@ describe("a read that answers after the operator has started typing", () => {
 
 describe("a read that failed over an answer already on screen", () => {
   it("keeps the answer and raises the failure beside it", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded(NOTHING_STORED);
     store.beginRead();
     store.readFailed("503 unavailable");
@@ -78,7 +78,7 @@ describe("a read that failed over an answer already on screen", () => {
 
 describe("what an address edit does to the result on screen", () => {
   function withAnswer() {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded({
       ...NOTHING_STORED,
       v3: { ...NOTHING_STORED.v3, address: "http://whisparr:6969" },
@@ -122,7 +122,7 @@ describe("what an address edit does to the result on screen", () => {
 
 describe("the result an answer that lands late describes", () => {
   it("is the address the test was run against, not the field's current value", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded({
       ...NOTHING_STORED,
       v3: { ...NOTHING_STORED.v3, address: "http://whisparr:6969" },
@@ -149,7 +149,7 @@ describe("the result an answer that lands late describes", () => {
 
 describe("the two contradictory things a user can ask of a stored key", () => {
   it("takes back a pending removal when a new key is typed", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded(NOTHING_STORED);
     store.clearStoredKey(true);
     store.editKey("a-new-key");
@@ -158,7 +158,7 @@ describe("the two contradictory things a user can ask of a stored key", () => {
   });
 
   it("drops a typed key when a removal is asked for", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded(NOTHING_STORED);
     store.editKey("a-new-key");
     store.clearStoredKey(true);
@@ -167,9 +167,9 @@ describe("the two contradictory things a user can ask of a stored key", () => {
   });
 });
 
-describe("switching to the other card", () => {
+describe("choosing the other generation", () => {
   function bothStored() {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded({
       selectedGeneration: "v3",
       v3: { ...NOTHING_STORED.v3, address: "http://three:6969", keyIsSet: true },
@@ -181,9 +181,9 @@ describe("switching to the other card", () => {
 
   it("shows the other generation's stored values and never the first's", () => {
     const store = bothStored();
-    store.showCard("v2");
+    store.chooseGeneration("v2");
 
-    expect(store.getSnapshot().card).toBe("v2");
+    expect(store.getSnapshot().draft.generation).toBe("v2");
     expect(store.getSnapshot().draft.address).toBe("http://two:6969");
   });
 
@@ -193,13 +193,24 @@ describe("switching to the other card", () => {
     const store = bothStored();
     store.editAddress("http://edited-but-never-saved:6969");
     store.editKey("a-key-never-saved");
-    store.showCard("v2");
+    store.chooseGeneration("v2");
 
     expect(store.getSnapshot().draft).toEqual({
+      generation: "v2",
       address: "http://two:6969",
       apiKey: "",
       keyCleared: false,
+      upgradeBehavior: "add",
     });
+  });
+
+  // The replacement behaviour is one setting for the page, not one per generation.
+  it("leaves an unsaved replacement behaviour alone", () => {
+    const store = bothStored();
+    store.editBehavior("replace");
+    store.chooseGeneration("v2");
+
+    expect(store.getSnapshot().draft.upgradeBehavior).toBe("replace");
   });
 
   it("retires a result taken against the generation being left", () => {
@@ -216,15 +227,15 @@ describe("switching to the other card", () => {
       address: "http://three:6969",
       missingSetting: null,
     });
-    store.showCard("v2");
+    store.chooseGeneration("v2");
 
     expect(store.getSnapshot().test.phase).toBe("none");
   });
 
-  it("changes nothing when the card is already the one shown", () => {
+  it("changes nothing when it is already the one drafted", () => {
     const store = bothStored();
     store.editAddress("http://edited:6969");
-    store.showCard("v3");
+    store.chooseGeneration("v3");
 
     expect(store.getSnapshot().draft.address).toBe("http://edited:6969");
   });
@@ -232,7 +243,7 @@ describe("switching to the other card", () => {
   // Only a save changes which generation is in use. Switching moves what is being edited.
   it("leaves the stored selection alone", () => {
     const store = bothStored();
-    store.showCard("v2");
+    store.chooseGeneration("v2");
 
     expect(store.getSnapshot().settings?.selectedGeneration).toBe("v3");
   });
@@ -240,11 +251,116 @@ describe("switching to the other card", () => {
 
 describe("a save that failed", () => {
   it("returns the control to its prior state and says why", () => {
-    const store = createConnectionStore();
+    const store = createSettingsDraftStore();
     store.loaded(NOTHING_STORED);
     store.beginSave();
     store.saveFailed("500 boom");
 
     expect(store.getSnapshot().save).toEqual({ status: "failed", message: "500 boom" });
+  });
+});
+
+describe("discarding", () => {
+  function edited() {
+    const store = createSettingsDraftStore();
+    store.loaded({
+      selectedGeneration: "v3",
+      v3: { ...NOTHING_STORED.v3, address: "http://three:6969", keyIsSet: true },
+      v2: { ...NOTHING_STORED.v2, address: "http://two:6969" },
+      upgradeBehavior: "add",
+    });
+    store.editAddress("http://edited:6969");
+    store.editKey("a-key-never-saved");
+    store.editBehavior("replace");
+    store.chooseGeneration("v2");
+    return store;
+  }
+
+  it("returns every member of the draft to what is stored", () => {
+    const store = edited();
+    store.discard();
+
+    expect(store.getSnapshot().draft).toEqual({
+      generation: "v3",
+      address: "http://three:6969",
+      apiKey: "",
+      keyCleared: false,
+      upgradeBehavior: "add",
+    });
+  });
+
+  it("takes back a pending key removal", () => {
+    const store = edited();
+    store.clearStoredKey(true);
+    store.discard();
+
+    expect(store.getSnapshot().draft.keyCleared).toBe(false);
+  });
+
+  it("leaves the stored settings alone", () => {
+    const store = edited();
+    store.discard();
+
+    expect(store.getSnapshot().settings?.v3.address).toBe("http://three:6969");
+  });
+});
+
+describe("what an edit does to the outcome of the last save", () => {
+  function saved() {
+    const store = createSettingsDraftStore();
+    store.loaded(NOTHING_STORED);
+    store.beginSave();
+    store.saved(NOTHING_STORED);
+    return store;
+  }
+
+  // The bar reports a save until something is unsaved again, and it cannot report both at once.
+  it("clears it, whichever control was used", () => {
+    for (const edit of [
+      (store: ReturnType<typeof saved>) => {
+        store.editAddress("http://elsewhere:6969");
+      },
+      (store: ReturnType<typeof saved>) => {
+        store.editKey("a-new-key");
+      },
+      (store: ReturnType<typeof saved>) => {
+        store.clearStoredKey(true);
+      },
+      (store: ReturnType<typeof saved>) => {
+        store.editBehavior("replace");
+      },
+      (store: ReturnType<typeof saved>) => {
+        store.chooseGeneration("v2");
+      },
+    ]) {
+      const store = saved();
+      expect(store.getSnapshot().save).toEqual({ status: "saved" });
+
+      edit(store);
+
+      expect(store.getSnapshot().save).toEqual({ status: "idle" });
+    }
+  });
+});
+
+describe("the replacement behaviour before the settings have arrived", () => {
+  // Null is "not read yet", which is what keeps the control disabled. A form touched before the
+  // read answers must still take the stored value, or the control never becomes usable.
+  it("is taken from a read that answers after the form was touched", () => {
+    const store = createSettingsDraftStore();
+    store.editAddress("http://half-typed");
+    store.loaded({ ...NOTHING_STORED, upgradeBehavior: "replace" });
+
+    expect(store.getSnapshot().draft.address).toBe("http://half-typed");
+    expect(store.getSnapshot().draft.upgradeBehavior).toBe("replace");
+  });
+
+  it("is not overwritten once it has been chosen", () => {
+    const store = createSettingsDraftStore();
+    store.loaded(NOTHING_STORED);
+    store.editBehavior("replace");
+    store.loaded(NOTHING_STORED);
+
+    expect(store.getSnapshot().draft.upgradeBehavior).toBe("replace");
   });
 });

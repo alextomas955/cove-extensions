@@ -9,16 +9,13 @@ import {
   detectionOutcome,
   isAddressEdit,
   isGenerationChange,
-  isNoOpSave,
   normaliseAddress,
   NO_REFUSAL_VALUES,
   recordedRead,
   REFUSAL_KINDS,
   sentenceForKind,
-  testsStoredConnection,
   valuesForCard,
   valuesOf,
-  type GenerationDraft,
   type RefusalValues,
 } from "./connectLogic";
 
@@ -231,8 +228,6 @@ const NOTHING_STORED: WhisparrSyncGenerationSettingsView = {
   lastReachableAtUtc: null,
 };
 
-const UNCHANGED_DRAFT: GenerationDraft = { address: "", apiKey: "", keyCleared: false };
-
 describe("whether a save changes which generation is selected", () => {
   it("reports no change for a save selecting the generation already selected", () => {
     expect(isGenerationChange("v3", "v3")).toBe(false);
@@ -247,64 +242,6 @@ describe("whether a save changes which generation is selected", () => {
   // Nothing is known about the selection until the read answers.
   it("reports no change before the settings read has said which is selected", () => {
     expect(isGenerationChange(null, "v3")).toBe(false);
-  });
-});
-
-describe("whether a save would write nothing", () => {
-  it("is true for the same generation with an untouched form", () => {
-    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", UNCHANGED_DRAFT)).toBe(true);
-  });
-
-  it("is false once anything about it differs", () => {
-    expect(isNoOpSave(NOTHING_STORED, "v3", "v2", UNCHANGED_DRAFT)).toBe(false);
-    expect(
-      isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, address: "http://a:1" }),
-    ).toBe(false);
-    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, apiKey: "k" })).toBe(false);
-    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, keyCleared: true })).toBe(
-      false,
-    );
-  });
-
-  it("is true for an address that differs only in ways that do not move it", () => {
-    const stored = { ...NOTHING_STORED, address: "http://whisparr:6969" };
-
-    expect(
-      isNoOpSave(stored, "v3", "v3", { ...UNCHANGED_DRAFT, address: "HTTP://WHISPARR:6969/" }),
-    ).toBe(true);
-  });
-});
-
-describe("whether Test asks about the stored connection", () => {
-  const stored = { ...NOTHING_STORED, address: "http://whisparr:6969", keyIsSet: true };
-  const asStored: GenerationDraft = {
-    address: "http://whisparr:6969",
-    apiKey: "",
-    keyCleared: false,
-  };
-
-  // The browser never holds the stored key, so this is the only way a test can run after a save.
-  // It is also the only test whose answer may update the recorded version.
-  it("asks about it when the form still describes what is stored", () => {
-    expect(testsStoredConnection(stored, "v3", "v3", asStored)).toBe(true);
-  });
-
-  it("asks about the typed pair once the form differs", () => {
-    expect(
-      testsStoredConnection(stored, "v3", "v3", { ...asStored, address: "http://other:1" }),
-    ).toBe(false);
-    expect(testsStoredConnection(stored, "v3", "v3", { ...asStored, apiKey: "typed" })).toBe(false);
-  });
-
-  // The stored test asks about the selected generation, so running one from the other card would
-  // answer about an instance that card does not name.
-  it("never asks about it from a card that is not the one in use", () => {
-    expect(testsStoredConnection(stored, "v2", "v3", asStored)).toBe(false);
-  });
-
-  it("never asks about it when no key is stored to ask with", () => {
-    expect(testsStoredConnection({ ...stored, keyIsSet: false }, "v3", "v3", asStored)).toBe(false);
-    expect(testsStoredConnection(null, "v3", "v3", asStored)).toBe(false);
   });
 });
 

@@ -27,10 +27,10 @@ import {
   sentenceForKind,
   valuesOf,
   type CardGeneration,
-  type GenerationDraft,
   type TransientTest,
 } from "./connectLogic";
-import type { SaveState } from "./connectionStore";
+import type { SettingsDraft } from "./settingsDraftLogic";
+import type { SaveState } from "./settingsDraftStore";
 
 /** The e2e specs locate the address field by this placeholder. */
 const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
@@ -39,7 +39,7 @@ export interface ConnectionSectionProps {
   card: CardGeneration;
   stored: WhisparrSyncGenerationSettingsView | null;
   readFailed: boolean;
-  draft: GenerationDraft;
+  draft: SettingsDraft;
   test: TransientTest;
   save: SaveState;
   /** Whether saving would write nothing that is not already stored. */
@@ -222,7 +222,7 @@ function KeyState({
   draft,
 }: {
   stored: WhisparrSyncGenerationSettingsView | null;
-  draft: GenerationDraft;
+  draft: SettingsDraft;
 }) {
   if (draft.keyCleared) {
     return <StatusPill variant="amber">Key will be removed when you save</StatusPill>;
