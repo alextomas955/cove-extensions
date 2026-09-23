@@ -196,8 +196,8 @@ test("the status reads in the shared vocabulary, mark and tint and all", async (
   }
 
   expect(drawn).toEqual([
-    "gray:lucide-circle-dashed:Not added",
-    "gray:lucide-circle:Unmonitored",
+    "cyan:lucide-circle-dashed:Not added",
+    "gray:lucide-bookmark-minus:Unmonitored",
     "amber:lucide-circle-question-mark:Status unknown",
   ]);
 });
