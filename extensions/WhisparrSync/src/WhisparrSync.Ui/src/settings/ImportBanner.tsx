@@ -4,7 +4,7 @@
  * Nothing to report renders nothing. The root list and the passed-over line each appear on their
  * own.
  */
-import { StatusText } from "@cove-extensions/ui-shared";
+import { SectionCard, StatusText } from "@cove-extensions/ui-shared";
 
 import type { ImportBannerView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
@@ -39,35 +39,34 @@ export function ImportBanner({ read, view, now }: ImportBannerProps) {
       empty={null}
       failed={null}
       content={
-        <div
-          role="alert"
-          className="space-y-2 rounded-lg border border-red-700 bg-red-950/60 px-3 py-2"
-        >
-          {lines.length === 0 ? null : (
-            <>
-              <StatusText kind="error">{IMPORTS_UNREADABLE}</StatusText>
-              <ul className="list-none space-y-2">
-                {lines.map((line) => (
-                  <li key={line.root} className="space-y-1">
-                    <p className="text-sm text-red-200">{headingFor(line)}</p>
-                    <ul className="list-none space-y-1">
-                      {pathsShownFor(line).map((path) => (
-                        <li key={path.path} className="text-xs text-red-300">
-                          {/* Two blocks rather than one line: a path can contain spaces, so a
-                              space does not read as a boundary between it and the cause. */}
-                          <p className="break-all font-mono">{path.path}</p>
-                          <p className="pl-4">{describeCause(path.cause)}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+        <SectionCard>
+          <div role="alert" className="space-y-2">
+            {lines.length === 0 ? null : (
+              <>
+                <StatusText kind="error">{IMPORTS_UNREADABLE}</StatusText>
+                <ul className="list-none space-y-2">
+                  {lines.map((line) => (
+                    <li key={line.root} className="space-y-1">
+                      <p className="text-sm text-foreground">{headingFor(line)}</p>
+                      <ul className="list-none space-y-1">
+                        {pathsShownFor(line).map((path) => (
+                          <li key={path.path} className="text-xs text-secondary">
+                            {/* Two blocks rather than one line: a path can contain spaces, so a
+                                space does not read as a boundary between it and the cause. */}
+                            <p className="break-all font-mono">{path.path}</p>
+                            <p className="pl-4">{describeCause(path.cause)}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
 
-          {passedOver === null ? null : <p className="text-sm text-red-200">{passedOver}</p>}
-        </div>
+            {passedOver === null ? null : <p className="text-sm text-red-400">{passedOver}</p>}
+          </div>
+        </SectionCard>
       }
     />
   );
