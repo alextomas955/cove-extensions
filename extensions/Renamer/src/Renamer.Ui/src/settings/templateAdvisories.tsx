@@ -63,7 +63,7 @@ export function TokenAdvisory({ values }: { values: string[] }) {
   return <AdvisoryLines lines={lines} />;
 }
 
-function AdvisoryLines({ lines }: { lines: string[] }) {
+function AdvisoryLines({ lines }: Readonly<{ lines: string[] }>) {
   if (lines.length === 0) return null;
   return (
     <div className="mt-1 space-y-1" role="status" aria-live="polite">

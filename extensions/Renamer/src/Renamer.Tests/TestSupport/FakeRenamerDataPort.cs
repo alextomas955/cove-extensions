@@ -138,7 +138,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         => Task.FromResult(!MissingSources.Contains(fullPath));
 
     // Every ApplyAndSaveAsync call's mutation, in order.
-    public List<RenamerFileMutation> ApplyAndSaveCalls { get; } = new();
+    public List<RenamerFileMutation> ApplyAndSaveCalls { get; } = [];
 
     public Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default)
     {

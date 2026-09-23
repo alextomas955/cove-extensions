@@ -39,17 +39,19 @@ const NAME_CHAR = /[\p{L}\p{N}_]/u;
 /** Every token name in `s`, in order and without its `$`. */
 function tokenNames(s: string): string[] {
   const names: string[] = [];
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] !== "$") continue;
-    if (s[i + 1] === "$") {
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== "$") {
+      i++;
+    } else if (s[i + 1] === "$") {
       // The pair is one literal `$`. When a name follows, the second `$` starts a token.
-      if (!NAME_CHAR.test(s[i + 2] ?? "")) i++;
-      continue;
+      i += NAME_CHAR.test(s[i + 2] ?? "") ? 1 : 2;
+    } else {
+      let j = i + 1;
+      while (j < s.length && NAME_CHAR.test(s[j])) j++;
+      if (j > i + 1) names.push(s.slice(i + 1, j));
+      i = Math.max(j, i + 1);
     }
-    let j = i + 1;
-    while (j < s.length && NAME_CHAR.test(s[j])) j++;
-    if (j > i + 1) names.push(s.slice(i + 1, j));
-    i = j - 1;
   }
   return names;
 }

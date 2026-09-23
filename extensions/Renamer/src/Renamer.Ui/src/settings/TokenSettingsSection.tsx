@@ -252,7 +252,7 @@ function MultiValueGroup({
   sortHelper,
   ignoreGenders,
   genderOrder,
-}: {
+}: Readonly<{
   title: string;
   group: "performers" | "tags";
   entityType: "performer" | "tag";
@@ -262,7 +262,7 @@ function MultiValueGroup({
   sortHelper?: string;
   ignoreGenders?: ReactNode;
   genderOrder?: ReactNode;
-}) {
+}>) {
   const noun = entityType === "performer" ? "Performer" : "Tag";
   const sort = (
     <Field label="Sort" helper={sortHelper}>

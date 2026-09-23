@@ -164,24 +164,29 @@ public sealed partial class Renamer
                 }
 
                 after = page[^1];
-
-                foreach (int id in await allowedIds(run.Kind, page, token))
-                {
-                    if (allowed.Count < run.ChunkEntities)
-                    {
-                        allowed.Add(id);
-                    }
-                    else
-                    {
-                        carried.Enqueue(id);
-                    }
-                }
+                Distribute(await allowedIds(run.Kind, page, token), allowed, carried, run.ChunkEntities);
             }
 
             return allowed;
         }
 
         return RunRenameChunksAsync(run, NextPageAsync, progress, ct);
+    }
+
+    // Fills the chunk up to its capacity and queues the rest for the next one, in id order.
+    private static void Distribute(IEnumerable<int> ids, List<int> chunk, Queue<int> carried, int capacity)
+    {
+        foreach (int id in ids)
+        {
+            if (chunk.Count < capacity)
+            {
+                chunk.Add(id);
+            }
+            else
+            {
+                carried.Enqueue(id);
+            }
+        }
     }
 
     // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and

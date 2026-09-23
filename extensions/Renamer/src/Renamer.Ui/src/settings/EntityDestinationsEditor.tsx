@@ -19,14 +19,14 @@ export function EntityDestinationsEditor({
   onChange,
   library,
   orphaned,
-}: {
+}: Readonly<{
   entityType: "studio" | "tag";
   map: Record<string, Destination>;
   onChange: (map: Record<string, Destination>) => void;
   library: LibraryPathsState;
   /** Rule keys naming an entity Cove no longer holds. */
   orphaned: ReadonlySet<number>;
-}) {
+}>) {
   const copy = COPY[entityType];
   return (
     <KeyValueMapEditor<Destination>

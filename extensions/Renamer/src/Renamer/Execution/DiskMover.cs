@@ -45,36 +45,38 @@ public static class DiskMover
 
         var moved = new List<SidecarMove>();
         var warnings = new List<string>();
-        if (sidecars is not null)
+        foreach (var sc in sidecars ?? [])
         {
-            foreach (var sc in sidecars)
-            {
-                if (System.IO.File.Exists(sc.To))
-                {
-                    // The pre-existing target is left untouched.
-                    warnings.Add($"sidecar target exists, skipped: {sc.To}");
-                    continue;
-                }
-
-                try
-                {
-                    Movers.EnsureParentDir(sc.To);
-                    System.IO.File.Move(sc.From, sc.To);
-                    moved.Add(sc);
-                }
-                catch (IOException ex)
-                {
-                    // A locked sidecar is non-fatal; the primary file has already moved.
-                    warnings.Add($"sidecar move failed (locked/exists), skipped: {sc.From} -> {sc.To}: {ex.Message}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    warnings.Add($"sidecar move failed (permission), skipped: {sc.From} -> {sc.To}: {ex.Message}");
-                }
-            }
+            MoveSidecar(sc, moved, warnings);
         }
 
         return new MoveResult(true, MoveOutcome.Moved, moved, warnings, null);
+    }
+
+    // Runs after the primary file has moved, so a sidecar that cannot move is a warning, never a
+    // failure. A pre-existing target is left untouched.
+    private static void MoveSidecar(SidecarMove sc, List<SidecarMove> moved, List<string> warnings)
+    {
+        if (System.IO.File.Exists(sc.To))
+        {
+            warnings.Add($"sidecar target exists, skipped: {sc.To}");
+            return;
+        }
+
+        try
+        {
+            Movers.EnsureParentDir(sc.To);
+            System.IO.File.Move(sc.From, sc.To);
+            moved.Add(sc);
+        }
+        catch (IOException ex)
+        {
+            warnings.Add($"sidecar move failed (locked/exists), skipped: {sc.From} -> {sc.To}: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            warnings.Add($"sidecar move failed (permission), skipped: {sc.From} -> {sc.To}: {ex.Message}");
+        }
     }
 
     // Reverses a successful Move: the primary file goes back to oldFull and every moved sidecar back to

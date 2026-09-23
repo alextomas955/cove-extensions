@@ -40,10 +40,10 @@ public sealed class LibraryRenameSummaryTests
     }
 
     private static int StatusOf(IResult result) =>
-        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+        Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     private static LibraryRenameSummaryView ViewOf(IResult result) =>
-        Assert.IsType<LibraryRenameSummaryView>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<LibraryRenameSummaryView>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     private static Task StoreAsync(FakeStore store, LibraryRenameSummary summary) =>
         store.SetAsync(

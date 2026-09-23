@@ -32,7 +32,7 @@ export function buildRenameLibraryResult(
     ...(skipped > 0 ? [`${skipped} skipped`] : []),
     ...(failed > 0 ? [`${failed} failed`] : []),
   ];
-  const counts = `${files(renamed)} renamed${extras.map((e) => `, ${e}`).join("")}.`;
+  const counts = [`${files(renamed)} renamed`, ...extras].join(", ") + ".";
 
   if (stoppedForSpace.length > 0) {
     const kinds = stoppedForSpace

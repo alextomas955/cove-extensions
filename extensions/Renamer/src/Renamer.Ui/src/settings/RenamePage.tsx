@@ -26,6 +26,32 @@ import { useRenameLibrary } from "./useRenameLibrary";
  * `dirty`. Reuses the dirty/saving/saveError/savedFlash state and onSave handler from
  * useRenamerOptions; Discard reverts to the last-saved snapshot, never the factory defaults.
  */
+// The error dot takes its colour from an inline style, so its class carries none.
+function dotClass(saveError: string | null, savedFlash: boolean): string {
+  if (saveError) return "";
+  return savedFlash ? "bg-green-400" : "bg-amber-400";
+}
+
+function SaveBarMessage({
+  saveError,
+  savedFlash,
+}: Readonly<{ saveError: string | null; savedFlash: boolean }>) {
+  if (saveError) {
+    return (
+      <StatusText kind="error">
+        Couldn't save settings: {saveError}. Your changes are still here; try Save again.
+      </StatusText>
+    );
+  }
+  if (savedFlash) return <StatusText kind="success">Settings saved.</StatusText>;
+  return (
+    <>
+      <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
+      <div className="mt-0.5 text-xs text-secondary">Nothing on disk changes until you save.</div>
+    </>
+  );
+}
+
 function SaveBar({
   dirty,
   saving,
@@ -34,7 +60,7 @@ function SaveBar({
   canSave,
   onSave,
   onDiscard,
-}: {
+}: Readonly<{
   dirty: boolean;
   saving: boolean;
   saveError: string | null;
@@ -42,7 +68,7 @@ function SaveBar({
   canSave: boolean;
   onSave: () => void;
   onDiscard: () => void;
-}) {
+}>) {
   if (!dirty) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
@@ -56,26 +82,11 @@ function SaveBar({
             the full-strength utility and the error dot resolved to no fill. The colour scale's custom
             property is declared whether or not a utility using it is, so inline the tone off that. */}
         <span
-          className={`h-2 w-2 shrink-0 rounded-full ${
-            saveError ? "" : savedFlash ? "bg-green-400" : "bg-amber-400"
-          }`}
+          className={`h-2 w-2 shrink-0 rounded-full ${dotClass(saveError, savedFlash)}`}
           style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
-          {saveError ? (
-            <StatusText kind="error">
-              Couldn't save settings: {saveError}. Your changes are still here; try Save again.
-            </StatusText>
-          ) : savedFlash ? (
-            <StatusText kind="success">Settings saved.</StatusText>
-          ) : (
-            <>
-              <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
-              <div className="mt-0.5 text-xs text-secondary">
-                Nothing on disk changes until you save.
-              </div>
-            </>
-          )}
+          <SaveBarMessage saveError={saveError} savedFlash={savedFlash} />
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="ghost" onClick={onDiscard} disabled={saving}>

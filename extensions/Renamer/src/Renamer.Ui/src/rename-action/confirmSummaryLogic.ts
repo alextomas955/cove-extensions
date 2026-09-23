@@ -116,12 +116,88 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
  */
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
-  return level === "heavy"
-    ? `This is a LARGE cross-drive move. Files will be COPIED across drives, which can take a while. ` +
+  switch (level) {
+    case "heavy":
+      return (
+        `This is a LARGE cross-drive move. Files will be COPIED across drives, which can take a while. ` +
         `Click OK only if you are sure; Cancel to stop. ${reversibility}`
-    : level === "standard"
-      ? `This moves files across drives. Click OK to proceed, or Cancel to stop. ${reversibility}`
-      : `Click OK to rename, or Cancel to stop. ${reversibility}`;
+      );
+    case "standard":
+      return `This moves files across drives. Click OK to proceed, or Cancel to stop. ${reversibility}`;
+    default:
+      return `Click OK to rename, or Cancel to stop. ${reversibility}`;
+  }
+}
+
+function plural(n: number): string {
+  return n === 1 ? "" : "s";
+}
+
+interface SkipTally {
+  kinds: (SkipClause & { count: number })[];
+  unclassified: number;
+}
+
+function tallySkips(items: PreviewItemView[]): SkipTally {
+  const tally = new Map<string, number>();
+  // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
+  // would count it here and lose it again below, where the clause list reads only declared keys.
+  // Counted separately instead, because a number the user approves a rename on must not omit rows it
+  // could not classify.
+  let unclassified = 0;
+  for (const it of items) {
+    const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
+    if (clause === undefined) unclassified += 1;
+    else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
+  }
+  // Read in the map's declaration order, never the tally's - that one follows whatever order the items
+  // happened to arrive in, which would let the same selection word its sentence differently twice.
+  const kinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
+    const count = tally.get(status) ?? 0;
+    return clause !== null && count > 0 ? [{ ...clause, count }] : [];
+  });
+  return { kinds, unclassified };
+}
+
+function skipLine({ kinds, unclassified }: SkipTally): string | null {
+  const skipped = kinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
+  if (skipped === 0) return null;
+  // If only one reason kind, collapse to the compact "(reason)" form.
+  const onlyKind = kinds.length === 1 ? kinds[0] : undefined;
+  if (onlyKind && unclassified === 0) return `⚠ ${skipped} skipped (${onlyKind.reason}).`;
+  const clauses = kinds.map((kind) => `${kind.count} ${kind.clause}`);
+  if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
+  return `⚠ ${skipped} skipped: ${clauses.join(", ")}.`;
+}
+
+function warningLines(
+  items: PreviewItemView[],
+  willRename: PreviewItemView[],
+  summary?: PreviewSummary,
+): string[] {
+  const lines: string[] = [];
+  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
+  // that will happen differently, while this one describes files the executor will not be able to move
+  // at all. It reads the aggregate count, never a list of paths - a selection reaches library size, and
+  // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
+  // characters: what the user can act on is the remedy, so that is what the line carries.
+  const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
+  if (inFlightOverflow > 0) {
+    const them = inFlightOverflow === 1 ? "it" : "them";
+    lines.push(
+      `⚠ ${inFlightOverflow} cannot be copied across drives: the temporary copy's path would be too ` +
+        `long. Shorten the destination folder or the filename template for ${them}.`,
+    );
+  }
+  const skips = skipLine(tallySkips(items));
+  if (skips !== null) lines.push(skips);
+  const cleaned = willRename.filter((it) => it.sanitized).length;
+  if (cleaned > 0) lines.push(`⚠ ${cleaned} had illegal characters cleaned up.`);
+  const numbered = willRename.filter((it) => it.suffixed).length;
+  if (numbered > 0) {
+    lines.push(`⚠ ${numbered} got a number added to avoid a name clash (e.g. "name (1)").`);
+  }
+  return lines;
 }
 
 /**
@@ -147,68 +223,18 @@ export function buildConfirmSummary(
   const n = willRename.length;
   const m = items.length;
 
-  const tally = new Map<string, number>();
-  // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
-  // would count it here and lose it again below, where the clause list reads only declared keys.
-  // Counted separately instead, because a number the user approves a rename on must not omit rows it
-  // could not classify.
-  let unclassified = 0;
-  for (const it of items) {
-    const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
-    if (clause === undefined) unclassified += 1;
-    else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
-  }
-  // Read in the map's declaration order, never the tally's - that one follows whatever order the items
-  // happened to arrive in, which would let the same selection word its sentence differently twice.
-  const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
-    const count = tally.get(status) ?? 0;
-    return clause !== null && count > 0 ? [{ ...clause, count }] : [];
-  });
-  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
-  const numbered = willRename.filter((it) => it.suffixed).length;
-  const cleaned = willRename.filter((it) => it.sanitized).length;
-
-  const warningLines: string[] = [];
-  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
-  // that will happen differently, while this one describes files the executor will not be able to move
-  // at all. It reads the aggregate count, never a list of paths - a selection reaches library size, and
-  // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
-  // characters: what the user can act on is the remedy, so that is what the line carries.
-  const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
-  if (inFlightOverflow > 0) {
-    warningLines.push(
-      `⚠ ${inFlightOverflow} cannot be copied across drives: the temporary copy's path would be too ` +
-        `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
-    );
-  }
-  if (skipped > 0) {
-    // If only one reason kind, collapse to the compact "(reason)" form.
-    const onlyKind = skipKinds.length === 1 ? skipKinds[0] : undefined;
-    if (onlyKind && unclassified === 0) {
-      warningLines.push(`⚠ ${skipped} skipped (${onlyKind.reason}).`);
-    } else {
-      const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
-      if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
-      warningLines.push(`⚠ ${skipped} skipped: ${clauses.join(", ")}.`);
-    }
-  }
-  if (cleaned > 0) {
-    warningLines.push(`⚠ ${cleaned} had illegal characters cleaned up.`);
-  }
-  if (numbered > 0) {
-    warningLines.push(`⚠ ${numbered} got a number added to avoid a name clash (e.g. "name (1)").`);
-  }
+  const warnings = warningLines(items, willRename, summary);
 
   // Blast-radius lines (additive): one per cross-volume (from → to) pair, when the backend reports
   // any. A same-drive-only batch has no volumePairs and these lines are absent.
   const blastLines = buildBlastLines(summary);
 
-  const warningBlock = warningLines.length > 0 ? `${warningLines.join("\n")}\n\n` : "";
+  const warningBlock = warnings.length > 0 ? `${warnings.join("\n")}\n\n` : "";
   const blastBlock = blastLines.length > 0 ? `${blastLines.join("\n")}\n\n` : "";
 
   if (n === 0) {
     const text =
-      `Nothing will be renamed: all ${m} selected item${m === 1 ? "" : "s"} ` +
+      `Nothing will be renamed: all ${m} selected item${plural(m)} ` +
       `are skipped or already named correctly.\n\n` +
       warningBlock +
       `Click OK to dismiss.`;
@@ -216,9 +242,7 @@ export function buildConfirmSummary(
   }
 
   const header =
-    n === m
-      ? `Rename ${n} selected item${n === 1 ? "" : "s"}?`
-      : `Rename ${n} of ${m} selected items?`;
+    n === m ? `Rename ${n} selected item${plural(n)}?` : `Rename ${n} of ${m} selected items?`;
 
   const examples = willRename.slice(0, SAMPLE_LIMIT).map((it) => {
     const oldName = basename(it.oldFullPath);
