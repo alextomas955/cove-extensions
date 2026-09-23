@@ -96,7 +96,10 @@ export function SyncLibrarySection({
 
   return (
     <SectionCard title="Sync your library to Whisparr" description={sentences.description}>
-      <div className="space-y-2" aria-busy={counting}>
+      <div
+        className="space-y-2 rounded-xl border border-border bg-card px-3 py-2"
+        aria-busy={counting}
+      >
         <AsyncRegion
           state={preview}
           reading={
@@ -125,30 +128,34 @@ export function SyncLibrarySection({
         {counting ? <Spinner /> : null}
       </div>
 
-      <DisabledToggle
-        label={SYNC_ALSO_MONITOR}
-        helper={MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}
-        checked={monitorAlso}
-        onChange={onMonitorAlso}
-        reason={monitorToggleReason(state)}
-      />
+      {/* Running the sync is a different subject from counting what it would do, so a hairline
+          closes the counts above rather than spacing alone. */}
+      <div className="space-y-4 border-t border-border pt-4">
+        <DisabledToggle
+          label={SYNC_ALSO_MONITOR}
+          helper={MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}
+          checked={monitorAlso}
+          onChange={onMonitorAlso}
+          reason={monitorToggleReason(state)}
+        />
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <OptionallyDisabled
-            name={SYNC_LIBRARY}
-            variant="primary"
-            reason={syncReason}
-            onClick={() => {
-              setConfirming(true);
-            }}
-          />
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <OptionallyDisabled
+              name={SYNC_LIBRARY}
+              variant="primary"
+              reason={syncReason}
+              onClick={() => {
+                setConfirming(true);
+              }}
+            />
+          </div>
+
+          {refused ? <StatusText kind="error">{RUN_WAS_NOT_STARTED}</StatusText> : null}
+          {started && !refused ? (
+            <StatusText kind="muted">{SYNC_RUNS_IN_THE_JOB_DRAWER}</StatusText>
+          ) : null}
         </div>
-
-        {refused ? <StatusText kind="error">{RUN_WAS_NOT_STARTED}</StatusText> : null}
-        {started && !refused ? (
-          <StatusText kind="muted">{SYNC_RUNS_IN_THE_JOB_DRAWER}</StatusText>
-        ) : null}
       </div>
 
       {!confirming || counts === null

@@ -22,9 +22,23 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
     StatusPill: (props: { children: ReactNode }) => h("span", null, props.children),
-    // A real button, because the native disabled attribute decides whether a press can act.
-    Button: (props: { children: ReactNode; disabled?: boolean; onClick: () => void }) =>
-      h("button", { disabled: props.disabled, onClick: props.onClick }, props.children),
+    // A real button, because the native disabled attribute decides whether a press can act. The
+    // variant is rendered because the section's claim is that it asks for no accent control.
+    Button: (props: {
+      children: ReactNode;
+      disabled?: boolean;
+      variant?: string;
+      onClick: () => void;
+    }) =>
+      h(
+        "button",
+        {
+          disabled: props.disabled,
+          onClick: props.onClick,
+          "data-variant": props.variant ?? "primary",
+        },
+        props.children,
+      ),
     INPUT_CLASS: "",
     extensionApi: (id: string) => (path: string) => `/extensions/${id}/${path}`,
   };
@@ -388,4 +402,31 @@ test("the control is named", async () => {
   const page = await mount();
 
   expect(page.saveFor("/media")?.textContent).toContain(FOLDER_AGREEMENT_SAVE);
+});
+
+test("no row asks for an accent control, whatever each row is asking for", async () => {
+  reads = [viewOf(lineFor("/media"), settledLineFor("/films", "/data/films"))];
+
+  const page = await mount();
+
+  const buttons = [...page.container.querySelectorAll("button")];
+  expect(buttons.length, "the section offers nothing to press").toBeGreaterThan(1);
+  expect(
+    buttons.filter(
+      (button) => button.dataset.variant !== undefined && button.dataset.variant !== "ghost",
+    ),
+    "a row asks for an accent control, which would make the whole section accent",
+  ).toEqual([]);
+});
+
+test("a hairline closes a row's state off from what can be done about it", async () => {
+  reads = [viewOf(lineFor("/media"))];
+
+  const page = await mount();
+
+  const divided = page.saveFor("/media")?.closest(".border-t");
+  expect(divided, "the row's control is separated from its state by spacing alone").not.toBeNull();
+  expect([...(divided?.classList ?? [])]).toEqual(
+    expect.arrayContaining(["border-t", "border-border"]),
+  );
 });
