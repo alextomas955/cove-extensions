@@ -6,7 +6,7 @@
  * claims an outcome. What the instance ends up holding is read when the run stops, and that read is
  * what replaces this.
  */
-import { Loader } from "lucide-react";
+import { Spinner } from "@cove-extensions/ui-shared";
 
 import { WORKING_IN_WHISPARR } from "./copy";
 
@@ -16,7 +16,7 @@ const CHIP_CLASS =
 export function WorkingChip() {
   return (
     <span className={CHIP_CLASS} title={WORKING_IN_WHISPARR}>
-      <Loader className="h-3 w-3 animate-spin" aria-hidden="true" />
+      <Spinner className="h-3 w-3" />
       {WORKING_IN_WHISPARR}
     </span>
   );

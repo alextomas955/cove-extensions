@@ -16,6 +16,7 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       h("span", { "data-pill": props.variant }, props.icon, props.children),
     StatusText: (props: { kind: string; children?: ReactNode }) =>
       h("span", { "data-status": props.kind }, props.children),
+    Spinner: () => h("span", null, "working"),
   };
 });
 

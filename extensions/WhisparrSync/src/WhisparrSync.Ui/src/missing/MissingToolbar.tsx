@@ -14,7 +14,8 @@
  */
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
-import { Radar, RefreshCw, Search } from "lucide-react";
+// `Search` here is the search box's own affordance, not the verb that asks Whisparr to look.
+import { Search } from "lucide-react";
 
 import {
   ACTION_REFRESH,
@@ -23,6 +24,10 @@ import {
   facetCoversEverything,
   monitorAllConfirmation,
 } from "../common/ui/copy";
+import { VERB_GLYPH } from "../common/ui/verbGlyphs";
+
+const RefreshGlyph = VERB_GLYPH.refresh;
+const MonitorGlyph = VERB_GLYPH.monitor;
 import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
 import type { WhisparrEntityKind } from "../wire/api";
 import { ConfirmDialog } from "./hostComponents";
@@ -182,7 +187,7 @@ export function MissingToolbar({
 
       <div className={SEGMENT_CLASS}>
         <button type="button" onClick={onRefresh} className={ACTION_CLASS}>
-          <RefreshCw aria-hidden className="h-3.5 w-3.5" />
+          <RefreshGlyph className="h-3.5 w-3.5" />
           {ACTION_REFRESH}
         </button>
 
@@ -194,8 +199,7 @@ export function MissingToolbar({
             }}
             className={ACTION_CLASS}
           >
-            {/* The glyph the monitor menu already gives to marking something wanted. */}
-            <Radar aria-hidden className="h-3.5 w-3.5" />
+            <MonitorGlyph className="h-3.5 w-3.5" />
             {MONITOR_ALL_LABEL}
           </button>
         )}

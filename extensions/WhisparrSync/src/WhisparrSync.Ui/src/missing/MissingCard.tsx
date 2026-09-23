@@ -12,10 +12,11 @@
  * and nothing is stored.
  */
 import type { ReactNode } from "react";
-import { Check, ImageOff, Loader, Radar, Search, User } from "lucide-react";
-import { StatusText } from "@cove-extensions/ui-shared";
+import { Check, ImageOff, User } from "lucide-react";
+import { Spinner, StatusText } from "@cove-extensions/ui-shared";
 
 import type { RowIcon } from "../common/ui/ChoiceOverlay";
+import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 import { StateChip } from "../common/ui/StateChip";
 import { WorkingChip } from "../common/ui/WorkingChip";
 import {
@@ -120,7 +121,7 @@ export function MissingCard({
             <div className="flex shrink-0 items-center gap-1.5">
               <CardAction
                 name={monitorSceneName(card.title)}
-                glyph={Radar}
+                glyph={VERB_GLYPH.monitor}
                 waiting={action.inFlight === "monitor"}
                 onPress={() => {
                   onMonitor(card.providerSceneId);
@@ -128,7 +129,7 @@ export function MissingCard({
               />
               <CardAction
                 name={searchSceneName(card.title)}
-                glyph={Search}
+                glyph={VERB_GLYPH.search}
                 waiting={action.inFlight === "search"}
                 onPress={() => {
                   onSearch(card.providerSceneId);
@@ -201,11 +202,7 @@ function CardAction({
       onClick={onPress}
       className={ACTION_CLASS}
     >
-      {waiting ? (
-        <Loader className={`${GLYPH_CLASS} animate-spin`} />
-      ) : (
-        <Glyph className={GLYPH_CLASS} />
-      )}
+      {waiting ? <Spinner className={GLYPH_CLASS} /> : <Glyph className={GLYPH_CLASS} />}
     </button>
   );
 }
