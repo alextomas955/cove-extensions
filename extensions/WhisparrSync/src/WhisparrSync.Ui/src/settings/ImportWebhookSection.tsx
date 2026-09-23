@@ -60,6 +60,7 @@ export function ImportWebhookSection({
       <div className="space-y-4">
         <Field
           label="Callback address"
+          labelStyle="mono"
           helper="Correct the scheme, host, port or path prefix if Whisparr reaches Cove somewhere other than you do. The rest is Cove's own."
         >
           {(id) => <TextInput id={id} value={address} onChange={onAddressChange} mono />}
@@ -71,36 +72,46 @@ export function ImportWebhookSection({
           </div>
         ) : null}
 
-        <div className="flex items-center gap-3" aria-busy={registering}>
-          <OptionallyDisabled
-            name="Copy URL"
-            variant="ghost"
-            reason={address.trim() === "" ? "There is no callback address to copy." : null}
-            onClick={onCopy}
-          />
-          <OptionallyDisabled
-            name={registering ? "Registering…" : "Register in Whisparr"}
-            reason={registerReason}
-            onClick={onRegister}
-          />
-          {registering ? <Spinner /> : null}
-          <CopyOutcome result={copyResult} />
+        {/* Handing the address to Whisparr is a different subject from setting it, so a hairline
+            closes the address above rather than spacing alone. */}
+        <div className="space-y-2 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center gap-3" aria-busy={registering}>
+            <OptionallyDisabled
+              name="Copy URL"
+              variant="ghost"
+              reason={address.trim() === "" ? "There is no callback address to copy." : null}
+              onClick={onCopy}
+            />
+            <OptionallyDisabled
+              name={registering ? "Registering…" : "Register in Whisparr"}
+              reason={registerReason}
+              onClick={onRegister}
+            />
+            {registering ? <Spinner /> : null}
+            <CopyOutcome result={copyResult} />
+
+            {/* The status sits at the row's right edge while it fits on the line, and wraps under
+                the controls when it does not. */}
+            <div className="ml-auto">
+              <AsyncRegion
+                state={deriveAsyncRegionState(registrationRead(view, readFailed))}
+                reading={<StatusText kind="muted">Reading the callback status…</StatusText>}
+                outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
+                content={<Status view={view} />}
+                empty={<Status view={view} />}
+                failed={
+                  <StatusText kind="error">Cove could not read the callback status.</StatusText>
+                }
+              />
+            </div>
+          </div>
+
+          {registerError === null ? null : (
+            <StatusText kind="error">
+              Cove could not register the callback: {registerError}
+            </StatusText>
+          )}
         </div>
-
-        <AsyncRegion
-          state={deriveAsyncRegionState(registrationRead(view, readFailed))}
-          reading={<StatusText kind="muted">Reading the callback status…</StatusText>}
-          outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
-          content={<Status view={view} />}
-          empty={<Status view={view} />}
-          failed={<StatusText kind="error">Cove could not read the callback status.</StatusText>}
-        />
-
-        {registerError === null ? null : (
-          <StatusText kind="error">
-            Cove could not register the callback: {registerError}
-          </StatusText>
-        )}
       </div>
     </SectionCard>
   );

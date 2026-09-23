@@ -38,7 +38,7 @@ export function ImportBehaviorSection({
       description="What happens to the scene Cove already holds when a better file arrives for it."
     >
       <div className="space-y-2">
-        <Field label="Replacement files">
+        <Field label="Replacement files" labelStyle="mono">
           {(id) => (
             <Select
               id={id}
