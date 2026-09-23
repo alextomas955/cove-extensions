@@ -11,7 +11,6 @@ import { Spinner, StatusPill } from "@cove-extensions/ui-shared";
 import {
   CHECKING_WHISPARR,
   LIBRARY_COUNTS_ARE_FOR_THIS_PAGE,
-  NOT_ADDED_ON_THIS_PAGE,
   NOT_LINKED_ON_THIS_PAGE,
   NOT_LINKED_REASON,
   STILL_COUNTING,
@@ -28,9 +27,14 @@ import type { LibraryCardKind } from "../wire/api";
 import { useLibraryStatusOn } from "./libraryToggleStore";
 import { useLibraryTally } from "./useLibraryTally";
 
-// `notAdded` is absent because it is the trailing count on the right. `statusUnknown` is absent
-// because it is drawn only where a card is in it.
-const PILL_ORDER: readonly WhisparrEntityState[] = ["monitored", "unmonitored", "excluded"];
+// The states that partition the answered cards, drawn together so the reader can add them up against
+// the page's own total. `statusUnknown` is absent because it is drawn only where a card is in it.
+const PILL_ORDER: readonly WhisparrEntityState[] = [
+  "monitored",
+  "unmonitored",
+  "notAdded",
+  "excluded",
+];
 
 // Drawn at a count of zero too: the row is the key to the glyphs on the cards below it, and a key
 // that drops its empty entries changes as you page.
@@ -121,22 +125,14 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
             </StatusPill>
           )}
         </span>
-        <span className="ml-auto inline-flex items-center gap-2 text-xs text-muted">
-          {/* A page is answered a batch at a time, so a subtotal is on screen well before the
-              read finishes and reads exactly like a finished one. */}
-          {answered < registered ? (
-            <span className="inline-flex items-center gap-1.5 text-secondary">
-              <Spinner />
-              {STILL_COUNTING}
-            </span>
-          ) : null}
-          <span
-            className={`inline-flex items-center gap-1 transition-opacity ${counting ? "opacity-60" : ""}`}
-          >
-            <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
-            {NOT_ADDED_ON_THIS_PAGE}
+        {/* A page is answered a batch at a time, so a subtotal is on screen well before the read
+            finishes and reads exactly like a finished one. */}
+        {answered < registered ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-secondary">
+            <Spinner />
+            {STILL_COUNTING}
           </span>
-        </span>
+        ) : null}
       </span>
     );
   }
