@@ -290,13 +290,10 @@ public sealed class ChunkedRenameTests
     [Fact]
     public async Task AChunkThatDoesNotFit_StopsTheRun_AndLeavesTheEarlierChunkRenamedAndUndoable()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst gives a distinct path root (NOT a real second drive) on Windows only.
-        }
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
-        using var drive = new SubstDrive();
+        using var drive = new SecondVolume();
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
@@ -339,9 +336,10 @@ public sealed class ChunkedRenameTests
             var ext = await BuildAsync(shared, options, keepFwd, moveFwd, destRootFwd);
             var progress = new FakeJobProgress();
 
-            // Only the subst root is short, so the first chunk's in-place rename is unaffected and the
-            // second chunk's cross-volume move cannot fit.
-            long Probe(string vol) => vol.Length > 0 && vol[0] == drive.Root[0] ? 1L : 1L << 40;
+            // Only the second volume is short, so the first chunk's in-place rename is unaffected and
+            // the second chunk's cross-volume move cannot fit.
+            string shortVolume = VolumeClassifier.VolumeKey(destRootFwd);
+            long Probe(string vol) => vol == shortVolume ? 1L : 1L << 40;
 
             await ext.RunRenamerKindAsync(
                 new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, Probe, ChunkEntities: 1),

@@ -219,20 +219,17 @@ public sealed class ParallelBatchTests
     [Fact]
     public async Task InFlightFreeSpaceDrop_SkipsCrossVolumeItemGracefully()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst gives a distinct path root (NOT a real second drive) on Windows only.
-        }
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
-        using var drive = new SubstDrive(); // a distinct path root that backs the same physical volume.
+        using var drive = new SecondVolume();
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
             string srcFolder = Path.Combine(dir.Root, "incoming");
             Directory.CreateDirectory(srcFolder);
             string srcPathFwd = srcFolder.Replace('\\', '/');
-            string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
+            string destRootFwd = drive.Root.Replace('\\', '/');
 
             await using var seedDb = shared.NewContext();
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
@@ -245,7 +242,7 @@ public sealed class ParallelBatchTests
             fileRow.Size = 4096;
             await seedDb.SaveChangesAsync();
 
-            // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
+            // Route the item across volumes (src on the temp drive → dest on the second volume), so
             // the partition classifies it cross-volume and the worker runs the in-flight Shortfall.
             var options = new RenamerOptions
             {

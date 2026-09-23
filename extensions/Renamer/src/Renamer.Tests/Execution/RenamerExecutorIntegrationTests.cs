@@ -187,15 +187,15 @@ public sealed class RenamerExecutorIntegrationTests
     [Fact]
     public async Task CrossVolumeBranch_HappyMove_UsesCrossMover_DiskAndDbUpdated()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             string srcFolder = src.Root.Replace('\\', '/');
-            string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/'); // "P:" (root, distinct from src)
+            string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
@@ -222,12 +222,12 @@ public sealed class RenamerExecutorIntegrationTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // Disk: dest present with original content, source gone, no .partial left behind.
+            // Disk: dest present with original content, source gone, no in-flight copy left behind.
             string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
             Assert.True(File.Exists(newOnDisk), "cross-moved file must exist at the dest root");
             Assert.Equal("cross-bytes", File.ReadAllText(newOnDisk));
             Assert.False(File.Exists(oldFull), "source must be deleted (delete-source-last) after a verified cross move");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial");
+            Assert.Equal([newOnDisk], Directory.GetFileSystemEntries(dst.Root));
 
             // Result buckets: one moved, none skipped/failed; revert-log row written.
             var movedItem = Assert.Single(result.Renamed);
@@ -263,10 +263,10 @@ public sealed class RenamerExecutorIntegrationTests
     [Fact]
     public async Task CrossVolumeSaveFailure_RollsBackThroughCrossMover_SourceRestored()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -318,7 +318,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             // and is not left on the dest volume.
             Assert.False(File.Exists(newOnDisk), "rolled-back file must not linger at the dest");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
+            Assert.DoesNotContain(Directory.GetFileSystemEntries(dst.Root), e => e.Contains(".rnm", StringComparison.Ordinal));
 
             // (c) the DB row still carries the old basename + source folder - disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
@@ -342,10 +342,10 @@ public sealed class RenamerExecutorIntegrationTests
     [Fact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
