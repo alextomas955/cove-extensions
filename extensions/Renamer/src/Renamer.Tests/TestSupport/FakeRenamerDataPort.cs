@@ -7,16 +7,16 @@ namespace Renamer.Tests.TestSupport;
 // No disk, no DB.
 public sealed class FakeRenamerDataPort : IRenamerDataPort
 {
-    private readonly Dictionary<(RenamerFileKind kind, int id), RenamerEntity> _entities = new();
+    private readonly Dictionary<(RenamerFileKind kind, int id), RenamerEntity> _entities = [];
 
     // Pre-seeded (folderId, basename) pairs treated as occupied (paired with the file id that holds
     // them).
-    private readonly HashSet<(int folderId, string basename, int fileId)> _occupied = new();
+    private readonly HashSet<(int folderId, string basename, int fileId)> _occupied = [];
 
     private readonly Dictionary<string, int> _folderIds = new(StringComparer.Ordinal);
     private int _nextFolderId = 1000;
 
-    private readonly Dictionary<RenamerFileKind, List<int>> _allIds = new();
+    private readonly Dictionary<RenamerFileKind, List<int>> _allIds = [];
 
     // Seeds a loadable entity (returned by LoadEntityAsync).
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;
@@ -118,7 +118,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     // Records every GetOrCreateFolderIdAsync call's path, in order - a created folder is a
     // mutation, so a preview-purity test asserts this stays empty.
-    public List<string> CreatedFolderPaths { get; } = new();
+    public List<string> CreatedFolderPaths { get; } = [];
 
     public Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
     {

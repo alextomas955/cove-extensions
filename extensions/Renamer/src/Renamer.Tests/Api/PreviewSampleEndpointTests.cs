@@ -13,7 +13,7 @@ namespace Renamer.Tests.Api;
 
 public sealed class PreviewSampleEndpointTests
 {
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     // Builds an HttpRequest whose body is the given raw JSON - the endpoint now binds the raw
     // request and parses the body itself (with JsonOptions), so tests drive it through a real body

@@ -53,7 +53,7 @@ public sealed class OptionsStoreTests
         // The warning is the only sign that stored settings were discarded rather than never written.
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
-        Assert.IsAssignableFrom<JsonException>(entry.Error);
+        Assert.IsType<JsonException>(entry.Error, exactMatch: false);
     }
 
     [Fact]

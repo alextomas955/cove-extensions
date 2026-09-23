@@ -112,7 +112,7 @@ public sealed class ScanAggregateScaleTests
         Assert.Equal(LargeFixture, summary.Kinds.Sum(k => k.Files));
         Assert.Equal(LargeFixture, summary.Kinds.Sum(k => k.Entities));
         Assert.Equal(LargeFixture, summary.Kinds.Sum(k => k.StatusCounts.Sum(c => c.Count)));
-        Assert.All(summary.Kinds, k => Assert.Equal(k.Files, k.StatusCounts.Sum(c => c.Count)));
+        Assert.All(summary.Kinds, (ScanKindSummary k) => Assert.Equal<int>(k.Files, k.StatusCounts.Sum(c => c.Count)));
     }
 
     [Fact]

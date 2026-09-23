@@ -44,7 +44,7 @@ public sealed class RenamerLibraryEndpointTests
         return (ext, store);
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     // The caller the enqueue would have snapshotted, holding exactly the given permissions.
     private static CovePrincipal Caller(params string[] permissions)

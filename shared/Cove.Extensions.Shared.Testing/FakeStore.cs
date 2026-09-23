@@ -13,7 +13,7 @@ namespace Cove.Extensions.Shared.Testing;
 /// </remarks>
 public sealed class FakeStore : IExtensionStore
 {
-    private readonly Dictionary<string, string> _d = new();
+    private readonly Dictionary<string, string> _d = [];
 
     /// <summary>Number of <see cref="SetAsync"/> calls - lets a test prove a read-only path wrote nothing.</summary>
     public int SetCallCount { get; private set; }
