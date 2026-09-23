@@ -6,7 +6,7 @@
  */
 
 /** In the spelling the shared `StatusPill` takes. */
-type Variant = "accent" | "amber" | "red" | "green" | "gray";
+type Variant = "accent" | "amber" | "red" | "green" | "cyan" | "violet" | "gray";
 
 export type WhisparrEntityState =
   "monitored" | "unmonitored" | "notAdded" | "excluded" | "statusUnknown";
@@ -28,12 +28,15 @@ export interface StateDescription {
  * monitored once its file lands, and file presence is reported separately through
  * {@link FILE_MARKER}.
  *
- * Two states share the `gray` tint, so every entry carries its own glyph and its own label.
+ * No two entries here or among the markers share a glyph or a tint, so a reader comparing two of
+ * them side by side is never deciding on the label alone. The judging tints are spent on the three
+ * states that carry a judgment; a state that reports absence takes a neutral one.
  */
 export const STATE_VOCABULARY: Record<WhisparrEntityState, StateDescription> = {
   monitored: { iconKey: "bookmark", label: "Monitored", variant: "green" },
-  unmonitored: { iconKey: "circle", label: "Unmonitored", variant: "gray" },
-  notAdded: { iconKey: "circleDashed", label: "Not added", variant: "gray" },
+  // The bookmark negated, because the pair is one flag's two settings.
+  unmonitored: { iconKey: "bookmarkMinus", label: "Unmonitored", variant: "gray" },
+  notAdded: { iconKey: "circleDashed", label: "Not added", variant: "cyan" },
   excluded: { iconKey: "ban", label: "Excluded", variant: "red" },
   statusUnknown: { iconKey: "circleQuestion", label: "Status unknown", variant: "amber" },
 };
@@ -41,11 +44,24 @@ export const STATE_VOCABULARY: Record<WhisparrEntityState, StateDescription> = {
 /**
  * A marker, not a state. Whether the instance holds a file cross-cuts the five, so a view draws
  * this beside a state and never instead of one.
+ *
+ * Tinted with the host's own accent rather than a judging color: holding a file is a fact, and the
+ * green next to it already means the entity is wanted.
  */
 export const FILE_MARKER: StateDescription = {
-  iconKey: "download",
+  iconKey: "hardDrive",
   label: "In library",
-  variant: "green",
+  variant: "accent",
+};
+
+/**
+ * A marker, not a state. The library holds no identifier the connected generation could name the
+ * entity by, so the instance was never asked and reports nothing to be in a state about.
+ */
+export const NOT_LINKED_MARKER: StateDescription = {
+  iconKey: "unlink",
+  label: "Not linked",
+  variant: "violet",
 };
 
 export function describeState(state: WhisparrEntityState): StateDescription {

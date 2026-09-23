@@ -4,7 +4,16 @@
  *
  * The mark is hidden from assistive technology because the label beside it carries the meaning.
  */
-import { Ban, Bookmark, Circle, CircleDashed, CircleHelp, Download, Unlink } from "lucide-react";
+import {
+  Ban,
+  Bookmark,
+  BookmarkMinus,
+  Circle,
+  CircleDashed,
+  CircleHelp,
+  HardDrive,
+  Unlink,
+} from "lucide-react";
 
 // lucide-react is a host import-map external, so a name must exist in the module the host serves
 // as well as in the version resolved for typechecking. `CircleHelp` does, `CircleQuestionMark`
@@ -12,11 +21,11 @@ import { Ban, Bookmark, Circle, CircleDashed, CircleHelp, Download, Unlink } fro
 // build and a typecheck cannot see it.
 const GLYPH: Record<string, typeof Bookmark> = {
   bookmark: Bookmark,
-  circle: Circle,
+  bookmarkMinus: BookmarkMinus,
   circleDashed: CircleDashed,
   ban: Ban,
   circleQuestion: CircleHelp,
-  download: Download,
+  hardDrive: HardDrive,
   unlink: Unlink,
 };
 
