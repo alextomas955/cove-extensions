@@ -417,29 +417,27 @@ public sealed partial class Renamer
         var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
-        // Build the RouteLookups the batch builds and route through the routing overload,
-        // so the dry-run reflects the routed destination the batch will execute (not the empty-lookups
-        // source-confine fallback). Preview must match execution - the core value.
+        // The batch's own lookups and loader, so the preview plans exactly what a run would. The walk
+        // follows the caller's id order, and an id the load did not return contributes nothing.
         var lookups = BuildLookups(options);
+        var loaded = await port.LoadEntitiesAsync(kind, req.EntityIds, ct);
+        var byId = loaded.ToDictionary(e => e.EntityId);
 
         var items = new List<RenamerPlanItem>();
         var sizeByFileId = new Dictionary<int, long>();
         foreach (var id in req.EntityIds)
         {
             ct.ThrowIfCancellationRequested();
-            var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
-            items.AddRange(plan.Items);
-
-            // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
-            // plan item. Load the entity once (AsNoTracking - still zero mutation) and record each
-            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's planning pass.
-            var entity = await port.LoadEntityAsync(kind, id, ct);
-            if (entity is not null)
+            if (!byId.TryGetValue(id, out var entity))
             {
-                foreach (var file in entity.Files)
-                {
-                    sizeByFileId[file.FileId] = file.SizeBytes;
-                }
+                continue;
+            }
+
+            var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+            items.AddRange(plan.Items);
+            foreach (var file in entity.Files)
+            {
+                sizeByFileId[file.FileId] = file.SizeBytes;
             }
         }
 
