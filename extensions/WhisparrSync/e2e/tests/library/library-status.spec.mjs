@@ -644,7 +644,11 @@ test.describe("library status", () => {
     await expect(
       row,
       "the row does not count the scene the instance holds no entry for",
-    ).toContainText(/1\s*not added on this page/);
+    ).toContainText(/1\s*Not added/);
+    await expect(
+      row,
+      "the row does not count the card carrying no identity the instance could be given",
+    ).toContainText(/1\s*Not linked/);
 
     const missingComponent = consoleErrors.filter((line) =>
       /component not found|does not provide an export|SyntaxError/i.test(line),
