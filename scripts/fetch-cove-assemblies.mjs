@@ -870,13 +870,10 @@ if (typeof import.meta.main !== "boolean") {
     process.exitCode = 1;
   }
 } else if (import.meta.main) {
-  main(process.argv.slice(2)).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.error(`fetch-cove-assemblies: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
+  try {
+    process.exitCode = await main(process.argv.slice(2));
+  } catch (error) {
+    console.error(`fetch-cove-assemblies: ${error.message}`);
+    process.exitCode = 1;
+  }
 }

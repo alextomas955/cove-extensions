@@ -43,15 +43,10 @@ const SHARED_SRC_DIR = path.resolve(__dirname, "..", "src");
 
 // Scan ALL .tsx sources (not a hardcoded list - so new components are covered too).
 function tsxFiles(dir) {
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .flatMap((e) =>
-      e.isDirectory()
-        ? tsxFiles(path.join(dir, e.name))
-        : e.name.endsWith(".tsx")
-          ? [path.join(dir, e.name)]
-          : [],
-    );
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    if (e.isDirectory()) return tsxFiles(path.join(dir, e.name));
+    return e.name.endsWith(".tsx") ? [path.join(dir, e.name)] : [];
+  });
 }
 const PANEL_FILES = [...tsxFiles(SRC_DIR), ...tsxFiles(SHARED_SRC_DIR)];
 
