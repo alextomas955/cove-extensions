@@ -14,7 +14,7 @@ import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Button, Spinner } from "@cove-extensions/ui-shared";
-import { ErrorBox } from "../../common/ui/Dialog";
+import { ErrorBox } from "./Dialog";
 import type { ScanRow } from "../../wire/api";
 import { WarningBadges } from "./WarningBadge";
 import { useScanRows } from "./useScanRows";

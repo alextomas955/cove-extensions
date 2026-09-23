@@ -29,7 +29,7 @@ import {
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { BARE_TOKENS } from "./templateValidation";
+import { BARE_TOKENS } from "./templateLogic";
 import { optionsFor } from "./selectOptions";
 import { TokenAdvisory } from "./templateAdvisories";
 

@@ -21,12 +21,12 @@ vi.mock("./useRenamePreview", () => ({
 vi.mock("./useRenameLibrary", () => ({ useRenameLibrary: () => ({}) }));
 vi.mock("./useLibraryPaths", () => ({ useLibraryPaths: () => ({ status: "loading" }) }));
 
-const { RenamePanelBody } = await import("./RenameSettingsPanel");
+const { RenamePage } = await import("./RenamePage");
 
 test("a failed first load shows the error and a Retry that loads again, not a spinner", async () => {
   const host = document.createElement("div");
   document.body.append(host);
-  createRoot(host).render(createElement(RenamePanelBody));
+  createRoot(host).render(createElement(RenamePage));
 
   await waitFor("the load error", () => host.textContent.includes("500 boom"));
   expect(host.textContent).not.toContain("Loading settings");

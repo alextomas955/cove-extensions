@@ -30,7 +30,7 @@ import {
   type ValueOption,
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { templateUsesToken } from "./templateValidation";
+import { templateUsesToken } from "./templateLogic";
 import { optionsFor } from "./selectOptions";
 import { TOKENS } from "./tokens";
 

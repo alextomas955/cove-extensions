@@ -16,7 +16,7 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 import { api } from "../common/lib/extension";
-import { buildConfirmSummary } from "../common/lib/preview";
+import { buildConfirmSummary } from "./confirmSummaryLogic";
 import type { PreviewResponse, RenamerRequest } from "../wire/api";
 
 export async function renameSelected(

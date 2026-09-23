@@ -269,12 +269,12 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
 → Renamer** tab; it also registers the "Rename selected" bulk action on video, image and text lists.
 
 - `index.ts` - the bundle entry that registers the components and the bulk-action handler.
-- `RenamePage.tsx` / `RenameSettingsPanel.tsx` - the settings tab and its body (the controls + the
-  debounced live preview that calls `/preview-sample`).
+- `settings/RenamePage.tsx` - the settings page: the controls and the debounced live preview that
+  calls `/preview-sample`.
 - `DryRunModal.tsx` - the full-screen dry-run modal: scans the whole library, reads the scan's
   summary for its counts, walks its rows a page at a time through `useScanRows.ts` /
-  `scanRowsStore.ts`, and runs `/renamer-library` after confirmation. `Dialog.tsx` is the shared modal shell it
-  and the undo-confirm dialog use.
+  `scanRowsStore.ts`, and runs `/renamer-library` after confirmation. `Dialog.tsx` beside it is its
+  modal shell; the undo confirm uses the host's `ConfirmDialog`.
 
   The table has no column sorts. A sort needs the whole result set, and the whole result set is
   exactly what neither the store nor the browser holds any more; moving the sort to the server would
@@ -285,18 +285,19 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
   stay: the status filter, answered by the summary's counts, and the path search, answered by the page
   query using the same match rule the browser used to apply.
 
-- `renameSelected.ts` - the bulk-action handler: preview → confirm → `/renamer`, cancellable.
-- `pollJob.ts` / `jobPollLogic.ts` - the single poller over `GET /job-status/{jobId}`, and the pure
+- `rename-action/renameSelected.ts` and `confirmSummaryLogic.ts` - the bulk-action handler (preview,
+  confirm, `/renamer`, cancellable) and the pure confirm text it shows.
+- `jobStatusStore.ts` / `jobPollLogic.ts` - the single poller over `GET /job-status/{jobId}`, and the pure
   decision it takes on each read. Both bounds live in the logic module: a job that stops reporting
   progress and a job id that stops answering each end the wait. An expiry is kept distinct from the
   job's own reported failure, because only the second one means nothing was written.
 - `UndoSection.tsx` and `useLastBatch.ts` - the undo footer and its `/last-batch` and `/undo` calls.
 - `EntitySelectField.tsx` / `EntityDestinationsEditor.tsx`: the adapter over Cove's own entity
   selector (every studio/tag/performer field in the panel goes through it, with the create affordance
-  off) and the per-studio and per-tag destination-map editor. A rule stores the entity's stable id, and the host resolves that
-  id to a name for display: one cached lookup per configured rule, never a list sized by the library.
-- `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
-  `options.ts`, `preview.ts` - supporting UI, types, and the inline token validation. The `*Logic.ts`
+  off) and the per-studio and per-tag destination-map editor. A rule stores the entity's stable id,
+  and the host resolves that id to a name for display: one cached lookup per configured rule, never a list sized by the library.
+- `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateLogic.ts`, `presets.ts`,
+  `options.ts` - supporting UI, types, and the inline token validation. The `*Logic.ts`
   files hold the pure logic split out of their `.tsx` components; `warningBadgeLogic.ts` is keyed on
   the generated status union, so a status the backend grows fails the build rather than reaching a row
   with no badge. The shared UI primitives these render with live in `shared/ui-shared`.
@@ -355,4 +356,4 @@ These are the guarantees the design exists to protect. Preserve them when you ch
 
 - To understand a rename end to end: `RenamerPlanner.cs` then `RenamerExecutor.cs`.
 - To understand the preview: `TemplateEngine.cs` and `Renamer.Api.cs`'s `PreviewSampleAsync`.
-- To understand the UI: `RenameSettingsPanel.tsx` and `renameSelected.ts`.
+- To understand the UI: `settings/RenamePage.tsx` and `rename-action/renameSelected.ts`.

@@ -10,7 +10,7 @@
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {

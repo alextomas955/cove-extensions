@@ -5,7 +5,7 @@
  */
 import { type RenamerOptions } from "./options";
 import { Toggle, TagListInput, SectionCard } from "@cove-extensions/ui-shared";
-import { BARE_TOKENS } from "./templateValidation";
+import { BARE_TOKENS } from "./templateLogic";
 import { TokenAdvisory } from "./templateAdvisories";
 
 /**

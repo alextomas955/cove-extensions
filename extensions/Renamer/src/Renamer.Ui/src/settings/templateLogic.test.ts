@@ -2,7 +2,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { templateUsesToken } from "./templateValidation";
+import { templateUsesToken } from "./templateLogic";
 
 test("a token wrapped in an optional group is detected in the filename template", () => {
   assert.equal(templateUsesToken("performers", "$title { - $performers}", ""), true);

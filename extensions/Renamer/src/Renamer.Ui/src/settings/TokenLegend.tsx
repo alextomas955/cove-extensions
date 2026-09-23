@@ -5,7 +5,7 @@
  */
 import { Chip } from "@cove-extensions/ui-shared";
 
-import { templateUsesToken } from "./templateValidation";
+import { templateUsesToken } from "./templateLogic";
 import { TOKENS, type TokenEntry } from "./tokens";
 
 /** Tooltip copy for an optional chip - names the exact wrapped string it inserts. */

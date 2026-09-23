@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 
-import { Dialog, ErrorBox } from "../../common/ui/Dialog";
+import { Dialog, ErrorBox } from "./Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import type { RenamerOptions } from "../options";
 import type { RenameProgress } from "../useRenameLibrary";

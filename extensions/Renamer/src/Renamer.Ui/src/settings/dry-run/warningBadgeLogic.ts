@@ -142,7 +142,7 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
     readsAdvisoryFlags: false,
   },
   // No badge: the batch runner assigns this at move time, past the point a row is built, so no row
-  // this module renders can carry it. `common/lib/preview.ts` says the same of the confirm's copy.
+  // this module renders can carry it. `rename-action/confirmSummaryLogic.ts` says the same of the confirm's copy.
   skipNoSpace: { badge: null, readsAdvisoryFlags: false },
 };
 

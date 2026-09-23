@@ -12,7 +12,7 @@ import type { Ref } from "react";
 
 import { Field, Select, TextInput, PathShapeHint, StatusText } from "@cove-extensions/ui-shared";
 
-import { TemplateValidation } from "./templateAdvisories";
+import { TemplateAdvisories } from "./templateAdvisories";
 
 import {
   CONTAINING_ROOT,
@@ -117,7 +117,7 @@ export function DestinationField({
           />
           {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by
               the one editor they all use, so a new destination cannot ship without it. */}
-          <TemplateValidation value={value.template} />
+          <TemplateAdvisories value={value.template} />
         </>
       )}
     </Field>

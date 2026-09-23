@@ -9,7 +9,7 @@
  */
 import { AlertTriangle } from "lucide-react";
 
-import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templateValidation";
+import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templateLogic";
 
 /**
  * Renders one amber line for unbalanced braces, one per unknown $token (with a best-effort
@@ -17,7 +17,7 @@ import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templ
  * include "empty" (passed in via emptySamples; reuses the existing debounced preview, no new
  * request). Renders nothing when there are no issues. never feeds Save and never moves the caret.
  */
-export function TemplateValidation({
+export function TemplateAdvisories({
   value,
   emptySamples = [],
 }: {

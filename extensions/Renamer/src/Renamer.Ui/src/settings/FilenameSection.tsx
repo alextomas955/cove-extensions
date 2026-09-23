@@ -20,7 +20,7 @@ import {
 import { DestinationField } from "./DestinationField";
 import { PerKindRows } from "./PerKindRows";
 import { TokenLegend } from "./TokenLegend";
-import { TemplateValidation } from "./templateAdvisories";
+import { TemplateAdvisories } from "./templateAdvisories";
 import { PRESETS } from "./presets";
 
 /**
@@ -131,7 +131,7 @@ export function FilenameSection({
               />
             )}
           </Field>
-          <TemplateValidation value={options.filenameTemplate} emptySamples={emptySamples} />
+          <TemplateAdvisories value={options.filenameTemplate} emptySamples={emptySamples} />
           <TokenLegend
             onInsert={insertToken}
             filenameTemplate={options.filenameTemplate}
