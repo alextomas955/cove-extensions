@@ -49,19 +49,10 @@ export default defineConfig({
   // entirely via their own `scope: 'test'` fixture, so parallel workers never race on those
   // mutations either.
   //
-  // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own
-  // Docker Compose network (one per Cove+Postgres pair) plus a Chromium instance. Locally, 6 is
-  // comfortably within Docker Desktop's default address-pool on a typical dev machine - confirmed
-  // directly (a 13-worker run failed 3 tests with "all predefined address pools have been fully
-  // subnetted" on a machine that already had several unrelated projects' networks allocated). The
-  // pool is host-wide and shared with whatever else is running, which is why the local figure stays
-  // below what the machine alone could carry: 8 ran the Renamer suite green twice at 2.0m against
-  // 6's 2.5m, so `--workers=8` is there for a machine running nothing else. In CI, each worker's
-  // fixed cost (a full Compose stack + a real browser, not just a browser context against one
-  // shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB - the peak is
-  // twice the worker count, and a runner that runs short of memory has a container killed rather
-  // than a test failed, so CI gets fewer, not the same count as local. Override with `--workers=N`
-  // if a given machine/runner can sustain more (or fewer) than its default.
+  // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own Compose
+  // stack plus a Chromium instance. Every stack joins one shared network, so the count is bounded by
+  // CPU and memory, not by Docker's address pool. 8 ran the Renamer suite green twice at 2.0m against
+  // 6's 2.5m on a machine running nothing else. Override with `--workers=N`.
   fullyParallel: true,
   // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
@@ -96,5 +87,6 @@ export default defineConfig({
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
   },
+  globalSetup: "./lib/global-setup.mjs",
   projects: e2eProjects,
 });

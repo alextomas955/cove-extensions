@@ -99,22 +99,13 @@ each against its own isolated Cove instance. This is safe because:
   fixture in `extensions/Renamer/e2e/lib/renamer-fixtures.mjs` does this.
 
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
-than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
-Locally, 6 is capped because Docker's default address-pool allocation is a finite, **host-wide**
-resource shared with any other Docker projects already running on the machine - confirmed
-directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
-built on) failed 3 of 13 tests with `all predefined address pools have been fully subnetted`
-because other, unrelated Docker projects on that machine had already claimed part of the default
-pool. That pool, not the machine's cores, is the ceiling: 8 workers ran the Renamer suite green
-twice at 2.0m against 6's 2.5m on a 32-core host, so `--workers=8` is available to a machine
-running no other Docker projects. In CI, each worker's fixed cost (a full Compose stack + Postgres
-
-- a real Chromium, not a lightweight browser context against one already-running server) is high
-  relative to a standard GitHub-hosted runner's 4 vCPU/16GB, and the peak is twice the worker count
-  because an isolated-harness spec starts a second stack alongside its worker's - so CI is capped at
-  2 instead. `retries: 2` and `trace: 'on-first-retry'` are also CI-only, standard
-  Playwright CI hygiene. Override with `--workers=N` if a given machine/runner can sustain more (or
-  fewer) than its default.
+than local.** Each worker brings up its own Docker Compose stack and a real browser. Every stack joins
+one shared network, so stacks do not draw on Docker's address pool; the cap is what a machine's CPU
+and memory can carry. On a 32-core host running nothing else, 8 workers ran the Renamer suite green
+twice at 2.0m against 6's 2.5m. A GitHub-hosted runner has 4 vCPU and 16GB, and the peak is twice the
+worker count because an isolated-harness spec starts a second stack alongside its worker's, so CI is
+capped at 2. `retries: 2` and `trace: 'on-first-retry'` are also CI-only. Override with
+`--workers=N`.
 
 **If a run is killed or a worker crashes before `environment.up()` finishes**, Testcontainers'
 Ryuk cleanup can leave healthy containers running (confirmed directly - Ryuk reaps containers when
@@ -123,8 +114,9 @@ Clean up manually with:
 
 ```sh
 docker ps -a --filter "name=testcontainers" -q | xargs -r docker rm -f
-docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r docker network rm
 ```
+
+The shared `cove-e2e-shared` network is left in place on purpose, and the next run joins it.
 
 ## Writing your first test
 
@@ -241,21 +233,26 @@ the cleanup command.
 
 ### A page that renders nothing, with `net::ERR_NETWORK_CHANGED` against the app's own assets
 
-The browser runs on the host and loads the app over a published container port. Attaching or
-detaching a container from a bridge network creates a veth on the host; the kernel runs IPv6 address
-configuration on it, and Chromium reads that as the network changing and aborts the requests it has
-in flight. Those requests are the app's own script and stylesheet chunks, so the page renders
-nothing on the correct URL, with no script error and no failed navigation to point at.
+The browser runs on the host and loads the app over a published container port. Chromium aborts
+every in-flight request when a host IP address appears, and those requests are the app's own script
+and stylesheet chunks, so the page renders nothing on the correct URL, with no script error and no
+failed navigation to point at. There is no Chromium flag that turns the notifier off
+([chromium 974711](https://bugs.chromium.org/p/chromium/issues/detail?id=974711),
+[docker/for-linux#914](https://github.com/docker/for-linux/issues/914)).
 
-Every test here brings up its own compose stack, so a run does that once per test. It is
-[chromium 974711](https://bugs.chromium.org/p/chromium/issues/detail?id=974711) and
-[docker/for-linux#914](https://github.com/docker/for-linux/issues/914); both report that it happens
-only where IPv6 is enabled on the host, and there is no Chromium flag that turns the notifier off.
+A run has two sources of new host addresses, and each has its own guard:
 
-CI sets `net.ipv6.conf.default.disable_ipv6=1` before the suite, which is the template the kernel
-applies to interfaces created after it, so each new veth is covered and the runner's existing
-interfaces are not. Locally, disable IPv6 on the host if you see this; nothing in the harness can
-prevent it.
+- **A new bridge network takes an IPv4 address.** A network per compose stack meant a bridge per
+  stack, created while other workers' browsers were loading pages. `lib/global-setup.mjs` creates one
+  network, `cove-e2e-shared` (`COVE_E2E_NETWORK` overrides the name), before any browser starts, and
+  every stack joins it. Each stack's database answers to its own alias there, `db-<stack token>`,
+  because every stack's database also answers to `db`.
+- **Attaching a container creates a veth, and the kernel runs IPv6 address configuration on it.** CI
+  sets `net.ipv6.conf.default.disable_ipv6=1` before the suite. Locally, disable IPv6 on the host if
+  you see this.
+
+Neither happens on Docker Desktop for macOS, where the bridges live inside Docker's VM: creating a
+network there changes none of the host's interfaces or addresses.
 
 ## How it works (implementation notes)
 
