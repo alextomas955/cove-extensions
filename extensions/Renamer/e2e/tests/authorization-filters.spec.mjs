@@ -4,8 +4,8 @@
 // The filters install only under Npgsql: `CoveContext.OnModelCreating` configures them inside its
 // provider branch, so a SQLite-backed test has no filters to observe at all. The suite's containers
 // run auth off by default, so every request there resolves to a bypass principal whatever it carries
-// - hence the auth-on instance below, which is instance-global and therefore per-test rather than
-// worker-shared.
+// - hence the auth-on instance below. The flag is instance-global, so this file boots its own instance
+// and never uses the worker-shared one.
 //
 // Which principal discriminates, and why this role holds a write permission and still sees nothing,
 // are stated in full on the harness's `createRestrictedUser`. What follows from them here is that
@@ -30,39 +30,46 @@ const SEEDED_VIDEOS = 3;
 const RESTRICTED_PERMISSIONS = ["videos.write", "jobs.read"];
 
 const test = base.extend({
+  // Worker-scoped: the three tests only read what the setup seeded, and the file runs them in order on
+  // one worker below. A failed test restarts the worker, so a retry gets an instance of its own.
   authz: [
     async ({}, use) => {
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
-      await harness.bootstrapOwner();
-      // The install reads the id out of the manifest, the one place it is defined, and restarts the
-      // container - which re-mints the owner token. Both the seeding and the restricted user below
-      // therefore happen after it, never before.
-      const { id: extensionId } = await harness.installExtension(RENAMER_EXTENSION);
+      try {
+        await harness.bootstrapOwner();
+        // The install reads the id out of the manifest, the one place it is defined, and restarts the
+        // container - which re-mints the owner token. Both the seeding and the restricted user below
+        // therefore happen after it, never before.
+        const { id: extensionId } = await harness.installExtension(RENAMER_EXTENSION);
 
-      for (let i = 0; i < SEEDED_VIDEOS; i++) {
-        await seedVideo({
-          container: harness.container,
-          baseUrl: harness.baseUrl,
-          token: harness.token,
+        for (let i = 0; i < SEEDED_VIDEOS; i++) {
+          await seedVideo({
+            container: harness.container,
+            baseUrl: harness.baseUrl,
+            token: harness.token,
+          });
+        }
+
+        const restricted = await harness.createRestrictedUser({
+          permissions: RESTRICTED_PERMISSIONS,
+          denyReadEntityKinds: ["video"],
         });
+
+        await use({
+          harness,
+          routeBase: `/api/extensions/${extensionId}`,
+          owner: createApiClient(() => harness.baseUrl, harness.token),
+          restricted: createApiClient(() => harness.baseUrl, restricted.token),
+        });
+      } finally {
+        await harness.stop();
       }
-
-      const restricted = await harness.createRestrictedUser({
-        permissions: RESTRICTED_PERMISSIONS,
-        denyReadEntityKinds: ["video"],
-      });
-
-      await use({
-        harness,
-        routeBase: `/api/extensions/${extensionId}`,
-        owner: createApiClient(() => harness.baseUrl, harness.token),
-        restricted: createApiClient(() => harness.baseUrl, restricted.token),
-      });
-      await harness.stop();
     },
-    { scope: "test" },
+    { scope: "worker" },
   ],
 });
+
+test.describe.configure({ mode: "default" });
 
 /** Reads a video page as whoever `api` carries, returning the host's own total for the request. */
 async function readVideoTotal(api, who) {

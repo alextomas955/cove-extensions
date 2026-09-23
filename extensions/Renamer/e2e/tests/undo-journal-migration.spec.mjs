@@ -10,8 +10,12 @@
 // Uses its own harness per test. It restarts the container (the only way to reach an initialize-time
 // path) and it empties the shared journal tables, either of which would corrupt a sibling spec
 // running against the same worker instance.
-import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
+import {
+  test as base,
+  expect,
+  createApiClient,
+  isolatedHarnessFixture,
+} from "@cove-extensions/e2e";
 import { RENAMER_EXTENSION, seedVideo, pollUntil } from "../lib/renamer-fixtures.mjs";
 import { basename } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
@@ -20,19 +24,7 @@ const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      try {
-        isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-        await isolatedHarness.installExtension(RENAMER_EXTENSION);
-        await use(isolatedHarness);
-      } finally {
-        await isolatedHarness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
+  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
 });
 
 /** .NET UTC ticks for now: 100ns units since 0001-01-01, past 2^53 so it has to be a BigInt. */

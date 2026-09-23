@@ -11,8 +11,13 @@
 // elsewhere in this suite. Playwright also forbids re-registering an existing fixture at a
 // different scope via .extend(), so this can't just be a rescoped `harness`.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import { test as base, expect, remainingVisitBudgetMs } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
+import {
+  test as base,
+  expect,
+  remainingVisitBudgetMs,
+  createApiClient,
+  isolatedHarnessFixture,
+} from "@cove-extensions/e2e";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 
 // The first browser navigation against a fresh container pays the app's cold start, which the page
@@ -23,42 +28,17 @@ const COLD_START_BUDGET_MS = 120_000;
 const EXTENSION_ID = "com.alextomas955.renamer";
 
 const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
+  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
 });
-
-async function callApi(baseUrlGetter, method, path, body) {
-  const res = await fetch(`${baseUrlGetter()}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
 
 test(
   "disabling the extension removes it from the API and UI; re-enabling restores both",
   { tag: "@smoke" },
   async ({ page, isolatedHarness }) => {
-    const api = {
-      get: (path) => callApi(() => isolatedHarness.baseUrl, "GET", path),
-      post: (path, body) => callApi(() => isolatedHarness.baseUrl, "POST", path, body),
-    };
+    const api = createApiClient(
+      () => isolatedHarness.baseUrl,
+      () => isolatedHarness.token,
+    );
 
     const before = await api.get("/api/extensions");
     expect(before.json.find((e) => e.id === EXTENSION_ID)?.enabled).toBe(true);
@@ -100,10 +80,10 @@ test(
 test("uninstalling the extension removes it entirely; a fresh install brings it back clean", async ({
   isolatedHarness,
 }) => {
-  const api = {
-    get: (path) => callApi(() => isolatedHarness.baseUrl, "GET", path),
-    post: (path, body) => callApi(() => isolatedHarness.baseUrl, "POST", path, body),
-  };
+  const api = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
 
   const before = await api.get("/api/extensions");
   expect(before.json.some((e) => e.id === EXTENSION_ID)).toBe(true);

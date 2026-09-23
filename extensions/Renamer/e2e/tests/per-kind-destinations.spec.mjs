@@ -7,46 +7,15 @@
 // kind's file must still be at the path it started from, which only a filesystem check can say.
 import { test as base, expect, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { seedImage, seedText } from "@cove-extensions/e2e/seed-media";
-import { startHarness } from "@cove-extensions/e2e/harness";
+import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 const test = base.extend({
   // "Rename all files" sweeps every item in the library, so this runs on its own instance - a sibling
   // test's seeded media sharing the per-worker harness would be swept into this run's scope.
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
+  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
 });
-
-function apiFor(baseUrl) {
-  async function callApi(method, path, body) {
-    const res = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
-    }
-    return { status: res.status, ok: res.ok, json, text };
-  }
-  return {
-    get: (p) => callApi("GET", p),
-    put: (p, b) => callApi("PUT", p, b),
-  };
-}
 
 /** The path the DB currently holds for one item, whatever its kind. */
 async function currentPath(api, route, id) {
@@ -103,7 +72,10 @@ test("one run honors a kind's own folder, an excluded kind and a kind on the def
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  const api = apiFor(baseUrl);
+  const api = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
 
   const [video, image, text] = await Promise.all([
     seedVideo({ container, baseUrl, destName: `kinds-a-${Date.now()}.mp4` }),
@@ -165,7 +137,10 @@ test("one run honors a kind's own folder, an excluded kind and a kind on the def
 test("the buttons swap which kinds move on the next run", async ({ page, isolatedHarness }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  const api = apiFor(baseUrl);
+  const api = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
 
   const [video, image] = await Promise.all([
     seedVideo({ container, baseUrl, destName: `swap-a-${Date.now()}.mp4` }),

@@ -35,14 +35,17 @@ const test = base.extend({
   authHarness: [
     async ({}, use) => {
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
-      await harness.bootstrapOwner();
-      // The install reads the id out of the manifest, which is where it is defined; a copy here
-      // would go stale silently, because the panel would follow the manifest to the new route while
-      // every response predicate below kept matching the old one - and a predicate that matches
-      // nothing fails as a bare 30s timeout, naming neither the id nor the mismatch.
-      const { id } = await harness.installExtension(RENAMER_EXTENSION);
-      await use({ harness, extensionId: id });
-      await harness.stop();
+      try {
+        await harness.bootstrapOwner();
+        // The install reads the id out of the manifest, which is where it is defined; a copy here
+        // would go stale silently, because the panel would follow the manifest to the new route while
+        // every response predicate below kept matching the old one - and a predicate that matches
+        // nothing fails as a bare 30s timeout, naming neither the id nor the mismatch.
+        const { id } = await harness.installExtension(RENAMER_EXTENSION);
+        await use({ harness, extensionId: id });
+      } finally {
+        await harness.stop();
+      }
     },
     { scope: "test" },
   ],

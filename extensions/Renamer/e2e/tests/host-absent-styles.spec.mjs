@@ -124,33 +124,29 @@ test("status pill tints resolve to a real background on a released host", async 
     return value;
   });
 
+  // A host whose stylesheet already emits the fill utilities fills the pills with or without the
+  // inline style, so a filled pill proves nothing there. Once the floor host emits both, the inline
+  // fill is no longer needed.
+  const utilities = ["bg-amber-400/10", "bg-red-950/40"];
+  const resolved = await page.evaluate((classNames) => {
+    const probe = document.createElement("span");
+    document.body.appendChild(probe);
+    const values = classNames.map((className) => {
+      probe.className = className;
+      return getComputedStyle(probe).backgroundColor;
+    });
+    probe.remove();
+    return values;
+  }, utilities);
+  const emitted = utilities.filter((_, i) => resolved[i] !== inert);
+  test.skip(emitted.length > 0, `this host's stylesheet emits ${emitted.join(", ")}`);
+
   for (const [tone, pill] of [
     ["amber", amberPill],
     ["red", redPill],
   ]) {
     const background = await pill.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(background, `${tone} pill must compute a real, non-transparent background`).not.toBe(
-      inert,
-    );
-  }
-
-  // Without this the assertions above would also pass on a host that does emit the utilities, which
-  // is exactly the reading the dev host gives and the released host does not.
-  const classOnly = await page.evaluate(
-    (classNames) => {
-      const probe = document.createElement("span");
-      document.body.appendChild(probe);
-      const resolved = classNames.map((className) => {
-        probe.className = className;
-        return getComputedStyle(probe).backgroundColor;
-      });
-      probe.remove();
-      return resolved;
-    },
-    ["bg-amber-400/10", "bg-red-950/40"],
-  );
-  for (const background of classOnly) {
-    expect(background, "the pill fill utilities must be absent from the host stylesheet").toBe(
       inert,
     );
   }
