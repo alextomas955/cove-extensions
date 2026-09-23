@@ -21,9 +21,9 @@ public interface IWhisparrInstanceFactory
     IWhisparrClient Bound(WhisparrBinding binding);
 }
 
-// The one switch on the generation this product keeps, outbound and inbound. Every other place a
-// generation used to be branched on now reaches the instance or the reader built here, each of
-// which declares only the roles its generation holds.
+// The one switch on the generation this product keeps, outbound and inbound. Everywhere else
+// reaches the instance or the reader built here, each of which declares only the roles its
+// generation holds.
 //
 // An instance is cheap, holding no connection and no buffer; the transport and the two gateways it
 // sends through are the registered singletons.

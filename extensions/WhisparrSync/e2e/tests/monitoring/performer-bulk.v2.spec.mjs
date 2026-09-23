@@ -2,8 +2,7 @@
 //
 // v2 has no performer entity, so this product registers nothing for performers on that connection:
 // no card badge, no toolbar toggle, no list row, no detail action and no bulk button. This spec is
-// the evidence that the bulk button is absent rather than present-and-explaining-itself, which is
-// what it used to do.
+// the evidence that the bulk button is absent rather than present and explaining itself.
 //
 // WHY AN ABSENCE IS WORTH A SPEC. The bulk action is registered in the manifest, and a manifest
 // entry that slipped outside the generation gate would put a control for a kind this connection

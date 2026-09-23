@@ -2,8 +2,8 @@
 //
 // WHY IT IS NEEDED. Cove reads a studio's scene catalogue from a hosted service of a third party's,
 // behind a key. A suite that asks the real one needs that key on the machine running it, which no
-// runner has, so the specs that read a catalogue used to stop early and report a pass over
-// assertions they never reached.
+// runner has, so a spec that read a catalogue would stop early and report a pass over assertions it
+// never reached.
 //
 // WHY IT CAN STAND IN AT ALL. The address is configuration, not a constant: Cove holds the metadata
 // servers and this product reads whichever one shares a registrable domain with the identity an
