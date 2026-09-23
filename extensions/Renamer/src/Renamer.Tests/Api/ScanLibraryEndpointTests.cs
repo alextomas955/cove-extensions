@@ -51,7 +51,7 @@ public sealed class ScanLibraryEndpointTests
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
     public async Task ScanLibraryEnqueue_WithAnyReadPermission_Returns202_AndEnqueuesExclusiveOnce()
@@ -94,7 +94,7 @@ public sealed class ScanLibraryEndpointTests
 
             // Per kind, not flat - that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
-                new HashSet<RenamerFileKind> { RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio },
+                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio],
                 summary.Kinds.Select(k => k.Kind).ToHashSet());
             Assert.Equal(4, summary.Kinds.Sum(k => k.Files));
             Assert.Equal(4, summary.Kinds.Sum(k => k.Entities));
@@ -109,7 +109,7 @@ public sealed class ScanLibraryEndpointTests
             Assert.Contains(videoFileId1, page.Rows.Select(r => r.FileId));
             Assert.Contains(videoFileId2, page.Rows.Select(r => r.FileId));
             Assert.Equal(
-                new HashSet<RenamerFileKind> { RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio },
+                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio],
                 page.Rows.Select(r => r.Kind).ToHashSet());
             Assert.Null(page.Next);
 

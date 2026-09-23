@@ -231,5 +231,5 @@ public sealed class UndoRetryTests
     }
 
     private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 }

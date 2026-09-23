@@ -7,7 +7,7 @@ namespace Renamer.Tests.Api;
 
 public sealed class EndpointPermissionTests
 {
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
     public async Task PreviewAsync_ImageRequest_RequiresImagesRead_NotVideosRead()
@@ -29,7 +29,7 @@ public sealed class EndpointPermissionTests
             var allowed = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
             Assert.NotEqual(403, StatusOf(allowed));
-            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(allowed));
+            Assert.IsType<IValueHttpResult>(Unwrap(allowed), exactMatch: false);
         }
         finally
         {
@@ -52,7 +52,7 @@ public sealed class EndpointPermissionTests
         Assert.Equal(202, StatusOf(result));
         // The 202 body carries the enqueued job id the fake returned.
         var body = Assert.IsType<global::Renamer.Contracts.JobEnqueued>(
-            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+            Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
         Assert.Equal("job-123", body.JobId);
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);

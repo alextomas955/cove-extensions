@@ -46,13 +46,13 @@ public sealed class UndoOperationTests
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
     private static int StatusOf(IResult result) =>
-        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+        Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     private static LastBatchSummary LastBatchValue(IResult result) =>
-        Assert.IsType<LastBatchSummary>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<LastBatchSummary>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     // Seeds one video and one image, each in its own folder with real bytes on disk.
     private static async Task<(int VideoId, int ImageId, int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(

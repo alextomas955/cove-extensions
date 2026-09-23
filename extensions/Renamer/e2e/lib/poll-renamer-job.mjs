@@ -6,7 +6,7 @@
 // host version it ran against. Every Renamer spec now waits the way the panel does.
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
-const TERMINAL = ["completed", "failed", "cancelled"];
+const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 
 /**
  * Polls `GET {routeBase}/job-status/{jobId}` until the run reaches a terminal state.
@@ -19,7 +19,7 @@ const TERMINAL = ["completed", "failed", "cancelled"];
 export async function pollRenamerJob(api, routeBase, jobId, { timeoutMs = 60_000 } = {}) {
   return pollUntil(
     () => api.get(`${routeBase}/job-status/${jobId}`).then((r) => r.json),
-    (job) => TERMINAL.includes(job?.status?.toLowerCase()),
+    (job) => TERMINAL.has(job?.status?.toLowerCase()),
     { timeoutMs, label: `renamer job ${jobId} to finish` },
   );
 }

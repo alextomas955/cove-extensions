@@ -13,7 +13,7 @@ interface LivePreviewPaneProps {
   previewError: boolean;
 }
 
-export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps) {
+export function LivePreviewPane({ preview, previewError }: Readonly<LivePreviewPaneProps>) {
   return (
     <div>
       <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)] lg:sticky lg:top-16">
@@ -27,7 +27,8 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
               <PreviewCard key={r.sampleLabel} result={r} />
             ))}
           </div>
-        ) : previewError ? null : (
+        ) : null}
+        {preview == null && !previewError ? (
           // Only while no failure has been reported. The hook keeps the last good preview on a failed
           // refresh, so a null preview beside a raised error is the first request having failed: there
           // is nothing further in flight, and a spinner beneath the error line above would promise a
@@ -36,7 +37,7 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
             <Spinner />
             Rendering preview…
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

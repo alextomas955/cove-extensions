@@ -98,8 +98,10 @@ export function buildUndoStatus(
   if (unrestorable > 0) {
     parts.push(`${unrestorable} could not be restored`);
   }
-  parts.push(relativeTime(writtenAtMs, now));
-  parts.push(expired ? "undo expired" : `undo available until ${formatDate(expiresAtMs)}`);
+  parts.push(
+    relativeTime(writtenAtMs, now),
+    expired ? "undo expired" : `undo available until ${formatDate(expiresAtMs)}`,
+  );
 
   return { line: parts.join(" · "), remaining, expiresAtMs, expired };
 }

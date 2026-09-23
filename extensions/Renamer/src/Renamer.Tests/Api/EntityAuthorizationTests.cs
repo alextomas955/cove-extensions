@@ -11,7 +11,7 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityAuthorizationTests
 {
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
     public async Task RenamerEnqueue_OneUnwritableId_Returns403_AndEnqueuesNothing()

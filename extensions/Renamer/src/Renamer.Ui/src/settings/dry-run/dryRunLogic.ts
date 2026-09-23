@@ -146,7 +146,8 @@ export function rowsFooterText(footer: RowsFooter): string {
   // library grew under the walk, so neither states a denominator.
   const denominatorKnown = !searching && loaded <= total;
   // Whichever figure the clause ends on decides the plural.
-  const noun = (denominatorKnown ? total : loaded) === 1 ? "row" : "rows";
+  const lastFigure = denominatorKnown ? total : loaded;
+  const noun = lastFigure === 1 ? "row" : "rows";
   const qualifier = searching ? "matching " : "";
   const counted = denominatorKnown
     ? `${loaded} of ${total} ${noun} loaded`

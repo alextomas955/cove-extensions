@@ -528,7 +528,8 @@ export function SegmentedReplace({
             <span className="mt-1 block text-xs text-secondary">{replaceHelper}</span>
           ) : null}
         </div>
-      ) : stripHelper ? (
+      ) : null}
+      {!replaceActive && stripHelper ? (
         <span className="mt-1 block text-xs text-secondary">{stripHelper}</span>
       ) : null}
     </div>
@@ -1588,16 +1589,15 @@ export function Button({
 
 export type StatusKind = "success" | "error" | "muted" | "warning";
 
+const STATUS_CLASS: Readonly<Record<StatusKind, string>> = {
+  success: "text-green-400",
+  error: "text-red-400",
+  warning: "text-amber-400",
+  muted: "text-secondary",
+};
+
 export function StatusText({ kind, children }: { kind: StatusKind; children: ReactNode }) {
-  const cls =
-    kind === "success"
-      ? "text-green-400"
-      : kind === "error"
-        ? "text-red-400"
-        : kind === "warning"
-          ? "text-amber-400"
-          : "text-secondary";
-  return <span className={`text-xs ${cls}`}>{children}</span>;
+  return <span className={`text-xs ${STATUS_CLASS[kind]}`}>{children}</span>;
 }
 
 export function Spinner() {

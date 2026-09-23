@@ -104,7 +104,7 @@ export function TokenSettingsSection({
   set,
   setMulti,
   insertToken,
-}: TokenSettingsSectionProps) {
+}: Readonly<TokenSettingsSectionProps>) {
   const uses = (token: string) =>
     templateUsesToken(token, options.filenameTemplate, options.folderTemplate);
   const usesPerformers = uses("performers");
@@ -166,18 +166,8 @@ export function TokenSettingsSection({
 
       {usesDate || usesDuration ? (
         <GroupCard
-          badge={
-            <Badge mono>
-              {usesDate && usesDuration ? "$date · $duration" : usesDate ? "$date" : "$duration"}
-            </Badge>
-          }
-          title={
-            usesDate && usesDuration
-              ? "Date & duration format"
-              : usesDate
-                ? "Date format"
-                : "Duration format"
-          }
+          badge={<Badge mono>{dateDurationLabels(usesDate, usesDuration).badge}</Badge>}
+          title={dateDurationLabels(usesDate, usesDuration).title}
         >
           {usesDate ? (
             <FieldGroup label="Date format" helper="e.g. yyyy-MM-dd">
@@ -240,6 +230,17 @@ export function TokenSettingsSection({
 const EMPTY_STATE_TOKENS = ["$performers", "$tags", "$date", "$duration"].flatMap((name) =>
   TOKENS.filter((t) => t.token === name),
 );
+
+// The date and duration card covers whichever of the two tokens the templates use.
+function dateDurationLabels(
+  usesDate: boolean,
+  usesDuration: boolean,
+): { badge: string; title: string } {
+  if (usesDate && usesDuration)
+    return { badge: "$date · $duration", title: "Date & duration format" };
+  if (usesDate) return { badge: "$date", title: "Date format" };
+  return { badge: "$duration", title: "Duration format" };
+}
 
 /** The $performers or $tags group: separator, count cap, sort, and the include and exclude lists. */
 function MultiValueGroup({

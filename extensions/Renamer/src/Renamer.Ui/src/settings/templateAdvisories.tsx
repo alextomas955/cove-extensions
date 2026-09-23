@@ -20,10 +20,10 @@ import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templ
 export function TemplateAdvisories({
   value,
   emptySamples = [],
-}: {
+}: Readonly<{
   value: string;
   emptySamples?: string[];
-}) {
+}>) {
   const lines: string[] = [];
   if (!bracesBalanced(value)) {
     lines.push("Unmatched { or }. It'll still render, but check your groups.");
@@ -48,7 +48,7 @@ export function TemplateAdvisories({
  * `suggestFor`, displayed as a bare name to match these fields' format). Renders nothing when every
  * value is a known token.
  */
-export function TokenAdvisory({ values }: { values: string[] }) {
+export function TokenAdvisory({ values }: Readonly<{ values: string[] }>) {
   const lines: string[] = [];
   for (const value of values) {
     if (isKnownToken(value)) continue;

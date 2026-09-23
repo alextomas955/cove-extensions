@@ -20,13 +20,13 @@ public sealed class UndoEndpointTests
     // capturing event bus, plus a fresh FakeStore for the options.
     private static readonly RenamerOptions TitleOptions = new() { FilenameTemplate = "$title" };
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     private static LastBatchSummary LastBatchValue(IResult result) =>
-        Assert.IsType<LastBatchSummary>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.IsType<LastBatchSummary>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     [Fact]
     public async Task Undo_RoundTrip_RestoresDiskAndDb_PublishesEntityEvent_AndConsumesBatch()

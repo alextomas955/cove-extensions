@@ -19,12 +19,12 @@ export function RuleKeyLabel({
   entityType,
   id,
   orphaned,
-}: {
+}: Readonly<{
   entityType: EntityReferenceType;
   id: number;
   /** True when the server reported this id as naming no entity. */
   orphaned: boolean;
-}) {
+}>) {
   if (!orphaned) {
     return <EntityReferenceValue entityType={entityType} value={id} />;
   }

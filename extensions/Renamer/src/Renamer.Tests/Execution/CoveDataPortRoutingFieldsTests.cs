@@ -291,8 +291,7 @@ public sealed class CoveDataPortRoutingFieldsTests
             var port = new CoveRenamerDataPort(db);
             var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, [videoId, videoId + 9999]);
 
-            Assert.Single(result);
-            Assert.Equal(videoId, result[0].EntityId);
+            Assert.Equal(videoId, Assert.Single(result).EntityId);
         }
         finally
         {
