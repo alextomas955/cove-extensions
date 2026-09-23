@@ -2,30 +2,54 @@
 id: index
 title: Renamer
 slug: /
+sidebar_position: 1
+description: Rename your Cove library to a naming pattern you choose, file it into folders, preview every change first, and undo it afterwards.
 ---
 
-Renamer renames your videos, images, audio files and text documents to a naming pattern you
-choose, and can file them into folders to match. You see every change before anything moves, the
-file and its Cove record change together, and the last run can be undone, up to a size limit it
-states beforehand.
+Renamer gives the files in your Cove library tidy, consistent names built from the metadata Cove
+already has. It can also sort them into folders, such as one folder per studio and year.
 
-You need a kind's write permission in Cove to rename it, and its read permission to preview it. The
-**Rename selected** action appears on video, image and text lists; rename audio from the Rename
-settings page. Each kind can be turned off on its own, and can be given its own destination folder,
-under Per kind in the settings panel.
+![The Renamer settings page, with the filename template on the left and a live preview of the new names on the right.](./img/settings-overview.jpg)
 
-## In this section
+## What it does
 
-- [User guide](./renamer/guide) - enable Renamer, set a naming template, preview with a dry run,
-  rename, and undo.
-- [Settings reference](./renamer/settings) - every setting, grouped by panel section, with defaults.
-- [Naming templates](./renamer/templates) - the template tokens (`$title`, `$resolution`, …),
-  presets, and worked examples.
-- [Architecture](./renamer/architecture) - how the extension turns an option change into a file
-  moved on disk and a database record updated.
-- [Changelog](./renamer/changelog) - user-facing changes, newest first.
+```text
+Before                              After
+/data/                              /data/
+├── VID_20210614_183022.mp4         ├── Northwind Films/
+├── clip_0007.mp4                   │   ├── 2021/2021-06-14 - Harbour Lights.mp4
+├── final_final_v2.mp4              │   └── 2022/2022-03-02 - Morning Market.mp4
+└── untitled-4.mp4                  └── Blue Harbor Studio/
+                                        ├── 2019/2019-11-23 - The Long Walk Home.mp4
+                                        └── 2023/2023-08-09 - City at Night.mp4
+```
 
-## Install and build
+- **Names from your metadata.** Pick a preset or write a template such as
+  `{$date - }$title{ [$resolution]}`. Renamer fills it in for each item.
+- **Nothing moves until you say so.** A dry run lists every old name, new name and destination
+  first.
+- **Cove stays in step.** The file on disk and its record in Cove change together, so nothing goes
+  missing from your library.
+- **Undo.** The last rename can be put back for 7 days.
 
-For install, build, and local dev deploy instructions, see the extension's
-[README on GitHub](https://github.com/alextomas955/cove-extensions/blob/main/extensions/Renamer/README.md).
+Renamer works on videos, images, audio files and text documents.
+
+## Where to start
+
+- **New to Renamer?** Follow the [Quick start](./renamer/quick-start). It takes about five minutes.
+- **Want something specific?** The how-to guides cover
+  [sorting files into folders](./renamer/how-to/sort-into-folders),
+  [sending a studio or tag to its own folder](./renamer/how-to/route-by-studio-or-tag),
+  [choosing which files get renamed](./renamer/how-to/choose-what-gets-renamed),
+  [renaming a few items from a list](./renamer/how-to/rename-selected),
+  [renaming automatically](./renamer/how-to/rename-automatically) and
+  [undoing a rename](./renamer/how-to/undo).
+- **Something looks wrong?** See [Troubleshooting](./renamer/troubleshooting).
+- **Looking up a detail?** The [Naming templates](./renamer/templates) and
+  [Settings reference](./renamer/settings) pages list every token and every setting.
+
+## What you need
+
+- Cove 1.4.1 or later.
+- Write permission in Cove for the kinds of item you want to rename, and read permission to preview
+  them.

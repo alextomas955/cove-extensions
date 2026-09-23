@@ -5,9 +5,9 @@ import type * as Preset from "@docusaurus/preset-classic";
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: "alextomas955 Cove Extensions",
-  tagline: "Community extensions for Cove by alextomas955 — not an official Cove project",
-  favicon: "img/favicon.ico",
+  title: "Cove Extensions",
+  tagline: "Community extensions for Cove by alextomas955. Not an official Cove project.",
+  favicon: "img/favicon.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -75,6 +75,13 @@ const config: Config = {
         sidebarPath: "./sidebars-renamer.ts",
       },
     ],
+    [
+      "@docusaurus/plugin-client-redirects",
+      {
+        // Pages that were renamed or split, so a link someone saved still lands somewhere useful.
+        redirects: [{ from: "/extensions/renamer/guide", to: "/extensions/renamer/quick-start" }],
+      },
+    ],
   ],
 
   // Offline local search (no Algolia, no network at query time). Registered as a theme;
@@ -97,36 +104,72 @@ const config: Config = {
   ],
 
   themeConfig: {
+    colorMode: {
+      respectPrefersColorScheme: true,
+    },
     navbar: {
-      title: "alextomas955 / Cove Extensions",
+      title: "Cove Extensions",
+      logo: { alt: "", src: "img/logo.svg" },
       items: [
-        // pages-02: GitHub-special files stay at repo root (never moved/duplicated into the site) -
-        // reached here via canonical github.com blob links, right-aligned by default position.
         {
-          href: "https://github.com/alextomas955/cove-extensions/blob/main/README.md",
-          label: "README",
-          position: "right",
+          type: "dropdown",
+          label: "Extensions",
+          position: "left",
+          items: [
+            {
+              type: "docSidebar",
+              docsPluginId: "renamer",
+              sidebarId: "renamerSidebar",
+              label: "Renamer",
+            },
+          ],
         },
         {
-          href: "https://github.com/alextomas955/cove-extensions/blob/main/CONTRIBUTING.md",
+          type: "docSidebar",
+          sidebarId: "docsSidebar",
           label: "Contributing",
-          position: "right",
+          position: "left",
         },
         {
-          href: "https://github.com/alextomas955/cove-extensions/blob/main/SECURITY.md",
-          label: "Security",
-          position: "right",
-        },
-        {
-          href: "https://github.com/alextomas955/cove-extensions/blob/main/CODE_OF_CONDUCT.md",
-          label: "Code of Conduct",
+          href: "https://github.com/alextomas955/cove-extensions",
+          label: "GitHub",
           position: "right",
         },
       ],
     },
     footer: {
       style: "dark",
-      copyright: `Copyright © ${new Date().getFullYear()} alextomas955.`,
+      links: [
+        {
+          title: "Extensions",
+          items: [
+            { label: "All extensions", to: "/#extensions" },
+            { label: "Renamer", to: "/extensions/renamer" },
+          ],
+        },
+        {
+          title: "Project",
+          items: [
+            { label: "Contributing", to: "/contributing" },
+            {
+              label: "Security",
+              href: "https://github.com/alextomas955/cove-extensions/blob/main/SECURITY.md",
+            },
+            {
+              label: "Code of Conduct",
+              href: "https://github.com/alextomas955/cove-extensions/blob/main/CODE_OF_CONDUCT.md",
+            },
+          ],
+        },
+        {
+          title: "Cove",
+          items: [
+            { label: "Cove documentation", href: "https://yourcove.net/docs/" },
+            { label: "Cove on GitHub", href: "https://github.com/yourcove/cove" },
+          ],
+        },
+      ],
+      copyright: `Community extensions by alextomas955, not affiliated with or endorsed by the Cove project. Copyright © ${new Date().getFullYear()} alextomas955.`,
     },
     prism: {
       theme: prismThemes.github,
