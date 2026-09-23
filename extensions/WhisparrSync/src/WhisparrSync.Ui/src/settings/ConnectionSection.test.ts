@@ -142,7 +142,10 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   // outside it: the field's own report is what this asserts.
   const grid = set.querySelector(".grid");
   const pill = [...set.querySelectorAll("span")].filter(
-    (span) => span.textContent === "Key is set" && grid?.contains(span) !== true,
+    (span) =>
+      span.textContent === "Key is set" &&
+      span.childElementCount === 0 &&
+      grid?.contains(span) !== true,
   );
   expect(pill, "the key field reported nothing about the stored key").toHaveLength(1);
 
@@ -153,4 +156,16 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
 
   expect(withDraft.textContent).not.toContain(typed);
   expect(withDraft.textContent).not.toContain(typed.slice(0, 4));
+});
+
+test("what the next save will do to the key is stated apart from what is stored", async () => {
+  const typed = await render(section({ draft: { ...NO_DRAFT, apiKey: "typed" } }));
+  const cleared = await render(section({ draft: { ...NO_DRAFT, keyCleared: true } }));
+
+  // The stored state stays on the field whichever the draft holds; the intent is the extra line.
+  expect(typed.textContent).toContain("Key is set");
+  expect(typed.textContent).toContain("New key will be saved");
+
+  expect(cleared.textContent).toContain("Key will be removed when you save");
+  expect(cleared.textContent).not.toContain("New key will be saved");
 });
