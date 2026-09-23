@@ -47,7 +47,8 @@ jobs:
     # It is a variable and not the secret because the `secrets` context is not readable in a job-level
     # `if:`, and the two are set together.
     #
-    # A pull request from a fork carries no secret at all, whatever is configured here.
+    # A pull request from a fork carries no secret at all, whatever is configured here. A manual run
+    # is dispatched by someone with write access, in this repository, so it does.
     #
     # Dependabot needs naming separately, and it is the arm easiest to leave out: its branch lives in
     # this repository, so it satisfies the fork test above, while GitHub still withholds the secret
@@ -56,6 +57,7 @@ jobs:
       vars.SONAR_PROJECT_KEY != ''
       && github.actor != 'dependabot[bot]'
       && (github.event_name == 'push'
+          || github.event_name == 'workflow_dispatch'
           || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read

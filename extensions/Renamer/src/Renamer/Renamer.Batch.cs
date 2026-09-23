@@ -298,20 +298,18 @@ public sealed partial class Renamer
 
         LogBatchStarted(runId, run.Kind, ids.Count);
 
-        // Planning reads only. It is sequential for deterministic preview ordering, it mutates nothing
-        // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
-        // as it found it.
-        var planned = new List<BatchUnit>();
-        int planSkipped = 0;
-
         // Planning reports no percentage of its own until the loop starts, so trace it to the log -
         // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
         LogPlanningStarted(runId, run.Kind, ids.Count);
 
-        // One elevated span for the whole planning pass, not one per entity: the background principal is
-        // anonymous, and an unelevated read returns zero rows with no error.
-        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        // Planning reads only. It is sequential for deterministic preview ordering, it mutates nothing
+        // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
+        // as it found it. One elevated span for the whole pass, not one per entity: the background
+        // principal is anonymous, and an unelevated read returns zero rows with no error.
+        var (planned, planSkipped) = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
+            var units = new List<BatchUnit>();
+            int skipped = 0;
             var readDb = services.GetRequiredService<DbContext>();
             var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
@@ -348,7 +346,7 @@ public sealed partial class Renamer
                         {
                             if (ScanBucket.Of(item.Status) == ScanBucketKind.Attention)
                             {
-                                planSkipped++;
+                                skipped++;
                             }
 
                             continue;
@@ -359,7 +357,7 @@ public sealed partial class Renamer
                         // Each worker is handed a single-file plan so the executor acts on exactly this
                         // file; the parent entity id rides the unit for logging.
                         var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
-                        planned.Add(new BatchUnit(plan.EntityId, unitPlan,
+                        units.Add(new BatchUnit(plan.EntityId, unitPlan,
                             (item.OldFullPath, item.NewFullPath, size)));
                     }
                 }
@@ -371,6 +369,8 @@ public sealed partial class Renamer
                     (double)planIndex / ids.Count * PlanningProgressShare,
                     $"Planning {planIndex}/{ids.Count}...");
             }
+
+            return (units, skipped);
         });
 
         // One acting unit per source file. Naming the same entity twice in one request plans its files
