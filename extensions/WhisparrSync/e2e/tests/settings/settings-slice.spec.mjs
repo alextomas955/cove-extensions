@@ -1,5 +1,5 @@
-// The whole settings page against a live Cove with BOTH Whisparr generations running: two cards,
-// the switch, the callback edit, and the reload.
+// The whole settings page against a live Cove with BOTH Whisparr generations running: the
+// generation row, the callback edit, the save bar and the reload.
 //
 // One test rather than several. The settings this writes are instance-global, so splitting the
 // sequence into separate tests would either share one Cove between them - making the order they run
@@ -26,6 +26,10 @@ const EDITED_CALLBACK_HOST = "http://cove:5073";
 // raises no signal to wait on.
 const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
+
+// The generation row names each option for the generation it is, and its control for the generation
+// it selects.
+const GENERATION_LABELS = { v3: "Whisparr v3 (Eros)", v2: "Whisparr v2" };
 
 const test = base.extend({
   isolatedHarness: isolatedCoveFixture(),
@@ -85,7 +89,8 @@ async function openPanel(page, baseUrl) {
     saveButton: page.getByRole("button", { name: "Save changes" }),
     discardButton: page.getByRole("button", { name: "Discard" }),
     saveBar: saveBarIn(page),
-    switchButton: page.getByRole("button", { name: "Switch" }),
+    selectV3: page.getByRole("button", { name: `Select ${GENERATION_LABELS.v3}` }),
+    selectV2: page.getByRole("button", { name: `Select ${GENERATION_LABELS.v2}` }),
     registerButton: page.getByRole("button", { name: "Register in Whisparr" }),
     // The name carries the reason the control names when it is unavailable, so it is matched from
     // the front rather than whole.
@@ -106,6 +111,16 @@ function saveBarIn(page) {
     .filter({ has: page.getByRole("button", { name: "Save changes" }) })
     .filter({ has: page.getByRole("button", { name: "Discard" }) })
     .last();
+}
+
+/**
+ * The option the generation row marks as the generation the form holds.
+ *
+ * The mark is a word inside that option. Every ancestor of it matches too, so the innermost is
+ * taken: the line holding the generation's own name beside the mark.
+ */
+function draftedGenerationIn(page) {
+  return page.locator("div").filter({ hasText: "Selected" }).last();
 }
 
 /** The version an instance reports about itself, asked directly rather than through the extension. */
@@ -165,7 +180,7 @@ test("both generations are configured independently, and only a generation chang
 
   const panel = await openPanel(page, baseUrl);
 
-  await test.step("connecting on one card leaves the other card's stored values untouched", async () => {
+  await test.step("connecting on one generation leaves the other generation's stored values untouched", async () => {
     await panel.addressField.fill(v3Address);
     await panel.keyField.fill(whisparrPair.apiKey);
     await panel.testButton.click();
@@ -185,8 +200,13 @@ test("both generations are configured independently, and only a generation chang
     expect(stored.v3.keyIsSet).toBe(true);
     // The discriminating half: the other generation was never named by that save, and a page that
     // wrote one form to both would show here and nowhere else.
-    expect(stored.v2.address, "saving one card also wrote the other card's address").toBe("");
-    expect(stored.v2.keyIsSet, "saving one card also wrote the other card's key").toBe(false);
+    expect(
+      stored.v2.address,
+      "saving one generation also wrote the other generation's address",
+    ).toBe("");
+    expect(stored.v2.keyIsSet, "saving one generation also wrote the other generation's key").toBe(
+      false,
+    );
   });
 
   await test.step("testing the connection as stored records the version the two lines report", async () => {
@@ -202,12 +222,17 @@ test("both generations are configured independently, and only a generation chang
     ).toHaveCount(1, { timeout: ATTEMPT_BUDGET_MS });
     // The second line, which measures something else and is never merged into the first.
     await expect(page.getByText("Whisparr last reachable", { exact: false })).toBeVisible();
-    // The other generation was not verified by that test, and its own card still says so rather than
-    // borrowing the reading.
-    await expect(
-      page.getByText("Whisparr version not verified yet", { exact: true }),
-      "verifying one generation reported the other as verified too",
-    ).toBeVisible();
+    // The page states the recorded version for the generation the form holds and for no other, so
+    // the other generation's reading is read back through the settings route.
+    const stored = await storedSettings();
+    expect(
+      stored.v3.recordedVersion,
+      "the test against the stored address recorded no version",
+    ).toBe(v3Version);
+    expect(
+      stored.v2.recordedVersion,
+      "verifying one generation recorded a version for the other",
+    ).toBeNull();
   });
 
   await test.step("a test that reaches the other generation names the version and writes nothing", async () => {
@@ -219,7 +244,7 @@ test("both generations are configured independently, and only a generation chang
 
     await expect(
       page.getByText(`answered as Whisparr v2 ${v2Version}`, { exact: false }),
-      `the panel did not name the ${v2Version} instance the v3 card reached`,
+      `the panel did not name the ${v2Version} instance the v3 connection reached`,
     ).toBeVisible({ timeout: ATTEMPT_BUDGET_MS });
     await expect(page.getByText("Nothing was saved", { exact: false })).toBeVisible();
 
@@ -228,29 +253,29 @@ test("both generations are configured independently, and only a generation chang
       "v3",
     );
     expect(stored.v2.address, "a cross-generation detection stored the other connection").toBe("");
-    expect(stored.v3.address, "a cross-generation detection overwrote the tested card").toBe(
+    expect(stored.v3.address, "a cross-generation detection overwrote the tested connection").toBe(
       v3Address,
     );
   });
 
-  await test.step("switching cards discards the unsaved edit with no dialog", async () => {
-    // The v2 address is still in the v3 card's field from the step above, and was never saved.
+  await test.step("selecting the other generation reseeds the form from what is stored for it", async () => {
+    // The v2 address is still in the field from the step above, entered against v3 and never saved.
     await expect(panel.addressField).toHaveValue(v2Address);
-    await panel.switchButton.click();
+    await panel.selectV2.click();
 
     await expect(
       panel.addressField,
-      "switching carried the unsaved edit onto the other card",
+      "selecting the other generation carried the unsaved edit across",
     ).toHaveValue("");
     await expect(
       panel.keyField,
-      "switching carried the unsaved key onto the other card",
+      "selecting the other generation carried the unsaved key across",
     ).toHaveValue("");
 
-    await panel.switchButton.click();
+    await panel.selectV3.click();
     await expect(
       panel.addressField,
-      "switching back showed the discarded edit rather than what is stored",
+      "selecting back showed the discarded edit rather than what is stored",
     ).toHaveValue(v3Address);
   });
 
@@ -308,7 +333,7 @@ test("both generations are configured independently, and only a generation chang
 
   await test.step("a save that changes the generation reloads", async () => {
     const after = await openPanel(page, baseUrl);
-    await after.switchButton.click();
+    await after.selectV2.click();
     await after.addressField.fill(v2Address);
     await after.keyField.fill(whisparrPair.apiKey);
 
@@ -325,9 +350,10 @@ test("both generations are configured independently, and only a generation chang
     const stored = await storedSettings();
     expect(stored.selectedGeneration).toBe("v2");
     expect(stored.v2.address).toBe(v2Address);
-    expect(stored.v3.address, "changing generation discarded the other card's connection").toBe(
-      v3Address,
-    );
+    expect(
+      stored.v3.address,
+      "changing generation discarded the other generation's connection",
+    ).toBe(v3Address);
   });
 
   await test.step("a save of the replacement behaviour alone writes neither connection", async () => {
@@ -394,6 +420,31 @@ test("both generations are configured independently, and only a generation chang
     const restored = await storedSettings();
     expect(restored.v2.address, "the address was not put back").toBe(v2Address);
     expect(restored.v2.keyIsSet, "a blank key field cleared the stored key").toBe(true);
+  });
+
+  await test.step("discarding an unsaved generation change puts the stored generation back", async () => {
+    const after = await openPanel(page, baseUrl);
+    await expect(draftedGenerationIn(page)).toContainText(GENERATION_LABELS.v2);
+
+    await after.selectV3.click();
+    await expect(draftedGenerationIn(page)).toContainText(GENERATION_LABELS.v3);
+    await expect(after.addressField).toHaveValue(v3Address);
+    // The one thing the control that used to announce a switch never did: say what is outstanding.
+    await expect(
+      page.getByText(
+        "The Whisparr generation is not saved yet. Saving changes the generation Cove uses and reloads the page.",
+        { exact: true },
+      ),
+      "the bar did not name the generation as the unsaved change",
+    ).toBeVisible();
+
+    await after.discardButton.click();
+    await expect(
+      draftedGenerationIn(page),
+      "discarding left the row on the generation that was never saved",
+    ).toContainText(GENERATION_LABELS.v2);
+    await expect(after.addressField).toHaveValue(v2Address);
+    await expect(after.saveBar).toHaveCount(0);
   });
 
   await test.step("the page's last control is reachable at full scroll while the bar is shown", async () => {
