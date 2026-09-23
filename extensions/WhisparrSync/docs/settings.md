@@ -8,30 +8,33 @@ Every Whisparr Sync setting, grouped by the section it appears in on the **Whisp
 tab (Settings → Extensions → Whisparr Sync), in the order the page shows them. Defaults are what a
 fresh install uses.
 
-The tab has three sections. Each generation keeps its own connection, so every setting under
-**Connection** below belongs to the generation card you are editing, not to the extension as a whole.
-
-## Whisparr generation
-
-Two cards, one per generation. Each shows what is stored for that generation and nothing from the
-other.
-
-| Card               | What it is                                        |
-| ------------------ | ------------------------------------------------- |
-| Whisparr v3 (Eros) | Whisparr v3. The generation a fresh install uses. |
-| Whisparr v2        | Whisparr v2.                                      |
-
-A card is marked **In use** when it is the generation Cove acts on, and **Editing** when it is the
-one the **Connection** section below is showing. The two differ from the moment you press **Switch**
-until your next save.
-
-**Switch** shows the other card. It saves nothing and asks nothing: anything you typed and did not
-save is discarded. Saving while a card that is not in use is showing makes that generation the one
-Cove uses, and reloads the page.
+Each generation keeps its own settings. Everything under **Connection** below belongs to the
+generation in use rather than to the extension as a whole, as do the folder paths the page settles
+with your instance.
 
 ## Connection
 
 The Whisparr instance Cove keeps in step with.
+
+### Whisparr generation
+
+A row of two options at the top of the section, one per generation. Each shows the address stored for
+that generation and whether a key is held for it.
+
+| Option             | What it is                                        |
+| ------------------ | ------------------------------------------------- |
+| Whisparr v3 (Eros) | Whisparr v3. The generation a fresh install uses. |
+| Whisparr v2        | Whisparr v2.                                      |
+
+The option Cove is acting on is marked **Selected**. The other carries a control naming it, such as
+**Select Whisparr v2**. Pressing that control drafts the change: it fills the fields below from that
+generation's stored values and the save bar states that the generation is not saved yet. Nothing has
+moved until you save, which is why the option is not marked in use before then.
+
+Saving a generation change reloads the page, because every surface reads the connected generation's
+capabilities.
+
+### Fields
 
 | Setting          | What it does                                                                                      | Default     | Valid values                                                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +64,7 @@ _Key will be removed when you save_.
 | Control          | What it does                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Test connection  | Asks the instance who it is and reports the answer. When a key is already stored and you have changed nothing, it tests the **stored** connection, and that is the only test allowed to update the two recorded lines. When you have edited the address or typed a key, it tests that pair and records nothing, because the instance it reaches may not be the stored one. |
-| Save connection  | Stores the address, and the key if you typed one or cleared it.                                                                                                                                                                                                                                                                                                            |
+| Save changes     | In the bar at the foot of the page, present only while something is unsaved. Stores the address, the key if you typed one or cleared it, the generation you selected, and the replacement-file behaviour. **Discard** beside it returns every field to what is stored.                                                                                                     |
 | Clear stored key | Marks the stored key for removal. It is removed when you save, not when you press this.                                                                                                                                                                                                                                                                                    |
 | Keep stored key  | Undoes **Clear stored key** before you save.                                                                                                                                                                                                                                                                                                                               |
 
@@ -69,8 +72,8 @@ Editing the address clears a test result, because the result described the addre
 field when it ran. Trailing slashes and letter case do not count as an edit.
 
 If a test reaches the **other** generation, the page names the version it found and stops. Nothing is
-saved and the other generation's stored connection is untouched; switch to that card to configure it
-there.
+saved and the other generation's stored connection is untouched; select that generation to configure
+it there.
 
 ### What a failed test says
 
