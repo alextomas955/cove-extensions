@@ -4,25 +4,38 @@
 [![CodeQL](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-This repository is the Cove extensions monorepo, converted from a one-repo-per-extension layout
-into a single multi-extension repo following [yourcove](https://github.com/yourcove)'s official
-`multi-extension-repo-template` pattern.
+Community extensions for [Cove](https://github.com/yourcove/cove), the self-hosted media library.
 
 > **Community project.** These are personal, third-party extensions maintained by alextomas955.
-> They are not affiliated with, or endorsed by, the [Cove](https://github.com/yourcove/cove) project.
+> They are not affiliated with, or endorsed by, the Cove project.
+
+**Docs, guides and screenshots: [alextomas955.github.io/cove-extensions](https://alextomas955.github.io/cove-extensions/)**
 
 ## Extensions
 
-Extensions are registered in [`extensions/catalog.json`](extensions/catalog.json), the source of
-truth CI reads to compute its build matrix. The catalog currently ships:
+| Extension                      | What it does                                                                                                                                | Docs                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [Renamer](extensions/Renamer/) | Renames your videos, images, audio and text documents to a pattern you choose, and sorts them into folders. Preview first, undo afterwards. | [Quick start](https://alextomas955.github.io/cove-extensions/extensions/renamer/quick-start) |
 
-- **Renamer** ([`extensions/Renamer/`](extensions/Renamer/)) - bulk metadata-driven rename and
-  relocate for a self-hosted Cove media library.
-  [Docs](https://alextomas955.github.io/cove-extensions/extensions/renamer).
+![Renamer's settings page in Cove, with a live preview of the new names.](extensions/Renamer/docs/img/settings-overview.jpg)
 
-This list grows as more entries are added to `extensions/catalog.json`.
+## Install an extension
 
-## Building
+In Cove, open **Settings**, and under **Extensions** select **Discover**. Search for the extension and
+select **Install**. Each extension's quick start covers the rest.
+
+## For contributors
+
+The rest of this file is for people working on the code. The
+[Contributing](https://alextomas955.github.io/cove-extensions/contributing) section of the docs site
+has the full guides, including [Writing docs](https://alextomas955.github.io/cove-extensions/contributing/writing-docs).
+
+This repository holds every extension in one place, following
+[yourcove](https://github.com/yourcove)'s `multi-extension-repo-template` pattern. Extensions are
+registered in [`extensions/catalog.json`](extensions/catalog.json), which CI reads to compute its build
+matrix.
+
+### Building
 
 Build the shared solution from the repo root:
 
@@ -47,21 +60,20 @@ reference. Package versions are centralized via NuGet Central Package Management
 from `$(CoveMinVersion)` - the declared host floor that the extension-repo validator compares each
 extension's `minCoveVersion` against.
 
-## Adding an extension
+### Adding an extension
 
 Every extension is a dynamically-loaded `Cove.Sdk` plugin: implement `IExtension` (via
 `FullExtensionBase`), ship an `extension.json` manifest, and register the extension in
 [`extensions/catalog.json`](extensions/catalog.json). See
 [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-or-extending-an-extension) for the full contract.
 
-## Docs
+### Docs
 
-- Full docs site: [alextomas955.github.io/cove-extensions](https://alextomas955.github.io/cove-extensions/).
-- Per-extension documentation and changelogs live under each extension's own folder:
-  `extensions/<Name>/docs/`, `extensions/<Name>/CHANGELOG.md`.
-- Repo-wide process docs live on the docs site under Contributing:
+- User docs for each extension live in `extensions/<Name>/docs/`, with its changelog at
+  `extensions/<Name>/CHANGELOG.md`. The docs site reads them from there.
+- Repo-wide process docs are on the site under Contributing:
   [Branching](https://alextomas955.github.io/cove-extensions/contributing/branching),
-  [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing), and
+  [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing) and
   [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
 
 ## License
