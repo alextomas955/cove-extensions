@@ -151,7 +151,7 @@ public sealed class RenamerLibraryEndpointTests
             Assert.All(batches, b => Assert.Equal(1, b.OriginalCount));
 
             var imageBatch = batches.Single(b => b.Kind == nameof(RenamerFileKind.Image));
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             var imageRow = Assert.Single(
                 await journal.ReadBatchPageAsync(imageBatch.RunId, long.MaxValue, 10));
             Assert.Equal(imageFileId, imageRow.FileId);

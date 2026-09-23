@@ -109,7 +109,6 @@ public sealed class RevertOperationTests
             "legacy", IRevertJournal.FirstBatchTicks, IRevertJournal.FirstBatchRunId);
         Assert.NotNull(batch);
         Assert.Equal("legacy", batch!.Value.RunId);
-        Assert.Equal("legacy", batch.Value.OperationId);
         Assert.Equal(2, (await journal.ReadBatchPageAsync("legacy", long.MaxValue, limit: 10)).Count);
     }
 

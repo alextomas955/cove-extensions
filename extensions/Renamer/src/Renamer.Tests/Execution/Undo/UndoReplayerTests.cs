@@ -446,7 +446,7 @@ public sealed class UndoReplayerTests
                 JournalBlobMigration.Key,
                 $"#batch|R1|{DateTime.UtcNow.Ticks}|Video|open\n{videoId}|{fileId}|{oldPath}");
 
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, DateTime.UtcNow));
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);

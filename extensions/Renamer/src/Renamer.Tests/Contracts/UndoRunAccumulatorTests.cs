@@ -1,4 +1,5 @@
 using Renamer.Execution;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Contracts;
 
@@ -22,7 +23,9 @@ public sealed class UndoRunAccumulatorTests
         IReadOnlyList<UndoReplayer.UndoFailure>? failed = null,
         IReadOnlyList<UndoReplayer.UndoFailure>? skipped = null,
         IReadOnlyList<UndoReplayer.UndoWarning>? warnings = null) =>
-        new(undone, failed ?? [], skipped ?? [], [], warnings ?? []);
+        new(failed ?? [], skipped ?? [],
+            [.. Enumerable.Range(1, undone).Select(i => new RevertRow("run-a", i, i, i, $"/old/{i}.mkv", ""))],
+            warnings ?? []);
 
     /// <summary>One stopped row whose file id also serves as its sequence, so an entry is identifiable.</summary>
     private static UndoReplayer.UndoFailure Stop(int fileId, string reason = "locked") =>

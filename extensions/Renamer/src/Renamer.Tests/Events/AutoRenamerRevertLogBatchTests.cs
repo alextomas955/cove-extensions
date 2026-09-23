@@ -50,7 +50,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.False(File.Exists(oldFull));
 
             // (a) A fresh reader sees exactly one batch with the correct kind.
-            using var readBack = new CoveRevertJournal(db);
+            await using var readBack = new CoveRevertJournal(db);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);

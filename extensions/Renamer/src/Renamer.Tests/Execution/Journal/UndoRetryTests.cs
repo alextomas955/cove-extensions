@@ -66,7 +66,7 @@ public sealed class UndoRetryTests
             // previous defect spent the whole batch on the first partial success, which is what made
             // the remaining work unreachable; row presence is the state, so the read that feeds the
             // button must still return this batch.
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
             var remaining = Assert.Single(open.Rows);
@@ -109,7 +109,7 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
 
             // Nothing left to offer - and a third call is a clean no-op rather than an error.
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
             Assert.Equal(0,
                 UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default)).Undone);
@@ -142,7 +142,7 @@ public sealed class UndoRetryTests
             var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
 
             // Both rows are gone - the terminal one too, so the batch can reach spent instead of
             // offering an undo that could never complete.
@@ -182,7 +182,7 @@ public sealed class UndoRetryTests
 
             await ext.UndoAsync(Write, new RecordingAuthorizationService(), default);
 
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             var afterFirst = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterFirst);
             Assert.Equal(3, afterFirst.Value.OriginalCount);
@@ -270,7 +270,7 @@ public sealed class UndoRetryTests
 
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var port = new CoveRenamerDataPort(db);
-        using (var journal = new CoveRevertJournal(db))
+        await using (var journal = new CoveRevertJournal(db))
         {
             await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
             foreach (var s in seeded)

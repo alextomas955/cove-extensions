@@ -81,7 +81,7 @@ public sealed class ParallelBatchTests
 
             // The shared journal (read fresh from the database) holds exactly K well-formed rows.
             await using var readDb = shared.NewContext();
-            using var journal = new CoveRevertJournal(readDb);
+            await using var journal = new CoveRevertJournal(readDb);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Rows.Count);

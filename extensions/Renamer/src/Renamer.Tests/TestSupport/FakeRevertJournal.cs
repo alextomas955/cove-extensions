@@ -136,9 +136,7 @@ public sealed class FakeRevertJournal : IRevertJournal
     private RevertBatchSummary Summarize(string runId)
     {
         var batch = _batches[runId];
-        return new RevertBatchSummary(
-            runId, EffectiveOperation(runId), batch.Kind, batch.OpenedAtUtcTicks,
-            batch.Original, batch.Restored, batch.Unrestorable);
+        return new RevertBatchSummary(runId, batch.Kind, batch.OpenedAtUtcTicks);
     }
 
     // A batch with no operation of its own is an operation of one, exactly as the storage reads it.

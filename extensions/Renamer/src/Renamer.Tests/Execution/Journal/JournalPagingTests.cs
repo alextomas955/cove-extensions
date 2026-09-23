@@ -52,7 +52,7 @@ public sealed class JournalPagingTests
         await using var _ = db;
         await using var __ = conn;
 
-        using var journal = await SeedRowsAsync(db, RowCount);
+        await using var journal = await SeedRowsAsync(db, RowCount);
 
         var pages = new List<IReadOnlyList<RevertRow>>();
         long cursor = long.MaxValue;
@@ -91,7 +91,7 @@ public sealed class JournalPagingTests
         await using var _ = db;
         await using var __ = conn;
 
-        using var journal = await SeedRowsAsync(db, RowCount);
+        await using var journal = await SeedRowsAsync(db, RowCount);
 
         Assert.Single(await journal.ReadBatchPageAsync(RunId, long.MaxValue, limit: 1));
         Assert.Equal(PageLimit, (await journal.ReadBatchPageAsync(RunId, long.MaxValue, PageLimit)).Count);
@@ -110,7 +110,7 @@ public sealed class JournalPagingTests
         await using var _ = db;
         await using var __ = conn;
 
-        using var journal = await SeedRowsAsync(db, RowCount);
+        await using var journal = await SeedRowsAsync(db, RowCount);
 
         var seen = new List<long>();
         long cursor = long.MaxValue;
@@ -143,7 +143,7 @@ public sealed class JournalPagingTests
         await using var _ = db;
         await using var __ = conn;
 
-        using var journal = await SeedRowsAsync(db, RowCount);
+        await using var journal = await SeedRowsAsync(db, RowCount);
 
         Assert.Empty(await journal.ReadBatchPageAsync("no-such-run", long.MaxValue, PageLimit));
 
@@ -163,7 +163,7 @@ public sealed class JournalPagingTests
         try
         {
             var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            using var _ = journal;
+            await using var _ = journal;
 
             // Occupy every restore slot: the reverse move refuses to clobber, so every row stops for a
             // cause the world can clear and none of them retires.
@@ -199,7 +199,7 @@ public sealed class JournalPagingTests
         try
         {
             var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            using var _ = journal;
+            await using var _ = journal;
 
             foreach (var s in seeded)
             {
@@ -231,7 +231,7 @@ public sealed class JournalPagingTests
         try
         {
             var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            using var _ = journal;
+            await using var _ = journal;
 
             var run = await RunPagedUndoAsync(db, journal);
 

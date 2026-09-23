@@ -142,28 +142,13 @@ public readonly record struct RevertOperationSummary(
     int UnrestorableCount)
 {
     /// <summary>How many files the operation still has to restore.</summary>
-    /// <remarks>Derived, never stored, for the reason <see cref="RevertBatchSummary.Remaining"/> gives.</remarks>
-    public int Remaining => OriginalCount - RestoredCount - UnrestorableCount;
-}
-
-/// <summary>A batch's aggregate: what it started as, and how much of it has been settled.</summary>
-/// <remarks>
-/// <c>OperationId</c> is resolved on read, so a batch written before the column existed reads as an
-/// operation of one. <c>WrittenAtUtcTicks</c> is what the retention window is measured from.
-/// <c>OriginalCount</c> is never decremented. <c>Kind</c> serves the undo endpoint's per-kind write
-/// re-gate and the replayer from one read, and deliberately does not reach the wire summary: it
-/// would tell a caller holding one kind's read permission which kind was renamed.
-/// </remarks>
-public readonly record struct RevertBatchSummary(
-    string RunId,
-    string OperationId,
-    RenamerFileKind Kind,
-    long WrittenAtUtcTicks,
-    int OriginalCount,
-    int RestoredCount,
-    int UnrestorableCount)
-{
-    /// <summary>How many files the batch still has to restore.</summary>
     /// <remarks>Derived, never stored: three numbers that must sum correctly can disagree.</remarks>
     public int Remaining => OriginalCount - RestoredCount - UnrestorableCount;
 }
+
+/// <summary>One batch of an operation, as the undo loop walks them.</summary>
+/// <remarks>
+/// <c>WrittenAtUtcTicks</c> and <c>RunId</c> are the walk's cursor. <c>Kind</c> never reaches the wire,
+/// because it would tell a caller holding one kind's read permission which kind was renamed.
+/// </remarks>
+public readonly record struct RevertBatchSummary(string RunId, RenamerFileKind Kind, long WrittenAtUtcTicks);

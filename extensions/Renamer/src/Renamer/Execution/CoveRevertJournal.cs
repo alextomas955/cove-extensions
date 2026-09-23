@@ -14,7 +14,7 @@ namespace Renamer.Execution;
 // because the sequence number that half-identifies a row is minted per instance. A DbContext is not
 // thread-safe and Cove disables EF's thread-safety checks, so concurrent writes through one context
 // corrupt silently instead of throwing. The write gate serializes them.
-public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDisposable
+public sealed class CoveRevertJournal : IRevertJournal, IAsyncDisposable
 {
     // A read granularity, not a ceiling on what an undo restores: the run pages until a page comes back
     // empty, so the whole batch comes back however many pages that takes.
@@ -352,25 +352,8 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
         _writes.Dispose();
     }
 
-    public void Dispose()
-    {
-        if (_pending.Count > 0 || _pendingCounts.Count > 0)
-        {
-            FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
-        }
-
-        _writes.Dispose();
-    }
-
     private static RevertBatchSummary Summarize(RevertBatchEntity batch) =>
-        new(batch.RunId,
-            // A batch written before the operation id column existed is an operation of one.
-            batch.OperationId.Length == 0 ? batch.RunId : batch.OperationId,
-            ParseKind(batch.Kind),
-            batch.OpenedAtUtcTicks,
-            batch.OriginalCount,
-            batch.RestoredCount,
-            batch.UnrestorableCount);
+        new(batch.RunId, ParseKind(batch.Kind), batch.OpenedAtUtcTicks);
 
     // Writes the buffered rows and detaches them. The caller holds the write gate.
     //

@@ -67,16 +67,17 @@ public sealed class UndoReplayer
     // Warnings is separate from the two problem buckets: those entries succeeded, and folding them in
     // would stop the caller retiring a row whose file did come back.
     public sealed record UndoRunResult(
-        int Undone,
         IReadOnlyList<UndoFailure> Failed,
         IReadOnlyList<UndoFailure> Skipped,
         IReadOnlyList<RevertRow> Restored,
-        IReadOnlyList<UndoWarning> Warnings);
+        IReadOnlyList<UndoWarning> Warnings)
+    {
+        public int Undone => Restored.Count;
+    }
 
     // The batch arrives newest-first from the journal, which is the order the rows must be replayed in.
     public async Task<UndoRunResult> RevertAsync(RevertBatch batch, CancellationToken ct = default)
     {
-        int undone = 0;
         var failed = new List<UndoFailure>();
         var skipped = new List<UndoFailure>();
         var restored = new List<RevertRow>();
@@ -116,7 +117,7 @@ public sealed class UndoReplayer
                 var outcome = await RevertEntryAsync(batch.Kind, entry, currentPath, warnings, ct);
                 switch (outcome)
                 {
-                    case RevertOutcome.Undone: undone++; restored.Add(entry); break;
+                    case RevertOutcome.Undone: restored.Add(entry); break;
                     case RevertOutcome.Skipped skip: skipped.Add(skip.Failure); break;
                     case RevertOutcome.Failed fail: failed.Add(fail.Failure); break;
                 }
@@ -131,7 +132,7 @@ public sealed class UndoReplayer
             }
         }
 
-        return new UndoRunResult(undone, failed, skipped, restored, warnings);
+        return new UndoRunResult(failed, skipped, restored, warnings);
     }
 
     private async Task<RevertOutcome> RevertEntryAsync(
