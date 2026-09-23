@@ -80,11 +80,32 @@ async function openPanel(page, baseUrl) {
     addressField,
     keyField: page.locator('input[type="password"]'),
     callbackField: page.getByLabel("Callback address"),
+    behaviorField: page.getByLabel("Replacement files"),
     testButton: page.getByRole("button", { name: "Test connection" }),
-    saveButton: page.getByRole("button", { name: "Save connection" }),
+    saveButton: page.getByRole("button", { name: "Save changes" }),
+    discardButton: page.getByRole("button", { name: "Discard" }),
+    saveBar: saveBarIn(page),
     switchButton: page.getByRole("button", { name: "Switch" }),
     registerButton: page.getByRole("button", { name: "Register in Whisparr" }),
+    // The name carries the reason the control names when it is unavailable, so it is matched from
+    // the front rather than whole.
+    syncButton: page.getByRole("button", { name: /^Sync library to Whisparr/ }),
   };
+}
+
+/**
+ * The save bar, located by the pair of controls only it holds.
+ *
+ * It has no role and no fixed text of its own, and no other section of this page draws a Discard.
+ * Every ancestor of the pair matches too, and each of them matches only while the bar is drawn; the
+ * innermost is taken so the locator resolves to one element.
+ */
+function saveBarIn(page) {
+  return page
+    .locator("div")
+    .filter({ has: page.getByRole("button", { name: "Save changes" }) })
+    .filter({ has: page.getByRole("button", { name: "Discard" }) })
+    .last();
 }
 
 /** The version an instance reports about itself, asked directly rather than through the extension. */
@@ -154,7 +175,7 @@ test("both generations are configured independently, and only a generation chang
     ).toBeVisible({ timeout: ATTEMPT_BUDGET_MS });
 
     await panel.saveButton.click();
-    await expect(page.getByText("Connection saved.", { exact: true })).toBeVisible({
+    await expect(page.getByText("Settings saved.", { exact: true })).toBeVisible({
       timeout: ATTEMPT_BUDGET_MS,
     });
 
@@ -260,16 +281,25 @@ test("both generations are configured independently, and only a generation chang
     const after = await openPanel(page, baseUrl);
     await expect(after.addressField).toHaveValue(v3Address, { timeout: ATTEMPT_BUDGET_MS });
 
-    // A save with nothing changed cannot even be issued, and says so rather than dimming silently.
-    await expect(after.saveButton).toBeDisabled();
-    await expect(after.saveButton).toHaveAccessibleName(/Nothing has changed/);
+    // This load holds what is stored and has reported no save of its own, so there is nothing to
+    // offer and no bar at all. That is what a control saying it had nothing to save has become.
+    await expect(
+      after.saveBar,
+      "a form matching what is stored still drew the save bar",
+    ).toHaveCount(0);
 
-    // A trailing slash would not do: that is not an edit, so the control would stay disabled and the
+    // A trailing slash would not do: that is not an edit, so nothing would become unsaved and the
     // step would assert nothing. Re-entering the key is a real write on the same generation.
     await plantMarker(page);
     await after.keyField.fill(whisparrPair.apiKey);
+    await expect(after.saveBar).toBeVisible();
+    await expect(
+      page.getByText("The API key is not saved yet.", { exact: true }),
+      "the bar appeared without naming the field that is unsaved",
+    ).toBeVisible();
+
     await after.saveButton.click();
-    await expect(page.getByText("Connection saved.", { exact: true })).toBeVisible({
+    await expect(page.getByText("Settings saved.", { exact: true })).toBeVisible({
       timeout: ATTEMPT_BUDGET_MS,
     });
 
@@ -298,5 +328,112 @@ test("both generations are configured independently, and only a generation chang
     expect(stored.v3.address, "changing generation discarded the other card's connection").toBe(
       v3Address,
     );
+  });
+
+  await test.step("a save of the replacement behaviour alone writes neither connection", async () => {
+    const after = await openPanel(page, baseUrl);
+    const before = await storedSettings();
+    const otherBehavior = before.upgradeBehavior === "replace" ? "add" : "replace";
+
+    await after.behaviorField.selectOption(otherBehavior);
+    await expect(
+      page.getByText("The replacement-file behaviour is not saved yet.", { exact: true }),
+    ).toBeVisible();
+    await after.saveButton.click();
+    await expect(page.getByText("Settings saved.", { exact: true })).toBeVisible({
+      timeout: ATTEMPT_BUDGET_MS,
+    });
+
+    const stored = await storedSettings();
+    expect(stored.upgradeBehavior, "the behaviour the save named was not stored").toBe(
+      otherBehavior,
+    );
+    // One form holds both connections and this setting, so a save of the setting alone is where a
+    // write of either stored connection alongside it would show.
+    expect(stored.v3.address, "a behaviour save wrote the v3 address").toBe(before.v3.address);
+    expect(stored.v2.address, "a behaviour save wrote the v2 address").toBe(before.v2.address);
+    expect(stored.v3.keyIsSet, "a behaviour save wrote the v3 key").toBe(before.v3.keyIsSet);
+    expect(stored.v2.keyIsSet, "a behaviour save wrote the v2 key").toBe(before.v2.keyIsSet);
+  });
+
+  await test.step("an address save with the key field blank leaves the stored key set", async () => {
+    const after = await openPanel(page, baseUrl);
+    const before = await storedSettings();
+    expect(before.selectedGeneration).toBe("v2");
+    expect(before.v2.keyIsSet, "there is no stored key for this step to keep").toBe(true);
+    // The stored key is never handed back, so the field is blank on every load. Saving from here is
+    // what asks for it to be kept.
+    await expect(after.keyField).toHaveValue("");
+
+    await after.addressField.fill(v3Address);
+    // The bar drops its report of the last save at the first edit, so the sentence below is this
+    // save's and not the one before it.
+    await expect(
+      page.getByText("The Whisparr address is not saved yet.", { exact: true }),
+    ).toBeVisible();
+    await after.saveButton.click();
+    await expect(page.getByText("Settings saved.", { exact: true })).toBeVisible({
+      timeout: ATTEMPT_BUDGET_MS,
+    });
+
+    const moved = await storedSettings();
+    expect(moved.v2.address, "the address the save named was not stored").toBe(v3Address);
+    expect(moved.v2.keyIsSet, "a blank key field cleared the stored key").toBe(true);
+
+    // Back to the address the steps above stored, which says the same thing a second time and
+    // leaves the settings as this spec found them.
+    await after.addressField.fill(v2Address);
+    await expect(
+      page.getByText("The Whisparr address is not saved yet.", { exact: true }),
+    ).toBeVisible();
+    await after.saveButton.click();
+    await expect(page.getByText("Settings saved.", { exact: true })).toBeVisible({
+      timeout: ATTEMPT_BUDGET_MS,
+    });
+
+    const restored = await storedSettings();
+    expect(restored.v2.address, "the address was not put back").toBe(v2Address);
+    expect(restored.v2.keyIsSet, "a blank key field cleared the stored key").toBe(true);
+  });
+
+  await test.step("the page's last control is reachable at full scroll while the bar is shown", async () => {
+    const after = await openPanel(page, baseUrl);
+    await after.keyField.fill(whisparrPair.apiKey);
+    await expect(after.saveBar).toBeVisible();
+
+    // Every scrollable ancestor to its end. The bar is fixed to the foot of the viewport, so the
+    // foot of the page is the one place it can cover something.
+    await after.syncButton.evaluate((el) => {
+      for (let node = el.parentElement; node !== null; node = node.parentElement) {
+        if (node.scrollHeight > node.clientHeight) node.scrollTop = node.scrollHeight;
+      }
+      const root = document.scrollingElement;
+      if (root !== null) root.scrollTop = root.scrollHeight;
+    });
+
+    // Polled, because a page that scrolls smoothly is still moving when the scroll is asked for.
+    // What is over the control is read from the document itself: the bar is drawn above everything
+    // on the page, so a box that overlaps it would take the press.
+    await expect
+      .poll(
+        () =>
+          after.syncButton.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const over = document.elementFromPoint(
+              box.left + box.width / 2,
+              box.top + box.height / 2,
+            );
+            return over === el || el.contains(over) ? "the control" : (over?.textContent ?? "");
+          }),
+        {
+          message: "something else took the middle of the page's last control at full scroll",
+          timeout: ATTEMPT_BUDGET_MS,
+        },
+      )
+      .toBe("the control");
+
+    // Nothing here was saved, and discarding leaves the settings as the steps above left them.
+    await after.discardButton.click();
+    await expect(after.saveBar).toHaveCount(0);
   });
 });
