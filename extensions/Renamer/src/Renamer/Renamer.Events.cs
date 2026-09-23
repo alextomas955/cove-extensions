@@ -68,7 +68,7 @@ public sealed partial class Renamer
                 // Preview, auto-renamer and batch resolve destinations identically, so a matched
                 // studio, tag or path rule relocates the edited item to its configured destination.
                 // Only the edited entity is planned, so this does not relocate the library.
-                var lookups = BuildLookups(options);
+                var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 
                 // Re-entrancy guard: nothing moves, so the executor is not touched, no save happens,

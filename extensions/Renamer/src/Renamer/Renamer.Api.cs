@@ -419,7 +419,7 @@ public sealed partial class Renamer
 
         // The batch's own lookups and loader, so the preview plans exactly what a run would. The walk
         // follows the caller's id order, and an id the load did not return contributes nothing.
-        var lookups = BuildLookups(options);
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         var loaded = await port.LoadEntitiesAsync(kind, req.EntityIds, ct);
         var byId = loaded.ToDictionary(e => e.EntityId);
 
@@ -695,7 +695,7 @@ public sealed partial class Renamer
         }
 
         var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
-        var lookups = BuildLookups(options);
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         // A kind turned off is dropped before the walk, exactly as RunScanCoreAsync drops it. Left in,
         // a library-sized kind that is off fills the table with rows saying so and spends the request's
         // entity budget reaching them, while the counts beside that table exclude it, and the table and its
@@ -845,5 +845,12 @@ public sealed partial class Renamer
             Folder: result.FolderPath,
             Flags: flags.ToArray(),
             DroppedFields: dropped.ToArray());
+    }
+
+    // Adapts the host's core IJobProgress, handed to the IJobService.Enqueue delegate, to the
+    // extension IJobProgress the batch methods consume.
+    private sealed class HostProgress(Cove.Core.Interfaces.IJobProgress core) : Cove.Plugins.IJobProgress
+    {
+        public void Report(double percent, string? message = null) => core.Report(percent, message);
     }
 }

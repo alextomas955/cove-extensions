@@ -1,7 +1,5 @@
-using System.Text.RegularExpressions;
 using Cove.Core.Events;
 using Cove.Extensions.Shared;
-using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -212,8 +210,6 @@ public sealed partial class Renamer : FullExtensionBase
         await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
     }
 
-    private const string JournalBatchTable = "renamer_revert_batches";
-
     // Refuses to load when the undo journal cannot be read. The host logs a failed migration, stops
     // applying, and loads the extension anyway, so a migration that never landed would leave every
     // rename moving files with no record of where they came from, looking exactly like a working
@@ -237,9 +233,9 @@ public sealed partial class Renamer : FullExtensionBase
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogJournalUnreachable(ex, JournalBatchTable);
+            LogJournalUnreachable(ex, RevertJournalSchema.BatchTable);
             throw new InvalidOperationException(
-                $"The undo journal table '{JournalBatchTable}' could not be read, so a rename would "
+                $"The undo journal table '{RevertJournalSchema.BatchTable}' could not be read, so a rename would "
                     + "move files with no record of where they came from and no way to undo it. The "
                     + "extension refuses to load rather than rename unjournalled.",
                 ex);
@@ -293,93 +289,4 @@ public sealed partial class Renamer : FullExtensionBase
         RenamerFileKind.Video => (Cove.Core.Auth.Permissions.VideosRead, Cove.Core.Auth.Permissions.VideosWrite),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a renamable kind"),
     };
-
-    // Adapts the host's core IJobProgress, handed to the IJobService.Enqueue delegate, to the
-    // extension IJobProgress the batch methods consume.
-    private sealed class HostProgress(Cove.Core.Interfaces.IJobProgress core) : IJobProgress
-    {
-        public void Report(double percent, string? message = null) => core.Report(percent, message);
-    }
-
-    // The fraction of a chunk's progress bar the planning pass owns, execution taking the rest. The
-    // split is cosmetic: both passes scale linearly, so the bar only advances.
-    private const double PlanningProgressShare = 0.5;
-
-    // The entities a rename run plans and executes before starting the next chunk. Equal to
-    // MaxEntityIdsPerRequest, so one selection is one chunk. A run's plans, projected moves and
-    // destination-folder map are released with each chunk, so a whole-library run costs what one full
-    // selection costs.
-    internal const int RenameChunkEntities = MaxEntityIdsPerRequest;
-
-    // Bounds a single source-path regex match so a catastrophic-backtracking pattern is interrupted
-    // and cannot hang the batch. Small because this is a short per-entity string test.
-    private static readonly TimeSpan RouteRegexMatchTimeout = TimeSpan.FromMilliseconds(100);
-
-    // Builds the per-batch RouteLookups once. Every user regex is parsed here, with a bounded match
-    // timeout, so an invalid pattern is caught and logged at build time and the resolver only ever
-    // calls IsMatch.
-    private RouteLookups BuildLookups(RenamerOptions o)
-    {
-        // Exact source-path match mirrors the OS-aware path semantics used elsewhere, so on Windows a
-        // rule for "media/incoming" matches a stored "Media/Incoming". Keys are normalized by trimming
-        // a trailing slash, and the resolver normalizes the source path the same way before lookup.
-        var exact = new Dictionary<string, Destination>(DestinationResolver.SourcePathComparer);
-        var regexRules = new List<(Regex Pattern, Destination Dest)>();
-
-        foreach (var rule in o.PathDestinations)
-        {
-            if (!rule.IsRegex)
-            {
-                // First wins on a duplicate key, preserving user order.
-                exact.TryAdd(DestinationResolver.NormalizeSourcePath(rule.Pattern), rule.Dest);
-                continue;
-            }
-
-            try
-            {
-                regexRules.Add((new Regex(rule.Pattern, RegexOptions.None, RouteRegexMatchTimeout), rule.Dest));
-            }
-            catch (ArgumentException ex)
-            {
-                // The rule is skipped, not the batch.
-                LogInvalidRouteRegex(rule.Pattern, ex.Message);
-            }
-        }
-
-        // The exclude lookups are built the same way as the routing sets above: the same comparer and
-        // normalized keys, the same match timeout, and the same skip-and-log on an invalid pattern.
-        var excludeTags = new HashSet<int>(o.ExcludeTagIds);
-        var excludeStudios = new HashSet<int>(o.ExcludeStudioIds);
-        var excludePathsExact = new HashSet<string>(DestinationResolver.SourcePathComparer);
-        var excludePathRegex = new List<Regex>();
-
-        foreach (var rule in o.ExcludePaths)
-        {
-            if (!rule.IsRegex)
-            {
-                excludePathsExact.Add(DestinationResolver.NormalizeSourcePath(rule.Pattern));
-                continue;
-            }
-
-            try
-            {
-                excludePathRegex.Add(new Regex(rule.Pattern, RegexOptions.None, RouteRegexMatchTimeout));
-            }
-            catch (ArgumentException ex)
-            {
-                LogInvalidRouteRegex(rule.Pattern, ex.Message);
-            }
-        }
-
-        return new RouteLookups(
-            o.StudioDestinations,
-            o.TagDestinations,
-            exact,
-            regexRules,
-            excludeTags,
-            excludeStudios,
-            excludePathsExact,
-            excludePathRegex);
-    }
-
 }

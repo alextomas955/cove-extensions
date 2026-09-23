@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 using Renamer.Options;
 
 namespace Renamer.Planner;
@@ -42,25 +40,3 @@ public enum RouteCategory
 // answer, which is what makes a destination stable under the move it names: two user-authored folder
 // expressions are never joined, so no run can append one to the other.
 public sealed record RouteResult(RouteCategory Category, string MatchedRule, Destination? Destination);
-
-// The per-batch routing lookups, hoisted once per batch and handed to the pure DestinationResolver so
-// it never re-walks or re-parses per entity. Built by the planner from RenamerOptions; the resolver only
-// reads it.
-//
-// The studio, tag and exclude sets are keyed on stable ids, never on names. The exact path maps are
-// built with DestinationResolver.SourcePathComparer over NormalizeSourcePath keys. The regex lists
-// arrive compiled and validated once at build time with a match timeout applied there to bound ReDoS,
-// so an invalid user pattern never reaches here and the resolver only calls IsMatch. A null or empty
-// exclude member means none is configured.
-//
-// A studio exclude matches the entity's own StudioId or any of its ParentStudios ancestor ids. The
-// exclude regexes carry no destination, because an excluded item is never moved.
-public sealed record RouteLookups(
-    IReadOnlyDictionary<int, Destination> StudioIdToDest,
-    IReadOnlyDictionary<int, Destination> TagIdToDest,
-    IReadOnlyDictionary<string, Destination> PathExactToDest,
-    IReadOnlyList<(Regex Pattern, Destination Dest)> PathRegexRules,
-    IReadOnlySet<int>? ExcludeTagIds = null,
-    IReadOnlySet<int>? ExcludeStudioIds = null,
-    IReadOnlySet<string>? ExcludePathsExact = null,
-    IReadOnlyList<Regex>? ExcludePathRegex = null);

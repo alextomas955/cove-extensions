@@ -26,6 +26,16 @@ internal sealed record RenameRun(
 /// </summary>
 public sealed partial class Renamer
 {
+    // The fraction of a chunk's progress bar the planning pass owns, execution taking the rest. The
+    // split is cosmetic: both passes scale linearly, so the bar only advances.
+    private const double PlanningProgressShare = 0.5;
+
+    // The entities a rename run plans and executes before starting the next chunk. Equal to
+    // MaxEntityIdsPerRequest, so one selection is one chunk. A run's plans, projected moves and
+    // destination-folder map are released with each chunk, so a whole-library run costs what one full
+    // selection costs.
+    internal const int RenameChunkEntities = MaxEntityIdsPerRequest;
+
     // One acting file's unit of execution work. The move tuple partitions same- from cross-volume
     // and re-checks free space in flight; the entity id is for per-item logging.
     private readonly record struct BatchUnit(
@@ -177,7 +187,7 @@ public sealed partial class Renamer
         // pre-parsed source-path regex set, so the resolver never re-walks or re-compiles them per
         // entity. An invalid user regex is caught at this build step and skipped with a log, so it can
         // never throw mid-match.
-        var lookups = BuildLookups(run.Options);
+        var lookups = RouteLookups.From(run.Options, LogInvalidRouteRegex);
 
         // The journal gets its own scope, and therefore its own DbContext, for the whole run: every
         // parallel worker of every chunk shares it because it mints each row's sequence number, and a

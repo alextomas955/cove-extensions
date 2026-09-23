@@ -65,7 +65,7 @@ public sealed partial class Renamer
         // scan with library-many rows whose only content is that the kind is off.
         var kinds = readableKinds.Where(options.IsKindEnabled).ToList();
 
-        var lookups = BuildLookups(options);
+        var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
