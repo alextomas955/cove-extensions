@@ -1,19 +1,9 @@
 using Cove.Core.Entities;
-using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The mechanical lockstep guard for the studio-ancestor depth. Every assertion here is keyed on
-/// <see cref="CoveRenamerDataPort.MaxParentDepth"/> and driven through the real per-kind EF Include
-/// chain, so it fails if anyone (a) adds or removes a <c>.ThenInclude(s =&gt; s!.Parent)</c> hop in
-/// <c>VideoQuery</c>/<c>ImageQuery</c>/<c>AudioQuery</c>, or (b) changes the constant without matching
-/// the chains - closing the "the coupling is enforced only by a comment" concern. Runs against a real
-/// SQLite-backed <see cref="CoveContext"/> so the self-referencing Studio parent FK hydrates as
-/// production would.
-/// </summary>
 public sealed class StudioDepthLockstepTests
 {
     [Fact]
@@ -105,9 +95,9 @@ public sealed class StudioDepthLockstepTests
 
     private enum SeedKind { Video, Image, Audio }
 
-    /// Seeds <paramref name="count"/> Studio rows root→leaf (each saved before the next references its
-    /// Id) and returns them in seed order (index 0 = root, index ^1 = the studio nearest the entity's
-    /// direct studio).
+    // Seeds count Studio rows root→leaf (each saved before the next references its Id) and returns
+    // them in seed order (index 0 = root, index ^1 = the studio nearest the entity's direct
+    // studio).
     private static async Task<List<Studio>> SeedAncestorChainAsync(DbContext db, int count)
     {
         var chain = new List<Studio>(count);

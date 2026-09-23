@@ -3,16 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The persistence contract for the records stored inside the options' lists and maps, member by
-/// member.
-/// </summary>
-/// <remarks>
-/// <see cref="OptionsPersistenceTests"/> reaches a member of a nested record by its own path, but an
-/// element of a list or a map is compared as a whole value. A member missing from the blob is then
-/// missing from both sides of that comparison, so these read each member off the deserialized
-/// element instead of comparing serialized forms.
-/// </remarks>
 public sealed class CollectionElementPersistenceTests
 {
     private static RenamerOptions RoundTrip(RenamerOptions original)

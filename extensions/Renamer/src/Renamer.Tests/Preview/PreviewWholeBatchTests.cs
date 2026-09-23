@@ -10,15 +10,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Preview;
 
-/// <summary>
-/// Whole-batch wire shape: <c>/preview</c> now answers an object
-/// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
-/// each per-item object stays camelCase with <c>status</c> the string (so the UI's
-/// <c>status === "Renamer"</c> match survives) and carries its routing fields; the additive summary
-/// serializes camelCase with <c>confirmLevel</c> the string and <c>volumePairs</c> as
-/// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
-/// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
-/// </summary>
 public sealed class PreviewWholeBatchTests
 {
     // OS-aware absolute roots so routing to a different root yields a real cross-volume Move.

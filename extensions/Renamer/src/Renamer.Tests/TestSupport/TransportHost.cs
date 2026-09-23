@@ -11,20 +11,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Mounts the extension's own <c>MapEndpoints</c> in an in-process
-/// <see cref="WebApplication"/>/TestServer over a real <see cref="CoveContext"/>, and hands back an
-/// <see cref="HttpClient"/> that speaks to it.
-/// </summary>
-/// <remarks>
-/// A handler called directly receives whatever arguments the test constructs, so a test written that
-/// way proves nothing about what the host's model binding actually produces for a given request body.
-/// Anything asserting on the wire - the bound request shape, the status code, the response bytes -
-/// belongs on this seam.
-/// </remarks>
+// Mounts the extension's own MapEndpoints in an in-process WebApplication/TestServer over a real
+// CoveContext, and hands back an HttpClient that speaks to it. A handler called directly receives
+// whatever arguments the test constructs, so a test written that way proves nothing about what the
+// host's model binding actually produces for a given request body. Anything asserting on the wire -
+// the bound request shape, the status code, the response bytes - belongs on this seam.
 public sealed class TransportHost : IAsyncDisposable
 {
-    /// <summary>The route prefix the host mounts an extension's endpoints under.</summary>
+    // The route prefix the host mounts an extension's endpoints under.
     public const string BaseRoute = "/api/extensions/com.alextomas955.renamer";
 
     private readonly WebApplication _app;
@@ -32,19 +26,17 @@ public sealed class TransportHost : IAsyncDisposable
     private readonly DbContext _db;
     private readonly StubJobService _jobs;
 
-    /// <summary>A client bound to the in-process server; request paths start at <see cref="BaseRoute"/>.</summary>
+    // A client bound to the in-process server; request paths start at BaseRoute.
     public HttpClient Client { get; }
 
-    /// <summary>
-    /// Every route the extension mounted, as an HTTP method paired with the route pattern as written
-    /// (so a parameterised route reads <c>/job-status/{jobId}</c>, not a request path).
-    /// </summary>
+    // Every route the extension mounted, as an HTTP method paired with the route pattern as written
+    // (so a parameterised route reads /job-status/{jobId}, not a request path).
     public IReadOnlyList<(string Method, string Pattern)> MountedRoutes { get; }
 
-    /// <summary>Every endpoint the extension mounted, carrying the metadata its registration attached.</summary>
+    // Every endpoint the extension mounted, carrying the metadata its registration attached.
     public IReadOnlyList<RouteEndpoint> Endpoints { get; }
 
-    /// <summary>How many jobs the handlers enqueued.</summary>
+    // How many jobs the handlers enqueued.
     public int EnqueuedJobs => _jobs.EnqueuedCount;
 
     private TransportHost(
@@ -66,9 +58,9 @@ public sealed class TransportHost : IAsyncDisposable
                 .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))];
     }
 
-    /// <summary>Boots a server serving the extension's routes as the given principal.</summary>
-    /// <param name="principal">The principal every in-handler permission check reads.</param>
-    /// <param name="store">The extension store, or null for an empty <c>FakeStore</c>.</param>
+    // Boots a server serving the extension's routes as the given principal. principal: The
+    // principal every in-handler permission check reads. store: The extension store, or null for an
+    // empty FakeStore.
     public static async Task<TransportHost> BootAsync(
         ICurrentPrincipalAccessor principal, IExtensionStore? store = null)
     {
@@ -113,7 +105,7 @@ public sealed class TransportHost : IAsyncDisposable
         await _conn.DisposeAsync();
     }
 
-    /// <summary>Counts every enqueue and never runs it; all other members are unused and throw.</summary>
+    // Counts every enqueue and never runs it; all other members are unused and throw.
     private sealed class StubJobService : IJobService
     {
         public int EnqueuedCount { get; private set; }

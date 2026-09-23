@@ -4,12 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The incremental fold the whole-library scan replaces its per-file list with: folding one entity at a
-/// time must produce the same blast radius <see cref="BatchPreview.Summarize"/> computes over the whole
-/// set at once, exact per-status counts, and a retained-object count that does not grow with the number
-/// of entities folded.
-/// </summary>
 public sealed class ScanAggregatorTests
 {
     // Volume identity is per-platform (VolumeClassifier): the path root on Windows, the enclosing mount

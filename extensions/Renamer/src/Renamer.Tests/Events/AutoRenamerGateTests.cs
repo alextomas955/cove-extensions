@@ -5,11 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The opt-in + gating half of auto-renamer: with the flag off (default) the hook does nothing, and
-/// with the flag on but the planner's require-fields gate excluding the item, it still does nothing
-/// - no junk names on incomplete metadata.
-/// </summary>
 public sealed class AutoRenamerGateTests
 {
     [Fact]

@@ -1,5 +1,4 @@
 using Cove.Core.Events;
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,13 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// Shared wiring for the auto-renamer hook tests. Builds a <c>Renamer</c> extension with its captured
-/// seams (<c>_scopeFactory</c>, <c>_eventBus</c>, <c>Store</c>) sourced from a DI provider that
-/// registers the seeded <see cref="CoveContext"/> as the base <see cref="DbContext"/> (singleton, so
-/// the per-event scope resolves the same seeded instance) and a <see cref="CapturingEventBus"/>.
-/// Options are persisted into the same store the hook loads from before the event fires.
-/// </summary>
 internal static class EventTestHarness
 {
     public static async Task<(global::Renamer.Renamer ext, CapturingEventBus bus, FakeStore store)> BuildAsync(

@@ -3,13 +3,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// A locked/in-use source file (held open with <see cref="FileShare.None"/>)
-/// is caught and reported as a skip - the move does not happen, no exception escapes, the source
-/// stays at its old path, and the locking process is never touched (the helper references no
-/// <c>System.Diagnostics.Process</c> API - it never tries to force a lock open).
-/// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
-/// </summary>
 public sealed class LockedFileTests
 {
     [Fact]

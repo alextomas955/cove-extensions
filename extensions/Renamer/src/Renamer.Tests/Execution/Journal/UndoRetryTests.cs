@@ -11,22 +11,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// An undo that restores only part of a batch, the retry that finishes it, and the row that can never
-/// come back - read back off the journal table each time, never off an in-memory mirror of it.
-/// </summary>
-/// <remarks>
-/// A partial undo must not spend the whole batch the moment one file comes back, or the rows skipped
-/// for a lock or an unmounted drive can never be retried, which is exactly when a retry is what the
-/// user needs. The retryable stop driven here is a real occupied restore slot that the test clears
-/// between the two attempts, so the second attempt genuinely succeeds rather than being asserted into
-/// success.
-/// <para>
-/// The counter behaviour itself is already pinned at the port level by <c>RevertJournalTests</c>. What
-/// these cases add is the endpoint's use of it: which rows it retires, with which flag, and what the
-/// table therefore still offers afterwards.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoRetryTests
 {
@@ -36,7 +20,6 @@ public sealed class UndoRetryTests
     // was written and then start failing these tests on its own, for a reason none of them names.
     private static readonly DateTime Opened = DateTime.UtcNow;
 
-    /// <summary>One seeded video, and where the forward rename moves its file from and to.</summary>
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
     [Fact]
@@ -219,7 +202,7 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    /// <summary>Seeds and forward-renames two files in one batch, returning them in seed order.</summary>
+    // Seeds and forward-renames two files in one batch, returning them in seed order.
     private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
@@ -227,17 +210,12 @@ public sealed class UndoRetryTests
         return (ext, seeded[0], seeded[1]);
     }
 
-    /// <summary>
-    /// Seeds one folder holding one video per <paramref name="stems"/> entry, then really renames each
-    /// into one journal batch - so the batch holds one row per file, which is what makes "acts only on
-    /// what is left" a statement about rows rather than about batches.
-    /// </summary>
-    /// <remarks>
-    /// The forward half runs through the planner and executor directly rather than through the batch
-    /// endpoint, because that endpoint fans its files out across per-worker scopes and every scope here
-    /// resolves the one seeded context. The subject of these cases is the undo endpoint, which is
-    /// exercised for real.
-    /// </remarks>
+    // Seeds one folder holding one video per stems entry, then really renames each into one journal
+    // batch - so the batch holds one row per file, which is what makes "acts only on what is left"
+    // a statement about rows rather than about batches. The forward half runs through the planner
+    // and executor directly rather than through the batch endpoint, because that endpoint fans its
+    // files out across per-worker scopes and every scope here resolves the one seeded context. The
+    // subject of these cases is the undo endpoint, which is exercised for real.
     private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, IReadOnlyList<string> stems)
     {

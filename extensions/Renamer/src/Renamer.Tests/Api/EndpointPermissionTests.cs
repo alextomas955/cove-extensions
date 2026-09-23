@@ -6,14 +6,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The per-kind permission each handler checks once the route policy has admitted the caller. The
-/// route admits a holder of any one kind's permission, so a request for another kind is refused here.
-/// The authorized path enqueues exactly one exclusive renamer-batch job and returns 202 {jobId}.
-/// </summary>
 public sealed class EndpointPermissionTests
 {
-    /// <summary>Records every <c>Enqueue</c> call (including its exclusivity); all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
     {
         public List<(string type, string description, bool exclusive)> Enqueued { get; } = [];

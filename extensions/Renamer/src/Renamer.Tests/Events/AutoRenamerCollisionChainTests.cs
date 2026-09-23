@@ -5,30 +5,9 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// A two-file item whose files render one name, auto-renamed, must rename once and then stop.
-/// </summary>
-/// <remarks>
-/// A different arrangement from <see cref="AutoRenamerTitleChainTests"/>, whose two files carry
-/// different container extensions on purpose so they never collide. Here the extensions are the same,
-/// so the template renders one name for both files and the surplus file's suffix loop settles on the
-/// numbered name it already carries.
-/// <para>
-/// A second tier is here because the tier below cannot observe this: an L0 plan test sees one plan's
-/// classification and has no executor, no event bus and no hook, so it cannot see a save, a published
-/// event, or a generation going silent. <see cref="Planner.CollisionTests"/> pins the classification;
-/// only here can the chain's own end be observed.
-/// </para>
-/// <para>
-/// The bus only records, so the events a save raises are delivered back into the handler here, which
-/// is what the host does. Without that loop the chain is invisible and a runaway reads as one quiet
-/// rename. Delivery is capped so an arrangement that did not terminate ends at the cap and reports,
-/// rather than hanging the suite.
-/// </para>
-/// </remarks>
 public sealed class AutoRenamerCollisionChainTests
 {
-    /// <summary>Enough re-delivery rounds for a runaway to be unmistakable; a settled item needs one.</summary>
+    // Enough re-delivery rounds for a runaway to be unmistakable; a settled item needs one.
     private const int MaxGenerations = 12;
 
     [Fact]

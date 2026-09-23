@@ -6,20 +6,8 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The auto-renamer hook must contain its own failures. The host dispatches these events
-/// fire-and-forget and only logs an escaped exception generically, with no entity context, so a
-/// handler that lets a failure bubble produces an opaque, repeating host-log error on every update.
-/// The handler instead catches, records the failure with the entity context, and returns - so
-/// the host-facing <c>OnEventAsync</c> completes normally even when the inner path throws.
-/// </summary>
 public sealed class AutoRenamerFailureContainmentTests
 {
-    /// <summary>
-    /// An <see cref="IExtensionStore"/> whose every read throws - standing in for any inner failure
-    /// (a transient store/DB error) on the auto-renamer path. The handler loads options from the store
-    /// as its first step, so this reliably exercises the catch.
-    /// </summary>
     private sealed class ThrowingStore : IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default)

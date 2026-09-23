@@ -4,13 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The two advisory badge signals the planner sets on the final Renamer/Move item:
-/// <c>Suffixed</c> is true exactly when the collision suffix loop ran (attempt &gt; 0), and
-/// <c>Sanitized</c> is true exactly when the engine's <c>WouldSanitizeFilename</c> reported the name
-/// was cleaned. Both default to false (additive) so existing constructions keep compiling. DB-free
-/// over <see cref="FakeRenamerDataPort"/> (mirrors <c>CollisionTests</c>).
-/// </summary>
 public sealed class PlanItemFlagsTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>

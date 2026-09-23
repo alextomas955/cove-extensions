@@ -4,12 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
-/// <summary>
-/// The "Rename selected" bulk action is contributed through the extension's
-/// <c>GetUIManifest()</c> (not <c>GetActions()</c> - <c>FullExtensionBase</c> does not implement
-/// <c>IActionExtension</c>). These assert the exact contributed shape the host renders/dispatches
-/// against.
-/// </summary>
 public sealed class ActionDeclarationTests
 {
     private static global::Renamer.Renamer NewExtension() => RenamerFixture.Create();

@@ -6,35 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The request paths that must not elevate - <c>/undo</c>, <c>/scan-rows</c> and <c>/last-batch</c> -
-/// run their database commands under the caller's own principal.
-/// </summary>
-/// <remarks>
-/// The invariant is stated beside the conversion that does elevate, and it is
-/// quoted here so nobody later "fixes" these into elevation: <i>every detached body in this extension
-/// takes its scope from the elevating seam, because none of them carries a principal of its own. The
-/// request-path scopes deliberately do not: they must stay on the caller's principal, and elevating them
-/// would bypass that caller's authorization.</i>
-/// <para>
-/// So these are positive assertions of the opposite property, and they are load-bearing in the same way
-/// their siblings in <c>DetachedElevationTests</c> are. Elevating a request path hands a restricted
-/// caller rows their own read is denied - which has been measured end to end on a live host under auth,
-/// where wrapping the <c>/scan-rows</c> page query in the elevation seam turned a caller's zero-row
-/// answer into the whole library.
-/// </para>
-/// <para>
-/// One case per handler that opens a scope of its own without elevating it. Keying them to handlers, and
-/// covering all of them rather than the two the prose happens to name, is what stops the set going stale
-/// asymmetrically: a handler nobody remembered would otherwise be the one converted by mistake.
-/// </para>
-/// <para>
-/// The caller here is a <see cref="PrincipalKind.User"/> holding exactly the permissions the handler
-/// gates on - present and unprivileged beyond that, never absent. A missing principal bypasses
-/// <c>CoveContext</c>'s authorization filters just as System does, so a case driven with none would
-/// assert nothing about whether the path stayed on its caller.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RequestPathPrincipalTests
 {
@@ -128,10 +99,8 @@ public sealed class RequestPathPrincipalTests
         Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.LastBatchSummary>>(result.Result);
     }
 
-    /// <summary>
-    /// Every command recorded since the last clear ran as the caller - a <see cref="PrincipalKind.User"/>
-    /// - and none as System, over a non-empty recording.
-    /// </summary>
+    // Every command recorded since the last clear ran as the caller - a User - and none as System,
+    // over a non-empty recording.
     private static void AssertRanEntirelyAsTheCaller(LibraryDatabase library)
     {
         var recorded = library.CommandsExecuted.ToList();
@@ -142,7 +111,7 @@ public sealed class RequestPathPrincipalTests
         Assert.DoesNotContain(PrincipalKind.System, recorded.Select(c => c.Principal));
     }
 
-    /// <summary>A present, unprivileged-beyond-these-keys user principal - never a null accessor.</summary>
+    // A present, unprivileged-beyond-these-keys user principal - never a null accessor.
     private static CovePrincipal Caller(params string[] permissions) => new()
     {
         UserId = 1,

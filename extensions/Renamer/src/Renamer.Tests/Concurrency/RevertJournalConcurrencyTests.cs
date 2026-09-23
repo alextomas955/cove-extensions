@@ -3,20 +3,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// What is still at risk once the journal is rows in a table: the sequence number that half-identifies
-/// a row is minted by the extension, not by the database, and one journal instance is shared by every
-/// parallel worker of a batch. So several workers appending at once must each land as their own row
-/// with their own number, and none may be lost.
-/// </summary>
-/// <remarks>
-/// Every assertion reads back from the journal, never from an in-memory mirror of it, because a
-/// mirror would only prove that the mirror agrees with itself.
-/// <para>
-/// Cove disables EF's thread-safety checks, so getting this wrong corrupts silently rather than
-/// throwing. Every assertion is therefore on the rows that came back, never on an exception.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalConcurrencyTests
 {

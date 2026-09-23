@@ -2,17 +2,15 @@ using Cove.Core.Events;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// A capturing <see cref="IEventBus"/> fake that records every published <see cref="CoveEvent"/>
-/// so a test can assert the post-renamer event's args (type + entity id), not merely that Publish
-/// was called. Subscribe is a no-op (the executor only publishes).
-/// </summary>
+// A capturing IEventBus fake that records every published CoveEvent so a test can assert the
+// post-renamer event's args (type + entity id), not merely that Publish was called. Subscribe is a
+// no-op (the executor only publishes).
 public sealed class CapturingEventBus : IEventBus
 {
-    /// <summary>Every published event, in publish order.</summary>
+    // Every published event, in publish order.
     public List<CoveEvent> Published { get; } = [];
 
-    /// <summary>When set, <see cref="Publish"/> throws this instead of recording the event.</summary>
+    // When set, Publish throws this instead of recording the event.
     public Exception? PublishThrow { get; set; }
 
     public void Publish(CoveEvent evt)

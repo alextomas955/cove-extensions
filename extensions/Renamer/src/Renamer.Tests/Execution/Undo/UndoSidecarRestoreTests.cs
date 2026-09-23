@@ -1,5 +1,4 @@
 using Cove.Core.Entities;
-using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
@@ -8,22 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Undo;
 
-/// <summary>
-/// Drives a real rename and then a real undo over one <see cref="CoveContext"/> and one
-/// <see cref="TempDir"/>, to prove undo puts both sidecar kinds back - the database-tracked caption and
-/// the configured same-stem neighbour - and to pin what happens when one of them cannot go back.
-/// </summary>
-/// <remarks>
-/// Every case asserts on both halves: the file on disk and the row in the database. A case that
-/// checked only one would pass while the two disagreed, which is precisely the failure the
-/// moved-only rule exists to prevent - a caption whose stored filename was rewritten to a name no
-/// file on disk has.
-/// <para>
-/// The delta each undo replays is the one the forward run journalled, read back out of the table. It
-/// is never hand-built here, because a hand-built delta would prove the replayer can follow
-/// instructions rather than that the two halves agree.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoSidecarRestoreTests
 {
@@ -260,11 +243,9 @@ public sealed class UndoSidecarRestoreTests
         }
     }
 
-    /// <summary>
-    /// Runs a real rename of <paramref name="videoId"/>, optionally disturbs the directory, then
-    /// reverse-replays the batch the rename journalled - reading that batch back out of the table, so
-    /// what the replayer acts on is what a production undo would be handed.
-    /// </summary>
+    // Runs a real rename of videoId, optionally disturbs the directory, then reverse-replays the
+    // batch the rename journalled - reading that batch back out of the table, so what the replayer
+    // acts on is what a production undo would be handed.
     private static async Task<UndoReplayer.UndoRunResult> RenameThenUndoAsync(
         DbContext db, string runId, int videoId, RenamerOptions options,
         Func<Task>? betweenRenameAndUndo = null)

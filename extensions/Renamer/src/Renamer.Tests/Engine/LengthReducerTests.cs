@@ -3,12 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Proves the dual MAX_PATH reduction: the filename component (≤255) and the full generated path
-/// (≤259) are both enforced; over-long names drop fields in DropOrder then hard-truncate the title.
-/// Driven by <see cref="LongTemplateFixture"/>, engineered to exhaust every drop and force a title
-/// truncate.
-/// </summary>
 public class LengthReducerTests
 {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> FixtureMulti =

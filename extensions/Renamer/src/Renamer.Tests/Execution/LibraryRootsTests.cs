@@ -3,16 +3,6 @@ using Renamer.Execution;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// Pins the one spelling <see cref="CoveRenamerDataPort.ReadLibraryRoots"/> emits.
-/// </summary>
-/// <remarks>
-/// The settings panel stores a destination root as the very string this list gave it, then re-checks
-/// membership against a later reading of the same list. So two spellings of one folder read as two
-/// folders, and the rule anchored on the first silently stops matching. Cove hands its paths back in
-/// the platform's own spelling, which is why the normalization exists and why it is pinned here
-/// rather than left to whichever platform a run happens to use.
-/// </remarks>
 public sealed class LibraryRootsTests
 {
     private static CoveConfiguration ConfigWith(params string[] paths) =>

@@ -14,16 +14,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The whole-library renamer: <c>RenamerLibraryEnqueue</c> gates on any renamer-write permission and
-/// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the existing <c>RunRenamerBatchAsync</c> once per
-/// kind that has at least one candidate id - never a synthetic combined kind. Exercised as plain
-/// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
-/// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
-/// </summary>
 public sealed class RenamerLibraryEndpointTests
 {
-    /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
     {
         public List<(string type, string description)> Enqueued { get; } = [];
@@ -72,14 +64,12 @@ public sealed class RenamerLibraryEndpointTests
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
-    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    // The caller the enqueue would have snapshotted, holding exactly the given permissions.
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
-    /// <summary>
-    /// Seeds one video and one image - each in its own folder, since <c>Folder.Path</c> is
-    /// unique-indexed - with real bytes on disk, and returns the two file ids.
-    /// </summary>
+    // Seeds one video and one image - each in its own folder, since Folder.Path is unique-indexed -
+    // with real bytes on disk, and returns the two file ids.
     private static async Task<(int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(DbContext db, TempDir dir)
     {
         string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
@@ -165,14 +155,6 @@ public sealed class RenamerLibraryEndpointTests
         }
     }
 
-    /// <summary>
-    /// A run spanning two kinds reports a bar that only ever advances, and lands on 1.0 once.
-    /// </summary>
-    /// <remarks>
-    /// Each per-kind batch scales its own [0,1] bar and reports 1.0 when it ends, so a kind handed the
-    /// caller's sink verbatim restarts the bar below where the previous kind left it. Asserted over the
-    /// recorded sequence, because a final-value check passes on exactly that behavior.
-    /// </remarks>
     [Fact]
     public async Task RunRenamerLibraryJobAsync_TwoKinds_ReportsAdvancingProgress_AndReaches1Once()
     {
@@ -211,18 +193,6 @@ public sealed class RenamerLibraryEndpointTests
         }
     }
 
-    /// <summary>
-    /// A run stopped by a free-space refusal does not close with a success message.
-    /// </summary>
-    /// <remarks>
-    /// The refusal reaches the user only through the run's own final report. Each kind reports its
-    /// closing 1.0 into a slice, and the slice drops anything that scales to the run's end, so a kind
-    /// that refused leaves nothing behind for the host to show.
-    /// <para>
-    /// Needs a second filesystem: the free-space guard measures cross-volume moves only, so an
-    /// in-place rename cannot be refused however little room the probe reports.
-    /// </para>
-    /// </remarks>
     [Fact]
     public async Task RunRenamerLibraryJobAsync_FreeSpaceRefusal_FinalReportNamesIt_NotComplete()
     {

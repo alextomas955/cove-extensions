@@ -5,10 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The auto-renamer hook resolves destinations as <c>/preview</c> and the manual batch do: a matched
-/// routing rule relocates the just-edited item, and an unmatched one takes the default destination.
-/// </summary>
 public sealed class AutoRenamerRoutingTests
 {
     [Fact]

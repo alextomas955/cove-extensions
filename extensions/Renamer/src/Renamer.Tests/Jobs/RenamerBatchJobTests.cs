@@ -9,23 +9,15 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// Batch core: the shared <c>RunRenamerBatchAsync</c> opens a scope via the captured
-/// <c>IServiceScopeFactory</c>, builds the port+executor over the real <c>CoveContext</c>,
-/// renames every id on disk + in the DB, and reports per-item progress plus a final <c>1.0</c>.
-/// Bad/empty input is a clean no-op that still reports the final <c>1.0</c>.
-/// </summary>
 public sealed class RenamerBatchJobTests
 {
-    /// <summary>
-    /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>, <c>Store</c>)
-    /// from a DI provider that registers the base <c>DbContext</c> scoped over the test's shared
-    /// in-memory SQLite connection, so each <c>CreateAsyncScope()</c> (including the per-worker scopes
-    /// the parallel batch opens) resolves a distinct context over the same database. A singleton
-    /// registration would hand every parallel worker the one seeded context - a <c>DbContext</c> is
-    /// not thread-safe, so concurrent workers on it throw/corrupt. The seed/assert context (<c>db</c>)
-    /// shares the connection, so rows the workers save are visible to the test's read-backs.
-    /// </summary>
+    // Wires the extension's captured seams (_scopeFactory, _eventBus, Store) from a DI provider
+    // that registers the base DbContext scoped over the test's shared in-memory SQLite connection,
+    // so each CreateAsyncScope() (including the per-worker scopes the parallel batch opens)
+    // resolves a distinct context over the same database. A singleton registration would hand every
+    // parallel worker the one seeded context - a DbContext is not thread-safe, so concurrent
+    // workers on it throw/corrupt. The seed/assert context (db) shares the connection, so rows the
+    // workers save are visible to the test's read-backs.
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync(SqliteConnection conn, IEventBus bus)
     {
         var services = new ServiceCollection();
@@ -143,10 +135,6 @@ public sealed class RenamerBatchJobTests
         }
     }
 
-    /// <summary>
-    /// Two file rows whose folder paths differ only by a trailing separator name one file on disk. The
-    /// batch cannot tell which row owns it, so it renames neither and leaves the file alone.
-    /// </summary>
     [Fact]
     public async Task TwoRowsNamingOneSourceFile_RenameNeither_LeaveTheFileAlone()
     {
@@ -196,10 +184,6 @@ public sealed class RenamerBatchJobTests
         }
     }
 
-    /// <summary>
-    /// The same id twice is one file, not two rows competing for it: the batch renames it once instead
-    /// of refusing it as a contested source or scheduling it on two workers.
-    /// </summary>
     [Fact]
     public async Task TheSameIdTwice_RenamesTheFileOnce()
     {

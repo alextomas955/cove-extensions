@@ -5,12 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Dry-run core: <c>RenamerPlanner.PlanAsync</c> produces an accurate per-file
-/// old→new plan with the right <see cref="RenamerStatus"/>. Covers the happy-path renamer, NoOp,
-/// and the confinement rejection. That planning mutates nothing is pinned by
-/// <see cref="PreviewPurityTests"/>.
-/// </summary>
 public sealed class RenamerPlannerTests
 {
     private static RenamerFile VideoFile(int id, string basename, int folderId = 5, string folderPath = "media/videos") =>

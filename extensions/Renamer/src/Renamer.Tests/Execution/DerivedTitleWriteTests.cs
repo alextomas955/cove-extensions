@@ -5,16 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The title write at the port, against the row rather than against the plan that asked for it.
-/// </summary>
-/// <remarks>
-/// The planner derives a title only for a title-less item, so the port's own emptiness re-check looks
-/// redundant from the plan's side - and it is exactly the window it exists for: a person can type a
-/// title between the preview and the run, and this is the only place the extension writes metadata
-/// rather than location, so a rename must never overwrite what they wrote. The same check is what makes
-/// the write idempotent across the files of a multi-file item, which save one at a time.
-/// </remarks>
 public sealed class DerivedTitleWriteTests
 {
     [Fact]
@@ -59,16 +49,6 @@ public sealed class DerivedTitleWriteTests
         }
     }
 
-    /// <summary>
-    /// Undo puts the file back under its old name and leaves the recorded title standing, so a later
-    /// rename of that item renders the same name again.
-    /// </summary>
-    /// <remarks>
-    /// The undo path restores names and folders, not metadata, so this is what the documented behaviour
-    /// actually is rather than an oversight to correct here. Pinned because the settings reference states
-    /// it: without the recorded title the second plan would derive one from whatever the file is called
-    /// at the time, which after an undo is the old name again.
-    /// </remarks>
     [Fact]
     public async Task Undo_RestoresTheName_KeepsTheRecordedTitle_AndTheNextRenameRendersTheSameName()
     {

@@ -17,18 +17,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The whole-library scan: <c>ScanLibraryEnqueue</c> gates on any renamer-read permission and enqueues
-/// (never directly executing), <c>RunScanLibraryJobAsync</c> runs the same planner <c>/preview</c> uses
-/// against every server-derived id with zero disk/DB mutation, <c>ScanLibraryResultAsync</c> reads the
-/// persisted aggregate back per readable kind, <c>ScanRowsAsync</c> serves the rows a page at a time, and
-/// <c>InitializeAsync</c> purges the pre-0.2.1 per-file scan value. Exercised as plain methods (no HTTP
-/// host) with a real SQLite <c>CoveContext</c>, mirroring
-/// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c>/<c>RenamerBatchJobTests</c>.
-/// </summary>
 public sealed class ScanLibraryEndpointTests
 {
-    /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
     {
         public List<(string type, string description)> Enqueued { get; } = [];
@@ -57,13 +47,11 @@ public sealed class ScanLibraryEndpointTests
         return (ext, store);
     }
 
-    /// <summary>
-    /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>) from a DI
-    /// provider whose <c>DbContext</c> registration is scoped over <paramref name="conn"/>, so the job
-    /// body's own <c>CreateAsyncScope()</c> resolves a context over the same database the test seeded -
-    /// mirrors <c>RenamerBatchJobTests.BuildExtensionAsync</c>. The scan job never touches <c>IEventBus</c>,
-    /// but <c>InitializeAsync</c> requires both seams to be resolvable.
-    /// </summary>
+    // Wires the extension's captured seams (_scopeFactory, _eventBus) from a DI provider whose
+    // DbContext registration is scoped over conn, so the job body's own CreateAsyncScope() resolves
+    // a context over the same database the test seeded - mirrors
+    // RenamerBatchJobTests.BuildExtensionAsync. The scan job never touches IEventBus, but
+    // InitializeAsync requires both seams to be resolvable.
     private static async Task InitializeOverSharedConnectionAsync(global::Renamer.Renamer ext, SqliteConnection conn)
     {
         var services = new ServiceCollection();
@@ -78,7 +66,7 @@ public sealed class ScanLibraryEndpointTests
         await ext.InitializeAsync(provider);
     }
 
-    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    // The caller the enqueue would have snapshotted, holding exactly the given permissions.
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
@@ -299,7 +287,6 @@ public sealed class ScanLibraryEndpointTests
         }
     }
 
-    /// <summary>Counts each executed reader command so a test can prove the port issues ~N/chunk queries, not N.</summary>
     [Fact]
     public async Task ScanLoop_UsesBatchLoad_NotPerIdLoad()
     {
@@ -391,11 +378,11 @@ public sealed class ScanLibraryEndpointTests
         Assert.IsType<NotFound>(Unwrap(result));
     }
 
-    /// <summary>Serializes/reads the stored scan aggregate with the wire's camelCase + string enums.</summary>
+    // Serializes/reads the stored scan aggregate with the wire's camelCase + string enums.
     private static readonly JsonSerializerOptions EnumJson =
         new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 
-    /// <summary>Invokes the readback and unwraps the merged view.</summary>
+    // Invokes the readback and unwraps the merged view.
     private static async Task<global::Renamer.Contracts.ScanSummaryView> ReadSummaryAsync(
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
     {
@@ -403,7 +390,7 @@ public sealed class ScanLibraryEndpointTests
         return Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
     }
 
-    /// <summary>Invokes the page query and unwraps the page.</summary>
+    // Invokes the page query and unwraps the page.
     private static async Task<global::Renamer.Contracts.ScanRowsPage> ReadRowsAsync(
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal,
         global::Renamer.Contracts.ScanRowsRequest? body = null)
@@ -412,7 +399,7 @@ public sealed class ScanLibraryEndpointTests
         return Assert.IsType<Ok<global::Renamer.Contracts.ScanRowsPage>>(Unwrap(result)).Value!;
     }
 
-    /// <summary>A one-kind aggregate whose per-status counts are the only thing the readback merges.</summary>
+    // A one-kind aggregate whose per-status counts are the only thing the readback merges.
     private static global::Renamer.Contracts.ScanKindSummary MakeKind(
         RenamerFileKind kind, int files, RenamerStatus status) =>
         new(kind, Entities: files, Files: files,
@@ -554,7 +541,6 @@ public sealed class ScanLibraryEndpointTests
         }
     }
 
-    /// <summary>An <c>IExtensionStore</c> whose delete always throws, to drive the purge's containment.</summary>
     private sealed class ThrowingDeleteStore : Cove.Plugins.IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<string?>(null);

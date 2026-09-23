@@ -17,11 +17,9 @@ namespace Renamer.Tests.Api;
 // performs a real rename through RunRenamerBatchAsync first, so the journal table holds a genuine batch.
 public sealed class UndoEndpointTests
 {
-    /// <summary>
-    /// Wires the extension's captured seams from a DI provider that registers the seeded context as
-    /// the base <c>DbContext</c> (singleton, so the scope resolves the same seeded instance) and the
-    /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the options.
-    /// </summary>
+    // Wires the extension's captured seams from a DI provider that registers the seeded context as
+    // the base DbContext (singleton, so the scope resolves the same seeded instance) and the given
+    // capturing event bus, plus a fresh FakeStore for the options.
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
         DbContext db, IEventBus bus, params string[] libraryPaths)
     {
@@ -38,7 +36,7 @@ public sealed class UndoEndpointTests
         return (ext, store);
     }
 
-    /// <summary>Seeds the extension's stored options so a renamer renames to "$title".</summary>
+    // Seeds the extension's stored options so a renamer renames to "$title".
     private static Task SeedTitleOptionsAsync(FakeStore store) =>
         new global::Renamer.Options.OptionsStore(store)
             .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });
@@ -404,7 +402,8 @@ public sealed class UndoEndpointTests
         }
     }
 
-    /// <summary>Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId, fileId).</summary>
+    // Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId,
+    // fileId).
     private static async Task<(int imageId, int fileId)> SeedImageAsync(
         DbContext db, string folderPath, string basename, string title)
     {

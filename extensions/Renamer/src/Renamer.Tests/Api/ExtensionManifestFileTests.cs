@@ -4,13 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
-/// <summary>
-/// Guards the shipped <c>extension.json</c> against the host's real <see cref="ExtensionManifestFile"/>
-/// contract: it deserializes the same file the host loads, using the same case-insensitive options the
-/// host uses, so a field the loader would reject (or a renamed/typo'd key) fails here instead of
-/// silently dropping at install time. It also pins the runtime-permissions posture and that the
-/// extension instance the host builds answers from this file.
-/// </summary>
 public sealed class ExtensionManifestFileTests
 {
     // The manifest is copied next to the test assembly via the Renamer project reference's
@@ -57,14 +50,6 @@ public sealed class ExtensionManifestFileTests
         Assert.Empty(manifest.Permissions.DownloaderRuntime);
     }
 
-    /// <summary>
-    /// The metadata an operator sees in Cove's extension list is the shipped manifest's, declared
-    /// nowhere in code.
-    /// </summary>
-    /// <remarks>
-    /// The host reads each of these straight off the property on the instance, so an override declared
-    /// on the extension class wins over the file and the manifest stops being read at all.
-    /// </remarks>
     [Fact]
     public void Extension_AnswersItsMetadataFromTheShippedManifest()
     {
@@ -81,14 +66,6 @@ public sealed class ExtensionManifestFileTests
         Assert.Equal(manifest.Categories, extension.Categories);
     }
 
-    /// <summary>
-    /// The extension redeclares none of its metadata in code, so the manifest is what the host reads.
-    /// </summary>
-    /// <remarks>
-    /// The host reads each value straight off the property, so an override here silently wins over the
-    /// shipped manifest. The regression is therefore not a wrong value but a redeclared one, which no
-    /// value assertion can catch while the copy still happens to agree with the manifest.
-    /// </remarks>
     [Theory]
     [InlineData("Id")]
     [InlineData("Name")]

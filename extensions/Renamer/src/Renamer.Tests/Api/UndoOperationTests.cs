@@ -16,11 +16,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// One whole-library rename is one undoable action: every kind it renamed comes back on a single
-/// <c>/undo</c>, the panel's summary describes the whole of it, and a caller missing one kind's write
-/// permission undoes none of it.
-/// </summary>
 public sealed class UndoOperationTests
 {
     private static async Task<global::Renamer.Renamer> NewExtensionAsync(
@@ -47,7 +42,7 @@ public sealed class UndoOperationTests
         return ext;
     }
 
-    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    // The caller the enqueue would have snapshotted, holding exactly the given permissions.
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
@@ -60,7 +55,7 @@ public sealed class UndoOperationTests
     private static LastBatchSummary LastBatchValue(IResult result) =>
         Assert.IsType<LastBatchSummary>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 
-    /// <summary>Seeds one video and one image, each in its own folder with real bytes on disk.</summary>
+    // Seeds one video and one image, each in its own folder with real bytes on disk.
     private static async Task<(int VideoId, int ImageId, int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(
         DbContext db, TempDir dir)
     {

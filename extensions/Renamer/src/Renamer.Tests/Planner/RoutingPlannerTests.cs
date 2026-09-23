@@ -6,14 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Proves the resolver is wired into <c>RenamerPlanner.PlanAsync</c>: a routed entity produces
-/// a Move whose <see cref="RenamerPlanItem.ResolvedDestinationRoot"/> / <see cref="RenamerPlanItem.MatchedRule"/>
-/// / <see cref="RenamerPlanItem.TargetVolume"/> reflect the matched route, and confinement is anchored
-/// on the destination's own root (so the move lands on the destination volume). An entity no rule
-/// matched takes the default destination, measured from the library path holding the file. Pure: no
-/// disk and no database.
-/// </summary>
 public sealed class RoutingPlannerTests
 {
     // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.
@@ -37,7 +29,7 @@ public sealed class RoutingPlannerTests
             Date: new DateOnly(2024, 3, 2), Organized: true,
             Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(7, "anime")], Files: files);
 
-    /// <summary>A port whose library paths are <paramref name="libraryPaths"/> - the roots a destination may name.</summary>
+    // A port whose library paths are libraryPaths - the roots a destination may name.
     private static FakeRenamerDataPort Port(params string[] libraryPaths)
     {
         var port = new FakeRenamerDataPort();
@@ -66,22 +58,6 @@ public sealed class RoutingPlannerTests
             regex ?? Array.Empty<(Regex, Destination)>(),
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
-    /// <summary>
-    /// A destination root stored in a different spelling of a library path still resolves to it.
-    /// </summary>
-    /// <remarks>
-    /// The endpoint emits one spelling, but a stored rule can carry another: an older store holds the
-    /// platform form (backslashes on Windows), and a hand-edited or migrated one can carry a trailing
-    /// separator. Membership is what decides whether the destination is a library path at all, so a
-    /// spelling the comparison does not fold reads as "this root is no longer one of Cove's library
-    /// paths" and the item is skipped - a routing rule that silently stops routing.
-    /// <para>
-    /// Each case asserts a move to the resolved root rather than the absence of a skip, so a change that
-    /// starts refusing the route fails here instead of passing on a differently-shaped rejection. The
-    /// spellings are derived from <see cref="StudioRoot"/> rather than written as literals, so the case
-    /// stays true on every platform instead of pinning one host's path shape.
-    /// </para>
-    /// </remarks>
     [Theory]
     [InlineData(Spelling.PlatformSeparators)]
     [InlineData(Spelling.TrailingSeparator)]
@@ -115,29 +91,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot!.TrimEnd('/'));
     }
 
-    /// <summary>
-    /// Two relocations compose and still terminate: a source-path rule moves the item, then a
-    /// configured default moves it once more, and the third pass finds nothing to do.
-    /// </summary>
-    /// <remarks>
-    /// This is the ordinary reading of the two settings rather than a shape invented to satisfy an
-    /// assertion: a path rule that sends one staging folder somewhere specific, plus a <i>Where files
-    /// go</i> default for everything else. Each alone is covered elsewhere; only together can they hand
-    /// the item back and forth.
-    /// <para>
-    /// Exactly two is asserted, not "at most". One would mean the default never fired and this is
-    /// measuring the rule alone; three or more would mean the pair had not settled.
-    /// </para>
-    /// <para>
-    /// why it converges, and the neighbour that does not. Pass 2 lands the item at
-    /// <c>SrcRoot/Sorted</c>, which is no longer exactly <c>SrcRoot</c>, so the source-path-exact rule
-    /// cannot match a third time. Give that same default an empty template and it lands the item back
-    /// exactly on the rule's key, the rule fires again, and the two destinations trade the item
-    /// forever. That configuration is self-contradictory - the rule says leave this folder, the default
-    /// says return to it - but nothing refuses it, and auto-rename-on-update would act on it
-    /// indefinitely.
-    /// </para>
-    /// </remarks>
     [Fact]
     public async Task ASourcePathRule_ThenAConfiguredDefault_RelocatesTwice_AndStillReachesNoOp()
     {
@@ -199,13 +152,13 @@ public sealed class RoutingPlannerTests
         Assert.Equal(2, trace.Count);
     }
 
-    /// <summary>How a stored destination root spells the library path it names.</summary>
+    // How a stored destination root spells the library path it names.
     public enum Spelling
     {
-        /// <summary>The platform's own separators, as an older store holds them.</summary>
+        // The platform's own separators, as an older store holds them.
         PlatformSeparators,
 
-        /// <summary>The canonical forward-slash form with a trailing separator.</summary>
+        // The canonical forward-slash form with a trailing separator.
         TrailingSeparator,
     }
 

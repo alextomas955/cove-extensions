@@ -9,12 +9,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// Dry-run preview: <c>PreviewAsync</c> runs the planner over the seeded entity and returns
-/// <see cref="RenamerPlanItem"/>[] (old→new + status) with zero mutation - proven by reading back
-/// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
-/// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
-/// </summary>
 public sealed class PreviewEndpointTests
 {
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync()

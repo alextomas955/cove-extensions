@@ -1,5 +1,4 @@
 using Cove.Core.Entities;
-using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
@@ -8,27 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The journal's paged row read against a real <see cref="CoveContext"/>: that a batch larger than one
-/// page comes back whole, in one order, each row once - and that a run over it ends.
-/// </summary>
-/// <remarks>
-/// The defect these cases exist for is a memory one: the read that fed <c>/undo</c> materialized every
-/// pending row of a batch, and a batch is as large as the library. Paging fixes that, and introduces a
-/// worse failure of its own - a cursor that fails to advance turns a request into a hang rather than an
-/// error. That is why the termination case here carries a bounded guard: without one it would prove the
-/// bug by never finishing.
-/// <para>
-/// Driven through the real EF implementation rather than the fake. What is under test is the cursor's
-/// behaviour over a table rows are being deleted from, which a fake reimplementing the same rule would
-/// only prove agrees with itself.
-/// </para>
-/// <para>
-/// The page limits used here are deliberately small and deliberately not the shipped default: the
-/// subject is that the limit is honoured and that the run does not depend on its value. The default's
-/// value is a judgement and is pinned nowhere.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalPagingTests
 {
@@ -265,19 +243,13 @@ public sealed class JournalPagingTests
         }
     }
 
-    /// <summary>What one paged undo run did, expressed in what the replayer itself reported.</summary>
     private sealed record PagedRun(int Undone, int Pages, IReadOnlyList<(string RunId, long Seq)> Attempts);
 
-    /// <summary>
-    /// Pages the batch and reverse-replays each page, in the shape <c>UndoAsync</c> uses - a page below
-    /// the cursor, a replay, retirement of the settled rows, then the cursor moved to the lowest
-    /// sequence the page returned.
-    /// </summary>
-    /// <remarks>
-    /// Driven at <see cref="PageLimit"/> rather than at the shipped default so a handful of rows spans
-    /// several pages. The guard is the point of the whole helper: a cursor that failed to advance would
-    /// otherwise loop here without ever reaching an assertion.
-    /// </remarks>
+    // Pages the batch and reverse-replays each page, in the shape UndoAsync uses - a page below the
+    // cursor, a replay, retirement of the settled rows, then the cursor moved to the lowest
+    // sequence the page returned. Driven at PageLimit rather than at the shipped default so a
+    // handful of rows spans several pages. The guard is the point of the whole helper: a cursor
+    // that failed to advance would otherwise loop here without ever reaching an assertion.
     private static async Task<PagedRun> RunPagedUndoAsync(DbContext db, CoveRevertJournal journal)
     {
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db), new CapturingEventBus());
@@ -323,7 +295,6 @@ public sealed class JournalPagingTests
         }
     }
 
-    /// <summary>One seeded video and the paths its forward rename moved between.</summary>
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
     private static async Task<CoveRevertJournal> SeedRowsAsync(DbContext db, int rows)
@@ -340,10 +311,8 @@ public sealed class JournalPagingTests
         return journal;
     }
 
-    /// <summary>
-    /// Seeds one folder holding <paramref name="count"/> videos and really renames each into one batch,
-    /// so the batch holds one row per file and the paging is over rows rather than over batches.
-    /// </summary>
+    // Seeds one folder holding count videos and really renames each into one batch, so the batch
+    // holds one row per file and the paging is over rows rather than over batches.
     private static async Task<(CoveRevertJournal journal, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, int count)
     {

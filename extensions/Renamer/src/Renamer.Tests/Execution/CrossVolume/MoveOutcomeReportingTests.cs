@@ -5,18 +5,13 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-/// <summary>
-/// A move that did not happen is reported under the status its mover classified it as, not under one
-/// status standing for every cause.
-/// </summary>
-/// <remarks>
-/// <see cref="MoveOutcomeClassifier.StatusFor"/> holds the mapping; this asserts the executor asks it.
-/// A failed content verify is the cause chosen here because it is the one the movers can be made to
-/// produce on demand, through <see cref="CrossVolumeMover"/>'s own post-copy fault seam, rather than by
-/// arranging a lock or a permission the host may or may not honour. The expected status is transcribed
-/// from the mapping by hand: asking the classifier would agree with the executor however far either
-/// drifts from the other.
-/// </remarks>
+// A move that did not happen is reported under the status its mover classified it as, not under one
+// status standing for every cause. StatusFor holds the mapping; this asserts the executor asks it.
+// A failed content verify is the cause chosen here because it is the one the movers can be made to
+// produce on demand, through CrossVolumeMover's own post-copy fault seam, rather than by arranging
+// a lock or a permission the host may or may not honour. The expected status is transcribed from
+// the mapping by hand: asking the classifier would agree with the executor however far either
+// drifts from the other.
 // It maps a subst drive of its own, so it joins the classes that must not map one concurrently: a
 // letter freed by a sibling mid-test is one this class can take back before that sibling asserts.
 [Collection(SubstDriveScope.CollectionName)]

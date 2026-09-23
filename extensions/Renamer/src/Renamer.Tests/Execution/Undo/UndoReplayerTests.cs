@@ -8,16 +8,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Undo;
 
-/// <summary>
-/// The reverse-replay safety spine. Seeds Folder+Video+VideoFile on SQLite + a real file in
-/// a <see cref="TempDir"/>, renames it via the live planner+executor, then reverse-replays the logged
-/// batch with <see cref="UndoReplayer"/> and asserts: the file is back at the old on-disk path, the DB
-/// Basename/Path are restored, and exactly one entity-updated event is published whose EntityId is the
-/// parent entity id from the log row (== seeded videoId, ≠ fileId). Also covers a multi-entity batch
-/// (two correct entityIds), partial failure (pre-occupied old slot → skip, no clobber), save-throw
-/// rollback (disk moved back to new), and an empty batch no-op. SQLite (not EF-InMemory) so the unique
-/// index + transactions are faithful.
-/// </summary>
 public sealed class UndoReplayerTests
 {
     [Fact]
@@ -284,11 +274,6 @@ public sealed class UndoReplayerTests
         }
     }
 
-    /// <summary>
-    /// T3: a host shutdown mid-replay (an <see cref="OperationCanceledException"/> from the reverse save)
-    /// is cancellation, not a data failure. The post-reverse-move rollback to new still runs, then the OCE
-    /// propagates out of the batch - it must not land as an <c>UndoFailure</c> row.
-    /// </summary>
     [Fact]
     public async Task ReverseSaveCancelled_RollsDiskBackToNew_Propagates_NeverUndoFailure()
     {
@@ -476,21 +461,17 @@ public sealed class UndoReplayerTests
         }
     }
 
-    /// <summary>
-    /// Seeds one throwaway Video (no file) so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/>
-    /// hands back a Video id that is one ahead of its VideoFile id - guaranteeing videoId ≠ fileId so
-    /// the round-trip test can prove the published event uses the entity id, not the file id.
-    /// </summary>
+    // Seeds one throwaway Video (no file) so the next SeedVideoAsync hands back a Video id that is
+    // one ahead of its VideoFile id - guaranteeing videoId ≠ fileId so the round-trip test can
+    // prove the published event uses the entity id, not the file id.
     private static async Task SeedDecoyVideoAsync(DbContext db)
     {
         db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
         await db.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Seeds a second Video + one VideoFile in the same existing folder (folders.Path is unique, so a
-    /// second folder cannot be seeded). Returns the (videoId, fileId), which differ.
-    /// </summary>
+    // Seeds a second Video + one VideoFile in the same existing folder (folders.Path is unique, so
+    // a second folder cannot be seeded). Returns the (videoId, fileId), which differ.
     private static async Task<(int videoId, int fileId)> SeedSecondVideoInFolderAsync(
         DbContext db, int folderId, string basename, string title)
     {
@@ -510,7 +491,6 @@ public sealed class UndoReplayerTests
         return (video.Id, file.Id);
     }
 
-    /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
     private sealed class ThrowOnSaveDataPort : CoveRenamerDataPort
     {
         public ThrowOnSaveDataPort(DbContext db) : base(db) { }
@@ -520,8 +500,6 @@ public sealed class UndoReplayerTests
             => throw new InvalidOperationException("forced save failure");
     }
 
-    /// <summary>A port whose reverse save throws a cancellation (a host shutdown mid-replay), forcing the
-    /// UndoReplayer's post-move OCE path - rollback to new, then propagate - rather than an UndoFailure.</summary>
     private sealed class CancelOnReverseSaveDataPort : CoveRenamerDataPort
     {
         public CancelOnReverseSaveDataPort(DbContext db) : base(db) { }

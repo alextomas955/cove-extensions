@@ -3,10 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Pins the labels <see cref="ResolutionLabel"/> emits against constants transcribed from running
-/// Cove's own resolution-badge function, which this file does not execute.
-/// </summary>
 public class ResolutionLabelTests
 {
     [Theory]

@@ -11,13 +11,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The preview and renamer endpoints accept a caller-supplied id array, which is an unbounded fan-out:
-/// preview runs the planner (DB hits) per id on the request thread, and renamer fans the same ids into
-/// one job. Both reject an over-cap array with a 400 before any per-id work, so a runaway/oversized
-/// request can't tie up a request thread or enqueue a giant job. An absent array is rejected the same
-/// way, with its own code.
-/// </summary>
 public sealed class EntityIdsCapTests
 {
     // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.
@@ -25,7 +18,6 @@ public sealed class EntityIdsCapTests
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Records every <c>Enqueue</c>; all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
     {
         public List<(string type, string description)> Enqueued { get; } = [];
@@ -131,14 +123,6 @@ public sealed class EntityIdsCapTests
         return data;
     }
 
-    /// <summary>
-    /// An omitted or explicitly-null <c>entityIds</c> is a 400 carrying its own code, not a 500.
-    /// </summary>
-    /// <remarks>
-    /// Driven over the real route rather than by calling the handler with a null argument: a direct
-    /// call supplies the null itself, so it says nothing about what the host's model binding actually
-    /// produces for these two bodies - which is the whole question.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(AbsentIdArrayRequests))]
     public async Task AbsentIdArray_Returns400_MissingEntityIds(string path, string permission, string body)

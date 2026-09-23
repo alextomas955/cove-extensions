@@ -6,15 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The destructive-leg safety net: every invariant that keeps the opt-in empty-source-folder cleanup
-/// from ever destroying data the move did not touch. Filesystem behavior (enumerate, link-resolve,
-/// non-recursive delete) is exercised against a real <see cref="TempDir"/>, not a mock. The end-to-end
-/// cases (1, 8, 9) drive the real executor so the call-site trigger and the move-result-still-moved
-/// contract are proven, not just the helper in isolation. The undo-contract case pins the real
-/// behavior: a deleted source folder makes a later undo of that move skip the restore (the file stays
-/// at its verified destination, never lost).
-/// </summary>
 public sealed class EmptySourceFolderCleanerTests
 {
     [Fact]

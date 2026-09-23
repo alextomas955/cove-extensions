@@ -3,18 +3,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The band <see cref="PathConfinement"/> accepts and the executor cannot fit: a cross-volume move copies
-/// to a name <see cref="PathOps.InFlightSuffixLength"/> characters longer beside the destination
-/// before promoting it, while the planner budgets only the final path. These cases position a destination
-/// on each side of that boundary and read <see cref="BatchPreview.InFlightPathOverflows"/> plus the count
-/// <see cref="BatchPreview.Summarize"/> folds from it.
-/// </summary>
-/// <remarks>
-/// A sibling of <c>BlastRadiusTests</c> rather than part of it, so the arms that decide whether the
-/// warning is trustworthy compile on the cove-absent leg, which is the leg CI runs the unit tier on.
-/// pure - path arithmetic, a synthetic mount table and no disk, so it runs identically on Windows and Unix.
-/// </remarks>
 public sealed class InFlightPathOverflowTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.

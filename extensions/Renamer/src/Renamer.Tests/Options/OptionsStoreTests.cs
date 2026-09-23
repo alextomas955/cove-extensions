@@ -166,7 +166,6 @@ public sealed class OptionsStoreTests
         Assert.True(all.ContainsKey("options"));  // under the "options" key
     }
 
-    /// <summary>Everything the store logged, so a fallback that says nothing fails here.</summary>
     private sealed class CapturingLogger : ILogger
     {
         public List<(LogLevel Level, Exception? Error)> Entries { get; } = [];

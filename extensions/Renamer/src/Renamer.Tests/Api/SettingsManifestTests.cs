@@ -2,12 +2,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
-/// <summary>
-/// The UI registration Cove loads the extension through. The renamer's home is its own settings tab
-/// under Settings → Extensions, not a top-nav page and not the shared Installed list: the manifest
-/// declares the "renamer" tab and a settings section targeting it that renders RenamerPage. That the
-/// tab renders is an e2e concern; this pins the declared shape.
-/// </summary>
 public sealed class SettingsManifestTests
 {
     private static global::Renamer.Renamer NewExtension() => RenamerFixture.Create();

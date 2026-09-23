@@ -12,15 +12,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;
 
-/// <summary>
-/// A whole-library rename walked a chunk at a time: every entity still renames, each chunk opens its
-/// own batch under one operation id, and a chunk is planned against what the chunks before it did.
-/// </summary>
-/// <remarks>
-/// Driven at a chunk size of one or two so the multi-chunk paths cost a handful of rows rather than a
-/// library-sized fixture. The shared-cache SQLite database is the same one the parallel-batch tier
-/// uses, because each worker resolves its own context.
-/// </remarks>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ChunkedRenameTests
 {
@@ -49,11 +40,8 @@ public sealed class ChunkedRenameTests
         return ext;
     }
 
-    /// <summary>
-    /// Seeds <paramref name="count"/> single-file videos in one folder, titled "Film i" over
-    /// "raw i.mkv", with real bytes on disk. Their entity ids ascend with i, which is the order the
-    /// walk pages them in.
-    /// </summary>
+    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", with real
+    // bytes on disk. Their entity ids ascend with i, which is the order the walk pages them in.
     private static async Task SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
@@ -151,7 +139,6 @@ public sealed class ChunkedRenameTests
         }
     }
 
-    /// <summary>Cancels the run as soon as a report reaches <paramref name="threshold"/>.</summary>
     private sealed class CancelAtProgress(CancellationTokenSource cts, double threshold) : IJobProgress
     {
         public void Report(double percent, string? message = null)

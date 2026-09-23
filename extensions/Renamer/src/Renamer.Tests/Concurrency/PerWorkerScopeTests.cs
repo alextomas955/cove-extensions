@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using Cove.Core.Events;
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,23 +8,12 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// The structural isolation proof. The batch's execution pass opens a per-worker
-/// <c>CreateAsyncScope()</c> so no <see cref="DbContext"/> instance is shared across parallel
-/// workers. Cove disables EF's thread-safety checks (<c>EnableThreadSafetyChecks(false)</c>), so a
-/// shared-context bug does not throw - it corrupts silently. This proof is therefore structural: an
-/// instrumented scoped factory records every <see cref="CoveContext"/> it constructs, and the test
-/// asserts the set of contexts the workers resolved has exactly one distinct instance per worker (by
-/// reference). It never relies on an EF exception.
-/// </summary>
 public sealed class PerWorkerScopeTests
 {
-    /// <summary>
-    /// Registers the base <see cref="DbContext"/> scoped so each <c>CreateAsyncScope()</c> yields a
-    /// fresh, distinct <see cref="CoveContext"/> (its own connection to the shared database), recording
-    /// every constructed context into <paramref name="constructed"/>. The recorded references prove
-    /// per-worker isolation while the workers still observe one coherent DB.
-    /// </summary>
+    // Registers the base DbContext scoped so each CreateAsyncScope() yields a fresh, distinct
+    // CoveContext (its own connection to the shared database), recording every constructed context
+    // into constructed. The recorded references prove per-worker isolation while the workers still
+    // observe one coherent DB.
     private static ServiceProvider BuildScopedProvider(
         SharedCacheSqlite shared, IEventBus bus, ConcurrentBag<DbContext> constructed)
     {

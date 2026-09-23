@@ -8,12 +8,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// The text-document path end to end, against a real Cove entity graph and a real directory: the port
-/// hydrates a TextDocument and its TextFile onto the Renamer DTOs, the planner renders a name from the
-/// entity's own metadata, and the executor moves the file and updates the row. Proves the EF mapping,
-/// not just that a fake port returns what it was handed.
-/// </summary>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class TextRenameIntegrationTests
 {

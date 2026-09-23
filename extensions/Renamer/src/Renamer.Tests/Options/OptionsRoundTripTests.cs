@@ -4,14 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The frontend↔backend store contract: a panel-shaped JSON blob deserializes via
-/// <see cref="RenamerOptions.JsonOptions"/> into the expected <see cref="RenamerOptions"/>, and a
-/// C#-serialized blob deserializes back to the same document - both directions, so the panel can
-/// read a backend-written blob and write one the backend reads losslessly. Property-name matching is
-/// proven case-insensitive (lowerCamel and PascalCase mixed), and the three enums are matched as
-/// stable strings.
-/// </summary>
 public sealed class OptionsRoundTripTests
 {
     [Fact]

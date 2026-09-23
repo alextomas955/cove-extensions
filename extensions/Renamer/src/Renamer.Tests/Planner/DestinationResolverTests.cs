@@ -6,12 +6,6 @@ using static Renamer.Tests.Planner.TagFixtures;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The tag id/name agreement these tests need. Tag rules key on ids, so a test that names a tag
-/// needs the entity, the rule map and the exclude set to agree on which id that name stands for. One
-/// derivation serves all three, which keeps the tests reading in names while the code under test only
-/// ever sees ids.
-/// </summary>
 internal static class TagFixtures
 {
     internal static int TagId(string name) => StringComparer.OrdinalIgnoreCase.GetHashCode(name) & 0xFFFFF;
@@ -33,12 +27,6 @@ internal static class TagFixtures
     internal static HashSet<int> TagSet(params string[] names) => [.. names.Select(TagId)];
 }
 
-/// <summary>
-/// Pure unit tests for <see cref="DestinationResolver.Resolve"/> - no DB, no disk. Proves the
-/// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path → Unmatched),
-/// within-category list order, direct-outranks-ancestor, route-on-stable-id for both studio and
-/// tag, source-path exact-beats-regex, and the unorganized slot.
-/// </summary>
 public sealed class DestinationResolverPrecedenceTests
 {
     // --- builders -------------------------------------------------------------------------------
@@ -172,7 +160,6 @@ public sealed class DestinationResolverPrecedenceTests
     }
 }
 
-/// <summary>Route-on-stable-id: the studio name never affects the match.</summary>
 public sealed class DestinationResolverRouteOnStableStudioIdTests
 {
     [Fact]
@@ -198,7 +185,6 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     }
 }
 
-/// <summary>Tag routing keys on the stable tag id, never on the name the tag currently carries.</summary>
 public sealed class DestinationResolverTagRoutingTests
 {
     [Fact]
@@ -236,7 +222,6 @@ public sealed class DestinationResolverTagRoutingTests
     }
 }
 
-/// <summary>Source-path routing: exact beats regex; a regex-only match still routes.</summary>
 public sealed class DestinationResolverSourcePathRoutingTests
 {
     private static RenamerEntity AtPath(string path)
@@ -336,7 +321,6 @@ public sealed class DestinationResolverRegexTimeoutTests
     }
 }
 
-/// <summary>Unorganized items route to the unorganized destination, not skipped.</summary>
 public sealed class DestinationResolverUnorganizedRouteTests
 {
     [Fact]
@@ -371,11 +355,6 @@ public sealed class DestinationResolverUnorganizedRouteTests
     }
 }
 
-/// <summary>
-/// An entity no rule matched carries no destination of its own: the resolver labels it
-/// <see cref="RouteCategory.Unmatched"/> and the planner reads the default destination from the
-/// options, so the two never join two folder expressions.
-/// </summary>
 public sealed class DestinationResolverUnmatchedTests
 {
     private static RenamerEntity Unmatched()
@@ -400,12 +379,6 @@ public sealed class DestinationResolverUnmatchedTests
     }
 }
 
-/// <summary>
-/// Excludes run first in the resolver - a matching tag / studio (incl.
-/// parent, stable id) / source-path (exact + regex) returns <see cref="RouteCategory.Excluded"/>
-/// before any routing category (including Unorganized) is considered, with a clear label. pure - no
-/// DB, no disk.
-/// </summary>
 public sealed class DestinationResolverExcludeTests
 {
     private static RenamerEntity Entity(

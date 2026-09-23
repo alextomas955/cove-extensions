@@ -4,11 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// Appends are buffered and written in groups, so a rename does not pay a database round-trip per
-/// file. What the buffer must not cost is a row: everything a finished run appended is in the
-/// database once its journal is disposed.
-/// </summary>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalBufferedAppendTests
 {

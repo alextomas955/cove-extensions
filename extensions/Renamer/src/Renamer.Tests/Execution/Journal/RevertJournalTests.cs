@@ -1,4 +1,3 @@
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,15 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The revert journal against a real <see cref="CoveContext"/>: a row appends, reads back, and is
-/// retired through the port, and the batch aggregate outlives the rows it counted.
-/// </summary>
-/// <remarks>
-/// Driven through the real EF implementation rather than the fake, because the property under test -
-/// that what remains in the table is the work left - is a property of the storage, and a fake that
-/// reimplements it would only prove the fake agrees with itself.
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalTests
 {
@@ -218,7 +208,6 @@ public sealed class RevertJournalTests
         return journal;
     }
 
-    /// <summary>An entity type no model has ever seen, so its presence can only come from the registration.</summary>
     private sealed class LateRegistrationProbeEntity
     {
         public int Id { get; set; }

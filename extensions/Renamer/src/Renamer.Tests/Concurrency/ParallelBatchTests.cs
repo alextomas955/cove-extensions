@@ -9,21 +9,11 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// Parallel-batch correctness. Proves: every acting item
-/// renames and the shared journal holds exactly one well-formed row per success (no torn/lost
-/// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
-/// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
-/// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the
-/// free-space sum); and an in-flight free-space drop skips a cross-volume item gracefully. Cove
-/// disables EF thread-safety checks, so every assertion is on observable outcomes (files, DB rows,
-/// the journal rows) - never on an EF exception. The store is a thread-safe
-/// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
-/// </summary>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
-    /// <summary>Wires the extension over a scoped DbContext factory so each worker gets its own context over the shared DB.</summary>
+    // Wires the extension over a scoped DbContext factory so each worker gets its own context over
+    // the shared DB.
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
         BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
     {

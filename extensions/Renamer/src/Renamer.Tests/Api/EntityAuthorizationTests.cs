@@ -11,15 +11,9 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The per-entity authorization the coarse route permission cannot supply: holding
-/// <c>videos.write</c> does not grant write access to every video, so each path checks the entities
-/// it is about to act on against the caller's own principal.
-/// </summary>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class EntityAuthorizationTests
 {
-    /// <summary>Records every <c>Enqueue</c>; all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
     {
         public List<string> Enqueued { get; } = [];
@@ -110,7 +104,7 @@ public sealed class EntityAuthorizationTests
         return (ext, store);
     }
 
-    /// <summary>Seeds two single-file videos in one folder with real bytes, and returns their entity ids.</summary>
+    // Seeds two single-file videos in one folder with real bytes, and returns their entity ids.
     private static async Task<(int First, int Second)> SeedTwoVideosAsync(LibraryDatabase library, TempDir dir)
     {
         string folderPath = dir.Root.Replace('\\', '/');
@@ -130,7 +124,7 @@ public sealed class EntityAuthorizationTests
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
-    /// <summary>Reads the stored scan aggregate with the wire's camelCase and string enums.</summary>
+    // Reads the stored scan aggregate with the wire's camelCase and string enums.
     private static readonly JsonSerializerOptions EnumJson =
         new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 

@@ -9,25 +9,11 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// <c>JobStatus</c> serves one of this extension's own runs, and nothing else.
-/// </summary>
-/// <remarks>
-/// The route exists because Cove gates its own job endpoint on unrestricted read, so a scoped account
-/// cannot watch a run it started itself. That makes the confinement the point of these tests rather
-/// than a detail: a route answering for any job id would be a way around the host's gate instead of a
-/// replacement for the part of it this extension owns.
-/// <para>
-/// The job types are spelled as literal strings rather than read from the extension, so a change to
-/// the prefix it mints has to be made here too instead of being agreed with automatically.
-/// </para>
-/// </remarks>
 public sealed class JobStatusEndpointTests
 {
     private const string OwnScanJob = "ext:com.alextomas955.renamer:scan-library";
     private const string ForeignJob = "ext:com.example.other:its-own-work";
 
-    /// <summary>Answers for the one job handed to the constructor; every other member throws.</summary>
     private sealed class StubJobService(JobInfo? job) : IJobService
     {
         public JobInfo? GetJob(string jobId) => job is not null && job.Id == jobId ? job : null;

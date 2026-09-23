@@ -4,20 +4,10 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The one-shot legacy journal migration: what an installation still carries under the two stored keys
-/// becomes one batch in the journal table, and both keys go - including when the value cannot be read.
-/// </summary>
-/// <remarks>
-/// Every legacy fixture here is hand-written rather than produced by the code that reads it. A fixture
-/// generated from the parser under test agrees with that parser forever, whatever either of them says;
-/// a transcribed one fails when the format claim is wrong. Assertions are on the outcome - the keys are
-/// gone, the batch is readable from the table - never on the migration having been called.
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalBlobMigrationTests
 {
-    /// <summary>A hand-written header: run <c>R1</c>, opened 3 Aug 2026 10:00 UTC, video, still replayable.</summary>
+    // A hand-written header: run R1, opened 3 Aug 2026 10:00 UTC, video, still replayable.
     private static readonly DateTime HeaderOpened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
     private static string Header(string runId = "R1", string kind = "Video", string status = "open") =>

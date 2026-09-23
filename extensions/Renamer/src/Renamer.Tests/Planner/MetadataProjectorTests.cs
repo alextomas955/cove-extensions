@@ -4,11 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Proves the <see cref="MetadataProjector"/> entity-graph → (tokens, multiValues) projection
-/// and the entity-type-aware token degradation: absent media tokens are omitted so the engine's
-/// <c>{}</c> groups collapse cleanly.
-/// </summary>
 public sealed class MetadataProjectorTests
 {
     private const double ReferenceDurationSeconds = 5025;

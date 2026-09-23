@@ -11,38 +11,10 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// One case per detached entry point in this extension: the database commands its body runs against
-/// Cove's own tables execute under the System principal.
-/// </summary>
-/// <remarks>
-/// Cases are keyed to entry points, not to elevation call sites, because a site count goes stale the
-/// moment a body grows another scope. Each case asserts two things, and the second is what makes the
-/// first mean anything: the principal at every command is the expected one, and at least one command
-/// was recorded. A verdict over an empty list is a vacuous pass.
-/// <para>
-/// The proof is the principal at the command and never a row count, for two measured reasons.
-/// <c>CoveContext</c> installs its authorization filters only under Npgsql, so SQLite cannot
-/// reproduce the zero-row consequence at all. And Cove starts its exclusive-job queue processor at
-/// host startup while holding the principal in a static <c>AsyncLocal</c>, so a queued body carries
-/// no ambient principal; deleting the elevation from one was measured to change no row count
-/// anywhere, end to end, against a live host under auth.
-/// </para>
-/// <para>
-/// Most cases start from <see cref="CovePrincipal.Anonymous"/>, present but unprivileged, because
-/// <c>CoveContext</c> bypasses its filters for a null principal as well as for System: a case
-/// constructing "no principal" and reading its meaning off a row count would prove the safe case.
-/// </para>
-/// <para>
-/// "Detached" is not "elevated". The batch core also opens a scope the source states is deliberately
-/// not elevated, the one the shared undo journal owns, so a flat all-System verdict is wrong over
-/// that window. See <see cref="AssertEveryCoveReadRanAsSystemAsync"/> for what replaces it.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class DetachedElevationTests
 {
-    /// <summary>The hand-written legacy journal header shape: run, opened-at, kind, status.</summary>
+    // The hand-written legacy journal header shape: run, opened-at, kind, status.
     private static readonly DateTime LegacyOpened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
     [Fact]
@@ -241,16 +213,6 @@ public sealed class DetachedElevationTests
         AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
     }
 
-    /// <summary>
-    /// The classification the verdict rests on, at its hardest shape: one statement reaching both a
-    /// table this extension owns and a table Cove owns is a Cove read.
-    /// </summary>
-    /// <remarks>
-    /// Not keyed to an entry point at all. The cases above assert what the code did; this asserts
-    /// that the instrument they are read through can see the dangerous class of command. A statement
-    /// touching both kinds of table at once must not fall out of the Cove-read set, because dropping
-    /// it there also excuses it from the unelevated-command clause and blinds every verdict above.
-    /// </remarks>
     [Fact]
     public async Task ACommandReachingAnOwnTableAndACoveTable_IsClassifiedAsACoveRead()
     {
@@ -287,17 +249,13 @@ public sealed class DetachedElevationTests
                 + $"excuse it from the System requirement in one step. SQL: {command.Sql}");
     }
 
-    /// <summary>
-    /// Every command recorded since the last clear ran as System, and at least one was recorded - plus
-    /// the caller's own principal is back, because elevation is a span and not a mode.
-    /// </summary>
-    /// <param name="library">The observed database and its principal accessor.</param>
-    /// <param name="expectedPriorKind">
-    /// The principal kind in effect when the body was entered, or null when there was none. The restore
-    /// is asserted against whatever the caller actually had rather than against a fixed Anonymous,
-    /// because a queued body enters with none and putting back a default instead of nothing would be a
-    /// different bug wearing the same green.
-    /// </param>
+    // Every command recorded since the last clear ran as System, and at least one was recorded -
+    // plus the caller's own principal is back, because elevation is a span and not a mode. library:
+    // The observed database and its principal accessor. expectedPriorKind: The principal kind in
+    // effect when the body was entered, or null when there was none. The restore is asserted
+    // against whatever the caller actually had rather than against a fixed Anonymous, because a
+    // queued body enters with none and putting back a default instead of nothing would be a
+    // different bug wearing the same green.
     private static void AssertRanEntirelyAsSystem(
         LibraryDatabase library, PrincipalKind? expectedPriorKind = PrincipalKind.Anonymous)
     {
@@ -310,22 +268,16 @@ public sealed class DetachedElevationTests
         Assert.Equal(expectedPriorKind, library.Principals.Current?.Kind);
     }
 
-    /// <summary>
-    /// The batch core's variant: every command against a table COVE owns ran as System, and nothing that
-    /// ran unelevated reached one.
-    /// </summary>
-    /// <remarks>
-    /// The batch holds a scope the source states is deliberately not elevated - the one the shared undo
-    /// journal owns - on the grounds that the journal's tables are the extension's own and carry none of
-    /// Cove's per-principal query filters, so System has nothing there to unlock. A plain all-System
-    /// verdict over this window would therefore assert a property the code does not have, and pass only
-    /// until someone noticed. The second assertion is what stops that exception swallowing the rule: a
-    /// Cove-entity read that stopped being elevated cannot hide inside it.
-    /// <para>
-    /// Both arms ask <see cref="NamesATableCoveOwns"/> rather than a question about the extension's own
-    /// set, and <see cref="TablesByOwnershipAsync"/> states why that difference is load-bearing.
-    /// </para>
-    /// </remarks>
+    // The batch core's variant: every command against a table COVE owns ran as System, and nothing
+    // that ran unelevated reached one. The batch holds a scope the source states is deliberately
+    // not elevated - the one the shared undo journal owns - on the grounds that the journal's
+    // tables are the extension's own and carry none of Cove's per-principal query filters, so
+    // System has nothing there to unlock. A plain all-System verdict over this window would
+    // therefore assert a property the code does not have, and pass only until someone noticed. The
+    // second assertion is what stops that exception swallowing the rule: a Cove-entity read that
+    // stopped being elevated cannot hide inside it. Both arms ask NamesATableCoveOwns rather than a
+    // question about the extension's own set, and TablesByOwnershipAsync states why that difference
+    // is load-bearing.
     private static async Task AssertEveryCoveReadRanAsSystemAsync(LibraryDatabase library)
     {
         var recorded = library.CommandsExecuted.ToList();
@@ -345,23 +297,15 @@ public sealed class DetachedElevationTests
         Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);
     }
 
-    /// <summary>The model's tables split by which assembly configured them.</summary>
     private readonly record struct TablesByOwnership(IReadOnlySet<string> Own, IReadOnlySet<string> Cove);
 
-    /// <summary>
-    /// The model's tables split into this extension's own and - as the complement of that same
-    /// enumeration - Cove's, with both sides asserted non-empty before either is handed back.
-    /// </summary>
-    /// <remarks>
-    /// Ownership is taken from the model the extension itself configures, so no table name is restated
-    /// here to go stale when one is renamed; the complement inherits that property rather than needing a
-    /// list of its own.
-    /// <para>
-    /// Non-empty on both sides, and before either is used: a side that came back empty turns the
-    /// predicate over it into a constant, and a verdict resting on a constant is the same vacuous pass
-    /// this class's other non-empty assertions exist to refuse.
-    /// </para>
-    /// </remarks>
+    // The model's tables split into this extension's own and - as the complement of that same
+    // enumeration - Cove's, with both sides asserted non-empty before either is handed back.
+    // Ownership is taken from the model the extension itself configures, so no table name is
+    // restated here to go stale when one is renamed; the complement inherits that property rather
+    // than needing a list of its own. Non-empty on both sides, and before either is used: a side
+    // that came back empty turns the predicate over it into a constant, and a verdict resting on a
+    // constant is the same vacuous pass this class's other non-empty assertions exist to refuse.
     private static async Task<TablesByOwnership> TablesByOwnershipAsync(LibraryDatabase library)
     {
         HashSet<string> own, cove;
@@ -383,30 +327,23 @@ public sealed class DetachedElevationTests
         return new TablesByOwnership(own, cove);
     }
 
-    /// <summary>Whether <paramref name="c"/>'s SQL reaches a table Cove owns.</summary>
-    /// <remarks>
-    /// This is the question the predicate it replaced was named for and did not ask. That one tested
-    /// whether the SQL mentioned at least one table this extension owns, under a name promising it
-    /// mentioned nothing else - so a command reaching an own table and a Cove table satisfied it, which
-    /// took the command out of the Cove-read set and, in the same step, excused it from the
-    /// unelevated-command clause. It escaped both halves of the verdict, which is exactly the hiding place
-    /// the second clause exists to close. Asked about Cove's set directly the question has no such
-    /// reading: naming an own table cannot excuse naming a Cove one.
-    /// <para>
-    /// The match is a case-insensitive substring of the statement text, which is what the replaced
-    /// predicate did too. Widening it from the extension's two table names to Cove's whole set was
-    /// measured against this class's existing cases before it was kept, since a short table name can be a
-    /// substring of text that does not reference that table.
-    /// </para>
-    /// </remarks>
+    // Whether c's SQL reaches a table Cove owns. This is the question the predicate it replaced was
+    // named for and did not ask. That one tested whether the SQL mentioned at least one table this
+    // extension owns, under a name promising it mentioned nothing else - so a command reaching an
+    // own table and a Cove table satisfied it, which took the command out of the Cove-read set and,
+    // in the same step, excused it from the unelevated-command clause. It escaped both halves of
+    // the verdict, which is exactly the hiding place the second clause exists to close. Asked about
+    // Cove's set directly the question has no such reading: naming an own table cannot excuse
+    // naming a Cove one. The match is a case-insensitive substring of the statement text, which is
+    // what the replaced predicate did too. Widening it from the extension's two table names to
+    // Cove's whole set was measured against this class's existing cases before it was kept, since a
+    // short table name can be a substring of text that does not reference that table.
     private static bool NamesATableCoveOwns(TablesByOwnership tables, LibraryDatabase.ExecutedCommand c) =>
         tables.Cove.Any(table => c.Sql.Contains(table, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// The shipped extension, loaded over <paramref name="library"/> with <paramref name="options"/>
-    /// saved, then armed for observation: the caller's principal set to a present-but-unprivileged one
-    /// and the recording cleared, so what a case asserts on is its own exercise and not the load.
-    /// </summary>
+    // The shipped extension, loaded over library with options saved, then armed for observation:
+    // the caller's principal set to a present-but-unprivileged one and the recording cleared, so
+    // what a case asserts on is its own exercise and not the load.
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> LoadedExtensionAsync(
         LibraryDatabase library, RenamerOptions options, params string[] libraryRoots)
     {
@@ -460,38 +397,14 @@ public sealed class DetachedElevationTests
         Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);
     }
 
-    /// <summary>
-    /// A title-only template so a seeded, height-less row renders a predictable name, and one same-volume
-    /// worker because <see cref="LibraryDatabase"/> hands every scope a context over one SQLite connection -
-    /// production draws a connection per scope, so serializing here removes a harness-only race without
-    /// changing the path under test.
-    /// </summary>
+    // A title-only template so a seeded, height-less row renders a predictable name, and one
+    // same-volume worker because LibraryDatabase hands every scope a context over one SQLite
+    // connection - production draws a connection per scope, so serializing here removes a
+    // harness-only race without changing the path under test.
     private static RenamerOptions TitleOnlyOptions() =>
         new() { FilenameTemplate = "$title", SameVolumeConcurrency = 1 };
 }
 
-/// <summary>
-/// The elevation seam's own contract, asserted directly: both
-/// <see cref="RunAsSystem.RunAsSystemAsync{T}(IServiceProvider, Func{Task{T}})"/> and its void form
-/// elevate for the span of the body and put the caller's principal back afterwards, including when the
-/// body throws.
-/// </summary>
-/// <remarks>
-/// Here, beside the entry-point assertions, because the seam lives in a shared package whose test-support
-/// project is not a test project - a concrete fact placed there never executes - and this file is where
-/// the elevation seam's assertions already live.
-/// <para>
-/// Its own tier, and the lowest one that can observe this contract: a service collection carrying a
-/// settable accessor is the whole arrangement, with no database and no host double. The entry-point
-/// assertions need one because they observe the principal at a real SQL command; this contract is about
-/// the accessor, so nothing below it is required.
-/// </para>
-/// <para>
-/// Every case records the principal the body saw and asserts on that as well as on what the accessor
-/// holds afterwards. A case asserting the restore alone would pass identically had the body never run,
-/// which is the same vacuous pass the entry-point assertions refuse with their non-empty-first rule.
-/// </para>
-/// </remarks>
 public sealed class RunAsSystemContractTests
 {
     [Fact]
@@ -597,13 +510,11 @@ public sealed class RunAsSystemContractTests
         Assert.Equal(11, returned);
     }
 
-    /// <summary>
-    /// A present caller principal: a user holding no permissions. Present rather than absent so the
-    /// restore assertions have an instance to name - the absent prior value is its own case above.
-    /// </summary>
+    // A present caller principal: a user holding no permissions. Present rather than absent so the
+    // restore assertions have an instance to name - the absent prior value is its own case above.
     private static FakePrincipalAccessor Caller() => FakePrincipalAccessor.WithPermissions();
 
-    /// <summary>A provider whose only registration is <paramref name="accessor"/>.</summary>
+    // A provider whose only registration is accessor.
     private static ServiceProvider ProviderWith(ICurrentPrincipalAccessor accessor) =>
         new ServiceCollection().AddSingleton(accessor).BuildServiceProvider();
 }

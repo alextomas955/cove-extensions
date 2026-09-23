@@ -6,18 +6,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The proof the whole store-aggregates-serve-rows-on-demand design rests on: a paged walk must return
-/// exactly what a single full-library plan would have returned, so that serving a slice on demand is not
-/// a different answer from the one the old whole-library pass produced. It holds because
-/// <see cref="RenamerPlanner.PlanLoadedEntity"/> carries no cross-entity state; the one place a same-run
-/// coupling could have hidden is the collision suffix loop, and that resolves against the database
-/// rather than against this run's own planned targets, so the answer does not depend on which entities
-/// happen to share a page. Two entities in one run that would collide with each other are consequently
-/// not detected - that is pre-existing, is exactly as (un)detected before and after paging, and is
-/// deliberately not addressed here. A later change that makes the planner accumulate any cross-entity
-/// state breaks these facts, which is the intent.
-/// </summary>
 public sealed class ScanPagingEquivalenceTests
 {
     private const int EntitiesPerKind = 40;
@@ -30,12 +18,10 @@ public sealed class ScanPagingEquivalenceTests
     private static readonly string DestRoot = OperatingSystem.IsWindows() ? "C:/dest" : "/dest";
     private static readonly string RoutedDest = $"{DestRoot}/routed";
 
-    /// <summary>
-    /// A title-only filename template with a studio-driven folder, so one fixture reaches both an
-    /// in-place rename and a folder move.
-    /// The only-organized gate is on so an unorganized entity reaches the gate branch - an empty title
-    /// would not, because <see cref="RenamerOptions.FilenameAsTitle"/> falls back to the basename.
-    /// </summary>
+    // A title-only filename template with a studio-driven folder, so one fixture reaches both an
+    // in-place rename and a folder move. The only-organized gate is on so an unorganized entity
+    // reaches the gate branch - an empty title would not, because FilenameAsTitle falls back to the
+    // basename.
     private static readonly RenamerOptions Options = new()
     {
         FilenameTemplate = "$title",
@@ -50,11 +36,9 @@ public sealed class ScanPagingEquivalenceTests
         PathRegexRules: [],
         ExcludeTagIds: new HashSet<int> { 102 });
 
-    /// <summary>
-    /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
-    /// move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing source, and
-    /// an occupied target that forces the suffix loop - across every renamable kind.
-    /// </summary>
+    // Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a
+    // folder move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing
+    // source, and an occupied target that forces the suffix loop - across every renamable kind.
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
@@ -133,11 +117,9 @@ public sealed class ScanPagingEquivalenceTests
     private static ScanRowPager NewPager(FakeRenamerDataPort port)
         => new(new RenamerPlanner(port), port);
 
-    /// <summary>
-    /// The reference sequence: one full pass over every kind's ids in ascending order, planned through
-    /// the same planner the pager uses - the point of the comparison is the traversal, so the planner is
-    /// never doubled.
-    /// </summary>
+    // The reference sequence: one full pass over every kind's ids in ascending order, planned
+    // through the same planner the pager uses - the point of the comparison is the traversal, so
+    // the planner is never doubled.
     private static async Task<List<ScanRow>> FullPlanAsync(FakeRenamerDataPort port)
     {
         var planner = new RenamerPlanner(port);

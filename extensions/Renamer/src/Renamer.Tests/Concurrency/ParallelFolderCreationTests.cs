@@ -10,16 +10,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
-/// <summary>
-/// Regression locks for the parallel batch. Concurrent-folder lock: many parallel workers
-/// routing multiple items to the same not-yet-created destination folder must end with exactly one
-/// <see cref="Folder"/> row for that path - never a duplicate row (silent disk/DB divergence) and
-/// never an unhandled throw. The fix pre-creates every distinct destination folder once in the
-/// sequential planning pass and hands the resolved id to each worker, so the parallel execution pass never does a
-/// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
-/// across acting units must not make the execution pass's lookup throw and abort the whole batch after the
-/// journal batch is open.
-/// </summary>
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>

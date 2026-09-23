@@ -6,18 +6,9 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The initialize-time seam that drives the options conversion, through the real entry path with a
-/// real database rather than the pure converter alone.
-/// </summary>
-/// <remarks>
-/// The subject is the deferral. The converter cannot tell an entity that was deleted from a table it
-/// cannot read yet, so the decision not to convert lives here, and getting it wrong destroys the
-/// user's entity rules with nothing observable happening.
-/// </remarks>
 public sealed class OptionsMigrationInitializeTests
 {
-    /// <summary>The library path every stored destination in these blobs lives under.</summary>
+    // The library path every stored destination in these blobs lives under.
     private const string DramaRoot = "/drama";
 
     private const string LegacyBlob = """
@@ -33,10 +24,9 @@ public sealed class OptionsMigrationInitializeTests
         return ext;
     }
 
-    /// <summary>
-    /// Loads against a database holding the undo journal and nothing else, so the load itself completes
-    /// and every library read throws. A conversion that reached one is visible as the seam's failure path.
-    /// </summary>
+    // Loads against a database holding the undo journal and nothing else, so the load itself
+    // completes and every library read throws. A conversion that reached one is visible as the
+    // seam's failure path.
     private static async Task LoadWithoutLibraryTablesAsync(JournalOnlyDatabase db, IExtensionStore store)
     {
         var ext = new global::Renamer.Renamer();
@@ -292,13 +282,12 @@ public sealed class OptionsMigrationInitializeTests
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
-    /// <summary>The dropped-rule warning, the only trace of a rule the conversion discarded.</summary>
+    // The dropped-rule warning, the only trace of a rule the conversion discarded.
     private const int RuleDroppedEvent = 1068;
 
-    /// <summary>The load-time catch that reports a conversion which could not complete.</summary>
+    // The load-time catch that reports a conversion which could not complete.
     private const int MigrationFailedEvent = 1066;
 
-    /// <summary>Fails only the schema stamp, so the settings write ahead of it still lands.</summary>
     private sealed class FailingStampStore(IExtensionStore inner) : IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => inner.GetAsync(key, ct);
@@ -314,7 +303,6 @@ public sealed class OptionsMigrationInitializeTests
             inner.GetAllAsync(ct);
     }
 
-    /// <summary>Records the id of every event the load logged.</summary>
     private sealed class CapturingLogger : ILogger<global::Renamer.Renamer>
     {
         public List<int> Events { get; } = [];

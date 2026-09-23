@@ -3,25 +3,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-/// <summary>
-/// The cross-volume copy → verify(size + hash) → atomic-renamer → delete-source-last primitive,
-/// exercised directly against the real filesystem via the <see cref="TempDir"/> fixture (no second
-/// physical drive - the mover is called regardless of the real volume layout, exactly like
-/// <see cref="DiskMover"/>'s tests). Proves: a verified happy move; no-clobber on an existing dest;
-/// a same-size-but-different-content copy is rejected (size-only would false-pass); a locked source
-/// is a classified skip not a throw; sidecars skip-not-clobber; an in-flight copy orphaned by an
-/// earlier crash is left in place and never promoted unverified; and two moves to the same final
-/// path mint different in-flight names.
-/// </summary>
-/// <remarks>
-/// The in-flight name is minted per call and unguessable, so these cases learn it from the mover
-/// through the post-copy seam rather than constructing it. That direction is the point: a test that
-/// built its own expected path would be asserting on a value it supplied itself and would keep
-/// passing however wrong the real name was - which is exactly what the suite did before the name was
-/// minted. Where the copy never gets far enough to reach the seam (a no-clobber skip, a locked
-/// source, a cancel), the case asserts on the destination directory's whole contents instead, which
-/// needs no name at all.
-/// </remarks>
 public sealed class CrossVolumeMoverTests
 {
     [Fact]
@@ -301,12 +282,6 @@ public sealed class CrossVolumeMoverTests
         Assert.Equal(orphanContent, File.ReadAllText(orphan));
     }
 
-    /// <summary>
-    /// The two properties the mint itself has to carry: a second move to the same final path takes a
-    /// different in-flight name (which is what makes an orphan harmless without a sweep), and the
-    /// minted segment is no longer than the 16-character fixed suffix it replaced (the planner budgets
-    /// only the final path, so a longer name would widen an already-unbudgeted gap).
-    /// </summary>
     [Fact]
     public async Task TwoMovesToTheSameFinalPath_MintDifferentInFlightNames_AndNoneExceedSixteenCharacters()
     {
@@ -485,10 +460,8 @@ public sealed class CrossVolumeMoverTests
         }
     }
 
-    /// <summary>
-    /// The other half of the ownership claim: what the mover did mint is gone, so the planted files
-    /// surviving is not merely the mover having deleted nothing at all.
-    /// </summary>
+    // The other half of the ownership claim: what the mover did mint is gone, so the planted files
+    // surviving is not merely the mover having deleted nothing at all.
     private static void AssertOnlyMintedPathsWereRemoved(List<string> minted, params string[] planted)
     {
         Assert.NotEmpty(minted); // the seam must have fired, or the loop below asserts nothing
@@ -499,10 +472,8 @@ public sealed class CrossVolumeMoverTests
         }
     }
 
-    /// <summary>
-    /// A post-copy seam that only records the path production minted, leaving the copy untouched - the
-    /// mover's real behaviour, plus the observation the test needs.
-    /// </summary>
+    // A post-copy seam that only records the path production minted, leaving the copy untouched -
+    // the mover's real behaviour, plus the observation the test needs.
     private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
         (inFlight, _) =>
         {

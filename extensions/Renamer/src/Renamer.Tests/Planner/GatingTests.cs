@@ -5,11 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Gating: only-organized skips an unorganized item; require-fields skips an
-/// item whose required token projects empty. Gated = <see cref="RenamerStatus.SkipGated"/>
-/// (never <see cref="RenamerStatus.Failed"/>), with a reason - and zero mutation.
-/// </summary>
 public sealed class GatingTests
 {
     private static RenamerFile File(int id) =>

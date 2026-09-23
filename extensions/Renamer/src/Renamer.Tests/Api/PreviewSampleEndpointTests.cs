@@ -11,14 +11,6 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
-/// <see cref="SampleTokenSets"/> + the posted (unsaved) options and returns per-sample old→new + folder
-/// + advisory flags - single-sourcing the naming logic so the React panel never re-implements it. The
-/// length-reduced flag is asserted by its named dropped fields (truthful, not a generic boolean),
-/// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
-/// (no HTTP host, no DbContext).
-/// </summary>
 public sealed class PreviewSampleEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()
@@ -30,11 +22,9 @@ public sealed class PreviewSampleEndpointTests
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
-    /// <summary>
-    /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON - the endpoint now binds the
-    /// raw request and parses the body itself (with <see cref="RenamerOptions.JsonOptions"/>), so tests
-    /// drive it through a real body stream rather than a pre-bound typed record.
-    /// </summary>
+    // Builds an HttpRequest whose body is the given raw JSON - the endpoint now binds the raw
+    // request and parses the body itself (with JsonOptions), so tests drive it through a real body
+    // stream rather than a pre-bound typed record.
     private static HttpRequest RequestWithBody(string json)
     {
         var ctx = new DefaultHttpContext();
@@ -43,7 +33,7 @@ public sealed class PreviewSampleEndpointTests
         return ctx.Request;
     }
 
-    /// <summary>Runs the endpoint with a videos.read principal and a serialized {Options:...} body.</summary>
+    // Runs the endpoint with a videos.read principal and a serialized {Options:...} body.
     private static IReadOnlyList<PreviewSampleResult> Preview(RenamerOptions? options)
     {
         // Serialize the body exactly as the panel/host would, via the converter-aware options, so the
@@ -52,7 +42,7 @@ public sealed class PreviewSampleEndpointTests
         return PreviewRaw(json);
     }
 
-    /// <summary>Runs the endpoint with a videos.read principal and a raw JSON body string.</summary>
+    // Runs the endpoint with a videos.read principal and a raw JSON body string.
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
         var ext = NewExtension();
@@ -330,7 +320,6 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal("The Example LIVE.mp4", video.NewName);
     }
 
-    /// <summary>A read-once stream that throws on any read - proves the 403 path never touches the body.</summary>
     private sealed class ThrowingStream : Stream
     {
         public override bool CanRead => true;

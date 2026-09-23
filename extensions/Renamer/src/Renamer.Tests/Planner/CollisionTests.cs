@@ -4,14 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Collision handling, plan side: when the first candidate basename is taken (per the data-port
-/// collision check), the planner applies the configured <see cref="RenamerOptions.DuplicateSuffixFormat"/>
-/// counter until free and the resulting NewFullPath carries the suffix; if no free name is found
-/// within a sane bound the item is <see cref="RenamerStatus.SkipCollision"/>; and if the first free
-/// name is the one the file already carries the item is <see cref="RenamerStatus.NoOp"/> rather than a
-/// move onto itself. no mutation.
-/// </summary>
 public sealed class CollisionTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>
@@ -72,15 +64,6 @@ public sealed class CollisionTests
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
     }
 
-    /// <summary>
-    /// A settled candidate that is the file's own current name is a no-op, never a move onto itself.
-    /// </summary>
-    /// <remarks>
-    /// The earlier no-op comparison runs on the rendered name, before the suffix loop. The loop then
-    /// lengthens that name to free the slot a sibling holds, and the first free candidate can be the
-    /// numbered name this file already carries. Classified as an act, such an item is executed and
-    /// saved, and on the auto-rename path a save is what makes the host re-raise the update event.
-    /// </remarks>
     [Fact]
     public async Task SettledCandidateIsTheFilesCurrentName_NoOp_NotAMoveToItself()
     {
@@ -101,15 +84,6 @@ public sealed class CollisionTests
         Assert.Equal("media/videos/My Film (1).mkv", item.NewFullPath);
     }
 
-    /// <summary>
-    /// Two files of one entity that render one name are planned at two paths.
-    /// </summary>
-    /// <remarks>
-    /// Nothing is seeded as occupied on purpose: the collision here is between two files of the plan
-    /// itself, and a seeded occupant would let the pre-existing row check reach the same outcome. The
-    /// live case is the same shape - a destination folder that does not exist yet holds no rows, so the
-    /// row check is skipped outright and every file of the entity claims one name.
-    /// </remarks>
     [Fact]
     public async Task TwoFilesOfOneEntity_RenderingOneName_PlanToDistinctPaths()
     {

@@ -3,14 +3,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// Proves the path-confinement gate: a benign relative subfolder resolves under
-/// the destination's anchor and is accepted; a "../.." traversal or an absolute/rooted folder
-/// template is rejected as <see cref="PathConfinement.ConfinementRejection.NotAllowed"/>; an
-/// over-FullPathMax absolute target is rejected as
-/// <see cref="PathConfinement.ConfinementRejection.TooLong"/>. The sibling case ("root" vs
-/// "rootEvil") proves the prefix check is boundary-aware. pure - no disk.
-/// </summary>
 public sealed class PathConfinementTests
 {
     private const string Root = "media/videos";
@@ -57,18 +49,6 @@ public sealed class PathConfinementTests
         Assert.Contains("not relative", r.Reason);
     }
 
-    /// <summary>
-    /// Every rooted spelling this platform recognises is refused, before it is ever combined with the
-    /// anchor.
-    /// </summary>
-    /// <remarks>
-    /// A leading separator is rooted everywhere, so that case carries the pin on either runner. A
-    /// drive-qualified path and a UNC share are rooted only on Windows - on Linux they are ordinary
-    /// relative names - so asserting a refusal for them there would pin the opposite of the truth. The
-    /// gate is the platform, never <see cref="Path.IsPathRooted(string)"/> itself: computing the
-    /// expectation from the predicate under test would make this case agree with the resolver whatever
-    /// it does.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(RootedFolderTemplates))]
     public void RootedFolderTemplate_Rejected(string destinationFolder)
@@ -122,11 +102,6 @@ public sealed class PathConfinementTests
     }
 }
 
-/// <summary>
-/// Proves <see cref="PathConfinement.ContainingRoot"/>: which library path a file is anchored on.
-/// The longest match wins so a nested library path anchors on the nearer boundary; a path under none
-/// of them has no anchor at all. pure - no disk.
-/// </summary>
 public sealed class ContainingRootTests
 {
     [Fact]

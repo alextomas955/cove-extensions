@@ -5,20 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Collisions;
 
-/// <summary>
-/// Case-only renamer behaviour on a case-insensitive volume (integration, SQLite + a real temp dir).
-/// Proves two things the executor's collision loop must get right:
-/// <list type="bullet">
-/// <item>A pure case-fix renamer (<c>movie.mkv</c> → <c>Movie.mkv</c>) - where the only thing occupying
-/// the target name is the source file itself - completes as a clean <see cref="RenamerStatus.Rename"/>
-/// to <c>Movie.mkv</c>, not a needlessly suffixed <c>Movie (1).mkv</c> and not a collision skip.</item>
-/// <item>A different file already at the case-variant target name still collides: a third source
-/// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
-/// cross-file no-clobber guarantee is preserved.</item>
-/// </list>
-/// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
-/// <c>File.Exists</c> check is the one under test.
-/// </summary>
 public sealed class CaseOnlyRenameTests
 {
     [Fact]

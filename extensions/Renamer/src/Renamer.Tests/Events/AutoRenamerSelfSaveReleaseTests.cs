@@ -5,17 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Events;
 
-/// <summary>
-/// The self-save suppression must be released on every exit that saves nothing, not only on the two
-/// that throw.
-/// </summary>
-/// <remarks>
-/// The suppression is armed before the executor call because the host re-raises fire-and-forget. It is
-/// consumed by the event that save raises - so a run that reaches the executor and renames nothing
-/// raises no event, and the armed token waits for the user's next genuine edit instead. Every path in
-/// here is written out from the arrangement by hand rather than asked of the planner, so an expectation
-/// cannot agree with the code however far the two drift.
-/// </remarks>
 public sealed class AutoRenamerSelfSaveReleaseTests
 {
     [Fact]

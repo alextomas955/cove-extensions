@@ -5,16 +5,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the routing
-/// foundations onto the Renamer-owned DTO from a real Cove entity graph: the stable studio id, the
-/// nearest-first parent-studio chain, the paired tag ids and names, and each file's projected byte
-/// size. Runs against a SQLite-backed
-/// <see cref="Cove.Data.CoveContext"/> (not EF-InMemory) so the self-referencing Studio parent FK and
-/// the relational graph hydrate exactly as production would (per memory: bind the base DbContext;
-/// SQLite for graph-shape fidelity). Without these fields surfacing, Plan 02's resolver could not route
-/// on a stable id and Plan 04's free-space guard would have no per-file bytes to sum.
-/// </summary>
 public sealed class CoveDataPortRoutingFieldsTests
 {
     [Fact]

@@ -2,19 +2,6 @@ using Renamer.Execution;
 
 namespace Renamer.Tests.Contracts;
 
-/// <summary>
-/// Pins what an undo run reports about itself: what the response says about a run larger than anyone
-/// wants described, and which reasons for a row stopping retire it for good. No store, no database
-/// context, no filesystem - neither subject touches one, which is why this suite needs no setup, no
-/// doubles and no running service.
-/// </summary>
-/// <remarks>
-/// Every fixture below is a hand-built page result, and every classification is a hand-written table
-/// entry. Nothing here is produced by folding one accumulator into another or read back out of the
-/// classifier, which would only prove each agrees with itself; the expected totals and classifications
-/// are written out as literals so a fold that lost a page, or a reason that silently changed meaning,
-/// fails here instead of agreeing with its own arithmetic.
-/// </remarks>
 public sealed class UndoRunAccumulatorTests
 {
     private static UndoReplayer.UndoRunResult Page(
@@ -26,7 +13,7 @@ public sealed class UndoRunAccumulatorTests
             [.. Enumerable.Range(1, undone).Select(i => new RevertRow("run-a", i, i, i, $"/old/{i}.mkv", ""))],
             warnings ?? []);
 
-    /// <summary>One stopped row whose file id also serves as its sequence, so an entry is identifiable.</summary>
+    // One stopped row whose file id also serves as its sequence, so an entry is identifiable.
     private static UndoReplayer.UndoFailure Stop(int fileId, string reason = "locked") =>
         new("run-a", fileId, fileId, $"/old/{fileId}.mkv", $"/new/{fileId}.mkv", reason,
             UndoStopReason.OriginalLocationOccupied);
@@ -189,16 +176,12 @@ public sealed class UndoRunAccumulatorTests
         Assert.True(UndoRunAccumulator.MaxSampleEntries >= 1);
     }
 
-    /// <summary>
-    /// Every stop reason and the classification it was deliberately given: true is terminal - the row is
-    /// retired as unrestorable - and false stays pending to be retried. Transcribed by hand from the
-    /// decision, never generated from the enum.
-    /// </summary>
-    /// <remarks>
-    /// The pairing with <see cref="EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults"/>
-    /// is the point: a member added later without a deliberate entry here fails the suite instead of
-    /// quietly inheriting whatever the classifier happens to return for it.
-    /// </remarks>
+    // Every stop reason and the classification it was deliberately given: true is terminal - the
+    // row is retired as unrestorable - and false stays pending to be retried. Transcribed by hand
+    // from the decision, never generated from the enum. The pairing with
+    // EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults is the
+    // point: a member added later without a deliberate entry here fails the suite instead of
+    // quietly inheriting whatever the classifier happens to return for it.
     public static TheoryData<UndoStopReason, bool> EveryStopReason => new()
     {
         { UndoStopReason.UnexpectedError, false },

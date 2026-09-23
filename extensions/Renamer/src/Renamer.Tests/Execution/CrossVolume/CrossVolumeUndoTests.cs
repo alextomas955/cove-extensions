@@ -5,32 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-/// <summary>
-/// The cross-drive reverse-replay proofs - the mirror of the forward verify-failure cases in
-/// <see cref="CrossVolumeMoverTests"/>, driven through <see cref="UndoReplayer"/> (not
-/// <see cref="RenamerExecutor"/>) so the new→old direction is exercised. Each test sets up a
-/// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
-/// physical disk - no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
-/// the new (subst) location and a hand-built <see cref="global::Renamer.Execution.RevertBatch"/> whose row records
-/// OldPath on the temp root and NewPath on the subst root, then reverse-replays it.
-///
-/// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> - after undo the file is back at old
-/// byte-for-byte and gone from new. (b) <see cref="BitFlipOnCopyBack_VerifyFails_FileNotLost"/> - the
-/// reverse-direction centerpiece, the mirror of the forward data-loss proof: a bit-flip on the copy-back makes verify fail, the
-/// reverse move reports !Moved → reported skip, and the file is not lost (the new copy survives, the
-/// old slot is not half-written). (c) <see cref="CrossSaveThrows_RollsBackToNEW"/> - when the reverse
-/// DB save throws after a successful cross copy-back, the file is rolled back to new through
-/// <see cref="CrossVolumeMover.RollbackAsync"/> and the entry is Failed.
-///
-/// SQLite (not EF-InMemory) so the unique index + Path recompute are faithful. Captions are out of
-/// undo scope: nothing is asserted about sidecars; the reverse passes sidecars: null.
-/// </summary>
-/// <remarks>
-/// Where a case asserts that no in-flight copy was left behind, it takes the path from the mover's
-/// post-copy seam rather than constructing one. The name is minted per call and unguessable, so a
-/// test-built expectation would be asserting on its own input and would pass however wrong the real
-/// name was.
-/// </remarks>
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class CrossVolumeUndoTests
 {
@@ -307,12 +281,10 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    /// <summary>
-    /// Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
-    /// <c>RevertBatch</c> whose single row records OldPath on the temp root and
-    /// NewPath on the subst root. The old folder is pre-seeded too so the reverse save's recomputed
-    /// Path resolves to the old path. Returns the live port, the batch, and (videoId, fileId).
-    /// </summary>
+    // Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
+    // RevertBatch whose single row records OldPath on the temp root and NewPath on the subst root.
+    // The old folder is pre-seeded too so the reverse save's recomputed Path resolves to the old
+    // path. Returns the live port, the batch, and (videoId, fileId).
     private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
         SeedReverseBatchAsync(DbContext db, string oldRoot, string newRoot, string oldFull, string newFull)
     {
@@ -340,10 +312,8 @@ public sealed class CrossVolumeUndoTests
         return (new CoveRenamerDataPort(db), batch, (videoId, fileId));
     }
 
-    /// <summary>
-    /// A post-copy seam that only records the path production minted, leaving the copy untouched - the
-    /// mover's real behaviour, plus the observation the test needs.
-    /// </summary>
+    // A post-copy seam that only records the path production minted, leaving the copy untouched -
+    // the mover's real behaviour, plus the observation the test needs.
     private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
         (inFlight, _) =>
         {
@@ -361,7 +331,6 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
     private sealed class ThrowOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override Task<string> ApplyAndSaveAsync(

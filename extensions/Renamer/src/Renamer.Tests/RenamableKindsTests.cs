@@ -3,14 +3,6 @@ using Renamer.Execution;
 
 namespace Renamer.Tests;
 
-/// <summary>
-/// That every kind the extension claims to rename is mapped everywhere a rename needs it, and that a
-/// kind it does not rename is refused rather than answered for.
-/// </summary>
-/// <remarks>
-/// Driven from <see cref="RenamableKinds.All"/>, so a kind added to the enum and missed in one
-/// switch fails here rather than checking the wrong permission or publishing the wrong event.
-/// </remarks>
 public sealed class RenamableKindsTests
 {
     public static TheoryData<RenamerFileKind> Renamable()

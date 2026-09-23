@@ -9,24 +9,15 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The retention window: a batch older than <see cref="CoveRevertJournal.RetentionWindow"/> disappears whole on
-/// the next batch open, and one inside the window survives it.
-/// </summary>
-/// <remarks>
-/// Time is driven through the moment the port already takes as a parameter, never the system clock, so
-/// every case is deterministic and nothing waits. Driven through the real EF implementation because the
-/// property under test - that no row of an expired batch is left behind - is a property of the storage.
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalRetentionTests
 {
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
-    /// <summary>Just past the window: everything opened at <see cref="Opened"/> is expired at this moment.</summary>
+    // Just past the window: everything opened at Opened is expired at this moment.
     private static DateTime JustOutside => Opened + CoveRevertJournal.RetentionWindow + TimeSpan.FromHours(1);
 
-    /// <summary>Just inside the window: everything opened at <see cref="Opened"/> still survives.</summary>
+    // Just inside the window: everything opened at Opened still survives.
     private static DateTime JustInside => Opened + CoveRevertJournal.RetentionWindow - TimeSpan.FromHours(1);
 
     [Fact]
@@ -186,7 +177,6 @@ public sealed class RevertJournalRetentionTests
     private static Task<List<long>> RowRunIdsAsync(DbContext db, string runId) =>
         db.Set<RevertRowEntity>().AsNoTracking().Where(r => r.RunId == runId).Select(r => r.Seq).ToListAsync();
 
-    /// <summary>Counts every executed command so "bounded, not one per row" is measured rather than assumed.</summary>
     private sealed class CommandCountingInterceptor : DbCommandInterceptor
     {
         public int Executed { get; set; }

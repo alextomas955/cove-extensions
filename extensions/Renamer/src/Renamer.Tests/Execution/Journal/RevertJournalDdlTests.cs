@@ -5,20 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
-/// <summary>
-/// The shipped migration itself, executed: the exact string the host is handed creates the journal
-/// tables, survives being run again over its own result, and leaves a schema the real entity types
-/// round-trip through.
-/// </summary>
-/// <remarks>
-/// The constant is referenced by symbol, never transcribed. A copy of the SQL pasted in here would
-/// agree with itself forever while the shipped string drifted, which is the one thing this suite
-/// exists to rule out.
-/// <para>
-/// The database starts genuinely empty rather than schema-materialized, because a table that is
-/// already there cannot tell a statement that creates it from a statement that does nothing.
-/// </para>
-/// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalDdlTests
 {
@@ -113,14 +99,6 @@ public sealed class RevertJournalDdlTests
         Assert.Equal("", (await db.Set<RevertRowEntity>().AsNoTracking().SingleAsync()).SidecarsJson);
     }
 
-    /// <summary>
-    /// The operation column lands on a table that already holds a batch, and that batch keeps no
-    /// operation of its own.
-    /// </summary>
-    /// <remarks>
-    /// The column is added by <see cref="SqliteJournalSchema"/>, not by the shipped second migration,
-    /// which is PostgreSQL-only. What is asserted is the shape readers depend on, not the string.
-    /// </remarks>
     [Fact]
     public async Task TheOperationColumn_LandsBesideAnExistingBatch_AndLeavesItWithNoOperation()
     {

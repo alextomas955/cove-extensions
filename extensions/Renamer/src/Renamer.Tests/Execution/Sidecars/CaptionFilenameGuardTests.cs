@@ -7,19 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Sidecars;
 
-/// <summary>
-/// A caption's stored filename is a basename only, and the executor enforces that rather than
-/// trusting it: the value is joined into both the sidecar's source and its target, so a separator or
-/// a parent traversal in it builds a move that reaches outside the folders the rename is confined to.
-/// Nothing downstream catches it - the canonical re-check resolves the primary, not the sidecar
-/// targets, and the disk mover applies no confinement of its own.
-/// </summary>
-/// <remarks>
-/// The escape is only observable across a folder move. In a same-folder rename the source and the
-/// target directory are one, so a traversal prefix cancels against itself and names the same file
-/// twice; with the destination at a different depth the two resolve apart and the sidecar lands
-/// outside both folders.
-/// </remarks>
 public sealed class CaptionFilenameGuardTests
 {
     [Fact]

@@ -3,14 +3,10 @@ using Renamer.Execution;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// In-memory <see cref="IRevertJournal"/> for tests that exercise a rename or an undo without a
-/// database: this is the seam faked so the executor and replayer are testable with no CoveContext.
-/// </summary>
-/// <remarks>
-/// The collections are concurrent because one journal instance is shared by every parallel worker of
-/// a run, so a plain list here would tear exactly where the real thing is exercised hardest.
-/// </remarks>
+// In-memory IRevertJournal for tests that exercise a rename or an undo without a database: this is
+// the seam faked so the executor and replayer are testable with no CoveContext. The collections are
+// concurrent because one journal instance is shared by every parallel worker of a run, so a plain
+// list here would tear exactly where the real thing is exercised hardest.
 public sealed class FakeRevertJournal : IRevertJournal
 {
     private readonly ConcurrentDictionary<string, Batch> _batches = new(StringComparer.Ordinal);
@@ -19,20 +15,18 @@ public sealed class FakeRevertJournal : IRevertJournal
     private readonly ConcurrentQueue<DateTime> _purgeCalls = new();
     private long _lastSeq;
 
-    /// <summary>Every appended row, in append order, whether or not it has since been retired.</summary>
+    // Every appended row, in append order, whether or not it has since been retired.
     public IReadOnlyList<RevertRow> Rows => [.. _appended];
 
-    /// <summary>The rows still awaiting restore - what a real journal would still be holding.</summary>
+    // The rows still awaiting restore - what a real journal would still be holding.
     public IReadOnlyList<RevertRow> PendingRows =>
         [.. _appended.Where(r => !_retired.ContainsKey((r.RunId, r.Seq)))];
 
-    /// <summary>Each <see cref="PurgeExpiredAsync"/> call's timestamp, in order.</summary>
+    // Each PurgeExpiredAsync call's timestamp, in order.
     public IReadOnlyList<DateTime> PurgeCalls => [.. _purgeCalls];
 
-    /// <summary>
-    /// When set, <see cref="AppendAsync"/> throws this instead of recording the row - the seam that
-    /// drives the executor's post-commit failure path, where the database save has already committed.
-    /// </summary>
+    // When set, AppendAsync throws this instead of recording the row - the seam that drives the
+    // executor's post-commit failure path, where the database save has already committed.
     public Exception? AppendThrow { get; set; }
 
     public Task BeginBatchAsync(

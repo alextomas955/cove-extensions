@@ -4,11 +4,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
-/// <summary>
-/// The destination half of the one-time options conversion: a typed absolute root becomes a Cove library
-/// path plus the relative template rendered under it. Every case here is a way a user's routing changes
-/// without them touching it, so each asserts the rule that survives beside the one that does not.
-/// </summary>
 public sealed class OptionsMigrationDestinationTests
 {
     // ContainingRoot resolves a stored root against the platform's path rules, so a drive-letter
@@ -19,11 +14,10 @@ public sealed class OptionsMigrationDestinationTests
 
     private static readonly string[] LibraryPaths = [Media, Archive];
 
-    /// <summary>The stored blob a real install has: one rule under each library path, and one under none.</summary>
-    /// <param name="unorganized">
-    /// The unorganized route as stored. It is the one member whose empty value means "there is no route"
-    /// rather than "this rule names no root of its own", so the two cases differ in exactly this member.
-    /// </param>
+    // The stored blob a real install has: one rule under each library path, and one under none.
+    // unorganized: The unorganized route as stored. It is the one member whose empty value means
+    // "there is no route" rather than "this rule names no root of its own", so the two cases differ
+    // in exactly this member.
     private static string Blob(string unorganized) =>
         $$"""
         {
@@ -39,7 +33,7 @@ public sealed class OptionsMigrationDestinationTests
 
     private static readonly string Configured = Blob(Native($"{Media}/unsorted"));
 
-    /// <summary>Spelled with the platform separator, which is how the pre-conversion panel wrote a root.</summary>
+    // Spelled with the platform separator, which is how the pre-conversion panel wrote a root.
     private static string Native(string path) => path.Replace('/', Path.DirectorySeparatorChar);
 
     private static string Quoted(string value) => JsonSerializer.Serialize(value);

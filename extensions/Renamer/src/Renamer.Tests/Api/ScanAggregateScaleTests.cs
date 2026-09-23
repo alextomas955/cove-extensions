@@ -6,45 +6,25 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// What a completed scan persists must be bounded by its shape, not by the library: the stored blob's
-/// byte length has to stay under a ceiling computed from the renamable-kind count, the
-/// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> - at ten
-/// files and again at ten thousand.
-/// <para>
-/// What is asserted here is the persisted size plus how wide each read of the library is: the stored
-/// value's size is independent of N (at two sizes three orders of magnitude apart), the store is written
-/// exactly once, and the walk asks for a page of ids at a time and never for a whole kind's. Peak
-/// managed memory itself is not measured.
-/// </para>
-/// <para>
-/// There is deliberately no million-file fixture: the ceiling is N-independent by construction, so a
-/// larger fixture would cost minutes of runtime and add no information. It was not overlooked.
-/// </para>
-/// </summary>
 public sealed class ScanAggregateScaleTests
 {
     private const int SmallFixture = 10;
     private const int LargeFixture = 10_000;
 
-    /// <summary>
-    /// The ceiling the stored blob must stay under, derived from the shape rather than asserted as a
-    /// number: per kind, one status entry per <see cref="RenamerStatus"/> member plus at most
-    /// <see cref="ScanSummary.MaxVolumePairsPerKind"/> volume-pair entries, each entry generously allowed
-    /// this many bytes of names, digits and JSON punctuation.
-    /// </summary>
+    // The ceiling the stored blob must stay under, derived from the shape rather than asserted as a
+    // number: per kind, one status entry per RenamerStatus member plus at most
+    // MaxVolumePairsPerKind volume-pair entries, each entry generously allowed this many bytes of
+    // names, digits and JSON punctuation.
     private const int BytesPerEntry = 160;
 
     private static int Ceiling(int kinds) =>
         512 + (kinds * BytesPerEntry
             * (Enum.GetValues<RenamerStatus>().Length + ScanSummary.MaxVolumePairsPerKind + 8));
 
-    /// <summary>
-    /// An extension wired with a store and nothing else. <c>InitializeAsync</c> is deliberately skipped:
-    /// the scan core takes its data port as a parameter and needs neither the scope factory nor the event
-    /// bus, so leaving the host seams uncaptured keeps this class free of any Cove source type and
-    /// therefore compiled and runnable on the cove-absent CI leg.
-    /// </summary>
+    // An extension wired with a store and nothing else. InitializeAsync is deliberately skipped:
+    // the scan core takes its data port as a parameter and needs neither the scope factory nor the
+    // event bus, so leaving the host seams uncaptured keeps this class free of any Cove source type
+    // and therefore compiled and runnable on the cove-absent CI leg.
     private static (global::Renamer.Renamer Ext, FakeStore Store) NewExtension()
     {
         var ext = RenamerFixture.Create();
@@ -53,10 +33,8 @@ public sealed class ScanAggregateScaleTests
         return (ext, store);
     }
 
-    /// <summary>
-    /// Seeds <paramref name="files"/> single-file entities spread evenly across the renamable kinds; every
-    /// entity renames in place, so the aggregate's acting counts are the file count.
-    /// </summary>
+    // Seeds files single-file entities spread evenly across the renamable kinds; every entity
+    // renames in place, so the aggregate's acting counts are the file count.
     private static FakeRenamerDataPort SeedLibrary(int files, string folder = "/lib")
     {
         var port = new FakeRenamerDataPort();

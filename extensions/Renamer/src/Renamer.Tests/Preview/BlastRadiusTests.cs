@@ -3,13 +3,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Preview;
 
-/// <summary>
-/// Pure-string assertions for <see cref="BatchPreview"/>: the whole-batch blast-radius aggregate
-/// over a planned <see cref="RenamerPlanItem"/> set (count, same/cross split, per-destination-volume
-/// byte sum + count, and the scaled <see cref="ConfirmLevel"/>). Like
-/// <c>FreeSpaceGuardTests</c> this needs no real second drive - only OS-aware path roots, an injected
-/// FileId→size map, and arithmetic are exercised, so it runs identically on Windows and Unix.
-/// </summary>
 public sealed class BlastRadiusTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.

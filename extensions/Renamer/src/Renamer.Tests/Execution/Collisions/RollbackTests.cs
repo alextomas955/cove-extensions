@@ -7,20 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Collisions;
 
-/// <summary>
-/// The safety-spine rollback test the whole extension hinges on. Seed the SQLite + temp-dir state so the
-/// disk move succeeds but the subsequent SaveChangesAsync throws (a forced unique-index clash, with
-/// the pre-check bypassed via <see cref="CollisionBlindDataPort"/>). Assert that after execution:
-/// (a) the file is back at its original on-disk path, (b) the moved sidecar (if any) is back, and
-/// (c) the DB row still carries the old basename - disk and DB consistent. Runs on SQLite-in-memory
-/// because EF-InMemory enforces neither the unique index nor transaction rollback.
-///
-/// The test first proves the disk move really happened (it is observable via the executor having
-/// invoked DiskMover.Move - asserted by the file being momentarily at the new path is not possible
-/// post-rollback, so instead we assert the negative-control: a DiskMover spy is unnecessary because
-/// the only path that reaches SaveChangesAsync is after a successful move; we additionally assert the
-/// failure reason names the rollback, proving the catch - not the move - produced the terminal state).
-/// </summary>
 public sealed class RollbackTests
 {
     [Fact]
@@ -129,14 +115,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// The post-save consistency-assertion branch: the DB save succeeds (commits the new basename) but
-    /// the runtime "recomputed Path == on-disk path" assertion fails. The executor must roll the disk
-    /// back to the old path through the same mover the move used and write the committed row back to
-    /// the old location, so the branch ends with disk and database agreeing. Assert: (a) the item is
-    /// Failed with a path-mismatch + rolled-back reason, (b) the file is back at its old on-disk path,
-    /// (c) the row names the old basename again, (d) no revert-log row and no event were written.
-    /// </summary>
     [Fact]
     public async Task SaveSucceedsButRecomputedPathMismatch_FileAndRowBothRolledBack()
     {
@@ -197,12 +175,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// The journal append runs after the save committed and the on-disk path was asserted, so a throw
-    /// there is not a save failure: rolling the disk back would revert a move the database already
-    /// agrees with, and would report the item failed for something the save did not do. The move stands
-    /// and the failure is a warning on it.
-    /// </summary>
     [Fact]
     public async Task JournalAppendThrowsAfterTheSaveCommitted_MoveStands_WarnedNotRolledBack()
     {
@@ -261,12 +233,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// The mismatch branch when the file does not come back: the save commits, the recomputed path
-    /// disagrees, and the old slot is occupied by the time the rollback runs, so the media file stays
-    /// at the new path. The committed row must then be left naming the new path - writing it back would
-    /// point the database at a location the bytes are not at - and the reason must say so.
-    /// </summary>
     [Fact]
     public async Task RecomputedPathMismatchAndTheFileCannotComeBack_RowKeepsTheNewName()
     {
@@ -312,11 +278,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// The mismatch branch when the primary comes back but a sidecar does not: a rollback reports both
-    /// in one warning list, so reading the warnings would leave the committed row naming a location the
-    /// media file has left. The row is put back, and the stuck sidecar is reported alongside it.
-    /// </summary>
     [Fact]
     public async Task RecomputedPathMismatchAndASidecarCannotComeBack_RowStillGoesBack()
     {
@@ -372,11 +333,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// A throwing event bus runs after the journal append, so its failure must name the event and leave
-    /// the revert-log row standing: reported as an unwritten revert-log entry it would tell a user their
-    /// rename cannot be undone when it can.
-    /// </summary>
     [Fact]
     public async Task EventPublishThrowsAfterTheSaveCommitted_RevertRowStands_WarnsAboutTheEvent()
     {
@@ -421,12 +377,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// Test-only port: performs the real save (so the DB row genuinely commits the new basename), then
-    /// returns a recomputed path that is deliberately wrong, so the executor's
-    /// post-save "recomputed Path == on-disk path" assertion fails on the success path. Only the first
-    /// save is misreported; the executor's restore of the row is left to report itself truthfully.
-    /// </summary>
     private sealed class MismatchedRecomputedPathDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         private int _saves;
@@ -439,10 +389,6 @@ public sealed class RollbackTests
         }
     }
 
-    /// <summary>
-    /// Test-only port: commits the real save, occupies the old slot so the rollback cannot reclaim it,
-    /// and misreports the recomputed path so the post-save assertion fails.
-    /// </summary>
     private sealed class ReoccupyOldSlotThenMisreportDataPort(DbContext db, string oldSlot)
         : CoveRenamerDataPort(db)
     {

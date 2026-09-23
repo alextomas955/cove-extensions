@@ -5,15 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
-/// <summary>
-/// The cursor walk that serves the whole-library dry run a page at a time: its traversal order, its
-/// never-split-an-entity rule, its per-request entity budget, the server-side path search and bucket
-/// filter, and its per-kind permission gate - plus the per-row in-flight overflow flag as a page reads
-/// it, driven through <see cref="ScanRowPager.PageAsync"/> rather than through <see cref="ScanRow.From"/>,
-/// because the projection classifies nothing itself and a test of it would only re-check the value it was
-/// handed. What is at stake in that last case is the composition: that the page computes the flag at all,
-/// and against the same budget the planner just planned against.
-/// </summary>
 public sealed class ScanRowPagerTests
 {
     private static readonly RouteLookups NoRoutes = new(
@@ -25,7 +16,7 @@ public sealed class ScanRowPagerTests
     private static readonly RenamerFileKind[] AllKinds =
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
 
-    /// <summary>Seeds <paramref name="ids"/> of <paramref name="kind"/>, each with <paramref name="filesPer"/> files.</summary>
+    // Seeds ids of kind, each with filesPer files.
     private static void Seed(
         FakeRenamerDataPort port, RenamerFileKind kind, IReadOnlyList<int> ids, int filesPer = 1)
     {
@@ -269,7 +260,7 @@ public sealed class ScanRowPagerTests
 
     private const string Extension = ".mkv";
 
-    /// <summary>A title whose rendered absolute path is exactly <paramref name="pathLength"/> characters.</summary>
+    // A title whose rendered absolute path is exactly pathLength characters.
     private static string TitleForPathLength(int pathLength) =>
         new('a', pathLength - PathPrefixLength - Extension.Length);
 

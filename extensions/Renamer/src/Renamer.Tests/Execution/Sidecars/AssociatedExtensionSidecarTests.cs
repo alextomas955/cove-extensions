@@ -8,15 +8,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Sidecars;
 
-/// <summary>
-/// Drives the real executor end-to-end (SQLite + a real <see cref="TempDir"/>) to prove the
-/// extension-list sidecar discovery: a same-stem neighbor whose extension is configured moves and
-/// renames alongside the primary, the three negative cases never move, an empty list is byte-identical
-/// to caption-only behavior, the discovered move inherits skip-not-clobber + rollback-with-primary, a
-/// tracked caption is never moved twice, an in-place renamer emits no spurious sidecar warning, and the
-/// extension compare normalizes a leading dot + casing. All assertions are against the actual on-disk
-/// state; disposables released in a finally, mirroring the sibling executor tests.
-/// </summary>
 public sealed class AssociatedExtensionSidecarTests
 {
     private static RenamerPlan RenamerPlan(int videoId, int fileId, string folderPath, string oldBasename, string newBasename)

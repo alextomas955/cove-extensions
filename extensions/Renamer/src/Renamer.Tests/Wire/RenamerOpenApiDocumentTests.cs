@@ -7,11 +7,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Wire;
 
-/// <summary>
-/// Emits Renamer's wire document from its shipped registration and fails when it differs from the
-/// committed copy. The endpoints are mounted in a real in-process host, though the emit sends no
-/// request.
-/// </summary>
 public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
 {
     protected override IApiExtension CreateExtension()

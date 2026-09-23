@@ -3,13 +3,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 
-/// <summary>
-/// Pure-string assertions for <see cref="FreeSpaceGuard"/>: the per-destination-volume byte sum
-/// (excluding same-volume moves), the headroom margin, and the (src,dst)-pair partition. The
-/// free-space probe is an injected <see cref="Func{T,TResult}"/> returning controlled bytes per
-/// volume, so these run identically on any host with no real second drive - only path roots and
-/// arithmetic are exercised.
-/// </summary>
 public sealed class FreeSpaceGuardTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.

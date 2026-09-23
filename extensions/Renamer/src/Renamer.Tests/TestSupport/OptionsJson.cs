@@ -4,18 +4,15 @@ using Renamer.Options;
 
 namespace Renamer.Tests.TestSupport;
 
-/// <summary>
-/// Compares <see cref="RenamerOptions"/> instances by the document they persist as.
-/// </summary>
-/// <remarks>
-/// The persisted blob is the contract the panel and the store share, so comparing it covers every
-/// member the model declares without a projection that a member added later could be left out of.
-/// Object members are ordered by name because a <see cref="Dictionary{TKey,TValue}"/> carries no
-/// guaranteed order and a round-trip may reorder its keys.
-/// </remarks>
+// Compares RenamerOptions instances by the document they persist as. The persisted blob is the
+// contract the panel and the store share, so comparing it covers every member the model declares
+// without a projection that a member added later could be left out of. Object members are ordered
+// by name because a Dictionary{TKey,TValue} carries no guaranteed order and a round-trip may
+// reorder its keys.
 internal static class OptionsJson
 {
-    /// <summary>The document <paramref name="options"/> persists as. A null instance fails the comparison rather than matching one.</summary>
+    // The document options persists as. A null instance fails the comparison rather than matching
+    // one.
     public static string Canonical(RenamerOptions? options)
     {
         Assert.NotNull(options);
@@ -23,7 +20,7 @@ internal static class OptionsJson
             ?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
     }
 
-    /// <summary>Serializes, reads back, and returns the reloaded instance, failing if the document changed.</summary>
+    // Serializes, reads back, and returns the reloaded instance, failing if the document changed.
     public static RenamerOptions AssertRoundTrips(RenamerOptions original)
     {
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);

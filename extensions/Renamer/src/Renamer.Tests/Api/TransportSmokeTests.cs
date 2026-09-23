@@ -86,17 +86,6 @@ public sealed class TransportSmokeTests
         Assert.False(summary.HasBatch); // fresh store: no batch to undo
     }
 
-    /// <summary>
-    /// The wire casing as the host actually writes it, read off the raw response body.
-    /// </summary>
-    /// <remarks>
-    /// Every other casing assertion in this suite serializes a DTO with options the test supplies, so it
-    /// proves only that the test's serializer works. This one names nothing: the bytes come from the
-    /// host's own pipeline over real HTTP, which is the only place the contract is actually settled.
-    /// Both halves are covered here because they have different sources - property casing is the host's
-    /// <c>JsonSerializerDefaults.Web</c> default, while the enum strings come from
-    /// <c>CamelCaseStringEnumConverter</c> on the enum types.
-    /// </remarks>
     [Fact]
     public async Task LastScan_WritesCamelCaseProperties_AndCamelCaseStringEnums()
     {
