@@ -9,38 +9,35 @@
  */
 import { useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import {
-  CalendarClock,
-  CircleSlash,
-  FileCheck2,
-  Library,
-  PlusCircle,
-  Radar,
-  Search,
-} from "lucide-react";
 // From the subpath rather than the barrel, so drawing a menu does not pull the whole primitives
 // module - and its host-only imports - into this slice.
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
 import type { RowIcon } from "../common/ui/ChoiceOverlay";
+import { VERB_GLYPH, type WhisparrVerb } from "../common/ui/verbGlyphs";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import { monitorMenuItemKey } from "./monitorMenuLogic";
 import type { MonitorMenu, MonitorMenuItem, MonitorMenuItemKey } from "./monitorMenuLogic";
 import { useAnchoredTo } from "./useAnchoredTo";
 
 /**
- * The glyph each item draws, shared with the selection overlay so one verb keeps one glyph wherever
- * it is offered. Total by type, so an item added later fails the build rather than drawing no glyph.
+ * Which shared verb each row carries out. Total by type, so an item added later fails the build
+ * rather than drawing no glyph.
  */
-export const MONITOR_ITEM_ICON: Record<MonitorMenuItemKey, RowIcon> = {
-  "scope:futureScenes": CalendarClock,
-  "scope:allScenes": Library,
-  monitor: Radar,
-  unmonitor: CircleSlash,
-  "secondary:addAllMissing": PlusCircle,
-  "secondary:reflectOwned": FileCheck2,
-  "secondary:searchAllMonitored": Search,
+const ITEM_VERB: Record<MonitorMenuItemKey, WhisparrVerb> = {
+  "scope:futureScenes": "monitorNewReleases",
+  "scope:allScenes": "monitorBackCatalogue",
+  monitor: "monitor",
+  unmonitor: "unmonitor",
+  "secondary:addAllMissing": "add",
+  "secondary:reflectOwned": "reflectOwned",
+  "secondary:searchAllMonitored": "search",
 };
+
+/** The glyph each item draws, so one verb keeps one glyph wherever it is offered. */
+export const MONITOR_ITEM_ICON: Record<MonitorMenuItemKey, RowIcon> = Object.fromEntries(
+  Object.entries(ITEM_VERB).map(([key, verb]) => [key, VERB_GLYPH[verb]]),
+) as Record<MonitorMenuItemKey, RowIcon>;
 
 // A reason disables and an absent reason enables, so a dimmed row with nothing to hear cannot be
 // expressed. A plain button rather than the shared `DisabledControl`, which wraps a primitive that

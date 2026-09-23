@@ -1636,8 +1636,9 @@ export function StatusText({ kind, children }: { kind: StatusKind; children: Rea
   return <span className={`text-xs ${STATUS_CLASS[kind]}`}>{children}</span>;
 }
 
-export function Spinner() {
-  return <Loader2 className="h-4 w-4 animate-spin" />;
+/** The one busy mark. `className` sizes it where a chip or a button row needs it smaller. */
+export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
+  return <Loader2 className={`${className} animate-spin`} aria-hidden="true" />;
 }
 
 /**

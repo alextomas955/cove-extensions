@@ -11,10 +11,11 @@
  * emits no `focus-visible` ring utility.
  */
 import { useMemo } from "react";
-import { Bookmark, BookmarkX, Loader2 } from "lucide-react";
+import { Spinner } from "@cove-extensions/ui-shared";
 
 import { WAITING_FOR_WHISPARR, selectionCount } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
+import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 import { useKeySequence } from "./hostComponents";
 import {
   MONITOR_SELECTION_LABEL,
@@ -34,6 +35,10 @@ const COUNT_CLASS = "flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-se
 const GESTURES_CLASS = "flex flex-wrap items-center justify-center gap-3";
 
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
+
+// The glyphs the entity menu and the batch overlay already give these two verbs.
+const MonitorGlyph = VERB_GLYPH.monitor;
+const UnmonitorGlyph = VERB_GLYPH.unmonitor;
 
 // The first gesture is tinted and the rest are not.
 const LEADING_GESTURE_CLASS = `rounded text-xs text-accent hover:underline ${FOCUS_RING}`;
@@ -114,11 +119,7 @@ export function MissingSelectionBar({
               disabled={inFlight}
               onClick={onMonitorSelection}
             >
-              {inFlight ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              ) : (
-                <Bookmark className="h-3 w-3" aria-hidden="true" />
-              )}
+              {inFlight ? <Spinner className="h-3 w-3" /> : <MonitorGlyph className="h-3 w-3" />}
               {MONITOR_SELECTION_LABEL}
               {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
             </button>
@@ -129,11 +130,7 @@ export function MissingSelectionBar({
               disabled={inFlight}
               onClick={onUnmonitorSelection}
             >
-              {inFlight ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              ) : (
-                <BookmarkX className="h-3 w-3" aria-hidden="true" />
-              )}
+              {inFlight ? <Spinner className="h-3 w-3" /> : <UnmonitorGlyph className="h-3 w-3" />}
               {UNMONITOR_SELECTION_LABEL}
               {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
             </button>
