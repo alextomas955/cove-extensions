@@ -64,6 +64,10 @@ computed, which it could not before.
 
 ### Fixes
 
+- **Required fields** now accepts `performers`, `tags` and `resolution`. Adding any of them used to
+  skip every item, even ones that had the value, because the check never saw those three tokens.
+  The check now reads each field the way your filename renders it, find-and-replace rules included,
+  so the dry run and the live preview agree about what gets skipped.
 - A source-path pattern that takes too long to check now leaves the file where it is, with the
   badge **A regex rule timed out** naming the pattern. Before, a timed-out exclude rule let the file
   be renamed anyway, and a timed-out routing rule sent it to the default folder.

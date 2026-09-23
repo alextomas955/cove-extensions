@@ -69,6 +69,42 @@ public sealed class GatingTests
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
     }
 
+    [Theory]
+    [InlineData("performers")]
+    [InlineData("tags")]
+    [InlineData("resolution")]
+    public async Task RequireFields_AMultiValueOrDerivedToken_IsSatisfiedByTheItemThatHasIt(string field)
+    {
+        var port = new FakeRenamerDataPort();
+        var file = File(1) with { Width = 1920, Height = 1080 };
+        port.SeedEntity(Entity("My Film", organized: true, file) with
+        {
+            Performers = [new RenamerPerformer(3, "Jane", Favorite: false, Gender: null)],
+            TagRefs = [(4, "tagA")],
+        });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { RequiredFields = [field] };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
+    }
+
+    [Fact]
+    public async Task RequireFields_Performers_OnAnItemWithNone_SkipGated()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity("My Film", organized: true, File(1)));
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { RequiredFields = ["performers"] };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.SkipGated, item.Status);
+    }
+
     [Fact]
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {

@@ -258,9 +258,11 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        string field)
+        string field,
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tags = null)
     {
-        var resolved = BuildResolvedMap(tokens, multiValues, options);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         return Resolve(resolved, field);
     }
 

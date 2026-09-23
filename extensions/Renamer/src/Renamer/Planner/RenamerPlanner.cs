@@ -180,15 +180,14 @@ public sealed class RenamerPlanner
 
         if (options.RequiredFields.Count > 0)
         {
-            // A required field is satisfied when some file projects it non-empty. Required fields are
-            // entity-level scalars, so any file's projection suffices.
+            // Required fields are entity-level, so the first file's projection answers for every file.
             var sample = entity.Files.Count > 0 ? entity.Files[0] : null;
             if (sample is not null)
             {
-                var (tokens, _, _, _) = MetadataProjector.Project(entity, sample, options);
+                var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, sample, options);
                 foreach (var field in options.RequiredFields)
                 {
-                    if (!tokens.TryGetValue(field, out var v) || string.IsNullOrEmpty(v))
+                    if (TemplateEngine.ResolveField(tokens, multi, options, field, performers, tagRefs).Length == 0)
                     {
                         reason = $"skipped: required field '{field}' is empty (require-fields gate)";
                         return true;
