@@ -24,9 +24,8 @@ public sealed class FolderMappingRouteTests
     public async Task TheReadAnswersOneLinePerRootTheInstanceCouldNotSee()
     {
         await using var host = await MonitorHost.CreateAsync();
-        await StoreAsync(host, stored => stored with
-        {
-            OutboundRefusals =
+        await StoreAsync(host, stored => stored.WithInstance(
+            outboundRefusals:
             [
                 new OutboundRootRefusal
                 {
@@ -35,9 +34,8 @@ public sealed class FolderMappingRouteTests
                     PathsTried = [Mapping + "/Blue Harbor/scene.mp4"],
                 },
             ],
-            OutboundMappings =
-                [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = Mapping }],
-        });
+            outboundMappings:
+                [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = Mapping }]));
 
         var line = Assert.Single((await host.ReadFolderMappingsAsync()).Roots);
 
@@ -67,7 +65,7 @@ public sealed class FolderMappingRouteTests
         Assert.Null(saved.Refusal);
         Assert.Equal(
             Mapping,
-            Assert.Single((await host.Options.LoadAsync(TestCt)).OutboundMappings).InstanceRoot);
+            Assert.Single((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings).InstanceRoot);
     }
 
     // A save that took the operator's word for it cannot tell this from a working mapping: the
@@ -83,7 +81,7 @@ public sealed class FolderMappingRouteTests
         Assert.Equal(FolderMappingSaveOutcome.Refused, saved.Outcome);
         Assert.Equal(FolderAgreementRefusal.NothingResolved, saved.Refusal);
         Assert.Equal([candidate], saved.Tried);
-        Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
+        Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
     }
 
     // The other case a probe is needed for: the name is right and the content is a different file,
@@ -98,7 +96,7 @@ public sealed class FolderMappingRouteTests
 
         Assert.Equal(FolderMappingSaveOutcome.Refused, saved.Outcome);
         Assert.Equal(FolderAgreementRefusal.NothingResolved, saved.Refusal);
-        Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
+        Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
     }
 
     [Fact]
@@ -110,7 +108,7 @@ public sealed class FolderMappingRouteTests
         var saved = await host.SaveFolderMappingAsync("H:/Elsewhere", Mapping);
 
         Assert.Equal(FolderMappingSaveOutcome.NotALibraryRoot, saved.Outcome);
-        Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
+        Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
     }
 
     [Fact]
@@ -123,7 +121,7 @@ public sealed class FolderMappingRouteTests
         var removed = await host.SaveFolderMappingAsync(CoveRoot, "  ");
 
         Assert.Equal(FolderMappingSaveOutcome.Removed, removed.Outcome);
-        Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
+        Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
     }
 
     // The line stays after the refusal is settled, so the operator can still read and withdraw the
@@ -133,17 +131,15 @@ public sealed class FolderMappingRouteTests
     {
         var (host, _) = await ProbingHostAsync(Holding.TheSample);
         await using var driven = host;
-        await StoreAsync(host, stored => stored with
-        {
-            OutboundRefusals =
+        await StoreAsync(host, stored => stored.WithInstance(
+            outboundRefusals:
             [
                 new OutboundRootRefusal
                 {
                     Root = CoveRoot,
                     Refusal = FolderAgreementRefusal.NothingResolved,
                 },
-            ],
-        });
+            ]));
 
         await host.SaveFolderMappingAsync(CoveRoot, Mapping);
 
@@ -182,7 +178,7 @@ public sealed class FolderMappingRouteTests
 
         Assert.Equal(HttpStatusCode.Forbidden, read.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, saved.StatusCode);
-        Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
+        Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
     }
 
     private enum Holding

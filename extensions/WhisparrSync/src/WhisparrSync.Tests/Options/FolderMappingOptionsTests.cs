@@ -122,9 +122,9 @@ public sealed class FolderMappingOptionsTests
 
         Assert.Equal(saved, loaded);
         Assert.Equal(saved.GetHashCode(), loaded.GetHashCode());
-        Assert.Equal(2, loaded.OutboundRefusals.Count);
-        Assert.Equal(2, loaded.OutboundRefusals[0].PathsTried.Count);
-        Assert.Equal("/data", Assert.Single(loaded.OutboundMappings).InstanceRoot);
+        Assert.Equal(2, loaded.Instance().OutboundRefusals.Count);
+        Assert.Equal(2, loaded.Instance().OutboundRefusals[0].PathsTried.Count);
+        Assert.Equal("/data", Assert.Single(loaded.Instance().OutboundMappings).InstanceRoot);
     }
 
     [Fact]
@@ -143,11 +143,11 @@ public sealed class FolderMappingOptionsTests
     {
         var saved = Populated();
 
-        Assert.NotEqual(saved, saved with { OutboundRefusals = [saved.OutboundRefusals[0]] });
-        Assert.NotEqual(saved, saved with { OutboundMappings = [] });
+        Assert.NotEqual(saved, saved.WithInstance(outboundRefusals: [saved.Instance().OutboundRefusals[0]]));
+        Assert.NotEqual(saved, saved.WithInstance(outboundMappings: []));
         Assert.NotEqual(
-            saved.OutboundRefusals[0],
-            saved.OutboundRefusals[0] with { PathsTried = [saved.OutboundRefusals[0].PathsTried[0]] });
+            saved.Instance().OutboundRefusals[0],
+            saved.Instance().OutboundRefusals[0] with { PathsTried = [saved.Instance().OutboundRefusals[0].PathsTried[0]] });
     }
 
     // The accessor is what does this. A property initialiser runs only for an absent key, and a
@@ -157,12 +157,14 @@ public sealed class FolderMappingOptionsTests
     {
         var store = new FakeStore();
         await store.SetAsync(
-            OptionsStore.Key, """{"outboundRefusals":null,"outboundMappings":null}""", TestCt);
+            OptionsStore.Key,
+            """{"instanceSettingsV3":{"outboundRefusals":null,"outboundMappings":null}}""",
+            TestCt);
 
         var loaded = await new OptionsStore(store).LoadAsync(TestCt);
 
-        Assert.Empty(loaded.OutboundRefusals);
-        Assert.Empty(loaded.OutboundMappings);
+        Assert.Empty(loaded.Instance().OutboundRefusals);
+        Assert.Empty(loaded.Instance().OutboundMappings);
     }
 
     // The outer non-null restore does not descend into a collection's elements.
@@ -172,12 +174,15 @@ public sealed class FolderMappingOptionsTests
         var store = new FakeStore();
         await store.SetAsync(
             OptionsStore.Key,
-            """{"outboundRefusals":[{"root":"/shared","refusal":"nothingResolved","pathsTried":null}]}""",
+            """
+            {"instanceSettingsV3":{"outboundRefusals":[
+              {"root":"/shared","refusal":"nothingResolved","pathsTried":null}]}}
+            """,
             TestCt);
 
         var loaded = await new OptionsStore(store).LoadAsync(TestCt);
 
-        Assert.Empty(Assert.Single(loaded.OutboundRefusals).PathsTried);
+        Assert.Empty(Assert.Single(loaded.Instance().OutboundRefusals).PathsTried);
     }
 
     [Fact]
@@ -291,9 +296,8 @@ public sealed class FolderMappingOptionsTests
         => new(coveRoot, refusal, tried);
 
     private static WhisparrSyncOptions Populated()
-        => new()
-        {
-            OutboundRefusals =
+        => new WhisparrSyncOptions().WithInstance(
+            outboundRefusals:
             [
                 new OutboundRootRefusal
                 {
@@ -307,9 +311,8 @@ public sealed class FolderMappingOptionsTests
                     Refusal = FolderAgreementRefusal.InstanceCannotBeAsked,
                 },
             ],
-            OutboundMappings =
+            outboundMappings:
             [
                 new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = "/data" },
-            ],
-        };
+            ]);
 }

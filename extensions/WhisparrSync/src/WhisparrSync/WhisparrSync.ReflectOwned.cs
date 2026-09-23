@@ -119,11 +119,18 @@ public sealed partial class WhisparrSync
         CoreJobProgress progress,
         CancellationToken ct)
     {
+        // The generation the run aimed at, not the one selected when it finishes: a selection change
+        // during a run would otherwise file what this instance established under the other one.
+        WhisparrGeneration? aimedAt = null;
+
         var run = await ReflectOwnedJob.RunAsync(
             ReflectOwnedJob.Decode(parameters), scopes, AimAsync, ct).ConfigureAwait(false);
 
-        await RecordRootReadingsAsync(scopes, run.AddressRefusals, run.AddressedRoots)
-            .ConfigureAwait(false);
+        if (aimedAt is { } generation)
+        {
+            await RecordRootReadingsAsync(
+                scopes, generation, run.AddressRefusals, run.AddressedRoots).ConfigureAwait(false);
+        }
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task. Cancellation is rethrown after that write, so the host classifies the
@@ -143,6 +150,8 @@ public sealed partial class WhisparrSync
             {
                 return new ReflectOwnedAim(null, null);
             }
+
+            aimedAt = target.Binding.Generation;
 
             if (ReflectOwnedActingOn(target) is not { } acting)
             {

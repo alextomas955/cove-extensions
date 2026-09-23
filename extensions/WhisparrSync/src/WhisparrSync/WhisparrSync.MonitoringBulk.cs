@@ -157,8 +157,14 @@ public sealed partial class WhisparrSync
             ? await UnderTheVerbAsync().ConfigureAwait(false)
             : MonitorBulkRun.NothingSelected;
 
-        await RecordRootReadingsAsync(scopes, [.. addressRefusals.Values], [.. addressedRoots])
-            .ConfigureAwait(false);
+        // The instance the run reached, which is null when nothing resolved. With no instance there
+        // is no generation to file readings under, and there are none to file.
+        if (target?.Binding.Generation is { } generation)
+        {
+            await RecordRootReadingsAsync(
+                scopes, generation, [.. addressRefusals.Values], [.. addressedRoots])
+                .ConfigureAwait(false);
+        }
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task. Cancellation is rethrown after that write, so the host classifies the
