@@ -36,6 +36,7 @@ class FakeApiError extends Error {
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: FakeApiError,
+  errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   requestJson: (_path: string, options?: { method?: string }) => {
     if (options?.method !== "POST") {
       // An open batch written just now, so the panel offers the button rather than an expired line.

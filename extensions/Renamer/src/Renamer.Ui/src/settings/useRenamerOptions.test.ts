@@ -34,6 +34,7 @@ const endpoint = vi.hoisted(() => ({
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: () => Promise.resolve(structuredClone(endpoint.view)),
   request: (path: string, init: RequestInit) => {
     endpoint.sent.push({

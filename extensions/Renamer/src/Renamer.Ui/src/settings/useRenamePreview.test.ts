@@ -37,6 +37,7 @@ const { noop } = host;
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: (_path: string, init: RequestInit) => {
     let settle: { resolve: (rows: unknown) => void; reject: (err: unknown) => void };
     const promise = new Promise((resolve, reject) => {

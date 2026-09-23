@@ -39,6 +39,7 @@ const host = vi.hoisted(() => ({
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: (path: string) => {
     if (path.endsWith("/scan-library")) return Promise.resolve({ jobId: "scan-under-test" });
     if (path.endsWith("/last-scan")) return Promise.resolve(summary());

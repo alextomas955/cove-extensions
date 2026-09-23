@@ -8,7 +8,7 @@
  * sections stay presentational.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { JobEnqueued, RenamerJobStatus, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
@@ -128,7 +128,7 @@ export function useRenameLibrary(): UseRenameLibrary {
         setUndoRefreshKey((k) => k + 1);
       } catch (err) {
         if (mounted.current) {
-          const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
+          const text = errorText(err);
           setRunLibraryFeedback({
             kind: "error",
             text:

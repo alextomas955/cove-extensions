@@ -7,7 +7,7 @@
  * of what is already loaded.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
 import { api } from "../../common/lib/extension";
@@ -75,10 +75,7 @@ export function useScanRows(
           store.append(walkTarget, page);
         })
         .catch((err: unknown) => {
-          store.fail(
-            walkTarget,
-            err instanceof ApiError ? `${err.status} ${err.body}` : String(err),
-          );
+          store.fail(walkTarget, errorText(err));
         });
     },
     [store, optionsBlob, query, bucket],

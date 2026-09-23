@@ -65,3 +65,9 @@ export async function requestJson<T>(path: string, options: RequestInit = {}): P
   }
   return JSON.parse(body) as T;
 }
+
+/** A request failure as a user reads it: an ApiError's status and body, else the error's message. */
+export function errorText(err: unknown): string {
+  if (err instanceof ApiError) return `${String(err.status)} ${err.body}`;
+  return err instanceof Error ? err.message : String(err);
+}

@@ -42,6 +42,7 @@ const host = vi.hoisted(() => ({
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
+  errorText: (err: unknown) => String(err),
   requestJson: (path: string) => {
     host.reads.push(path);
     return Promise.resolve(

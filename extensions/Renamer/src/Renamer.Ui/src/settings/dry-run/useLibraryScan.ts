@@ -7,7 +7,7 @@
  * same options blob, so a summary and its rows always describe the same dry run.
  */
 import { useEffect, useRef, useState } from "react";
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { JobEnqueued, ScanLibraryRequest, ScanSummaryView } from "../../wire/api";
 import { api } from "../../common/lib/extension";
@@ -50,10 +50,6 @@ export interface LibraryScan {
   error: string | null;
   /** The live progress sample, or null before the first poll lands. */
   progress: ScanDisplay | null;
-}
-
-function errText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -140,7 +136,7 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         setJobId(res.jobId);
       })
       .catch((err: unknown) => {
-        setError(errText(err));
+        setError(errorText(err));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the guard above makes this a mount-only POST
   }, []);
@@ -157,7 +153,7 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
           setSummary(res);
         })
         .catch((err: unknown) => {
-          setError(errText(err));
+          setError(errorText(err));
         });
     },
     (job) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { api } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
@@ -12,10 +12,6 @@ import {
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
-
-function errText(err: unknown): string {
-  return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-}
 
 export interface LastBatch {
   summary: LastBatchSummary | null;
@@ -42,7 +38,7 @@ export function useLastBatch(refreshKey: number): LastBatch {
       setSummary(await requestJson<LastBatchSummary>(LAST_BATCH_PATH));
       setLoadedAtMs(Date.now());
     } catch (err) {
-      setError(errText(err));
+      setError(errorText(err));
     } finally {
       setLoading(false);
     }
@@ -60,8 +56,8 @@ export function useLastBatch(refreshKey: number): LastBatch {
     } catch (err) {
       // A refusal moved nothing. Any other failure leaves the outcome of a destructive call unknown.
       return err instanceof ApiError
-        ? buildUndoRefused(errText(err))
-        : buildUndoUnconfirmed(errText(err));
+        ? buildUndoRefused(errorText(err))
+        : buildUndoUnconfirmed(errorText(err));
     } finally {
       void reload();
     }
