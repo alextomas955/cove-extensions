@@ -16,6 +16,7 @@ import {
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
+    SectionCard: (props: { children: ReactNode }) => h("section", null, props.children),
     Spinner: () => h("span", null, "…"),
     StatusText: (props: { children?: ReactNode }) => h("span", null, props.children),
   };

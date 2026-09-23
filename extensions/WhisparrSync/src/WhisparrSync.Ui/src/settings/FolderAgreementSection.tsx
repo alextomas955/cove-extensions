@@ -136,7 +136,7 @@ function Prompt({
   return (
     <li
       data-root={line.root}
-      className="space-y-2 rounded-lg border border-border bg-card/40 px-3 py-2"
+      className="space-y-2 rounded-xl border border-border bg-card px-3 py-2"
     >
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill variant={PILL_VARIANT[state]} shape="tag">
@@ -177,8 +177,10 @@ function Prompt({
         </details>
       )}
 
+      {/* What can be done about the folder is a different subject from what is outstanding on it,
+          so a hairline closes the lines above rather than spacing alone. */}
       {fieldShown ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
           <input
             type="text"
             aria-label={`${FOLDER_AGREEMENT_PATH}: ${line.root}`}
@@ -202,14 +204,16 @@ function Prompt({
       ) : null}
 
       {withdrawsOnly(line) ? (
-        <OptionallyDisabled
-          name={FOLDER_AGREEMENT_WITHDRAW}
-          variant="ghost"
-          reason={blockedReason}
-          onClick={() => {
-            onWithdraw(line.root);
-          }}
-        />
+        <div className="border-t border-border pt-2">
+          <OptionallyDisabled
+            name={FOLDER_AGREEMENT_WITHDRAW}
+            variant="ghost"
+            reason={blockedReason}
+            onClick={() => {
+              onWithdraw(line.root);
+            }}
+          />
+        </div>
       ) : null}
 
       {answer === null ? null : <StatusText kind="muted">{saveAnswerSentence(answer)}</StatusText>}
