@@ -64,6 +64,8 @@ computed, which it could not before.
 
 ### Fixes
 
+- If the settings page cannot load your saved settings, it now says so and offers **Retry**. It
+  used to show "Loading settings" forever.
 - **Required fields** now accepts `performers`, `tags` and `resolution`. Adding any of them used to
   skip every item, even ones that had the value, because the check never saw those three tokens.
   The check now reads each field the way your filename renders it, find-and-replace rules included,

@@ -141,15 +141,6 @@ export function RenamePanelBody() {
   const folderRef = useRef<HTMLInputElement>(null);
   const activeTemplateRef = useRef<"filename" | "folder">("filename");
 
-  if (loading || options === null) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-secondary">
-        <Spinner />
-        Loading settings…
-      </div>
-    );
-  }
-
   if (loadError) {
     return (
       <div className="space-y-3">
@@ -161,6 +152,15 @@ export function RenamePanelBody() {
             Retry
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (loading || options === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-secondary">
+        <Spinner />
+        Loading settings…
       </div>
     );
   }
