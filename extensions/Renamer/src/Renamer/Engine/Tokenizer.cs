@@ -9,17 +9,15 @@ public enum SegKind { Literal, Token, GroupOpen, GroupClose }
 public readonly record struct Segment(SegKind Kind, string Text);
 
 // Template syntax, scanned in one left-to-right pass:
-//   $$ emits one literal $ and starts no token.
+//   $$ emits one literal $; a name right after it still starts a token.
 //   $name, where name is letters, digits and underscores, is a token.
 //   A lone $ with no name char after it is a literal $.
 //   { and } open and close a group when balanced.
-//   A stray } at depth 0 becomes a literal } and calls logUnbalanced.
-//   A { left unclosed at the end calls logUnbalanced. The scan never throws.
-//
-// No regex: it mishandles $$ adjacency and brace balancing.
+//   A stray } at depth 0 becomes a literal }, and a { left unclosed renders as opened. The scan never
+//   throws.
 public static class Tokenizer
 {
-    public static List<Segment> Scan(string template, Action<string>? logUnbalanced = null)
+    public static List<Segment> Scan(string template)
     {
         var segs = new List<Segment>();
         var lit = new StringBuilder();
@@ -82,7 +80,6 @@ public static class Tokenizer
                 if (depth == 0)
                 {
                     lit.Append('}');
-                    logUnbalanced?.Invoke("stray '}' treated as literal");
                 }
                 else
                 {
@@ -98,11 +95,6 @@ public static class Tokenizer
         }
 
         Flush();
-        if (depth > 0)
-        {
-            logUnbalanced?.Invoke($"{depth} unclosed '{{' — trailing group(s) rendered as opened");
-        }
-
         return segs;
     }
 }

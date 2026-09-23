@@ -20,19 +20,10 @@ public static class LengthReducer
         return filenameLen <= o.FilenameMax && fullLen <= o.FullPathMax;
     }
 
+    // Returns the fitted result and the DropOrder entries removed to make it fit, in drop order.
     // reRenderWithout re-renders the folder and name with the cumulative set of dropped fields forced
-    // empty. Drops accumulate in DropOrder: once a field is dropped it stays dropped.
-    public static RenamerResult Fit(
-        string folder,
-        string name,
-        string ext,
-        RenamerOptions o,
-        Func<IReadOnlyCollection<string>, (string folder, string name)> reRenderWithout)
-        => FitWithDropped(folder, name, ext, o, reRenderWithout).result;
-
-    // Also returns the DropOrder entries removed to make the name fit, in drop order. Fit delegates
-    // here, so there is one drop loop.
-    public static (RenamerResult result, IReadOnlyList<string> dropped) FitWithDropped(
+    // empty; once a field is dropped it stays dropped.
+    public static (RenamerResult result, IReadOnlyList<string> dropped) Fit(
         string folder,
         string name,
         string ext,

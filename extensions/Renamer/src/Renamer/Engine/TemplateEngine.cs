@@ -42,10 +42,9 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        Action<string>? logUnbalanced = null,
         IReadOnlyList<RenamerPerformer>? performers = null,
         IReadOnlyList<(int Id, string Name)>? tags = null)
-        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tags).result;
+        => RenderWithDropped(tokens, multiValues, options, performers, tags).result;
 
     // Also returns the DropOrder fields the length reducer dropped to make the name fit, as
     // reported by LengthReducer itself. Render delegates here, so there is one rendering path.
@@ -53,7 +52,6 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        Action<string>? logUnbalanced = null,
         IReadOnlyList<RenamerPerformer>? performers = null,
         IReadOnlyList<(int Id, string Name)>? tags = null)
     {
@@ -64,12 +62,12 @@ public static class TemplateEngine
         string ext = NormalizeExt(Resolve(resolved, Tokens.Ext));
 
         string filename = RenderFilename(
-            options.FilenameTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
+            options.FilenameTemplate, resolved, options, resolutionDropped: false);
 
         string folder = RenderFolder(
-            options.FolderTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
+            options.FolderTemplate, resolved, options, resolutionDropped: false);
 
-        return LengthReducer.FitWithDropped(
+        return LengthReducer.Fit(
             folder, filename, ext, options,
             // Re-render with the cumulative set of dropped fields forced empty.
             droppedFields =>
@@ -86,8 +84,8 @@ public static class TemplateEngine
                     droppedFields.Contains(Tokens.Resolution, StringComparer.OrdinalIgnoreCase);
 
                 return (
-                    RenderFolder(options.FolderTemplate, reduced, options, null, resolutionDropped),
-                    RenderFilename(options.FilenameTemplate, reduced, options, null, resolutionDropped));
+                    RenderFolder(options.FolderTemplate, reduced, options, resolutionDropped),
+                    RenderFilename(options.FilenameTemplate, reduced, options, resolutionDropped));
             });
     }
 
@@ -277,7 +275,7 @@ public static class TemplateEngine
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         string raw = RenderDeDuped(
-            options.FilenameTemplate, resolved, suppressExt: true, null, resolutionDropped: false);
+            options.FilenameTemplate, resolved, suppressExt: true, resolutionDropped: false);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
@@ -316,10 +314,9 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
-        string raw = RenderDeDuped(template, resolved, suppressExt: true, logUnbalanced, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: true, resolutionDropped);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -330,7 +327,6 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
         if (string.IsNullOrEmpty(template))
@@ -338,7 +334,7 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderDeDuped(template, resolved, suppressExt: false, logUnbalanced, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: false, resolutionDropped);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
@@ -356,10 +352,9 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         bool suppressExt,
-        Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
-        var segs = Tokenizer.Scan(template, logUnbalanced);
+        var segs = Tokenizer.Scan(template);
         return RenderRaw(
             segs,
             WithDeDupedTitle(resolved, RendersResolution(segs), resolutionDropped),

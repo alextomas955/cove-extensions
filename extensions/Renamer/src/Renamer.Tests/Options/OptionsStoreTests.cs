@@ -94,7 +94,7 @@ public sealed class OptionsStoreTests
         var loaded = await new OptionsStore(fake).LoadAsync();
 
         string name = new string('a', 400);
-        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name)).result;
 
         Assert.True(LengthReducer.FitsBoth("", reduced.Filename, reduced.Ext, loaded));
     }
@@ -134,7 +134,7 @@ public sealed class OptionsStoreTests
         var loaded = await new OptionsStore(fake).LoadAsync();
 
         string name = new string('a', 400);
-        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name)).result;
 
         Assert.NotEmpty(reduced.Filename);
     }

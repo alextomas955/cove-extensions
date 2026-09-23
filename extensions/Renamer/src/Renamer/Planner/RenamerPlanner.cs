@@ -20,17 +20,6 @@ public sealed class RenamerPlanner
 
     // With empty lookups the resolver always returns Unmatched, so every entity takes the default
     // destination.
-    private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, Destination>(),
-        new Dictionary<int, Destination>(),
-        new Dictionary<string, Destination>(),
-        Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
-
-    // Overload for callers that do not route: every file takes the default destination.
-    public Task<RenamerPlan> PlanAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanAsync(kind, entityId, options, EmptyLookups, ct);
-
     // Computes the per-file old-to-new plan for the given entity with zero disk or DB mutation, and
     // returns an empty plan when the entity does not exist. Routing is resolved once per entity, and
     // the resolved destination's root is the anchor the per-file confinement measures against, so an

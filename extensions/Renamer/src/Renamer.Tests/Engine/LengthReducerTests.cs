@@ -126,19 +126,6 @@ public class LengthReducerTests
     }
 
     [Fact]
-    public void FitWithDropped_ShortName_EmptyDropped_AndDelegatingFitMatches()
-    {
-        var o = new RenamerOptions();
-        (string folder, string name) ReRender(IReadOnlyCollection<string> _) => ("", "name");
-
-        var (result, dropped) = LengthReducer.FitWithDropped("", "name", ".mkv", o, ReRender);
-        var fitOnly = LengthReducer.Fit("", "name", ".mkv", o, ReRender);
-
-        Assert.Empty(dropped);
-        Assert.Equal(fitOnly, result); // Fit delegates to FitWithDropped — same RenamerResult
-    }
-
-    [Fact]
     public void Fit_ShortNameDeepFolder_ReducesToFitFullPath()
     {
         // A short title but a folder template that renders very deep -> full path over 259.
@@ -169,7 +156,7 @@ public class LengthReducerTests
         // here reaches the planner's candidate basename with nothing left to repair it.
         var o = new RenamerOptions { FilenameMax = 14, FullPathMax = 1000 }; // budget 14 - 4 = 10
 
-        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine)).result;
 
         Assert.Equal(9, r.Filename.Length);
         Assert.DoesNotContain(r.Filename, char.IsSurrogate);
@@ -182,7 +169,7 @@ public class LengthReducerTests
         // lose a unit, so the shortening is keyed on the pair and not applied to every truncate.
         var o = new RenamerOptions { FilenameMax = 15, FullPathMax = 1000 }; // budget 15 - 4 = 11
 
-        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine)).result;
 
         Assert.Equal(11, r.Filename.Length);
         Assert.EndsWith("\U0001F600", r.Filename, StringComparison.Ordinal);
