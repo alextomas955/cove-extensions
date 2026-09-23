@@ -39,17 +39,7 @@ export function TemplateAdvisories({
   for (const label of emptySamples) {
     lines.push(`This template produces an empty name for the "${label}" sample.`);
   }
-  if (lines.length === 0) return null;
-  return (
-    <div className="mt-1 space-y-1" role="status" aria-live="polite">
-      {lines.map((line) => (
-        <p key={line} className="flex items-start gap-1 text-xs text-amber-400">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span>{line}</span>
-        </p>
-      ))}
-    </div>
-  );
+  return <AdvisoryLines lines={lines} />;
 }
 
 /**
@@ -70,6 +60,10 @@ export function TokenAdvisory({ values }: { values: string[] }) {
         : `"${value}" isn't a known token — it'll be ignored.`,
     );
   }
+  return <AdvisoryLines lines={lines} />;
+}
+
+function AdvisoryLines({ lines }: { lines: string[] }) {
   if (lines.length === 0) return null;
   return (
     <div className="mt-1 space-y-1" role="status" aria-live="polite">

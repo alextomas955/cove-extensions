@@ -16,8 +16,9 @@ test("a token absent from both templates is not detected", () => {
   assert.equal(templateUsesToken("performers", "$title", "$ext"), false);
 });
 
-test("the $$ literal-escape pair does not false-positive", () => {
-  assert.equal(templateUsesToken("performers", "$$performers", ""), false);
+test("a $$ pair is a literal $, and a name after it is still a token, as the engine reads it", () => {
+  assert.equal(templateUsesToken("performers", "$$performers", ""), true);
+  assert.equal(templateUsesToken("performers", "$$ performers", ""), false);
 });
 
 test("matching is case-insensitive on both the token argument and the template text", () => {
