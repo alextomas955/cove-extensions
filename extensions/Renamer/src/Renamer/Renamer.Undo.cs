@@ -47,7 +47,7 @@ public sealed partial class Renamer
         string operationId = target.Value.OperationId;
 
         // Read before the per-kind gate: a settled operation answers "nothing to undo" for any caller
-        // holding a renamer write permission, and a 403 here would disclose which kinds it renamed.
+        // holding any kind's write permission, and a 403 here would disclose which kinds it renamed.
         var batch = await journal.ReadNextBatchAsync(
             operationId, IRevertJournal.FirstBatchTicks, IRevertJournal.FirstBatchRunId, ct);
         if (batch is null)

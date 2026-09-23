@@ -311,7 +311,7 @@ public sealed class AssociatedExtensionSidecarTests
     }
 
     [Fact]
-    public async Task InPlaceSameStemRenamer_WithListedSidecar_NoSpuriousWarning_SidecarStaysInPlace()
+    public async Task InPlaceSameStemRename_WithListedSidecar_NoSpuriousWarning_SidecarStaysInPlace()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

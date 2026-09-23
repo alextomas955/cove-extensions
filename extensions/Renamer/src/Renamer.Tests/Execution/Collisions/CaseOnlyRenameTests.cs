@@ -19,10 +19,10 @@ namespace Renamer.Tests.Execution.Collisions;
 /// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
 /// <c>File.Exists</c> check is the one under test.
 /// </summary>
-public sealed class CaseOnlyRenamerTests
+public sealed class CaseOnlyRenameTests
 {
     [Fact]
-    public async Task CaseOnlyRenamer_OfFileOntoItself_IsCleanRenamer_NotSuffixed()
+    public async Task CaseOnlyRename_OfFileOntoItself_IsCleanRename_NotSuffixed()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
 

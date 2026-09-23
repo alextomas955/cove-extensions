@@ -18,7 +18,7 @@ namespace Renamer.Tests.Execution;
 public sealed class DerivedTitleWriteTests
 {
     [Fact]
-    public async Task ATitleWrite_LandsOnlyOnARowThatIsStillTitleless_AndTheRenamerLandsEitherWay()
+    public async Task ATitleWrite_LandsOnlyOnARowThatIsStillTitleless_AndTheRenameLandsEitherWay()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -71,7 +71,7 @@ public sealed class DerivedTitleWriteTests
     /// at the time, which after an undo is the old name again.
     /// </remarks>
     [Fact]
-    public async Task Undo_RestoresTheName_KeepsTheRecordedTitle_AndTheNextRenamerRendersTheSameName()
+    public async Task Undo_RestoresTheName_KeepsTheRecordedTitle_AndTheNextRenameRendersTheSameName()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

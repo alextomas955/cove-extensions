@@ -56,8 +56,8 @@ public sealed partial class Renamer
     // The fixed store key the whole-library scan's bounded aggregate lives under.
     internal const string LastScanSummaryKey = "last-scan-summary";
 
-    // Upper bound on how many ids a single preview/renamer request may carry. Preview runs the planner
-    // (DB hits) per id synchronously on the request thread, and renamer fans the same ids out into one
+    // Upper bound on how many ids a single /preview or /renamer request may carry. Preview runs the planner
+    // (DB hits) per id synchronously on the request thread, and /renamer fans the same ids out into one
     // job - so a caller-supplied array is an unbounded fan-out. The cap rejects a runaway/oversized
     // request up front with a 400, before any per-id work, while staying far above any realistic
     // selection. A genuinely larger job should be split into batches by the caller.
@@ -497,7 +497,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        // Enqueue exclusive (the host's JobService default): a renamer batch mutates disk + DB, so two
+        // Enqueue exclusive (the host's JobService default): a rename batch mutates disk + DB, so two
         // batches running at once could plan against each other's stale snapshots or target the same
         // paths. Exclusive serializes them - the second waits for the first to finish.
         var jobId = jobs.Enqueue(
@@ -733,7 +733,7 @@ public sealed partial class Renamer
 
         var jobId = jobs.Enqueue(
             OwnJobType("renamer-library"),
-            $"[{Name}] Renamer library",
+            $"[{Name}] Rename library",
             (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 

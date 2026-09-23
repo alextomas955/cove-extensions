@@ -15,7 +15,7 @@ namespace Renamer.Tests.Execution;
 /// not just that a fake port returns what it was handed.
 /// </summary>
 [Collection(SubstDriveScope.CollectionName)]
-public sealed class TextRenamerIntegrationTests
+public sealed class TextRenameIntegrationTests
 {
     [Fact]
     public async Task LoadEntity_HydratesTheDocumentAndItsFile()

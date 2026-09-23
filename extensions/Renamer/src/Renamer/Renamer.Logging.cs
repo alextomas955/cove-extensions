@@ -85,7 +85,7 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1040, Level = LogLevel.Information,
-        Message = "[Renamer] library renamer: {Kind} — {Count} item(s) to plan")]
+        Message = "[Renamer] library rename: {Kind}: {Count} item(s) to plan")]
     private partial void LogLibraryKind(RenamerFileKind kind, int count);
 
     // The whole-library dry run reports progress only when it finishes, so these trace its planning

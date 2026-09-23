@@ -76,7 +76,7 @@ public sealed partial class Renamer
     {
         if (ids.Count == 0)
         {
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
@@ -236,7 +236,7 @@ public sealed partial class Renamer
 
         if (renamed == 0 && failed == 0 && skipped == contested)
         {
-            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contested)}");
+            progress.Report(1d, $"Nothing to rename.{RefusedNote(contested)}");
             return null;
         }
 

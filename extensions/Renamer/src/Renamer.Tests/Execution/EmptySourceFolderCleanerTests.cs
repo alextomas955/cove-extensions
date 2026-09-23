@@ -195,7 +195,7 @@ public sealed class EmptySourceFolderCleanerTests
     }
 
     [Fact]
-    public async Task SameFolderRenamer_NeverEntersCleanup_SourceDirSurvives()
+    public async Task SameFolderRename_NeverEntersCleanup_SourceDirSurvives()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

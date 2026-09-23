@@ -23,7 +23,7 @@ public sealed class RenamerPlannerTests
             Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(1, "hd")], Files: files);
 
     [Fact]
-    public async Task SingleFile_Renamer_HappyPath_ZeroMutation()
+    public async Task SingleFile_Rename_HappyPath_ZeroMutation()
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));

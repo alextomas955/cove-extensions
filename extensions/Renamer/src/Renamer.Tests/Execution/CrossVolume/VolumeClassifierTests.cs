@@ -61,7 +61,7 @@ public sealed class VolumeClassifierTests
     }
 
     [Fact]
-    public void InFolderRenamerPair_IsSameVolume_GatesTheFastPath()
+    public void InFolderRenamePair_IsSameVolume_GatesTheFastPath()
     {
         WindowsOnly();
 
@@ -103,7 +103,7 @@ public sealed class VolumeClassifierTests
     }
 
     [Fact]
-    public void InFolderRenamerPairOnAMount_IsSameVolume_GatesTheFastPath()
+    public void InFolderRenamePairOnAMount_IsSameVolume_GatesTheFastPath()
     {
         UnixOnly();
         Assert.True(VolumeClassifier.SameVolume("/mnt/media/clip.mkv", "/mnt/media/Renamed.mkv", Mounts));

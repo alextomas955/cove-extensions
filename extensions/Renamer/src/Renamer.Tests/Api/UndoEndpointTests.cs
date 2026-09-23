@@ -331,7 +331,7 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
-    public async Task LastBatch_AfterRenamer_ReportsSummary_ThenFalseOnEmptyLog()
+    public async Task LastBatch_IsEmptyFirst_ThenReportsTheRename_ThenIsConsumedOnceUndone()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

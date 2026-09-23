@@ -120,7 +120,7 @@ public sealed class ParallelFolderCreationTests
     }
 
     [Fact]
-    public async Task InPlaceRenamer_StillWorks_NoNewDestinationFolder()
+    public async Task InPlaceRename_StillWorks_NoNewDestinationFolder()
     {
         using var dir = new TempDir();
         var shared = await SharedCacheSqlite.CreateAsync();

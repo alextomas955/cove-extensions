@@ -404,7 +404,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// must survive a rename untouched.
     /// </remarks>
     [Fact]
-    public async Task DerivedTitle_ReachesTheDatabase_OnlyOnAnItemThatHadNone_AndTheRenamerSettles()
+    public async Task DerivedTitle_ReachesTheDatabase_OnlyOnAnItemThatHadNone_AndTheRenameSettles()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -475,7 +475,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// written by a second save would survive this and leave an item renamed nowhere but titled anyway.
     /// </remarks>
     [Fact]
-    public async Task DerivedTitle_IsNotRecorded_WhenTheRenamerSaveFails()
+    public async Task DerivedTitle_IsNotRecorded_WhenTheRenameSaveFails()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

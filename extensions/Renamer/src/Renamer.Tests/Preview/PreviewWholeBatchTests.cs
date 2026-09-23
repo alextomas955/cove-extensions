@@ -177,7 +177,7 @@ public sealed class PreviewWholeBatchTests
     }
 
     [Fact]
-    public async Task PreviewAsync_SameVolumeRenamer_SummaryIsLight()
+    public async Task PreviewAsync_SameVolumeRename_SummaryIsLight()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

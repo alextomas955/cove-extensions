@@ -13,7 +13,7 @@ namespace Renamer.Tests.Events;
 public sealed class AutoRenamerGateTests
 {
     [Fact]
-    public async Task FlagOff_FiringUpdated_PerformsNoRenamer_NoEvents()
+    public async Task FlagOff_FiringUpdated_PerformsNoRename_NoEvents()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -44,7 +44,7 @@ public sealed class AutoRenamerGateTests
     }
 
     [Fact]
-    public async Task FlagOn_ButRequireFieldsGateExcludes_PerformsNoRenamer()
+    public async Task FlagOn_ButRequireFieldsGateExcludes_PerformsNoRename()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

@@ -70,6 +70,8 @@ computed, which it could not before.
 
 ### Fixes
 
+- The Job Drawer names a whole-library run **Rename library** and an empty one **Nothing to
+  rename.** They read "Renamer library" and "Nothing to renamer."
 - On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a
   sibling's only in upper and lower case. The rename already added the suffix; the dry run showed
   both files under the one name.
