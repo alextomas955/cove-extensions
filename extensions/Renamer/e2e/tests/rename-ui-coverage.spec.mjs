@@ -4,7 +4,7 @@
 // never the actual button). Both are driven through the real UI via the Page Object Model; the proof
 // is exact on-disk + DB state (assertRenamedTo), never the panel's own success banner.
 import { test as base, expect, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
-import { startHarness } from "@cove-extensions/e2e/harness";
+import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
@@ -13,39 +13,8 @@ const test = base.extend({
   // "Rename all files" sweeps every item in the library, so the whole-library test below runs on its
   // own instance - a sibling test's seeded media sharing the per-worker harness would be swept into
   // this run's scope and could miss its own polling window (same rationale as library-jobs.spec.mjs).
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
+  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
 });
-
-function apiFor(baseUrl) {
-  async function callApi(method, path, body) {
-    const res = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
-    }
-    return { status: res.status, ok: res.ok, json, text };
-  }
-  return {
-    get: (p) => callApi("GET", p),
-    put: (p, b) => callApi("PUT", p, b),
-  };
-}
 
 test("setting a folder template through the UI relocates a renamed file to the exact folder on disk and in the DB", async ({
   page,
@@ -111,7 +80,10 @@ test('clicking "Rename all files" in the panel renames every library item to its
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  const api = apiFor(baseUrl);
+  const api = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
 
   // Persist a "$title"-only template through the real settings UI (not the options API) so each item's
   // computed name is deterministic and the panel button - disabled while dirty - becomes clickable.
