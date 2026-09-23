@@ -145,6 +145,44 @@ public sealed class UndoReplayerTests
     }
 
     [Fact]
+    public async Task AnOccupiedOldSlot_WhoseFolderHasNoRow_IsSkipped_WithoutCreatingOne()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "First");
+            File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "1");
+
+            var port = new CoveRenamerDataPort(db);
+            var journal = new FakeRevertJournal();
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                .ExecuteAsync(plan, options, default);
+
+            // The folder's row now names another path, so the original folder exists on disk only.
+            var folder = await db.Set<Folder>().SingleAsync(f => f.Id == folderId);
+            folder.Path = folderPath + "-elsewhere";
+            await db.SaveChangesAsync();
+            File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
+
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            var result = await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch!, default);
+
+            Assert.Single(result.Skipped);
+            Assert.False(await db.Set<Folder>().AnyAsync(f => f.Path == folderPath));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task PartialFailure_PreoccupiedOldSlot_SkippedNotClobbered_OthersRestored()
     {
         using var dir = new TempDir();

@@ -281,12 +281,12 @@ public sealed class UndoReplayer
                 UndoStopReason.OriginalDirectoryUnavailable)), 0);
         }
 
-        int oldFolderId = await _port.GetOrCreateFolderIdAsync(oldDir, ct);
-
         // The old slot must be free on both disk and database; an occupied slot is skipped, never
-        // clobbered.
+        // clobbered. A folder with no row holds no database collision.
+        int? existingFolderId = await _port.TryGetFolderIdAsync(oldDir, ct);
         if (System.IO.File.Exists(ToNative(entry.OldPath))
-            || await _port.CollisionExistsAsync(oldFolderId, oldBasename, entry.FileId, ct))
+            || (existingFolderId is int folderId
+                && await _port.CollisionExistsAsync(folderId, oldBasename, entry.FileId, ct)))
         {
             return (new RevertOutcome.Skipped(new UndoFailure(
                 entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
@@ -294,7 +294,7 @@ public sealed class UndoReplayer
                 UndoStopReason.OriginalLocationOccupied)), 0);
         }
 
-        return (null, oldFolderId);
+        return (null, existingFolderId ?? await _port.GetOrCreateFolderIdAsync(oldDir, ct));
     }
 
     // The reverse disk move on the matching volume tier. A same-volume reverse takes the atomic
