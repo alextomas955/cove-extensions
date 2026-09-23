@@ -481,11 +481,18 @@ jobs:
         working-directory: tests/e2e
         shell: bash
         run: |
-          if [[ "$COVE_ROLE" == "newest-ga" ]]; then
-            npm test -- --project="$E2E_PROJECT" --grep @smoke
-          else
-            npm test -- --project="$E2E_PROJECT"
-          fi
+          ip -o monitor address > /tmp/addr-events.log 2>&1 &
+          monitor=$!
+          status=0
+          npm test -- --project="$E2E_PROJECT" 2>&1 | tee /tmp/e2e-output.log || status=$?
+          kill "$monitor" || true
+          echo "DIAG host IPv4 address adds: $(grep -v '^Deleted' /tmp/addr-events.log | grep -c ' inet ')"
+          echo "DIAG host IPv6 address adds: $(grep -v '^Deleted' /tmp/addr-events.log | grep -c ' inet6 ')"
+          echo "DIAG bridge IPv4 adds: $(grep -v '^Deleted' /tmp/addr-events.log | grep ' inet ' | grep -c ' br-')"
+          echo "DIAG ERR_NETWORK_CHANGED: $(grep -c ERR_NETWORK_CHANGED /tmp/e2e-output.log)"
+          echo "DIAG networks at end:"; docker network ls --format '{{.Name}}'
+          grep -v '^Deleted' /tmp/addr-events.log | grep ' inet ' | head -30
+          exit "$status"
         env:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
           COVE_E2E_TAG: ${{ matrix.cove.tag }}
