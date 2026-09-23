@@ -91,7 +91,7 @@ each against its own isolated Cove instance. This is safe because:
   when they land in the same worker.
 - Files that mutate shared extension state itself - install/enable/disable/uninstall - opt out of
   the shared-per-worker harness entirely and provision a fresh, isolated instance **per test**
-  instead (see `extension-lifecycle.spec.mjs`'s own `isolatedHarness` fixture). Toggling or
+  instead, through `isolatedHarnessFixture` in `lib/fixtures.mjs`. Toggling or
   removing the one shared extension install would otherwise race against any other test in the
   same worker that's mid-assertion against it.
 - A test that only saves an extension setting stays on the shared harness and puts the stored
