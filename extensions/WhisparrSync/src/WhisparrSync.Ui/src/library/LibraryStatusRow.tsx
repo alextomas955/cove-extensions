@@ -12,6 +12,8 @@ import {
   CHECKING_WHISPARR,
   LIBRARY_COUNTS_ARE_FOR_THIS_PAGE,
   NOT_ADDED_ON_THIS_PAGE,
+  NOT_LINKED_ON_THIS_PAGE,
+  STILL_COUNTING,
   WHISPARR_STATUS_ROW,
 } from "../common/ui/copy";
 import { WhisparrLogo } from "../common/ui/WhisparrLogo";
@@ -90,9 +92,27 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
             <span className="text-secondary">{FILE_MARKER.label}</span>
           </StatusPill>
         )}
-        <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted">
-          <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
-          {NOT_ADDED_ON_THIS_PAGE}
+        {/* The cards nothing was asked about. Without it the figures account for fewer cards than
+            the page holds, and a reader cannot tell the difference from a read that went missing. */}
+        {answered - tally.counted === 0 ? null : (
+          <span className="inline-flex items-center gap-1 text-xs text-muted">
+            <span className="font-semibold tabular-nums">{answered - tally.counted}</span>
+            {NOT_LINKED_ON_THIS_PAGE}
+          </span>
+        )}
+        <span className="ml-auto inline-flex items-center gap-2 text-xs text-muted">
+          {/* A page is answered a batch at a time, so a subtotal is on screen well before the
+              read finishes and reads exactly like a finished one. */}
+          {answered < registered ? (
+            <span className="inline-flex items-center gap-1.5 text-secondary">
+              <Spinner />
+              {STILL_COUNTING}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1">
+            <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
+            {NOT_ADDED_ON_THIS_PAGE}
+          </span>
         </span>
       </span>
     );
