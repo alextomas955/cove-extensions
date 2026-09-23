@@ -92,8 +92,19 @@ const identity = (value: string) => value;
 const fold = (value: string) => value.toLowerCase();
 
 const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wide text-muted";
+// The micro-label in the mono face, for a field holding a technical value such as an address or a key.
+const MONO_LABEL_CLASS = `${MICRO_LABEL_CLASS} font-mono`;
 // Names a group of controls, so it stays quieter than the section title containing it.
 const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
+
+/** How a {@link Field} or {@link FieldGroup} draws its label. */
+export type FieldLabelStyle = "micro" | "mono" | "group";
+
+const LABEL_CLASS: Record<FieldLabelStyle, string> = {
+  micro: MICRO_LABEL_CLASS,
+  mono: MONO_LABEL_CLASS,
+  group: GROUP_LABEL_CLASS,
+};
 
 /**
  * Label + one control + optional helper. Matches Cove `SettingsField`.
@@ -111,17 +122,13 @@ export function Field({
 }: {
   label: string;
   helper?: string;
-  labelStyle?: "micro" | "group";
+  labelStyle?: FieldLabelStyle;
   children: (controlId: string) => ReactNode;
 }) {
   const controlId = useId();
   return (
     <label className="block text-sm" htmlFor={controlId} title={helper}>
-      {label ? (
-        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
-          {label}
-        </span>
-      ) : null}
+      {label ? <span className={LABEL_CLASS[labelStyle]}>{label}</span> : null}
       {children(controlId)}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
     </label>
@@ -148,7 +155,7 @@ export function FieldGroup({
 }: {
   label: string;
   helper?: string;
-  labelStyle?: "micro" | "group";
+  labelStyle?: FieldLabelStyle;
   children: ReactNode;
 }) {
   const labelId = useId();
@@ -159,10 +166,7 @@ export function FieldGroup({
       aria-labelledby={label ? labelId : undefined}
     >
       {label ? (
-        <span
-          id={labelId}
-          className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}
-        >
+        <span id={labelId} className={LABEL_CLASS[labelStyle]}>
           {label}
         </span>
       ) : null}

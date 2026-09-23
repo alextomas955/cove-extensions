@@ -89,6 +89,18 @@ test("the section says which generation the form is editing, and offers the othe
   expect(chosen).toEqual(["v2"]);
 });
 
+test("every field label in the section is an uppercase mono micro-label", async () => {
+  const host = await render(section({}));
+
+  for (const text of ["Whisparr generation", "Whisparr address", "API key"]) {
+    const label = [...host.querySelectorAll("span")].find((span) => span.textContent === text);
+    expect(label, `the section draws no label reading ${text}`).toBeDefined();
+    expect([...(label?.classList ?? [])], `${text} is not drawn as a mono micro-label`).toEqual(
+      expect.arrayContaining(["uppercase", "font-mono", "text-xs", "tracking-wide"]),
+    );
+  }
+});
+
 test("a version never verified does not read the same as one verified against an instance that has since failed", async () => {
   const never = await render(section({ stored: NEVER_VERIFIED }));
   const failing = await render(
