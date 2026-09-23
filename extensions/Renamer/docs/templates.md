@@ -1,11 +1,16 @@
 ---
 id: templates
 title: Naming templates
-sidebar_position: 4
+sidebar_position: 5
 ---
 
-A naming template is the pattern Renamer uses to build each new filename (and, optionally, folder
-path). It is plain text mixed with `$tokens` that Cove replaces with each item's metadata.
+A naming template is the pattern Renamer uses to build each new filename, and optionally a folder
+path. It is plain text mixed with `$tokens` that Renamer fills in from each item's metadata.
+
+The **Live preview** on the Renamer page shows the result on three sample files as you type, so you
+can try a template before a dry run.
+
+![Selecting presets and typing a template, with the live preview updating to match.](./img/live-preview-demo.webp)
 
 ## A worked example
 
@@ -53,7 +58,8 @@ extension afterwards either way. It cannot be moved.
 
 ## Presets
 
-The settings panel offers these one-click starter templates. Pick one, then edit from there:
+The **Presets** buttons above the template field set one of these starter templates. Pick one, then
+edit from there:
 
 | Preset                                | Template                             |
 | ------------------------------------- | ------------------------------------ |
