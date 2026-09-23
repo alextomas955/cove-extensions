@@ -125,15 +125,6 @@ export function generationLabel(card: CardGeneration): string {
   return card === "v3" ? "Whisparr v3 (Eros)" : "Whisparr v2";
 }
 
-/** What one card's form holds that is not yet saved. */
-export interface GenerationDraft {
-  readonly address: string;
-  /** The key typed this session. Blank leaves the stored key alone. */
-  readonly apiKey: string;
-  /** The stored key is to be removed by the next save. */
-  readonly keyCleared: boolean;
-}
-
 /**
  * A test result, and the address it describes. The address is carried rather than read from the
  * field, so an edit made while the request was in flight does not relabel the answer.
@@ -210,43 +201,6 @@ export function valuesForCard(
  */
 export function isGenerationChange(selected: string | null, card: CardGeneration): boolean {
   return selected !== null && selected !== card;
-}
-
-/** Whether a save would write nothing that is not already stored. */
-export function isNoOpSave(
-  stored: WhisparrSyncGenerationSettingsView | null,
-  selected: string | null,
-  card: CardGeneration,
-  draft: GenerationDraft,
-): boolean {
-  if (stored === null) {
-    return false;
-  }
-  return (
-    !isGenerationChange(selected, card) &&
-    !isAddressEdit(stored.address, draft.address) &&
-    draft.apiKey === "" &&
-    !draft.keyCleared
-  );
-}
-
-/**
- * Whether pressing Test asks about the stored connection rather than about a typed pair.
- *
- * The key is write-only, so a page that has just saved one holds no copy to send back. Asking about
- * the stored connection is the only way a test can run in that state, and it is the only test whose
- * answer may update the recorded version.
- *
- * It has to be the generation in use. The stored test asks about the selected connection, so
- * running one from the other card would answer about an instance that card does not name.
- */
-export function testsStoredConnection(
-  stored: WhisparrSyncGenerationSettingsView | null,
-  selected: string | null,
-  card: CardGeneration,
-  draft: GenerationDraft,
-): boolean {
-  return stored !== null && stored.keyIsSet && isNoOpSave(stored, selected, card, draft);
 }
 
 /**
