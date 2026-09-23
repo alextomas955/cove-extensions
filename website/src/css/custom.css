@@ -1,30 +1,116 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
+/* Palette and type follow Cove's own docs, so a page here reads as part of the same product family. */
+@import "@fontsource-variable/manrope";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --cove-pink: #b91062;
+  --cove-teal: #0f7f8f;
+  --cove-surface: #f5f8fb;
+  --cove-border: #d9e3ec;
+
+  --ifm-color-primary: #b91062;
+  --ifm-color-primary-dark: #a70e58;
+  --ifm-color-primary-darker: #9d0e53;
+  --ifm-color-primary-darkest: #820b45;
+  --ifm-color-primary-light: #c02872;
+  --ifm-color-primary-lighter: #c4347a;
+  --ifm-color-primary-lightest: #ce5891;
+
+  --ifm-background-color: #fbfcfe;
+  --ifm-navbar-background-color: #ffffff;
+  --ifm-font-color-base: #172231;
+  --ifm-heading-color: #172231;
+  --ifm-toc-border-color: var(--cove-border);
+  --ifm-hr-border-color: var(--cove-border);
+  --ifm-color-emphasis-300: var(--cove-border);
+
+  --ifm-font-family-base: "Manrope Variable", Manrope, "Segoe UI", system-ui, sans-serif;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-font-family-monospace: "IBM Plex Mono", "Cascadia Code", ui-monospace, monospace;
+  --ifm-heading-font-weight: 700;
+  --ifm-code-font-size: 90%;
+  --ifm-global-radius: 0.5rem;
+  --ifm-navbar-shadow: none;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme="dark"] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --cove-pink: #ff5aad;
+  --cove-teal: #13b8c2;
+  --cove-surface: #0d1824;
+  --cove-border: rgba(164, 185, 212, 0.18);
+
+  --ifm-color-primary: #ff5aad;
+  --ifm-color-primary-dark: #e6519c;
+  --ifm-color-primary-darker: #d94d93;
+  --ifm-color-primary-darkest: #b33f79;
+  --ifm-color-primary-light: #ff6bb5;
+  --ifm-color-primary-lighter: #ff73b9;
+  --ifm-color-primary-lightest: #ff8cc6;
+
+  --ifm-background-color: #071019;
+  --ifm-background-surface-color: #0d1824;
+  --ifm-navbar-background-color: #0d1824;
+  --ifm-footer-background-color: #0d1824;
+  --ifm-font-color-base: #e8eef5;
+  --ifm-heading-color: #f3f7fb;
+  --ifm-color-emphasis-300: var(--cove-border);
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+.navbar {
+  border-bottom: 1px solid var(--cove-border);
+}
+
+.navbar__title {
+  font-weight: 700;
+}
+
+.theme-doc-sidebar-container {
+  background: var(--cove-surface);
+}
+
+.markdown h1:first-child {
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
+}
+
+.markdown > h2 {
+  margin-top: 2.5rem;
+}
+
+/* Screenshots: a hairline frame so a dark capture sits cleanly on the light theme too. */
+.markdown img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem 0 0.5rem;
+  border: 1px solid var(--cove-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 40px rgba(7, 16, 25, 0.12);
+}
+
+.footer--dark {
+  --ifm-footer-background-color: #0d1824;
+  border-top: 1px solid rgba(164, 185, 212, 0.18);
+}
+
+/* White text on the dark theme's lighter pink fails contrast, so primary buttons take dark text. */
+[data-theme="dark"] .button--primary {
+  --ifm-button-color: #071019;
+  color: #071019;
+}
+
+/* Tips use Cove's teal, so the page keeps to one palette. */
+.theme-admonition-tip {
+  --ifm-alert-background-color: rgba(15, 127, 143, 0.08);
+  --ifm-alert-background-color-highlight: rgba(15, 127, 143, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-font-color-base);
+  --ifm-alert-border-color: var(--cove-teal);
+}
+
+[data-theme="dark"] .theme-admonition-tip {
+  --ifm-alert-background-color: rgba(19, 184, 194, 0.1);
+  --ifm-alert-background-color-highlight: rgba(19, 184, 194, 0.18);
 }
