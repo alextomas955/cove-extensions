@@ -14,17 +14,19 @@ import {
   TextInput,
 } from "@cove-extensions/ui-shared";
 
-import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
+import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { READ_IS_STALE } from "../common/ui/copy";
+import { GenerationRow } from "./GenerationRow";
 import {
   describeRecorded,
   detectionOutcome,
   generationLabel,
   recordedRead,
   sentenceForKind,
+  valuesForCard,
   valuesOf,
   type CardGeneration,
   type TransientTest,
@@ -35,8 +37,9 @@ import type { SettingsDraft } from "./settingsDraftLogic";
 const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
 
 export interface ConnectionSectionProps {
+  /** The generation the draft holds, and so the one the fields below edit. */
   card: CardGeneration;
-  stored: WhisparrSyncGenerationSettingsView | null;
+  settings: WhisparrSyncSettingsView | null;
   readFailed: boolean;
   draft: SettingsDraft;
   test: TransientTest;
@@ -49,12 +52,13 @@ export interface ConnectionSectionProps {
   onAddressChange: (next: string) => void;
   onKeyChange: (next: string) => void;
   onClearStoredKey: (cleared: boolean) => void;
+  onChooseGeneration: (generation: CardGeneration) => void;
   onTest: () => void;
 }
 
 export function ConnectionSection({
   card,
-  stored,
+  settings,
   readFailed,
   draft,
   test,
@@ -64,9 +68,11 @@ export function ConnectionSection({
   onAddressChange,
   onKeyChange,
   onClearStoredKey,
+  onChooseGeneration,
   onTest,
 }: ConnectionSectionProps) {
   const testing = test.phase === "running";
+  const stored = valuesForCard(settings, card);
 
   // A stored key cannot be sent back, so testing a changed address needs a typed key. Testing the
   // address as stored does not, because that test asks about the stored connection.
@@ -83,6 +89,13 @@ export function ConnectionSection({
   return (
     <SectionCard title="Connection" description="The Whisparr instance Cove keeps in step with.">
       <div className="space-y-4">
+        <GenerationRow
+          settings={settings}
+          drafted={card}
+          sharedReason={sharedReason}
+          onChoose={onChooseGeneration}
+        />
+
         <AsyncRegion
           state={deriveAsyncRegionState(recordedRead(stored, readFailed))}
           reading={<StatusText kind="muted">Reading the stored connection…</StatusText>}
@@ -233,8 +246,8 @@ function TestResult({ test, card }: { test: TransientTest; card: CardGeneration 
     return (
       <StatusText kind="warning">
         That address answered as {generationLabel(detected.detected)} {detected.version}, not{" "}
-        {generationLabel(card)}. Nothing was saved - switch to the{" "}
-        {generationLabel(detected.detected)} card to configure it there.
+        {generationLabel(card)}. Nothing was saved - select {generationLabel(detected.detected)}{" "}
+        above to configure it there.
       </StatusText>
     );
   }
