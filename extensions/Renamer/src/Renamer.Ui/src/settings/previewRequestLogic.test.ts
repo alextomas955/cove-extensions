@@ -1,4 +1,3 @@
-/** The three verdicts the live-preview hook takes on a settled request. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

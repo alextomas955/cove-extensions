@@ -1,19 +1,9 @@
 // @vitest-environment jsdom
-/**
- * Two standing invariants over the whole settings panel, asserted against the real sections rendered
- * on the real shared primitives.
- *
- * G1: a label element never forwards a click to a button that is one control among several. A
- * `<label>` activates its first labelable descendant, and `button` is labelable, so a heading over a
- * chip row activates a chip - a silent configuration change, or a deletion, from a click on a word.
- *
- * G2: every text input, select and textarea carries an accessible name, save the one allowance below.
- *
- * Only Cove's own runtime modules stand in, because `@cove/runtime/*` resolves inside a running
- * Cove and nowhere else, so the test projects alias those two names at the shared package's
- * run-time stand-ins. The shared primitives are the subject here, so stubbing them would assert the
- * stub's DOM instead.
- */
+// Invariants over the whole settings panel, on the real sections and primitives. A label never
+// forwards a click to a button that is one control among several: a label activates its first
+// labelable descendant, so a heading over a chip row would activate a chip. Every text input, select
+// and textarea has an accessible name, save the one recorded allowance. Every label names exactly one
+// control by an id that resolves.
 import { test, expect } from "vitest";
 import { createElement, createRef, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -219,7 +209,7 @@ function namesOnlyThatControl(label: HTMLLabelElement, target: Element): boolean
 }
 
 /**
- * The gap this allowance records: the host draws the entity selector's input, and on the 1.4.1 floor
+ * The gap this allowance records: the host draws the entity selector's input, and on the Cove floor
  * this extension declares it exposes neither an id to point `htmlFor` at nor a name hook, so that
  * input carries no accessible name of its own. Its block is named instead, and a group name does not
  * name a nested textbox. A Cove release exposing a name hook on the selector closes it.
@@ -248,12 +238,7 @@ test("no label forwards a click to a button that is one control among several", 
   // something real; if it matches nothing it has outlived its subject.
   expect(allowed.length, "the single-control carve-out matched nothing").toBeGreaterThan(0);
 
-  // Lead with the count on a line of its own, so a run is read for how many sites are broken rather
-  // than for which words happen to appear: two of them share the label text "Separator".
-  console.log(`G1 violations: ${String(violations.length)}`);
-  for (const v of violations) console.log(`  ${v}`);
-
-  expect(violations, `G1 violations: ${String(violations.length)}`).toEqual([]);
+  expect(violations, "a label forwarding a click to one of several controls").toEqual([]);
 
   view.unmount();
 });
@@ -277,10 +262,7 @@ test("every text input, select and textarea is named, save the recorded host-sel
   // An allowance matching nothing means the gap closed and the exemption outlived it.
   expect(allowed.length, HOST_SELECTOR_INPUT.reason).toBeGreaterThan(0);
 
-  console.log(`G2 unnamed controls: ${String(unnamed.length)}`);
-  for (const u of unnamed) console.log(`  ${u}`);
-
-  expect(unnamed, `G2 unnamed controls: ${String(unnamed.length)}`).toEqual([]);
+  expect(unnamed, "an unnamed control").toEqual([]);
 
   view.unmount();
 });
@@ -307,95 +289,8 @@ test("every label names exactly one control, by an id that resolves", async () =
     }
   }
 
-  console.log(`G3 labels with no resolving for: ${String(unpaired.length)}`);
-  for (const u of unpaired) console.log(`  ${u}`);
-  console.log(`G3 labels not wrapping exactly one control: ${String(notOne.length)}`);
-  for (const n of notOne) console.log(`  ${n}`);
-
   expect(unpaired, "a label whose for names no single control").toEqual([]);
   expect(notOne, "a label wrapping other than one control").toEqual([]);
-
-  view.unmount();
-});
-
-/**
- * The selector `extensions/Renamer/e2e/tests/options-migration.spec.mjs` addresses a field block
- * with, copied verbatim. Both shapes are candidates and a candidate containing another is not one.
- */
-const E2E_FIELD_SELECTOR =
-  'label:not(:has(label, [role="group"])), [role="group"]:not(:has(label, [role="group"]))';
-
-/** The e2e's `field(scope, label)`: candidates under a scope whose text holds the label. */
-function e2eField(scope: Element, label: string): Element[] {
-  return [...scope.querySelectorAll(E2E_FIELD_SELECTOR)].filter((el) =>
-    el.textContent.includes(label),
-  );
-}
-
-/** The e2e's `groupCard`/`toggleCard`: a heading, then the three hops up to the card root. */
-function e2eCard(scope: Element, title: string): Element {
-  const heading = [...scope.querySelectorAll("h3")].find((h) => h.textContent.trim() === title);
-  const root = heading?.parentElement?.parentElement?.parentElement;
-  if (!root) throw new Error(`no card titled ${title}`);
-  return root;
-}
-
-/** A group's own name. A group names the block; it never inherits one from an ancestor. */
-function groupName(el: Element): string {
-  const own = (el.getAttribute("aria-label") ?? "").trim();
-  if (own) return own;
-  return (el.getAttribute("aria-labelledby") ?? "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((id) => el.ownerDocument.getElementById(id)?.textContent ?? "")
-    .join(" ")
-    .trim();
-}
-
-test("every field block the e2e addresses still resolves to exactly one node", async () => {
-  const view = await renderPanel();
-  const page = view.container;
-
-  // Each entry is one `field(scope, label)` call in options-migration.spec.mjs, in its own scope.
-  const addressed: [string, Element, string][] = [
-    ["Tags / Only include", e2eCard(page, "Tags"), "Only include"],
-    ["Tags / Never include", e2eCard(page, "Tags"), "Never include"],
-    ["Performers / Only include", e2eCard(page, "Performers"), "Only include"],
-    ["Performers / Never include", e2eCard(page, "Performers"), "Never include"],
-    ["page / Exclude by tag", page, "Exclude by tag"],
-    [
-      "Source-path destinations / Source path",
-      e2eCard(page, "Source-path destinations"),
-      "Source path",
-    ],
-    ["Source-path destinations / Under", e2eCard(page, "Source-path destinations"), "Under"],
-    [
-      "Source-path destinations / Folder template",
-      e2eCard(page, "Source-path destinations"),
-      "Folder template",
-    ],
-  ];
-
-  const counts = Object.fromEntries(
-    addressed.map(([name, scope, label]) => [name, e2eField(scope, label).length]),
-  );
-  expect(counts).toEqual(Object.fromEntries(addressed.map(([name]) => [name, 1])));
-
-  view.unmount();
-});
-
-test("no field block's group name collides with a per-kind row's", async () => {
-  const view = await renderPanel();
-
-  // The four labels `renamer-settings-page.mjs` passes to `getByRole("group", { name })`, transcribed
-  // from that page object rather than read from KIND_LABELS: a rename there must fail here, not agree.
-  const KIND_ROW_NAMES = ["Videos", "Images", "Audio", "Text documents"];
-
-  const names = [...view.container.querySelectorAll('[role="group"]')].map(groupName);
-  const perKind = Object.fromEntries(
-    KIND_ROW_NAMES.map((kind) => [kind, names.filter((n) => n === kind).length]),
-  );
-  expect(perKind).toEqual(Object.fromEntries(KIND_ROW_NAMES.map((kind) => [kind, 1])));
 
   view.unmount();
 });

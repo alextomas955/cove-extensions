@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 // This test of a shared component lives in the consuming package because `react` resolves only here.
-/**
- * The shared TagListInput driven as a combobox: what the box reads, which chips exist and what the
- * list offers after each way of committing a value.
- *
- * The real component is the subject, so nothing is mocked. Each step waits for the render it causes:
- * React writes a controlled input's committed value onto the element's `value` attribute, so that
- * attribute is what says the typed text has reached the handlers the next key press will run.
- */
+// The shared TagListInput driven as a combobox: what the box reads, which chips exist and what the
+// list offers after each way of committing a value. React writes a controlled input's committed value
+// onto its `value` attribute, so each step waits for that attribute before the next key press.
 import { test, expect, vi } from "vitest";
 import { createElement, useState } from "react";
 import { createRoot } from "react-dom/client";

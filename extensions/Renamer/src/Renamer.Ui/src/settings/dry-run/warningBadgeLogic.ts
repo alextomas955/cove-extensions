@@ -13,7 +13,7 @@ export interface Badge {
   readonly variant: Variant;
 }
 
-/** What a badge is derived from. Structural, so a `/preview` item and a `/scan-rows` row both fit. */
+/** What a badge is derived from. Structural, so a `/scan-rows` row fits it. */
 export interface Badgeable {
   status: RenamerStatus;
   suffixed: boolean;

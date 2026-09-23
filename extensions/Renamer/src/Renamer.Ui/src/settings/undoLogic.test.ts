@@ -1,4 +1,3 @@
-/** Behavior contract for the undo panel's copy, and for the panel actually reading it from here. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

@@ -1,4 +1,3 @@
-/** Behavior contract for the whole-library rename banner, and for the hook reading it from here. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

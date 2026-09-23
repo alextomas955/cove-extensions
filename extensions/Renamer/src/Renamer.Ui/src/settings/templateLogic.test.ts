@@ -1,4 +1,3 @@
-/** Behavior contract for templateUsesToken. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

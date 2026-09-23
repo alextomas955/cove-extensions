@@ -1,4 +1,3 @@
-/** Behavior contract for the pure dry-run logic. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

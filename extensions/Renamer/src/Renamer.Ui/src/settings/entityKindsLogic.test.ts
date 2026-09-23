@@ -1,8 +1,6 @@
-/**
- * The store-or-drop rule for one per-kind entry. An entry that says nothing the defaults do not is
- * dropped, so a setting turned on and back off leaves the blob as it started; anything else is
- * stored, including a destination naming neither a root nor a folder, which is a real instruction.
- */
+// The store-or-drop rule for one per-kind entry. An entry that matches the defaults is dropped, so a
+// setting turned on and back off leaves the blob as it started. A destination naming neither a root
+// nor a folder is a real instruction and is stored.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

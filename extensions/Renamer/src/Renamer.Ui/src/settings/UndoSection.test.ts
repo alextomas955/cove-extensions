@@ -95,7 +95,7 @@ beforeEach(() => {
 });
 
 test("an undo whose response never arrived is not reported as a completed undo", async () => {
-  // the case. `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
+  // `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
   // a request whose fate is unknown: the connection dropped, or the body would not parse. The server
   // may already have moved part or all of the batch back.
   server.undoRejection = new TypeError("Failed to fetch");

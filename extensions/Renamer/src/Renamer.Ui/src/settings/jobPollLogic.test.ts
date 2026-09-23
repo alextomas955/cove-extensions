@@ -1,15 +1,6 @@
-/**
- * Behavior contract for the poll decision both job pollers take.
- *
- * The claims under test are the two that make a poller bounded: a job that stops reporting progress
- * ends the run, and a job id that stops resolving ends it too even while the stall budget has room.
- * Both were unbounded - one cleared its interval only on a terminal status, the other swallowed every
- * read failure - so a wedged job left a poll per second running with the button stuck disabled.
- *
- * Time and read outcomes are inputs, so every case here is exact at one-millisecond granularity with
- * no clock and no fake timers. Every expectation is a literal; none is obtained by calling the module
- * a second way.
- */
+// The poll decision both job pollers take stays bounded: a job that stops reporting progress ends the
+// run, and a job id that stops resolving ends it even while the stall budget has room. Time and read
+// outcomes are inputs, so every case is exact with no clock and no fake timers.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 

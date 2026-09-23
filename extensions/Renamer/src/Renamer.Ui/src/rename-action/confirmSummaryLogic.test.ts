@@ -1,9 +1,5 @@
-/**
- * Behavior contract for the pure bulk-rename confirm builder.
- *
- * The claim under test is the one a user acts on: the confirm shown before a rename touches disk must
- * promise an undo only when the server says the batch will be journalled.
- */
+// The confirm shown before a rename touches disk promises an undo only when the server says the batch
+// will be journalled.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
