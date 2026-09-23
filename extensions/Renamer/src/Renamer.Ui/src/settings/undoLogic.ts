@@ -209,3 +209,8 @@ export function buildUndoUnconfirmed(detail: string): UndoFeedback {
     text: `Couldn't confirm the undo — ${detail}. Some files may already have been moved back; check the batch before trying again.`,
   };
 }
+
+/** Compose the sentence for an undo the server answered with a refusal, which moved nothing. */
+export function buildUndoRefused(detail: string): UndoFeedback {
+  return { kind: "error", text: `Couldn't undo — ${detail}. Nothing was changed.` };
+}

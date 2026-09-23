@@ -1,31 +1,10 @@
 /**
- * Field primitives re-implemented locally (the host's `SettingsPrimitives.tsx` is not
- * importable from an extension bundle). Every class string is matched byte-for-byte to
- * Cove's own primitives so the panel is typographically/spacing-wise indistinguishable
- * from native Cove settings - and so every utility resolves against the host's already-
- * emitted Tailwind stylesheet (no CSS bundle ships).
+ * Field primitives re-implemented locally, because the host's settings primitives are not exported to
+ * extensions. Every class string matches Cove's own, so the panel reads as native and every utility
+ * resolves against the host's emitted stylesheet: no CSS bundle ships.
  *
- * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` - not the
- * `focus-visible:ring-*` utilities, which the host stylesheet does not emit (so they would do nothing).
- *
- * Import audit (checked directly against `@cove/runtime/components`, not assumed): none of its
- * exports are a drop-in for these primitives. `SettingsPrimitives.tsx` - the host's own field/
- * control set these mirror - is never re-exported to extensions at all; only three host-internal
- * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
- * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
- * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
- * `CustomFieldsDisplay`/`Editor`) utilities, none of which overlap a settings-field primitive's
- * shape. `TagBadge` is a tag/label pill with color and provenance - this codebase's status pills
- * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
- * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no local counterpart
- * anywhere in this directory: nothing here renders a raw duration, file size, or date value, and
- * `CustomFieldsDisplay`/`Editor` render Cove's custom-fields feature, which this extension has no
- * UI for. The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` import specifiers
- * used throughout this codebase are not a migration gap either: the host's `legacySpecifiers`
- * alias table (`extension-runtime-contract.ts`) resolves each of them to the identical runtime-
- * injected module `@cove/runtime/react` etc. resolve to, so there is no behavior difference and no
- * reason to change the specifier string. See `Dialog.tsx`'s header for why `ConfirmDialog` isn't a
- * swap for `Dialog` either.
+ * Focus uses Cove's `focus:border-accent focus:outline-none`. The host stylesheet emits no
+ * `focus-visible:ring-*` utilities.
  */
 import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";

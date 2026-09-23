@@ -103,13 +103,7 @@ export function DryRunModal({
   const counts = scan.summary ? summaryCounts(scan.summary) : null;
 
   return (
-    <Dialog
-      titleId={TITLE_ID}
-      describedById={DESC_ID}
-      pending={renaming}
-      onCancel={onClose}
-      size="xl"
-    >
+    <Dialog titleId={TITLE_ID} describedById={DESC_ID} pending={renaming} onCancel={onClose}>
       <h2 id={TITLE_ID} className="mb-2 text-lg font-semibold text-foreground">
         Dry run
       </h2>

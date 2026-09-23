@@ -12,8 +12,7 @@
  * waits for the state its assertion is about rather than for a span.
  *
  * The stubs are the host seams and never the subject: the request module, whose real one reaches
- * `@cove/runtime/api`; the shared primitives, whose `react` import resolves only inside a consuming
- * bundle; and the dialog shell, which contributes only the confirm button this test presses.
+ * `@cove/runtime/api`, and the shared primitives. The host's confirm dialog is its runtime stub.
  */
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
@@ -82,11 +81,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       h("div", { "data-status": props.kind }, props.children),
     Spinner: () => null,
   };
-});
-
-vi.mock("../common/ui/Dialog", async () => {
-  const { createElement: h } = await import("react");
-  return { Dialog: (props: { children?: ReactNode }) => h("div", null, props.children) };
 });
 
 const { UndoSection } = await import("./UndoSection");
