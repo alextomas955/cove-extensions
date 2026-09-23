@@ -111,6 +111,7 @@ export function ConnectionSection({
 
         <Field
           label="Whisparr address"
+          labelStyle="mono"
           helper="The address Cove itself reaches Whisparr on, including the scheme and port."
         >
           {(id) => (
@@ -125,6 +126,7 @@ export function ConnectionSection({
 
         <Field
           label="API key"
+          labelStyle="mono"
           helper="Leave blank to keep the key already stored for this generation."
         >
           {(id) => (
