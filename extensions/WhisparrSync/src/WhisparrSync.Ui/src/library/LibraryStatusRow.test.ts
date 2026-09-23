@@ -83,7 +83,7 @@ test("the row counts the cards on the page and names what it counted", async () 
   const row = page.querySelector("[role=status]");
   expect(row?.textContent).toContain("2Monitored");
   expect(row?.textContent).toContain("1Unmonitored");
-  expect(row?.textContent).toContain("1not added on this page");
+  expect(row?.textContent).toContain("1Not added");
 });
 
 test("the row says its counts are the page's and not the library's", async () => {
@@ -130,7 +130,7 @@ test("cards the instance answered nothing usable for are counted as unknown, not
 
   const row = page.querySelector("[role=status]");
   expect(row?.textContent).toContain("2Status unknown");
-  expect(row?.textContent).toContain("0not added on this page");
+  expect(row?.textContent).toContain("0Not added");
 });
 
 test("a file is counted beside the states it cross-cuts", async () => {
@@ -214,6 +214,36 @@ test("the row counts the cards nothing could be asked about", async () => {
   expect(page.textContent).toContain(NOT_LINKED_ON_THIS_PAGE);
   const linked = /(\d+)\s*not linked/.exec(page.textContent);
   expect(linked?.[1]).toBe("2");
+});
+
+// A state drawn nowhere leaves the reader short of the page's own total with nothing naming the
+// difference, which reads as a read that went missing.
+test("the figures account for every card on the page", async () => {
+  showBadges();
+
+  const page = await pageOf([
+    { excluded: false, present: true, monitored: true },
+    { excluded: false, present: true, monitored: false },
+    { excluded: false, present: false, monitored: null },
+    { excluded: true, present: true, monitored: true },
+    { excluded: false, present: null, monitored: null },
+    null,
+  ]);
+
+  const text = page.querySelector("[role=status]")?.textContent ?? "";
+  // `In library` is left out because it cross-cuts the states rather than partitioning them.
+  const figure = (label: string) => Number(new RegExp(`(\\d+)${label}`).exec(text)?.[1] ?? NaN);
+  const drawn = [
+    figure("Monitored"),
+    figure("Unmonitored"),
+    figure("Not added"),
+    figure("Excluded"),
+    figure("Status unknown"),
+    figure(NOT_LINKED_ON_THIS_PAGE),
+  ];
+
+  expect(drawn, `the row read "${text}"`).toEqual([1, 1, 1, 1, 1, 1]);
+  expect(drawn.reduce((total, one) => total + one, 0)).toBe(6);
 });
 
 // A page is answered a batch at a time, so a subtotal is on screen well before the read finishes.
@@ -300,7 +330,16 @@ test("the figures are held back from full strength while a read is still out", a
     return createElement(
       "div",
       null,
-      createElement("button", { type: "button", onClick: () => { setMore(true); } }, "mount more"),
+      createElement(
+        "button",
+        {
+          type: "button",
+          onClick: () => {
+            setMore(true);
+          },
+        },
+        "mount more",
+      ),
       createElement(WhisparrVideoLibraryRow),
       createElement(WhisparrVideoCardBadge, { key: 1, video: { id: 1 } }),
       ...(more ? [createElement(WhisparrVideoCardBadge, { key: 2, video: { id: 2 } })] : []),
