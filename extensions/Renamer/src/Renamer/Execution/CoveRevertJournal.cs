@@ -40,8 +40,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IAsyncDisposable
     private long _lastSeq;
 
     // How many appended rows are held before they are written. A save per row costs a round-trip per
-    // renamed file, which on a same-volume rename is several times the rename it records and is what
-    // every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
+    // renamed file, which every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
     // mid-run leaves up to this many already-renamed files with no journal row, so undo cannot put
     // those back. They are renamed correctly and recorded correctly in Cove's own tables; only their
     // reversal is lost.

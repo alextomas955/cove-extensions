@@ -110,8 +110,7 @@ public interface IRevertJournal
 /// <remarks>
 /// <c>EntityId</c> is the parent entity the forward rename published its event for, not
 /// <c>FileId</c>, the renamed physical file row. <c>OldPath</c> is forward-slash form.
-/// <c>SidecarsJson</c> is journalled rather than recomputed because which sidecars actually moved is
-/// a runtime fact, and the caption transform is not invertible from the names alone.
+/// <c>SidecarsJson</c> holds the serialized <see cref="RevertDelta"/>.
 /// </remarks>
 public sealed record RevertRow(
     string RunId,

@@ -94,21 +94,12 @@ public static class MetadataProjector
     }
 
     // The title an item with none falls back to: its first file's basename without the extension, or
-    // null when the item already has a title, the FilenameAsTitle fallback is off, or the item has no
-    // files. This is the canonical statement of why the fallback is recorded rather than repeated; the
-    // sites that carry the value onward point here.
+    // null when the item has a title, the FilenameAsTitle fallback is off, or it has no files.
     //
-    // Derived per run, the title is a function of the basename the previous run wrote, and the rename is
-    // a function of the title, so any template rendering more than a bare $title wraps its own
-    // decorations again on every pass and the name grows without bound. No cure keeps both directions
-    // live: parsing the template back out of its own output is post-hoc cleanup, and refusing the
-    // fallback for a decorated template only converts the runaway into a required-fields skip. So the
-    // derivation is broken: the executor records this value on the entity in the same save as the
-    // rename, after which the item has a title and this path never runs for it again.
-    //
-    // Entity-level, not per-file: a title belongs to the item, so deriving it from the file being
-    // projected gives a multi-file item as many titles as it has files, and leaves the recorded one
-    // decided by whichever file the executor saved last.
+    // A title derived on every run would come from the name the previous run wrote, so any template
+    // rendering more than $title would wrap its decorations again each pass. The executor therefore
+    // records this value on the entity in the same save as the rename, after which the item has a
+    // title. It is taken from the first file, because a title belongs to the item.
     internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
         => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
             ? PathOps.StemOf(entity.Files[0].Basename)

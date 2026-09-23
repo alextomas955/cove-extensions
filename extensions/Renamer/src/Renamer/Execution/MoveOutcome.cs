@@ -5,16 +5,12 @@ namespace Renamer.Execution;
 // How a primary move attempt was classified, shared by the same-volume DiskMover and the cross-volume
 // CrossVolumeMover. Which members a tier can produce is that tier's own contract: an atomic
 // same-volume rename has no copy to read back and no cancellation point, so DiskMover never returns
-// VerifyFailed or Cancelled.
-//
-// The ordinals are pinned, so a new member is appended and never inserted. The human-readable reason
-// travelling beside an outcome is never matched on: it is prose, and a decision keyed on it changes
-// meaning when someone rewords it.
+// VerifyFailed or Cancelled. The reason text beside an outcome is prose and never matched on.
 public enum MoveOutcome
 {
     // The file moved: on the same volume an atomic rename, across volumes a copy that was verified,
     // atomically promoted, and whose source was deleted last.
-    Moved = 0,
+    Moved,
 
     // The source was locked or in use, so the move never started: the source stays at its old path and
     // no destination was created.

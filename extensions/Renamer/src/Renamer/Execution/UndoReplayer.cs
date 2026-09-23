@@ -19,9 +19,8 @@ namespace Renamer.Execution;
 // there is no state where disk and database disagree. Entries are independent; one failure does not
 // abort the batch.
 //
-// Sidecars replay the delta the forward path recorded, reversed. The forward caption transform is not
-// invertible, and a caption rename was applied only for a sidecar whose file really moved, so the
-// reverse target cannot be recomputed from the stems. A sidecar that cannot go back leaves the entry
+// Sidecars replay the delta the forward path recorded, reversed; see RevertDelta. A sidecar that cannot
+// go back leaves the entry
 // restored with a warning, since the media file and its row are both at the original location. A
 // caption's stored filename is written back only when its file moved back.
 //

@@ -311,11 +311,8 @@ public sealed class RenamerExecutor
         // The journal row carries the same entity id the event below publishes, so undo reconstructs the
         // forward event from the row. Seq is 0 because the journal mints it on append.
         //
-        // The delta is built from what actually moved and is recorded now, not recomputed at undo time.
-        // RetargetCaption only rewrites a caption whose name starts with the old stem, so the forward
-        // transform is not invertible in general, and a caption rename is applied only for a sidecar
-        // whose file really moved on disk, which is a runtime fact no later string arithmetic recovers.
-        // The row and the delta are appended at this one site, so a crash cannot leave them disagreeing.
+        // The delta records what actually moved, for the reason RevertDelta gives. The row and the delta
+        // are appended at this one site, so a crash cannot leave them disagreeing.
         //
         // A failed append costs this item its undo entry and nothing more: the file is where the
         // database says it is.

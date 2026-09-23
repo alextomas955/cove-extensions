@@ -9,8 +9,7 @@ namespace Renamer.Execution;
 // report VerifyFailed or Cancelled.
 public sealed class CrossVolumeMover
 {
-    // Matches File.Copy throughput on multi-GB sequential I/O; the 4 KiB default and CopyTo's 80 KiB
-    // are both too small.
+    // The stream defaults are too small for multi-gigabyte sequential copies.
     private const int BufferSize = 1 << 20;
 
     // Test-only seam, invoked on the closed in-flight copy between the copy and the verify so a test

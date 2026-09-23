@@ -27,11 +27,9 @@ public static class Tokens
     public const string Ext = "ext";
 }
 
-// Evaluation order: (1) build the resolved token map (scalars, multi-value performers/tags,
-// derived $resolution); (2) render the filename and folder templates independently, collapsing
-// {} spans whose every inner token resolved empty; (3) apply case and transliteration transforms;
-// (4) sanitize per segment (filename as one segment so '/' is stripped; folder split on '/', each
-// piece cleaned, rejoined with '/'); (5) resolve the extension; (6) length-fit.
+// Renders in a fixed order: resolve the tokens, render each template collapsing a {} group whose tokens
+// are all empty, apply the case and transliteration transforms, sanitize each path segment, resolve
+// the extension, then fit the length.
 //
 // The engine is pure: no Path, File or database access. Path-traversal confinement ('..',
 // absolute paths) belongs to the executor, because the engine never sees the library root.
@@ -434,7 +432,7 @@ public static class TemplateEngine
             }
             else if (seg.Kind == SegKind.GroupOpen)
             {
-                // Groups are flat, so a nested open is not expected; render it inline.
+                // A nested group renders inside this one.
                 i = RenderGroup(segs, i, resolved, suppressExt, inner);
             }
         }
