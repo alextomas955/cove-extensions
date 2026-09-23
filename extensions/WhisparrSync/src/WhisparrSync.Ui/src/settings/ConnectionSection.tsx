@@ -156,7 +156,9 @@ export function ConnectionSection({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3" aria-busy={testing}>
+        {/* Checking the connection is a different subject from setting it, so a hairline closes
+            the fields above rather than spacing alone. */}
+        <div className="flex items-center gap-3 border-t border-border pt-4" aria-busy={testing}>
           <OptionallyDisabled
             name={testing ? "Testing…" : "Test connection"}
             reason={testReason}

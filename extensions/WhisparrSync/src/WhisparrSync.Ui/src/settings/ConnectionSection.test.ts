@@ -49,6 +49,7 @@ function section(overrides: {
   stored?: WhisparrSyncGenerationSettingsView | null;
   draft?: SettingsDraft;
   test?: TransientTest;
+  sharedReason?: string;
   onChooseGeneration?: (generation: CardGeneration) => void;
 }) {
   const stored = overrides.stored === undefined ? NEVER_VERIFIED : overrides.stored;
@@ -59,7 +60,7 @@ function section(overrides: {
     draft: overrides.draft ?? NO_DRAFT,
     test: overrides.test ?? { phase: "none" },
     testsStored: false,
-    sharedReason: null,
+    sharedReason: overrides.sharedReason ?? null,
     now: NOW,
     onAddressChange: () => undefined,
     onKeyChange: () => undefined,
@@ -168,4 +169,43 @@ test("what the next save will do to the key is stated apart from what is stored"
 
   expect(cleared.textContent).toContain("Key will be removed when you save");
   expect(cleared.textContent).not.toContain("New key will be saved");
+});
+
+test("the section offers one accent control, and it is the test", async () => {
+  const host = await render(section({}));
+
+  const buttons = [...host.querySelectorAll("button")];
+  expect(buttons.length, "the section offers nothing to press").toBeGreaterThan(1);
+  const accent = buttons.filter((button) => button.className.split(" ").includes("bg-accent"));
+  expect(accent, "the section draws more than one accent control").toHaveLength(1);
+  expect(
+    accent[0].textContent.startsWith("Test connection"),
+    "the section's accent control is something other than the test",
+  ).toBe(true);
+});
+
+test("a version never verified reads as a normal state, not as a failure", async () => {
+  const host = await render(section({ stored: NEVER_VERIFIED }));
+
+  const line = [...host.querySelectorAll("span")].find(
+    (span) => span.textContent === "Whisparr version not verified yet",
+  );
+  expect(line, "the section says nothing about a version it has never verified").toBeDefined();
+  expect(line?.className).toContain("text-secondary");
+  expect(line?.className).not.toContain("text-red-400");
+});
+
+test("a control the page cannot offer names itself before its reason", async () => {
+  const reason = "Cove is still reading the store.";
+  const host = await render(section({ sharedReason: reason }));
+
+  const refused = [...host.querySelectorAll("button")].filter((button) => button.disabled);
+  expect(refused.length, "nothing was refused while the store was unreadable").toBeGreaterThan(0);
+  for (const button of refused) {
+    expect(
+      button.textContent.endsWith(reason),
+      "a refusal ends with something other than its reason",
+    ).toBe(true);
+    expect(button.textContent, "a refused control is its reason and nothing else").not.toBe(reason);
+  }
 });
