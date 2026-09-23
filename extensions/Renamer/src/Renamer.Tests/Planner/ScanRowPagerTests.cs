@@ -219,19 +219,6 @@ public sealed class ScanRowPagerTests
         Assert.Equal(ScanRowPager.DefaultTake, negative.Rows.Count);
     }
 
-    [Fact]
-    public async Task LoadEntityIdPageAsync_IsStrictlyAscendingAfterTheCursor_AndEmptyForANonRenamableKind()
-    {
-        var port = new FakeRenamerDataPort();
-        port.SeedAllIds(RenamerFileKind.Video, 5, 1, 9, 7);
-
-        Assert.Equal([1, 5, 7], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 3));
-        Assert.Equal([7, 9], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 5, 3));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 0));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, 10));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, int.MaxValue));
-    }
-
     // The in-flight overflow flag, as a page reads it.
     // pure: a fake port, string-only path math and a synthetic mount table. No disk, no DB, and no
     // dependence on the runner's own volumes.

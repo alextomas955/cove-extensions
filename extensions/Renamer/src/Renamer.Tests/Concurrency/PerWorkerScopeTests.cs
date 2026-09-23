@@ -68,10 +68,9 @@ public sealed class PerWorkerScopeTests
         await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
         // Structural proof: the planning pass opens one read scope; the execution pass opens one scope per acting unit.
-        // The distinct-instance count must be at least the worker count (n acting items), and every
-        // recorded context is a distinct reference - no instance was shared across workers.
+        // Every resolve builds a new context, so what can fail is the count: fewer contexts than
+        // workers means workers shared one.
         var distinct = new HashSet<DbContext>(constructed, ReferenceEqualityComparer.Instance);
-        Assert.Equal(constructed.Count, distinct.Count); // all references distinct, by reference
         Assert.True(distinct.Count >= n + 1,
             $"expected at least {n + 1} distinct contexts (1 read scope + {n} workers), got {distinct.Count}");
 

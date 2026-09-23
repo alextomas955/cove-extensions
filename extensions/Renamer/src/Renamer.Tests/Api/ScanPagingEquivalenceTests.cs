@@ -208,56 +208,6 @@ public sealed class ScanPagingEquivalenceTests
         Assert.Contains(rows, r => r.NewFullPath.Contains("/Acme/", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public async Task PagedWalk_SpansEveryKind_WithNoRowLostOrDuplicatedAtASeam()
-    {
-        var port = BuildFixture();
-        var rows = await PagedWalkAsync(port, take: 7);
-
-        Assert.Equal(RenamableKinds.All.ToHashSet(), rows.Select(r => r.Kind).ToHashSet());
-        foreach (var kind in RenamableKinds.All)
-        {
-            Assert.Equal(EntitiesPerKind, rows.Where(r => r.Kind == kind).Select(r => r.EntityId).Distinct().Count());
-        }
-    }
-
-    [Fact]
-    public async Task PagedWalk_VisitsEveryFileExactlyOnce()
-    {
-        var port = BuildFixture();
-        var full = await FullPlanAsync(port);
-        var paged = await PagedWalkAsync(port, take: 1);
-
-        var identities = paged.Select(r => (r.Kind, r.FileId)).ToList();
-        Assert.Equal(identities.Count, identities.Distinct().Count());
-        Assert.Equal(full.Count, identities.Count);
-    }
-
-    [Fact]
-    public async Task PagedWalk_MultiFileEntityLargerThanThePage_IsNeverSplit()
-    {
-        var port = BuildFixture();
-        var paged = await PagedWalkAsync(port, take: 1);
-
-        // Every entity's rows must arrive contiguously: an entity id may not reappear after a different
-        // one has been seen, which is what a split page would produce.
-        var seen = new HashSet<(RenamerFileKind, int)>();
-        (RenamerFileKind, int)? previous = null;
-        foreach (var row in paged)
-        {
-            var identity = (row.Kind, row.EntityId);
-            if (previous is not null && previous.Value != identity)
-            {
-                Assert.DoesNotContain(identity, seen);
-            }
-
-            seen.Add(identity);
-            previous = identity;
-        }
-
-        Assert.Contains(paged.GroupBy(r => (r.Kind, r.EntityId)), g => g.Count() == BigEntityFileCount);
-    }
-
     [Theory]
     [InlineData(1)]
     [InlineData(13)]

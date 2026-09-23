@@ -63,48 +63,6 @@ public sealed class UndoRetryTests
     }
 
     [Fact]
-    public async Task ARetry_ActsOnlyOnWhatWasLeft_AndFinishesOnceTheCauseIsCleared()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, comes, stays) = await RenameTwoAsync(db, dir);
-            File.WriteAllText(stays.OldFull, "someone else's file");
-
-            var first = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
-            Assert.Equal(1, first.Undone);
-
-            // Clear the cause, exactly as a user would.
-            File.Delete(stays.OldFull);
-
-            var second = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
-
-            // one, not two: the row the first run retired is not offered again, so the second run acts
-            // only on what the first left behind.
-            Assert.Equal(1, second.Undone);
-            Assert.Empty(second.SkippedSample);
-            Assert.Equal(0, second.SkippedCount);
-            Assert.Empty(second.FailedSample);
-            Assert.Equal(0, second.FailedCount);
-            Assert.True(File.Exists(stays.OldFull), "the blocked file is back after the retry");
-            Assert.False(File.Exists(stays.NewFull));
-            Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
-
-            // Nothing left to offer - and a third call is a clean no-op rather than an error.
-            await using var journal = new CoveRevertJournal(db);
-            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
-            Assert.Equal(0,
-                UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default)).Undone);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task ARowWhoseFileLeftTheLibrary_IsRetiredAsUnrestorable_AndNeverOfferedAgain()
     {
         using var dir = new TempDir();

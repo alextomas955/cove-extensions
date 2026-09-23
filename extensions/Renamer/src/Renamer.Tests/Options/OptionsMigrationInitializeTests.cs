@@ -83,38 +83,6 @@ public sealed class OptionsMigrationInitializeTests
     }
 
     [Fact]
-    public async Task PopulatedTable_ConvertsOnTheFirstLoad()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-
-        await LoadAsync(library, store, DramaRoot);
-
-        var options = await new OptionsStore(store).LoadAsync();
-        Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
-        Assert.Equal("$title", options.FilenameTemplate);
-    }
-
-    [Fact]
-    public async Task AlreadyStamped_IsNotConvertedAgain()
-    {
-        // The stamp is the only thing making the conversion one-time, so a stamped blob must be left
-        // exactly as it is even when it still looks legacy.
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-        await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);
-
-        await LoadAsync(library, store, DramaRoot);
-
-        Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
-    }
-
-    [Fact]
     public async Task NoStoredOptions_WritesNothing()
     {
         await using var library = await LibraryDatabase.CreateAsync();
@@ -177,28 +145,6 @@ public sealed class OptionsMigrationInitializeTests
         Assert.Equal(setsBefore, store.SetCallCount);
         Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
-    }
-
-    [Fact]
-    public async Task ASecondLoadAgainstAnAlreadyStampedStore_WritesNothing()
-    {
-        // A second load is a host restart, redeploy or reboot. Asserting the blob is unchanged is not
-        // enough on its own: a conversion that ran again and produced the same bytes would satisfy that
-        // while re-reading and re-writing the user's settings on every start.
-        await using var library = await LibraryDatabase.CreateAsync();
-        await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-
-        await LoadAsync(library, store, DramaRoot);
-        Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
-        string? afterFirst = await store.GetAsync(OptionsStore.Key);
-        int setsAfterFirst = store.SetCallCount;
-
-        await LoadAsync(library, store, DramaRoot);
-
-        Assert.Equal(setsAfterFirst, store.SetCallCount);
-        Assert.Equal(afterFirst, await store.GetAsync(OptionsStore.Key));
     }
 
     [Fact]

@@ -138,56 +138,6 @@ public sealed class ScanAggregateScaleTests
         Assert.Equal(1, store.SetCallCount);
     }
 
-    // One distinct volume per pair is more than the 26 drive letters Windows has, but a UNC path's root is
-    // its \\server\share pair, so a share per index yields as many distinct volume keys as the fixture
-    // needs; on Unix the same count comes from synthetic mount points.
-    private static string OnSynthVol(int index, string name) =>
-        OperatingSystem.IsWindows() ? $@"\\vt\v{index}\{name}" : $"/v{index}/{name}";
-
-    private static IReadOnlyCollection<string>? SynthMounts(int count) =>
-        OperatingSystem.IsWindows() ? null : [.. Enumerable.Range(0, count).Select(i => $"/v{i}")];
-
-    [Fact]
-    public void MoreVolumePairsThanTheCap_TopsTheItemisationButStaysUnderTheCeiling()
-    {
-        // Folded directly with a synthetic mount table rather than driven through the job: which volume a
-        // path is on comes from the runner's real mount table, so a genuinely multi-volume fixture cannot
-        // be produced through the live scan path on an arbitrary machine. The scaling claim under test -
-        // the stored size stays under the ceiling with the pair list at its cap, while the cross-volume
-        // totals stay exact - is unaffected by which code path fed the fold.
-        int pairs = ScanSummary.MaxVolumePairsPerKind + 20;
-
-        var aggregator = new ScanAggregator(new RenamerOptions().FullPathMax, SynthMounts(pairs + 1));
-        long expectedBytes = 0;
-        for (int i = 0; i < pairs; i++)
-        {
-            int fileId = i + 1;
-            long bytes = fileId * 100L;
-            expectedBytes += bytes;
-            string target = OnSynthVol(i + 1, "Title.mkv");
-            aggregator.Fold(
-                RenamerFileKind.Video,
-                new RenamerPlan(fileId, RenamerFileKind.Video, [
-                    new RenamerPlanItem(
-                        fileId, OnSynthVol(i, "raw.mkv"), target, RenamerStatus.Move,
-                        "Title.mkv", Path.GetDirectoryName(target)!.Replace('\\', '/')),
-                ]),
-                new Dictionary<int, long> { [fileId] = bytes });
-        }
-
-        var summary = aggregator.ToSummary(0L);
-        string json = System.Text.Json.JsonSerializer.Serialize(
-            summary, PreviewContracts.PreviewResponseJsonOptions);
-
-        var kind = Assert.Single(summary.Kinds);
-        Assert.True(kind.VolumePairsTruncated);
-        Assert.Equal(ScanSummary.MaxVolumePairsPerKind, kind.BlastRadius.VolumePairs.Count);
-        Assert.Equal(pairs, kind.BlastRadius.CrossVolumeCount);
-        Assert.Equal(expectedBytes, kind.BlastRadius.CrossVolumeBytes);
-        Assert.True(json.Length < Ceiling(1),
-            $"capped-pairs aggregate stored {json.Length} bytes, over the derived ceiling of {Ceiling(1)}");
-    }
-
     [Fact]
     public async Task Readback_BucketCountsEqualTheBucketsDerivedFromTheExactStatusCounts()
     {

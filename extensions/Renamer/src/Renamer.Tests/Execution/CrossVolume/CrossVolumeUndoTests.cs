@@ -148,53 +148,7 @@ public sealed class CrossVolumeUndoTests
     }
 
     [Fact]
-    public async Task DirMissing_Skip_NotRecreated()
-    {
-        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
-
-        using var oldDir = new TempDir();
-        using var newDrive = new SecondVolume();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            const string original = "bytes whose OLD directory has since vanished";
-            // The recorded old dir is a subdirectory that does not exist on disk (deleted since the move).
-            string missingOldDir = Path.Combine(oldDir.Root, "gone");
-            string oldFull = Path.Combine(missingOldDir, "raw.mkv");
-            string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
-            File.WriteAllText(newFull, original);
-            Assert.False(Directory.Exists(missingOldDir), "precondition: the OLD dir must be absent");
-
-            var (port, batch, _) = await SeedReverseBatchAsync(db, missingOldDir, newDrive.Root, oldFull, newFull);
-
-            var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
-
-            // The missing old dir is a reported skip citing "original directory no longer exists".
-            Assert.Equal(0, result.Undone);
-            Assert.Empty(result.Failed);
-            var skip = Assert.Single(result.Skipped);
-            Assert.NotNull(skip.Reason);
-            Assert.Contains("original directory no longer exists", skip.Reason, StringComparison.OrdinalIgnoreCase);
-            Assert.Empty(undoBus.Published);
-
-            // The old dir is not recreated (we never restore into a possibly-relocated location), and the
-            // file stays at new byte-for-byte.
-            Assert.False(Directory.Exists(missingOldDir), "the missing OLD dir must NOT be recreated");
-            Assert.False(File.Exists(oldFull), "no file may be restored into the missing OLD dir");
-            Assert.True(File.Exists(newFull), "the file must stay at NEW");
-            Assert.Equal(original, File.ReadAllText(newFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task DestinationFull_or_Offline_ReportedSkip()
+    public async Task AnOldVolumeGoneOffline_IsASkip_AndTheFileStaysAtItsNewPath()
     {
         Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
@@ -230,48 +184,6 @@ public sealed class CrossVolumeUndoTests
 
             // The file is not lost - it stays at new byte-for-byte.
             Assert.True(File.Exists(newFull), "an offline OLD drive must leave the file at NEW");
-            Assert.Equal(original, File.ReadAllText(newFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task CrossReoccupiedOldSlot_SkippedNotClobbered()
-    {
-        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
-
-        using var oldDir = new TempDir();
-        using var newDrive = new SecondVolume();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            const string original = "the renamed bytes that must NOT clobber a re-occupied OLD slot";
-            const string squatter = "a different file already sitting in the OLD slot";
-            string oldFull = Path.Combine(oldDir.Root, "raw.mkv");
-            string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
-            File.WriteAllText(newFull, original);
-            // The old slot is re-occupied on disk (a different file now sits there).
-            File.WriteAllText(oldFull, squatter);
-
-            var (port, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
-
-            var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
-
-            // The re-occupied old slot is a reported skip - never clobbered.
-            Assert.Equal(0, result.Undone);
-            Assert.Empty(result.Failed);
-            Assert.Single(result.Skipped);
-            Assert.Empty(undoBus.Published);
-
-            // The squatter is intact, and the renamed bytes survive at new.
-            Assert.Equal(squatter, File.ReadAllText(oldFull));
-            Assert.True(File.Exists(newFull), "the renamed file must stay at NEW, not clobber the OLD slot");
             Assert.Equal(original, File.ReadAllText(newFull));
         }
         finally

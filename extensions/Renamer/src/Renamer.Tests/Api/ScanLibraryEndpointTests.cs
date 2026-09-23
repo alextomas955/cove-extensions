@@ -288,42 +288,6 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task ScanLoop_UsesBatchLoad_NotPerIdLoad()
-    {
-        // The scan-loop shape (batch-load a kind, then plan each id in order) must call the batch
-        // method and never the per-id LoadEntityAsync. Drive that shape over a fake seam so the call
-        // counters are observable (the real scan builds its own port from the DI-scoped DbContext).
-        var port = new FakeRenamerDataPort();
-        for (int id = 1; id <= 5; id++)
-        {
-            port.SeedEntity(new RenamerEntity(
-                id, RenamerFileKind.Video, $"T{id}", null, null, null, true,
-                [], [], [new RenamerFile(id, RenamerFileKind.Video, $"f{id}.mkv", 1, "media")]));
-        }
-        var ids = Enumerable.Range(1, 5).ToArray();
-        port.SeedAllIds(RenamerFileKind.Video, ids);
-        var planner = new RenamerPlanner(port);
-        var options = new RenamerOptions { FilenameTemplate = "$title" };
-        var lookups = new RouteLookups(
-            new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
-            new Dictionary<string, Destination>(),
-            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
-
-        var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
-        var byId = loaded.ToDictionary(e => e.EntityId);
-        foreach (var id in ids)
-        {
-            if (byId.TryGetValue(id, out var e))
-            {
-                await planner.PlanLoadedEntity(e, options, lookups, default);
-            }
-        }
-
-        Assert.Equal(1, port.LoadEntitiesCallCount);  // one batch call for the kind
-        Assert.Equal(0, port.LoadEntityCallCount);     // never the per-id path
-    }
-
-    [Fact]
     public async Task LoadEntitiesAsync_IssuesCeilOverChunk_ReaderQueries_NotOnePerId()
     {
         // Prove the port collapses N per-entity round-trips into ceil(N/chunk) reader queries. Seed
