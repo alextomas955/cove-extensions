@@ -30,7 +30,6 @@ import {
   type TransientTest,
 } from "./connectLogic";
 import type { SettingsDraft } from "./settingsDraftLogic";
-import type { SaveState } from "./settingsDraftStore";
 
 /** The e2e specs locate the address field by this placeholder. */
 const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
@@ -41,9 +40,6 @@ export interface ConnectionSectionProps {
   readFailed: boolean;
   draft: SettingsDraft;
   test: TransientTest;
-  save: SaveState;
-  /** Whether saving would write nothing that is not already stored. */
-  noOpSave: boolean;
   /** Whether Test asks about the stored connection rather than about the pair in the form. */
   testsStored: boolean;
   /** The one reason several controls on this page share, stated once by the page's own notice. */
@@ -54,7 +50,6 @@ export interface ConnectionSectionProps {
   onKeyChange: (next: string) => void;
   onClearStoredKey: (cleared: boolean) => void;
   onTest: () => void;
-  onSave: () => void;
 }
 
 export function ConnectionSection({
@@ -63,8 +58,6 @@ export function ConnectionSection({
   readFailed,
   draft,
   test,
-  save,
-  noOpSave,
   testsStored,
   sharedReason,
   now,
@@ -72,10 +65,8 @@ export function ConnectionSection({
   onKeyChange,
   onClearStoredKey,
   onTest,
-  onSave,
 }: ConnectionSectionProps) {
   const testing = test.phase === "running";
-  const saving = save.status === "saving";
 
   // A stored key cannot be sent back, so testing a changed address needs a typed key. Testing the
   // address as stored does not, because that test asks about the stored connection.
@@ -88,10 +79,6 @@ export function ConnectionSection({
         : !testsStored && draft.apiKey === ""
           ? "Enter the Whisparr API key to test this address."
           : null);
-
-  const saveReason =
-    sharedReason ??
-    (saving ? "This save is still running." : noOpSave ? "Nothing has changed." : null);
 
   return (
     <SectionCard title="Connection" description="The Whisparr instance Cove keeps in step with.">
@@ -173,17 +160,6 @@ export function ConnectionSection({
           />
           {testing ? <Spinner /> : null}
           <TestResult test={test} card={card} />
-        </div>
-
-        <div className="flex items-center gap-3" aria-busy={saving}>
-          <OptionallyDisabled
-            name={saving ? "Saving…" : "Save connection"}
-            variant="ghost"
-            reason={saveReason}
-            onClick={onSave}
-          />
-          {saving ? <Spinner /> : null}
-          <SaveResult save={save} />
         </div>
       </div>
     </SectionCard>
@@ -273,14 +249,4 @@ function TestResult({ test, card }: { test: TransientTest; card: CardGeneration 
   }
 
   return <StatusText kind="error">{sentenceForKind(result.kind, valuesOf(result))}</StatusText>;
-}
-
-function SaveResult({ save }: { save: SaveState }) {
-  if (save.status === "saved") {
-    return <StatusText kind="success">Connection saved.</StatusText>;
-  }
-  if (save.status === "failed") {
-    return <StatusText kind="error">Cove could not save: {save.message}</StatusText>;
-  }
-  return null;
 }

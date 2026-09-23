@@ -36,6 +36,7 @@
       "ignoreDependencies": [
         "react",
         "react-dom",
+        "jsdom",
         "@cove/extension-sdk",
         "@cove/runtime",
         "lucide-react",
