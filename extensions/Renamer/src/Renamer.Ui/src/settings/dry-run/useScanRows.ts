@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanRow, ScanRowsPage } from "../../wire/api";
+import type { ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
 import { api } from "../../common/lib/extension";
 import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
 import {
@@ -63,12 +63,13 @@ export function useScanRows(
       requestJson<ScanRowsPage>(SCAN_ROWS_PATH, {
         method: "POST",
         body: JSON.stringify({
-          Options: optionsBlob,
-          Kind: cursor?.kind ?? null,
-          AfterEntityId: cursor?.afterEntityId ?? null,
-          Query: query,
-          Bucket: bucketWireValue(bucket),
-        }),
+          options: optionsBlob,
+          kind: cursor?.kind ?? null,
+          afterEntityId: cursor?.afterEntityId ?? null,
+          take: null,
+          query,
+          bucket: bucketWireValue(bucket),
+        } satisfies ScanRowsRequest),
       })
         .then((page) => {
           store.append(walkTarget, page);

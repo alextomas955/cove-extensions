@@ -20,7 +20,7 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { type RenamerOptions } from "./options";
 import { decideSettledPreview } from "./previewRequestLogic";
-import type { PreviewSampleResult } from "../wire/api";
+import type { PreviewSampleRequest, PreviewSampleResult } from "../wire/api";
 import { api } from "../common/lib/extension";
 
 const PREVIEW_PATH = api("preview-sample");
@@ -53,7 +53,7 @@ export function useRenamePreview(
     const handle = setTimeout(() => {
       requestJson<PreviewSampleResult[]>(PREVIEW_PATH, {
         method: "POST",
-        body: JSON.stringify({ Options: options }),
+        body: JSON.stringify({ options } satisfies PreviewSampleRequest),
         signal: controller.signal,
       })
         .then((res) => {

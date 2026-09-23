@@ -17,13 +17,16 @@ import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 import { api } from "../common/lib/extension";
 import { buildConfirmSummary } from "../common/lib/preview";
-import type { PreviewResponse } from "../wire/api";
+import type { PreviewResponse, RenamerRequest } from "../wire/api";
 
 export async function renameSelected(
   _action: unknown,
   payload: ActionPayload,
 ): Promise<HandlerResult> {
-  const requestBody = { EntityType: payload.entityType, EntityIds: payload.entityIds };
+  const requestBody = {
+    entityType: payload.entityType,
+    entityIds: payload.entityIds,
+  } satisfies RenamerRequest;
 
   // /preview returns { items, summary } (non-empty body) - parses cleanly.
   const response = await requestJson<PreviewResponse>(api("preview"), {

@@ -19,6 +19,7 @@ import { Search } from "lucide-react";
 import { Dialog, ErrorBox } from "../../common/ui/Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import type { RenamerOptions } from "../options";
+import type { RenameProgress } from "../useRenameLibrary";
 import { DryRunRows } from "./DryRunRows";
 import { ScanProgress } from "./ScanProgress";
 import { useLibraryScan } from "./useLibraryScan";
@@ -70,7 +71,7 @@ export function DryRunModal({
    * before the first sample) falls back to the button spinner. The modal creates no poller of its
    * own for the rename job.
    */
-  renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
+  renameProgress?: RenameProgress | null;
 }>) {
   const [filter, setFilter] = useState<DryRunFilter>("all");
   const [search, setSearch] = useState("");

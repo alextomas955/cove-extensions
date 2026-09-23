@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanSummaryView } from "../../wire/api";
+import type { JobEnqueued, ScanLibraryRequest, ScanSummaryView } from "../../wire/api";
 import { api } from "../../common/lib/extension";
 import { JobUnresponsiveError } from "../jobPollLogic";
 import { pollJob, type JobInfo } from "../pollJob";
@@ -132,9 +132,9 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
     // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
     samples.current = [];
     maxPercent.current = 0;
-    requestJson<{ jobId: string }>(SCAN_LIBRARY_PATH, {
+    requestJson<JobEnqueued>(SCAN_LIBRARY_PATH, {
       method: "POST",
-      body: JSON.stringify({ Options: optionsBlob }),
+      body: JSON.stringify({ options: optionsBlob } satisfies ScanLibraryRequest),
     })
       .then((res) => {
         setJobId(res.jobId);

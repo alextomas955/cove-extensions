@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanSummaryView } from "../wire/api";
+import type { JobEnqueued, RenamerJobStatus, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
 import { JobUnresponsiveError } from "./jobPollLogic";
 import { pollJob, type JobInfo } from "./pollJob";
@@ -27,11 +27,7 @@ const RENAME_LIBRARY_PATH = api("renamer-library");
 export type RunLibraryFeedback =
   { kind: "success"; text: string } | { kind: "error"; text: string } | null;
 
-interface RenameProgress {
-  progress: number;
-  subTask?: string | null;
-  etaSeconds?: number | null;
-}
+export type RenameProgress = Pick<RenamerJobStatus, "progress" | "subTask" | "etaSeconds">;
 
 export interface UseRenameLibrary {
   dryRunOpen: boolean;
@@ -105,14 +101,14 @@ export function useRenameLibrary(): UseRenameLibrary {
       try {
         let counts = scanCounts;
         if (!counts) {
-          const { jobId: scanJobId } = await requestJson<{ jobId: string }>(api("scan-library"), {
+          const { jobId: scanJobId } = await requestJson<JobEnqueued>(api("scan-library"), {
             method: "POST",
           });
           await runPoll(scanJobId);
           counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
         }
 
-        const { jobId } = await requestJson<{ jobId: string }>(RENAME_LIBRARY_PATH, {
+        const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
           method: "POST",
         });
         await runPoll(jobId, (job) => {
