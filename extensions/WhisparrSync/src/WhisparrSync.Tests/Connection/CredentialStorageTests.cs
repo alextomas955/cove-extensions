@@ -239,23 +239,13 @@ public sealed class CredentialStorageTests
             await connection.OpenAsync(TestContext.Current.CancellationToken);
             var database = new CredentialDatabase(connection);
             await database.ApplyMigrationAsync();
-            // Applied in the order the host applies them, so this database is the shape an upgraded
-            // installation has rather than one only a fresh install would ever see.
-            await using var context = database.NewContext();
-            await context.Database.ExecuteSqlRawAsync(
-                WhisparrCredentialSchema.Migration003UpSql, TestContext.Current.CancellationToken);
             return database;
         }
 
         public CredentialContext NewContext()
             => new(new DbContextOptionsBuilder<CredentialContext>().UseSqlite(_connection).Options);
 
-        /// <summary>Re-applies the create-if-absent statement alone.</summary>
-        /// <remarks>
-        /// The column migration is not among them, and cannot be: SQLite has no add-column-if-absent
-        /// and a second application of one raises a duplicate column. That one rests on the host's
-        /// receipt, which is why this asks only what the create-if-absent statement promises.
-        /// </remarks>
+        /// <summary>Re-applies the create-if-absent statement.</summary>
         public async Task ApplyMigrationAsync()
         {
             await using var context = NewContext();

@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
@@ -53,7 +52,6 @@ internal sealed class ReportedRootCache(TimeProvider clock)
 
 internal sealed class ReportedRootPort(
     IWhisparrInstanceFactory instances,
-    OptionsStore options,
     ICredentialPort credentials,
     ReportedRootCache cache,
     ILogger log) : IReportedRootPort
@@ -66,13 +64,11 @@ internal sealed class ReportedRootPort(
             return held;
         }
 
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-
         // Resolved for the generation this port was asked about, which a delivery names and the
         // settings do not. Refused where nothing is configured, so an unconfigured connection
         // reaches nothing that could make a request.
         var resolution = await OutboundPair
-            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+            .ResolveAsync(credentials, generation, ct).ConfigureAwait(false);
         if (resolution.Binding is not { } binding)
         {
             cache.HoldNothingToRead(generation);

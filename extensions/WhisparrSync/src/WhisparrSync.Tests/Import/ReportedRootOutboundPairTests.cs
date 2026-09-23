@@ -35,19 +35,17 @@ public sealed class ReportedRootOutboundPairTests
         Assert.Equal(MovedKey, binding.ApiKey);
     }
 
-    // Control for the case above: a read taking the address from the row would satisfy it while a
-    // row that carries none reached nothing at all, which is every installation saved before the
-    // address was stored there.
+    // The row is the only source of the address. The stored options name one here, so a read that
+    // still consulted them would bind and present this row's key to that instance.
     [Fact]
-    public async Task ARowCarryingNoAddressStillBindsToTheStoredOne()
+    public async Task ARowCarryingNoAddressReachesNothing()
     {
         var instances = Recording();
         var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, MovedKey);
 
         await ReadRootsAsync(credentials, instances, WhisparrGeneration.V3);
 
-        var binding = Assert.Single(instances.Bindings);
-        Assert.True(ConnectionTester.IsSameAddress(StoredAddress, binding.BaseAddress.ToString()));
+        Assert.Empty(instances.Bindings);
     }
 
     // This port answers for the generation it is handed, which a delivery names and the settings do
@@ -89,7 +87,6 @@ public sealed class ReportedRootOutboundPairTests
 
         await new ReportedRootPort(
                 instances,
-                options,
                 credentials,
                 new ReportedRootCache(TimeProvider.System),
                 NullLogger.Instance)

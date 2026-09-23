@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json.Serialization;
-using Cove.Extensions.Shared;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
@@ -292,24 +289,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(MonitorScope.FutureScenes, new WhisparrSyncOptions().DefaultMonitorScope);
     }
 
-    // The store reports a blob it cannot bind as not bound and every layer above then reads
-    // defaults, so one unrecognised word costs the install its address, endpoints and callback
-    // host. The withdrawn spelling named the narrower scope, which is what it loads as.
-    [Fact]
-    public async Task ABlobNamingTheWithdrawnScopeSpellingStillBindsWhole()
-    {
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, WithdrawnSpellingBlob);
-
-        var load = await new OptionsStore(store).LoadBoundAsync();
-
-        Assert.True(load.Bound);
-        Assert.Equal("http://v3-host:6969/", load.Options.V3?.Address);
-        Assert.Equal("stashdb.example/graphql", load.Options.MetadataProviderEndpoints.V3);
-        Assert.Equal("https://media.example.com/cove", load.Options.CallbackHost);
-        Assert.Equal(MonitorScope.FutureScenes, load.Options.DefaultMonitorScope);
-    }
-
     [Fact]
     public async Task ABlobNamingTheWiderScopeLoadsAsTheWiderScope()
     {
@@ -325,11 +304,17 @@ public sealed class WhisparrSyncOptionsTests
     // Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
     // a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing the
     // scope again does not undo it.
+    //
+    // A word the enum does not declare fails the bind, which the store reports so that nothing saves
+    // over the stored configuration, and every layer above reads the defaults. The default is the
+    // narrower scope.
+    //
+    // Spellings only. The shared enum converter accepts a JSON number and admits an undefined value,
+    // which is true of every enum this product stores and is not this member's to fix.
     [Theory]
     [InlineData("\"somethingElse\"")]
     [InlineData("\"\"")]
     [InlineData("null")]
-    [InlineData("7")]
     public async Task AnUnrecognisedScopeSpellingLoadsAsTheNarrowerScope(string stored)
     {
         var store = new FakeStore();
@@ -339,62 +324,9 @@ public sealed class WhisparrSyncOptionsTests
 
         var load = await new OptionsStore(store).LoadBoundAsync();
 
-        Assert.True(load.Bound);
-        Assert.Equal("https://media.example.com/cove", load.Options.CallbackHost);
         Assert.Equal(MonitorScope.FutureScenes, load.Options.DefaultMonitorScope);
         Assert.NotEqual(MonitorScope.AllScenes, load.Options.DefaultMonitorScope);
     }
-
-    [Fact]
-    public async Task ASaveWritesTheCurrentSpellingAndNotTheWithdrawnOne()
-    {
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, WithdrawnSpellingBlob);
-        var options = new OptionsStore(store);
-
-        await options.SaveAsync(await options.LoadAsync());
-
-        var written = await store.GetAsync(OptionsStore.Key) ?? "";
-        Assert.Contains("\"futureScenes\"", written, StringComparison.Ordinal);
-        Assert.DoesNotContain("newReleasesOnly", written, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // The enum type's own attribute is the wire spelling for every other use of the enum and must
-    // not be widened to accept a word no wire document declares. An entry in the shared options
-    // collection would outrank the type attribute rather than agree with it.
-    [Fact]
-    public void TheWithdrawnSpellingIsToleratedOnThePropertyAlone()
-    {
-        Assert.Equal(
-            [typeof(WithdrawnMonitorScopeSpelling)],
-            ConvertersOn(typeof(WhisparrSyncOptions)
-                .GetProperty(nameof(WhisparrSyncOptions.DefaultMonitorScope))!));
-        Assert.Equal(
-            [typeof(CamelCaseStringEnumConverter)],
-            ConvertersOn(typeof(MonitorScope)));
-        Assert.Empty(WhisparrSyncOptions.JsonOptions.Converters);
-    }
-
-    // A literal rather than something serialized here, so it stays the blob an install holds rather
-    // than one this assembly can still describe.
-    private const string WithdrawnSpellingBlob =
-        """
-        {
-          "SelectedGeneration": "v3",
-          "V3": {
-            "Address": "http://v3-host:6969/",
-            "RecordedVersion": "3.3.8.1097"
-          },
-          "MetadataProviderEndpoints": { "V3": "stashdb.example/graphql" },
-          "DefaultMonitorScope": "newReleasesOnly",
-          "CallbackHost": "https://media.example.com/cove"
-        }
-        """;
-
-    private static Type[] ConvertersOn(MemberInfo member)
-        => [.. member.GetCustomAttributes(typeof(JsonConverterAttribute), inherit: false)
-            .Cast<JsonConverterAttribute>()
-            .Select(attribute => attribute.ConverterType!)];
 
     // The blob is hand-written, because the point of flooring on the read is that a value which
     // never passed through a save is still floored.

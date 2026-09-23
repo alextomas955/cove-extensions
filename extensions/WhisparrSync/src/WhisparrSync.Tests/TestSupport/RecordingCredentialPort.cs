@@ -29,6 +29,18 @@ internal sealed class RecordingCredentialPort : ICredentialPort
         return this;
     }
 
+    /// <summary>Holds an address with no key, which is a connection half-configured.</summary>
+    /// <remarks>
+    /// The address and the key share one row, so a case about a missing key states the address here
+    /// rather than leaving the row absent, which would be a missing address instead.
+    /// </remarks>
+    public RecordingCredentialPort HoldingAddressOnly(
+        WhisparrGeneration generation, string address)
+    {
+        _addresses[generation] = address;
+        return this;
+    }
+
     public Task<string?> ReadAsync(WhisparrGeneration generation, CancellationToken ct)
     {
         Reads.Add(generation);
@@ -42,9 +54,12 @@ internal sealed class RecordingCredentialPort : ICredentialPort
         WhisparrGeneration generation, CancellationToken ct)
     {
         Reads.Add(generation);
+        // One row holds both columns, so a row exists once either is held and the other reads empty.
         return Task.FromResult(
-            _keys.TryGetValue(generation, out var apiKey)
-                ? new WhisparrStoredConnection(_addresses.GetValueOrDefault(generation, ""), apiKey)
+            _keys.ContainsKey(generation) || _addresses.ContainsKey(generation)
+                ? new WhisparrStoredConnection(
+                    _addresses.GetValueOrDefault(generation, ""),
+                    _keys.GetValueOrDefault(generation, ""))
                 : null);
     }
 

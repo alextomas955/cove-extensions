@@ -80,13 +80,13 @@ public interface ICredentialPort
 
     /// <summary>The instance and key stored together for <paramref name="generation"/>.</summary>
     /// <remarks>
-    /// The pair an outbound request is built from, read in one go. Taking the address from the
-    /// options blob and the key from here lets a reader observe one from either side of a save that
-    /// changed both, and post the new key to the instance the old address names.
+    /// The pair an outbound request is built from, read in one go, and the only place an outbound
+    /// address comes from. Taking the address from the options blob and the key from here would let
+    /// a reader observe one from either side of a save that changed both, and post the new key to
+    /// the instance the old address names.
     /// <para>
-    /// The address is empty for an installation whose credential row predates it being stored here;
-    /// such a row carries the key alone until the next settings save, and a caller falling back to
-    /// the stored options keeps that installation working.
+    /// A row carrying no address is not a connection. Nothing is sent for it, and the refusal names
+    /// the address as the setting that is missing.
     /// </para>
     /// </remarks>
     Task<WhisparrStoredConnection?> ReadConnectionAsync(

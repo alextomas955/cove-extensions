@@ -33,19 +33,17 @@ public sealed class MissingOutboundPairTests
         Assert.Equal(MovedKey, binding.ApiKey);
     }
 
-    // Control for the case above: a page reading the address from the row would satisfy it while a
-    // row that carries none reached nothing at all, which is every installation saved before the
-    // address was stored there.
+    // The row is the only source of the address. The stored blob names one here, so a page that
+    // still consulted it would present this row's key to that instance.
     [Fact]
-    public async Task ARowCarryingNoAddressStillBindsToTheStoredOne()
+    public async Task ARowCarryingNoAddressReachesNothing()
     {
         var instances = Recording();
         var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, MovedKey);
 
         await ReadPageAsync(credentials, instances);
 
-        var binding = Assert.Single(instances.Bindings);
-        Assert.True(ConnectionTester.IsSameAddress(StoredAddress, binding.BaseAddress.ToString()));
+        Assert.Empty(instances.Bindings);
     }
 
     private static RecordingCredentialPort MovedRow()

@@ -828,8 +828,8 @@ public sealed class BackstopPassTests
         private readonly RecordingCredentialPort _credentials;
         private WhisparrSyncSettingsSaveRequest? _competing;
 
-        // rowAddress null is a credential row written before the address was stored beside the key,
-        // which is what most cases here hold. Naming one holds the two stores apart.
+        // The row holds the address the stored blob names, which is what a save writes. Naming a
+        // different rowAddress holds the two stores apart.
         public Pass(
             DateTimeOffset? mark,
             string address = Address,
@@ -839,9 +839,8 @@ public sealed class BackstopPassTests
         {
             Generation = generation;
             _requestBudget = requestBudget;
-            _credentials = rowAddress is null
-                ? new RecordingCredentialPort().Holding(generation, ApiKey)
-                : new RecordingCredentialPort().Holding(generation, rowAddress, ApiKey);
+            _credentials = new RecordingCredentialPort()
+                .Holding(generation, rowAddress ?? address, ApiKey);
             // A case that leaves the address empty is one where nothing is sent, so the recorder
             // answers for the address the fixture normally carries.
             Client = new RecordingWhisparrV3Client(
