@@ -173,10 +173,10 @@ public sealed class RenamerPlanner
             var sample = entity.Files.Count > 0 ? entity.Files[0] : null;
             if (sample is not null)
             {
-                var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, sample, options);
+                var (tokens, multi) = MetadataProjector.Project(entity, sample, options);
                 foreach (var field in options.RequiredFields)
                 {
-                    if (TemplateEngine.ResolveField(tokens, multi, options, field, performers, tagRefs).Length == 0)
+                    if (TemplateEngine.ResolveField(tokens, multi, options, field, entity.Performers, entity.TagRefs).Length == 0)
                     {
                         reason = $"skipped: required field '{field}' is empty (require-fields gate)";
                         return true;
@@ -200,8 +200,8 @@ public sealed class RenamerPlanner
 
         // Project and render, both pure. The performer records and tag pairs ride alongside the name
         // side-input so the engine can order and filter by id before the max limit.
-        var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
-        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tags: tagRefs);
+        var (tokens, multi) = MetadataProjector.Project(entity, file, options);
+        var rendered = TemplateEngine.Render(tokens, multi, options, entity.Performers, entity.TagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
         // The rendered folder is anchored on something the move leaves standing, never on the file's
@@ -355,7 +355,7 @@ public sealed class RenamerPlanner
         // Sanitized reads the engine's own check, the same one the preview sample uses, so the basename
         // is never string-sniffed.
         bool suffixed = attempt > 0;
-        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options, performers, tagRefs);
+        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options, entity.Performers, entity.TagRefs);
 
         // The resolved root is the library path the destination was measured from; null when the item
         // does not move and so is anchored on nothing.

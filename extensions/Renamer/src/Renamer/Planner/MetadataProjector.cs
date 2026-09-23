@@ -1,5 +1,6 @@
 using System.Globalization;
 using Renamer.Engine;
+using Renamer.Execution;
 using Renamer.Options;
 
 namespace Renamer.Planner;
@@ -14,14 +15,11 @@ namespace Renamer.Planner;
 // together, so a kind carrying only one of them, or neither, never gets it.
 public static class MetadataProjector
 {
-    // Projects one file into the engine's token inputs: the case-insensitive single-value token map, the
-    // performer and tag name side-input that keeps $performers rendering and the title-performer drop
-    // name-based, the per-performer records the engine orders and filters by before the max-count limit,
-    // and the tag id/name pairs the tag whitelist and blacklist match on by id.
+    // Projects one file into the engine's token inputs: the case-insensitive single-value token map, and
+    // the performer and tag names that keep $performers rendering and the title-performer drop
+    // name-based. The engine takes the entity's performer records and tag ids alongside these.
     public static (IReadOnlyDictionary<string, string> tokens,
-                   IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-                   IReadOnlyList<RenamerPerformer> performers,
-                   IReadOnlyList<(int Id, string Name)> tagRefs)
+                   IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -93,7 +91,7 @@ public static class MetadataProjector
             [Tokens.Tags] = entity.Tags,
         };
 
-        return (tokens, multi, entity.Performers, entity.TagRefs);
+        return (tokens, multi);
     }
 
     // The title an item with none falls back to: its first file's basename without the extension, or
@@ -114,7 +112,7 @@ public static class MetadataProjector
     // decided by whichever file the executor saved last.
     internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
         => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
-            ? BasenameStem(entity.Files[0].Basename)
+            ? PathOps.StemOf(entity.Files[0].Basename)
             : null;
 
     // Renders a stored duration in seconds through the user-configured format. Both inputs are untrusted
@@ -142,17 +140,6 @@ public static class MetadataProjector
         {
             tokens[key] = value;
         }
-    }
-
-    // The basename with its extension stripped, for use as a fallback title. The extension is dropped
-    // only when a non-empty stem precedes the last dot, so a dotless name ("README") and a leading-dot
-    // name (".gitignore") keep their whole basename: a leading-dot title reads better whole than split.
-    // This is a title-readability rule, and it differs on that edge from ResolveExt, which treats a
-    // leading dot as the extension boundary.
-    private static string BasenameStem(string basename)
-    {
-        var dot = basename.LastIndexOf('.');
-        return dot > 0 ? basename[..dot] : basename;
     }
 
     // The file's actual on-disk extension, falling back to the metadata Format only when the basename
