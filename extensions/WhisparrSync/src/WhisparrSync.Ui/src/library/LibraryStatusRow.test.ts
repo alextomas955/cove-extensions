@@ -8,6 +8,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../common/lib/testRender";
+import { FILE_MARKER } from "../common/ui/stateVocabularyLogic";
 import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -27,8 +28,9 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
     requestJson(path, options),
 }));
 
-const { WhisparrVideoLibraryRow } = await import("./LibraryStatusRow");
+const { WhisparrVideoLibraryRow, WhisparrStudioLibraryRow } = await import("./LibraryStatusRow");
 const { WhisparrVideoCardBadge } = await import("./WhisparrVideoCardBadge");
+const { WhisparrStudioCardBadge } = await import("./WhisparrEntityCardBadge");
 const { libraryStatusOn, toggleLibraryStatus } = await import("./libraryToggleStore");
 
 afterEach(() => {
@@ -169,4 +171,34 @@ test("a display mode that mounts no card mounts no row either", async () => {
   const page = await render(createElement(WhisparrVideoLibraryRow));
 
   expect(page.querySelector("[role=status]")).toBeNull();
+});
+
+// Holding a file is a fact about one scene. No answer on the studio path carries one, so a figure
+// there would read as none held when nothing was ever asked.
+test("the studio row draws no file figure, because no studio answer carries one", async () => {
+  requestJson.mockImplementation((_path, options) => {
+    const body = JSON.parse((options as { body: string }).body) as { coveIds: number[] };
+    return Promise.resolve({
+      kind: "studio",
+      rows: body.coveIds.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: false, inLibrary: null },
+      })),
+      refusal: "none",
+      moreNotAnswered: false,
+    });
+  });
+  showBadges();
+
+  const page = await render(
+    createElement(
+      "div",
+      null,
+      createElement(WhisparrStudioLibraryRow),
+      createElement(WhisparrStudioCardBadge, { studio: { id: 1 } }),
+    ),
+  );
+
+  expect(page.textContent).toContain("Unmonitored");
+  expect(page.textContent).not.toContain(FILE_MARKER.label);
 });

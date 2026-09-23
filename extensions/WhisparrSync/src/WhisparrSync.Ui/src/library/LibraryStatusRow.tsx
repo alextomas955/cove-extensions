@@ -75,15 +75,21 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
           <StatePill state="statusUnknown" count={tally.states.statusUnknown} />
         )}
         {/* Beside the states, not among them: a monitored and an unmonitored card can each hold a
-            file, so it partitions nothing. */}
-        <StatusPill
-          variant={FILE_MARKER.variant}
-          shape="tag"
-          icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
-        >
-          <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
-          <span className="text-secondary">{FILE_MARKER.label}</span>
-        </StatusPill>
+            file, so it partitions nothing.
+
+            Scene cards only. Holding a file is a fact about one scene, and no answer on the studio
+            or performer path carries one, so a figure drawn there would read as none held when
+            nothing was ever asked. */}
+        {kind !== "video" ? null : (
+          <StatusPill
+            variant={FILE_MARKER.variant}
+            shape="tag"
+            icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
+          >
+            <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
+            <span className="text-secondary">{FILE_MARKER.label}</span>
+          </StatusPill>
+        )}
         <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted">
           <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
           {NOT_ADDED_ON_THIS_PAGE}
