@@ -184,9 +184,11 @@ jobs:
       # analysis covers the MSBuild graph alone and no TypeScript is examined at all, which reads as a
       # clean frontend rather than an unanalysed one.
       #
-      # The shared e2e harness is test code, so it goes in sonar.tests rather than sonar.sources: its
-      # helper modules carry no .test or .spec suffix, and as sources they would be scored as product
-      # code. The two lists must not overlap, or the scanner refuses to index a file twice.
+      # The .NET scanner ignores sonar.sources and sonar.tests and indexes the whole checkout, so the
+      # scope is set by sonar.exclusions and the test set by sonar.test.inclusions. The e2e harness is
+      # listed by folder because its helper modules carry no .test or .spec suffix and would otherwise
+      # be scored as product code. The list also names every file already classified as a test, since
+      # setting it replaces the default classification.
       - name: Begin analysis
         working-directory: extensions
         env:
@@ -200,8 +202,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.scanner.scanAll=true \
-            /d:sonar.sources="extensions,shared,scripts" \
-            /d:sonar.tests="tests" \
+            /d:sonar.test.inclusions="**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.spec.mjs,**/*.spec.ts,**/*.Tests/**,**/*.Testing/**,tests/**,**/e2e/**" \
             /d:sonar.exclusions="**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/vendor/**,**/artifacts/**,**/coverage/**,**/src/wire/**,website/build/**,website/.docusaurus/**" \
             /d:sonar.coverage.exclusions="scripts/**,tests/**,**/e2e/**,website/**,**/*.config.*,shared/ui-shared/vite/**,shared/ui-shared/scripts/**,**/*.d.ts" \
             /d:sonar.cpd.exclusions="**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.spec.mjs,**/*.spec.ts,**/*Tests.cs" \
