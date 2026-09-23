@@ -42,9 +42,14 @@ public sealed partial class Renamer
         Planner.RenamerPlan Plan,
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
-    // What one chunk did. Shortfall, when set, is the free-space refusal that stops the run.
+    // What one chunk did. Skipped counts move-time skips and PlanSkipped the files the planner skipped.
+    // Shortfall, when set, is the free-space refusal that stops the run.
     private readonly record struct ChunkOutcome(
-        int Renamed, int Skipped, int Failed, int ContestedFiles, string? Shortfall);
+        int Renamed, int Skipped, int Failed, int ContestedFiles, int PlanSkipped, string? Shortfall);
+
+    // What one run did, in files. Skipped includes the planner's skips. Shortfall, when set, is the
+    // free-space refusal that stopped it.
+    internal readonly record struct RunTally(int Renamed, int Skipped, int Failed, string? Shortfall);
 
     // Maps one slice's progress onto its share of a run over `total` entities, clamped so a report
     // below 0 cannot step the bar backward. With holdFinal a report that would complete the run is
@@ -120,7 +125,7 @@ public sealed partial class Renamer
     // cursor is the entity id, which a rename never changes, so the run's own writes can neither
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
-    internal Task<string?> RunRenamerKindAsync(
+    internal Task<RunTally> RunRenamerKindAsync(
         RenameRun run, AllowedIds allowedIds, IJobProgress progress, CancellationToken ct)
     {
         int after = 0;
@@ -180,9 +185,8 @@ public sealed partial class Renamer
     }
 
     // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and
-    // reports the run's final 1.0 with what happened. Returns the free-space shortfall that stopped
-    // the run, or null when it ran to the end.
-    private async Task<string?> RunRenameChunksAsync(
+    // reports the run's final 1.0 with what happened.
+    private async Task<RunTally> RunRenameChunksAsync(
         RenameRun run,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
         IJobProgress progress,
@@ -206,7 +210,7 @@ public sealed partial class Renamer
         await using var journalScope = ScopeFactory.CreateAsyncScope();
         await using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
-        int renamed = 0, skipped = 0, failed = 0, contested = 0, entitiesDone = 0;
+        int renamed = 0, skipped = 0, failed = 0, contested = 0, planSkipped = 0, entitiesDone = 0;
         string? shortfall = null;
 
         while (true)
@@ -229,6 +233,7 @@ public sealed partial class Renamer
             skipped += outcome.Skipped;
             failed += outcome.Failed;
             contested += outcome.ContestedFiles;
+            planSkipped += outcome.PlanSkipped;
             entitiesDone += chunk.Count;
 
             if (outcome.Shortfall is not null)
@@ -250,17 +255,17 @@ public sealed partial class Renamer
             progress.Report(
                 1d,
                 $"Refused: insufficient free space ({shortfall}). {renamed} file(s) renamed before the run stopped.{RefusedNote(contested)}");
-            return shortfall;
         }
-
-        if (renamed == 0 && failed == 0 && skipped == contested)
+        else if (renamed == 0 && failed == 0 && skipped == contested)
         {
             progress.Report(1d, $"Nothing to rename.{RefusedNote(contested)}");
-            return null;
+        }
+        else
+        {
+            progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
         }
 
-        progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
-        return null;
+        return new RunTally(renamed, skipped + planSkipped, failed, shortfall);
     }
 
     // Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
@@ -292,6 +297,7 @@ public sealed partial class Renamer
         // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
         // as it found it.
         var planned = new List<BatchUnit>();
+        int planSkipped = 0;
 
         // Planning reports no percentage of its own until the loop starts, so trace it to the log -
         // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
@@ -335,6 +341,11 @@ public sealed partial class Renamer
                     {
                         if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                         {
+                            if (ScanBucket.Of(item.Status) == ScanBucketKind.Attention)
+                            {
+                                planSkipped++;
+                            }
+
                             continue;
                         }
 
@@ -407,7 +418,7 @@ public sealed partial class Renamer
             string detail = string.Join("; ",
                 shortfall.Select(s => $"{s.Volume}: need {s.Needed} bytes, {s.Available} free"));
             LogBatchDone(runId, 0, contestedFiles, 0);
-            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, detail);
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, planSkipped, detail);
         }
 
         // Nothing acts, so open no batch: an empty batch would shadow the operation's earlier replayable
@@ -415,7 +426,7 @@ public sealed partial class Renamer
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, contestedFiles, 0);
-            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, null);
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, planSkipped, null);
         }
 
         // Resolve or create every distinct destination folder once, single-threaded, after the refusals
@@ -539,7 +550,7 @@ public sealed partial class Renamer
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, null);
+        return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, planSkipped, null);
     }
 
     // The refusal has to reach the job's own message: its files rename nothing and produce no per-item

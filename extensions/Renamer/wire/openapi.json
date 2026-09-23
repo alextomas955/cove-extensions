@@ -345,6 +345,38 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.renamer/last-library-rename": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryRenameSummaryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.renamer/renamer-library": {
       "post": {
         "tags": [
@@ -698,6 +730,47 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "LibraryRenameSummaryView": {
+        "required": [
+          "renamed",
+          "skipped",
+          "failed",
+          "stoppedForSpace",
+          "completedAtUtcTicks",
+          "kinds"
+        ],
+        "type": "object",
+        "properties": {
+          "renamed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stoppedForSpace": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenamerFileKind"
+            }
+          },
+          "completedAtUtcTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenamerFileKind"
             }
           }
         }

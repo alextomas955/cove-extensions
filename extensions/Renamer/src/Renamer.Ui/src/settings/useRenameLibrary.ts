@@ -1,18 +1,17 @@
 /**
  * The "Rename all files" flow the panel button and the Dry Run modal share: enqueue the rename-library
- * job, poll it to the end and report the counts. Also holds the modal's open state, the live job
- * progress, and the key that tells the undo footer to re-read after a rename.
+ * job, poll it to the end and report the counts it stored. Also holds the modal's open state, the live
+ * job progress, and the key that tells the undo footer to re-read after a rename.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { JobEnqueued, RenamerJobStatus, ScanSummaryView } from "../wire/api";
-import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
+import type { JobEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire/api";
 import { JobUnresponsiveError } from "./jobPollLogic";
 import { pollJob } from "./jobStatusStore";
 import {
   buildRenameLibraryError,
-  buildRenameLibrarySuccess,
+  buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
 import { api } from "../common/lib/extension";
@@ -32,7 +31,7 @@ export interface UseRenameLibrary {
   runLibraryFeedback: RunLibraryFeedback;
   undoRefreshKey: number;
   renameProgress: RenameProgress | null;
-  renameLibrary: (scanCounts?: DryRunCounts) => Promise<void>;
+  renameLibrary: () => Promise<void>;
 }
 
 export function useRenameLibrary(): UseRenameLibrary {
@@ -78,71 +77,53 @@ export function useRenameLibrary(): UseRenameLibrary {
     [],
   );
 
-  /**
-   * The shared "Rename all files" handler - called identically by the panel-level button and
-   * the Dry Run modal's footer button. Enqueues the rename-library job, polls it to completion the
-   * same way the modal polls its scan job, and reports renamed/skipped counts.
-   *
-   * The rename job itself never reports per-status counts (RunRenameLibraryJobAsync only calls
-   * progress.Report(percent, message), no UnitsSucceeded/Summary), so the banner's counts come from
-   * a scan: the modal already holds the scan's counts (`scanCounts` supplied), while the panel-direct
-   * path has no scan yet and runs one first, then reads the counts off the scan's own aggregate - both
-   * paths execute the same server-derived id set either way, since the scan and the rename job
-   * independently call the identical LoadAllEntityIdsAsync query.
-   */
-  const renameLibrary = useCallback(
-    async (scanCounts?: DryRunCounts) => {
-      setRenamingLibrary(true);
-      setRunLibraryFeedback(null);
-      setRenameProgress(null);
-      try {
-        let counts = scanCounts;
-        if (!counts) {
-          const { jobId: scanJobId } = await requestJson<JobEnqueued>(api("scan-library"), {
-            method: "POST",
+  // The shared "Rename all files" handler, called by the panel-level button and the Dry Run modal's
+  // footer button alike. The job is exclusive, so once it completes /last-library-rename holds its
+  // counts.
+  const renameLibrary = useCallback(async () => {
+    setRenamingLibrary(true);
+    setRunLibraryFeedback(null);
+    setRenameProgress(null);
+    try {
+      const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, { method: "POST" });
+      await runPoll(jobId, (job) => {
+        if (mounted.current)
+          setRenameProgress({
+            progress: job.progress,
+            subTask: job.subTask,
+            etaSeconds: job.etaSeconds,
           });
-          await runPoll(scanJobId);
-          counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
-        }
+      });
+      // The job has completed, so a failed read of its counts must not land in the catch below,
+      // which reports the library as untouched.
+      const summary = await requestJson<LibraryRenameSummaryView>(api("last-library-rename")).catch(
+        () => null,
+      );
 
-        const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
-          method: "POST",
+      if (!mounted.current) return;
+      setDryRunOpen(false);
+      // Composed by a pure module, not here: the banner is what the user reads after a destructive
+      // operation, so its wording is a claim a test can hold and a hook cannot show.
+      setRunLibraryFeedback(buildRenameLibraryResult(summary));
+      setUndoRefreshKey((k) => k + 1);
+    } catch (err) {
+      if (mounted.current) {
+        const text = errorText(err);
+        setRunLibraryFeedback({
+          kind: "error",
+          text:
+            err instanceof JobUnresponsiveError
+              ? buildRenameLibraryUnconfirmed(err.message)
+              : buildRenameLibraryError(text),
         });
-        await runPoll(jobId, (job) => {
-          if (mounted.current)
-            setRenameProgress({
-              progress: job.progress,
-              subTask: job.subTask,
-              etaSeconds: job.etaSeconds,
-            });
-        });
-
-        if (!mounted.current) return;
-        setDryRunOpen(false);
-        // Composed by a pure module, not here: the banner is what the user reads after a destructive
-        // operation, so its wording is a claim a test can hold and a hook cannot show.
-        setRunLibraryFeedback({ kind: "success", text: buildRenameLibrarySuccess(counts) });
-        setUndoRefreshKey((k) => k + 1);
-      } catch (err) {
-        if (mounted.current) {
-          const text = errorText(err);
-          setRunLibraryFeedback({
-            kind: "error",
-            text:
-              err instanceof JobUnresponsiveError
-                ? buildRenameLibraryUnconfirmed(err.message)
-                : buildRenameLibraryError(text),
-          });
-        }
-      } finally {
-        if (mounted.current) {
-          setRenamingLibrary(false);
-          setRenameProgress(null);
-        }
       }
-    },
-    [runPoll],
-  );
+    } finally {
+      if (mounted.current) {
+        setRenamingLibrary(false);
+        setRenameProgress(null);
+      }
+    }
+  }, [runPoll]);
 
   return {
     dryRunOpen,

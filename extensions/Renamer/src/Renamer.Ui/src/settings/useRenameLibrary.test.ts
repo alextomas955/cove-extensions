@@ -9,7 +9,6 @@ import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 
-import type { DryRunCounts } from "./dry-run/dryRunLogic";
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
@@ -20,6 +19,8 @@ const host = vi.hoisted(() => ({
   status: "running",
   // The progress every job-status read answers with. Held constant to starve the stall clock.
   progress: 0.25,
+  // What /last-library-rename answers with, or null to fail that read.
+  summary: null as object | null,
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
@@ -27,6 +28,11 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   errorText: (err: unknown) => String(err),
   requestJson: (path: string) => {
     host.reads.push(path);
+    if (path.endsWith("/last-library-rename")) {
+      return host.summary === null
+        ? Promise.reject(new Error("500 boom"))
+        : Promise.resolve(host.summary);
+    }
     return Promise.resolve(
       path.includes("/job-status/")
         ? { status: host.status, progress: host.progress }
@@ -42,9 +48,6 @@ vi.mock("./jobPollLogic", async (importOriginal) => ({
   JOB_STALL_BUDGET_MS: 1,
   JOB_FAILURE_ALLOWANCE: 1,
 }));
-
-// The scan counts the Dry Run modal hands the shared handler, so no scan job runs first.
-const COUNTS: DryRunCounts = { willChange: 3, attention: 0, noChange: 0, scanned: 3 };
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {
@@ -81,12 +84,13 @@ beforeEach(() => {
   host.reads.length = 0;
   host.status = "running";
   host.progress = 0.25;
+  host.summary = null;
 });
 
 test("a job that stops reporting progress ends the run instead of polling forever", async () => {
   const hook = await mountHook();
 
-  await hook.current.renameLibrary(COUNTS);
+  await hook.current.renameLibrary();
   await waitFor("the run to end", () => !hook.current.renamingLibrary);
 
   const readsAtSettlement = host.reads.length;
@@ -116,24 +120,48 @@ test("a completed job still resolves through the same poll", async () => {
   // The bound above must not be reachable by giving up on healthy jobs, so the same wiring is driven
   // to the other verdict: one read answering "completed" ends the run as a success.
   host.status = "completed";
+  host.summary = {
+    renamed: 3,
+    skipped: 1,
+    failed: 0,
+    stoppedForSpace: [],
+    completedAtUtcTicks: 0,
+    kinds: ["video"],
+  };
   const hook = await mountHook();
 
-  await hook.current.renameLibrary(COUNTS);
+  await hook.current.renameLibrary();
   await waitFor("the run to end", () => !hook.current.renamingLibrary);
 
   expect(hook.current.renamingLibrary).toBe(false);
   expect(hook.current.runLibraryFeedback).toEqual({
     kind: "success",
-    text: "Rename finished. The scan found 3 files to rename.",
+    text: "Rename finished. 3 files renamed, 1 skipped.",
   });
   expect(hook.current.undoRefreshKey).toBe(1);
-  // The rename POST, then exactly one job read: the job answered on the first look, so the loop
-  // stopped there. Both paths are written out here rather than built from the same route helper the
-  // code under test uses.
+  // The rename POST, exactly one job read, then the job's own counts. No scan runs first. The paths
+  // are written out rather than built from the route helper the code under test uses.
   expect(host.reads).toEqual([
     "/extensions/com.alextomas955.renamer/renamer-library",
     "/extensions/com.alextomas955.renamer/job-status/job-under-test",
+    "/extensions/com.alextomas955.renamer/last-library-rename",
   ]);
+
+  hook.unmount();
+}, 30_000);
+
+test("a completed job whose counts cannot be read is not reported as a rename that changed nothing", async () => {
+  host.status = "completed";
+  const hook = await mountHook();
+
+  await hook.current.renameLibrary();
+  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+
+  const feedback = hook.current.runLibraryFeedback;
+  expect(feedback?.kind).toBe("success");
+  expect(feedback?.text).toContain("Rename finished.");
+  expect(feedback?.text).not.toContain("Nothing was changed");
+  expect(hook.current.undoRefreshKey).toBe(1);
 
   hook.unmount();
 }, 30_000);

@@ -28,7 +28,6 @@ import {
   formatEta,
   progressPercent,
   summaryCounts,
-  type DryRunCounts,
   type DryRunFilter,
 } from "./dryRunLogic";
 
@@ -63,7 +62,7 @@ export function DryRunModal({
   dirty: boolean;
   onClose: () => void;
   /** The SHARED rename-trigger handler - also called by the panel-level button. */
-  onRenameAll: (counts: DryRunCounts) => void;
+  onRenameAll: () => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
   /**
@@ -220,9 +219,7 @@ export function DryRunModal({
           Close
         </Button>
         <Button
-          onClick={() => {
-            if (counts) onRenameAll(counts);
-          }}
+          onClick={onRenameAll}
           disabled={dirty || scanIsStale || renaming || !counts || counts.willChange === 0}
         >
           {renaming ? <Spinner /> : null}

@@ -3,6 +3,7 @@ using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -195,6 +196,7 @@ public sealed partial class Renamer
         var operationId = Guid.NewGuid().ToString("N");
 
         var refused = new List<RenamerFileKind>();
+        var tallies = new List<LibraryRenameKindTally>(countByKind.Count);
         foreach (var (kind, count) in countByKind)
         {
             ct.ThrowIfCancellationRequested();
@@ -205,16 +207,27 @@ public sealed partial class Renamer
             // another volume. The refusal is collected because the run's own final report is the only
             // one the host keeps: SliceProgress holds back a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
-            string? shortfall = await RunRenamerKindAsync(
+            var tally = await RunRenamerKindAsync(
                 new RenameRun(kind, count, operationId, options, freeSpaceProbe), allowedIds,
                 new SliceProgress(progress, planned, count, total, holdFinal: true), ct);
-            if (shortfall is not null)
+            if (tally.Shortfall is not null)
             {
                 refused.Add(kind);
             }
 
+            tallies.Add(new LibraryRenameKindTally(
+                kind, tally.Renamed, tally.Skipped, tally.Failed, tally.Shortfall is not null));
+
             planned += count;
         }
+
+        // Written inside the job, so the counts are stored by the time the job reads as completed.
+        await Store.SetAsync(
+            LastLibraryRenameSummaryKey,
+            JsonSerializer.Serialize(
+                new LibraryRenameSummary(LibraryRenameSummary.CurrentSchemaVersion, DateTime.UtcNow.Ticks, tallies),
+                PreviewResponseJsonOptions),
+            ct);
 
         progress.Report(
             1d,

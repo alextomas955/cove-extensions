@@ -48,10 +48,9 @@ export class RenamerSettingsPage {
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
-    // The whole-library run's success banner - the poll target that proves the scan+rename job pair
-    // settled, not the correctness proof (disk+DB state is asserted separately). Matched on the
-    // opening sentence alone: the counts that follow come from the pre-run scan, so pinning them here
-    // would tie this locator to a number the banner does not learn from the run.
+    // The whole-library run's success banner - the poll target that proves the rename job settled,
+    // not the correctness proof (disk and DB state are asserted separately). Matched on the opening
+    // sentence alone, so a spec's own seeding decides nothing about the locator.
     this.renameAllFeedback = page.getByText(/Rename finished\./);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button - dynamic label ("Undo 1 rename",

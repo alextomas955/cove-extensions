@@ -1,19 +1,54 @@
 /** The banner a whole-library rename leaves behind. */
 
-import type { DryRunCounts } from "./dry-run/dryRunLogic";
+import type { LibraryRenameSummaryView } from "../wire/api";
+import { KIND_LABELS, type RenamableKind } from "./options";
+
+export interface RenameLibraryBanner {
+  kind: "success" | "error";
+  text: string;
+}
+
+function files(n: number): string {
+  return `${n} file${n === 1 ? "" : "s"}`;
+}
 
 /**
- * The banner for a completed run.
- *
- * Both numbers are a scan's, and the sentence names the scan as their source for that reason: the
- * rename job reports no per-status totals of its own, so a stated renamed count is a claim nothing on
- * this path has a source for. A file the scan planned can still be skipped by the run.
+ * The banner for a run that completed, worded from the job's own counts, or null when they could not
+ * be read. A kind that ran out of destination space stopped early, so that run reads as an error
+ * even though the job completed.
  */
-export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
-  const skipped = counts.attention > 0 ? `, ${counts.attention} skipped` : "";
-  const plural = counts.willChange === 1 ? "" : "s";
+export function buildRenameLibraryResult(
+  summary: LibraryRenameSummaryView | null,
+): RenameLibraryBanner {
+  if (summary === null) {
+    return {
+      kind: "success",
+      text: "Rename finished. Couldn't read how many files it renamed; run a dry run to see where things stand.",
+    };
+  }
 
-  return `Rename finished. The scan found ${counts.willChange} file${plural} to rename${skipped}.`;
+  const { renamed, skipped, failed, stoppedForSpace } = summary;
+  const extras = [
+    ...(skipped > 0 ? [`${skipped} skipped`] : []),
+    ...(failed > 0 ? [`${failed} failed`] : []),
+  ];
+  const counts = `${files(renamed)} renamed${extras.map((e) => `, ${e}`).join("")}.`;
+
+  if (stoppedForSpace.length > 0) {
+    const kinds = stoppedForSpace
+      .map((k) => (k in KIND_LABELS ? KIND_LABELS[k as RenamableKind] : k))
+      .join(", ");
+    return {
+      kind: "error",
+      text: `Rename stopped early: not enough free space for ${kinds}. ${counts} Files renamed before the stop stay renamed.`,
+    };
+  }
+
+  if (renamed === 0 && extras.length === 0) {
+    return { kind: "success", text: "Rename finished. Nothing needed renaming." };
+  }
+
+  return { kind: "success", text: `Rename finished. ${counts}` };
 }
 
 /** The banner for a run the job itself reported as failed or cancelled. */

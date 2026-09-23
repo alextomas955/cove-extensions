@@ -226,7 +226,7 @@ export function RenamePage() {
           onClose={() => {
             setDryRunOpen(false);
           }}
-          onRenameAll={(counts) => void renameLibrary(counts)}
+          onRenameAll={() => void renameLibrary()}
           renaming={renamingLibrary}
           renameProgress={renameProgress}
         />

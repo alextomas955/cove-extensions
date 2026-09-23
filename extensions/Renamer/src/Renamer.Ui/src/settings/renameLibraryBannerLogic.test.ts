@@ -3,55 +3,61 @@ import assert from "node:assert/strict";
 
 import {
   buildRenameLibraryError,
-  buildRenameLibrarySuccess,
+  buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
-import type { DryRunCounts } from "./dry-run/dryRunLogic";
+import type { LibraryRenameSummaryView, RenamerFileKind } from "../wire/api";
 
-function counts(willChange: number, attention: number): DryRunCounts {
-  return { willChange, attention, noChange: 0, scanned: willChange + attention };
+function summary(
+  renamed: number,
+  skipped = 0,
+  failed = 0,
+  stoppedForSpace: RenamerFileKind[] = [],
+): LibraryRenameSummaryView {
+  return { renamed, skipped, failed, stoppedForSpace, completedAtUtcTicks: 0, kinds: ["video"] };
 }
 
-test("a run with nothing skipped states the scan's count", () => {
+test("a run states how many files it renamed", () => {
+  assert.deepEqual(buildRenameLibraryResult(summary(1200)), {
+    kind: "success",
+    text: "Rename finished. 1200 files renamed.",
+  });
+});
+
+test("one renamed file is one file", () => {
+  assert.equal(buildRenameLibraryResult(summary(1)).text, "Rename finished. 1 file renamed.");
+});
+
+test("skipped and failed files are stated only when there are some", () => {
   assert.equal(
-    buildRenameLibrarySuccess(counts(1200, 0)),
-    "Rename finished. The scan found 1200 files to rename.",
+    buildRenameLibraryResult(summary(1200, 30, 2)).text,
+    "Rename finished. 1200 files renamed, 30 skipped, 2 failed.",
+  );
+  assert.equal(
+    buildRenameLibraryResult(summary(0, 4)).text,
+    "Rename finished. 0 files renamed, 4 skipped.",
   );
 });
 
-test("one planned file is one file", () => {
+test("a run with nothing to do says so", () => {
   assert.equal(
-    buildRenameLibrarySuccess(counts(1, 0)),
-    "Rename finished. The scan found 1 file to rename.",
+    buildRenameLibraryResult(summary(0)).text,
+    "Rename finished. Nothing needed renaming.",
   );
 });
 
-test("a run that changed nothing still reports its size", () => {
-  assert.equal(
-    buildRenameLibrarySuccess(counts(0, 0)),
-    "Rename finished. The scan found 0 files to rename.",
-  );
+test("a kind that ran out of space reads as a stop, and keeps what it renamed", () => {
+  assert.deepEqual(buildRenameLibraryResult(summary(12, 1, 0, ["video", "image"])), {
+    kind: "error",
+    text: "Rename stopped early: not enough free space for Videos, Images. 12 files renamed, 1 skipped. Files renamed before the stop stay renamed.",
+  });
 });
 
-test("skipped files are stated only when there are some", () => {
-  assert.equal(
-    buildRenameLibrarySuccess(counts(1200, 30)),
-    "Rename finished. The scan found 1200 files to rename, 30 skipped.",
-  );
-  assert.ok(!buildRenameLibrarySuccess(counts(1200, 0)).includes("skipped"));
-});
-
-test("the success sentence never states how many files were renamed", () => {
-  // Nothing on this path knows: the count is the scan's plan, and the rename job reports no totals.
-  for (const c of [counts(0, 0), counts(1, 0), counts(1200, 30), counts(0, 42)]) {
-    const success = buildRenameLibrarySuccess(c);
-
-    assert.ok(!/renamed/i.test(success), `claims a completed rename: ${success}`);
-    assert.ok(
-      success.includes("The scan found"),
-      `does not name the scan as the source: ${success}`,
-    );
-  }
+test("counts that could not be read never say nothing changed", () => {
+  const banner = buildRenameLibraryResult(null);
+  assert.equal(banner.kind, "success");
+  assert.ok(banner.text.startsWith("Rename finished."));
+  assert.ok(!banner.text.includes("Nothing was changed"));
 });
 
 test("a failed run names the failure and says the library is untouched", () => {

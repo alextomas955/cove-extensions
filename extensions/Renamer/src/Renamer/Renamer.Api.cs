@@ -42,6 +42,7 @@ public sealed partial class Renamer
     private string LastBatchRoute => RouteBase + "/last-batch";
     private string ScanLibraryRoute => RouteBase + "/scan-library";
     private string LastScanRoute => RouteBase + "/last-scan";
+    private string LastLibraryRenameRoute => RouteBase + "/last-library-rename";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
     private string LibraryPathsRoute => RouteBase + "/library-paths";
@@ -55,6 +56,9 @@ public sealed partial class Renamer
 
     // The fixed store key the whole-library scan's bounded aggregate lives under.
     internal const string LastScanSummaryKey = "last-scan-summary";
+
+    // The fixed store key the last whole-library rename's per-kind counts live under.
+    internal const string LastLibraryRenameSummaryKey = "last-library-rename-summary";
 
     // Upper bound on how many ids a single /preview or /renamer request may carry. Preview runs the planner
     // (DB hits) per id synchronously on the request thread, and /renamer fans the same ids out into one
@@ -188,6 +192,10 @@ public sealed partial class Renamer
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => ScanRowsAsync(body, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
+
+        endpoints.MapGet(LastLibraryRenameRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LibraryRenameResultAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerLibraryRoute,
@@ -648,6 +656,42 @@ public sealed partial class Renamer
 
         var readableKinds = HeldKinds(principal, write: false);
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
+    }
+
+    // Reads back the last completed whole-library rename's counts, or 404 when none has completed.
+    // The run is an exclusive job, so once the panel's own run completes this is that run. As with
+    // /last-scan, the counts are stored per kind and summed over only the kinds the caller may read,
+    // and a blob that will not parse or carries an unknown schema version reads as "no run yet".
+    internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenCode>> LibraryRenameResultAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (!HasAnyReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        var json = await Store.GetAsync(LastLibraryRenameSummaryKey, ct);
+        if (string.IsNullOrEmpty(json))
+        {
+            return TypedResults.NotFound();
+        }
+
+        LibraryRenameSummary? summary;
+        try
+        {
+            summary = JsonSerializer.Deserialize<LibraryRenameSummary>(json, PreviewResponseJsonOptions);
+        }
+        catch (JsonException)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (summary is null || summary.SchemaVersion != LibraryRenameSummary.CurrentSchemaVersion)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(LibraryRenameSummaryView.From(summary, HeldKinds(principal, write: false)));
     }
 
     // One page of the whole-library dry run's rows, planned on demand through the planner the scan

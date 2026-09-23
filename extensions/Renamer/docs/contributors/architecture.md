@@ -186,6 +186,8 @@ Minimal-API endpoints the frontend calls, mounted under
 - `POST /scan-rows` - one page of that dry run's rows, planned on demand, with an optional path search
   and status-bucket filter.
 - `POST /renamer-library` - enqueues the whole-library rename job.
+- `GET /last-library-rename` - the last whole-library rename's counts: renamed, skipped, failed, and
+  the kinds that stopped for lack of space, summed over the kinds the caller may read.
 - `GET /library-paths` - Cove's configured library paths. Every destination root is chosen from this
   list rather than typed, so a rule holds a reference to a folder Cove owns instead of a copy of its
   path.
