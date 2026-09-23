@@ -41,7 +41,7 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
@@ -112,7 +112,7 @@ public sealed class RenamerExecutorIntegrationTests
                 .PlanAsync(RenamerFileKind.Video, videoId, options, default);
 
             var executor = new RenamerExecutor(
-                new CancelOnSaveDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+                new CancelOnSaveDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
             // The cancel flows out as cancellation (the batch ends), never a Failed row.
             await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
@@ -151,7 +151,7 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
@@ -211,7 +211,7 @@ public sealed class RenamerExecutorIntegrationTests
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
             // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end.
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new CrossVolumeMover());
 
             // Explicit move plan: source on the temp drive, target folder on the subst drive.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
@@ -302,7 +302,7 @@ public sealed class RenamerExecutorIntegrationTests
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(
                 new CollisionBlindDataPort(db), new CapturingEventBus(), journal, "run-test",
-                new DiskMover(), new CrossVolumeMover());
+                new CrossVolumeMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -373,7 +373,7 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new ReoccupyOldSlotThenThrowDataPort(db, oldA);
             var executor = new RenamerExecutor(
                 port, new CapturingEventBus(), new FakeRevertJournal(), "run-test",
-                new DiskMover(), new CrossVolumeMover());
+                new CrossVolumeMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -436,7 +436,7 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var planner = new RenamerPlanner(port);
             var executor = new RenamerExecutor(
-                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
             foreach (int id in new[] { titlelessId, titledId })
             {
@@ -501,7 +501,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             var executor = new RenamerExecutor(
                 new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(),
-                "run-test", new DiskMover());
+                "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 

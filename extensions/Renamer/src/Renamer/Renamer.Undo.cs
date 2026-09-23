@@ -109,8 +109,7 @@ public sealed partial class Renamer
         }
 
         // Undo restores the paths the journal recorded and renders no name, so it loads no options.
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
-            cross: new CrossVolumeMover());
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus);
 
         // One accumulator for the whole operation: a per-batch one would report the last kind's
         // outcome as the run's. Pages fold into totals plus a bounded sample, because retaining every

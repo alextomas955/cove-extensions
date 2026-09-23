@@ -65,7 +65,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             // (c) Reverse-replay the batch restores disk + DB.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);

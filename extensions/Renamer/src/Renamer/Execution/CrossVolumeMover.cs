@@ -35,21 +35,9 @@ public sealed class CrossVolumeMover
         _postCopyFaultForTests = postCopyFaultForTests;
     }
 
-    // One planned sidecar move, absolute source to absolute destination; either slash convention.
-    public readonly record struct SidecarMove(string From, string To);
-
-    // Anything other than Moved is a skip, never a thrown error. A source that could not be removed
-    // after a successful promote still counts as Moved, with a warning. MovedSidecars is in move
-    // order, which is what a rollback reverses. The shape matches DiskMover.MoveResult.
-    public sealed record MoveResult(
-        bool Moved,
-        MoveOutcome Outcome,
-        IReadOnlyList<SidecarMove> MovedSidecars,
-        IReadOnlyList<string> Warnings,
-        string? Reason);
-
     // Moves the primary, then each sidecar through the same sequence, skipping rather than clobbering
-    // an occupied target. Nothing throws out, cancellation included.
+    // an occupied target. Nothing throws out, cancellation included. A source that could not be removed
+    // after a successful promote still counts as Moved, with a warning.
     public async Task<MoveResult> MoveAsync(
         string oldFull,
         string newFull,
@@ -148,7 +136,7 @@ public sealed class CrossVolumeMover
 
         try
         {
-            EnsureParentDir(inFlightFull);
+            Movers.EnsureParentDir(inFlightFull);
 
             // Opened CreateNew, so it cannot clobber.
             var (srcSize, srcHash) = await CopyAndHashAsync(srcFull, inFlightFull, ct).ConfigureAwait(false);
@@ -339,15 +327,6 @@ public sealed class CrossVolumeMover
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Best-effort: an in-flight copy we cannot delete is never promoted, so it is harmless.
-        }
-    }
-
-    private static void EnsureParentDir(string fullPath)
-    {
-        var dir = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
         }
     }
 }

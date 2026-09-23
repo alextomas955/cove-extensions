@@ -96,7 +96,7 @@ public sealed class DerivedTitleWriteTests
 
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var forward = await new RenamerExecutor(
-                    port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                    port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(
                     await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default),
                     options, default);
@@ -104,7 +104,7 @@ public sealed class DerivedTitleWriteTests
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            var undone = await new UndoReplayer(port, new CapturingEventBus(), new DiskMover())
+            var undone = await new UndoReplayer(port, new CapturingEventBus())
                 .RevertAsync(batch!, default);
             Assert.Equal(1, undone.Undone);
 

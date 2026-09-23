@@ -84,7 +84,7 @@ public sealed class TextRenameIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-text", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-text");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
@@ -174,14 +174,14 @@ public sealed class TextRenameIntegrationTests
             await journal.BeginBatchAsync("run-text", "run-text", RenamerFileKind.Text, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
             var forward = await new RenamerExecutor(
-                port, new CapturingEventBus(), journal, "run-text", new DiskMover())
+                port, new CapturingEventBus(), journal, "run-text")
                 .ExecuteAsync(plan, options, default);
             Assert.Single(forward.Renamed);
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);

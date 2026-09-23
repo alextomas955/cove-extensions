@@ -138,5 +138,5 @@ public sealed class CaptionFilenameGuardTests
         ]);
 
     private static RenamerExecutor RealExecutor(DbContext db)
-        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 }

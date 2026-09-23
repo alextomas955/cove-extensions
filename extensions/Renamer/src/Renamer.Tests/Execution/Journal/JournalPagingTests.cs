@@ -280,7 +280,7 @@ public sealed class JournalPagingTests
     /// </remarks>
     private static async Task<PagedRun> RunPagedUndoAsync(DbContext db, CoveRevertJournal journal)
     {
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), new CapturingEventBus(), new DiskMover());
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), new CapturingEventBus());
 
         var attempts = new List<(string RunId, long Seq)>();
         int undone = 0;
@@ -382,7 +382,7 @@ public sealed class JournalPagingTests
         foreach (var s in seeded)
         {
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
-            var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId, new DiskMover())
+            var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
                 .ExecuteAsync(plan, options, default);
             Assert.Single(forward.Renamed);
             Assert.True(File.Exists(s.NewFull), $"forward rename landed at {s.NewFull}");

@@ -92,7 +92,7 @@ public sealed partial class Renamer
                 // so the event can re-enter this handler before ExecuteAsync returns.
                 _selfSaved[selfSaveKey] = 0;
 
-                var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
+                var executor = new RenamerExecutor(port, EventBus, journal, runId);
 
                 // No pre-resolved folder map: this call is not parallelized, so the executor resolves
                 // the destination folder itself.

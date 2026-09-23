@@ -267,7 +267,7 @@ public sealed class EmptySourceFolderCleanerTests
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
@@ -275,7 +275,7 @@ public sealed class EmptySourceFolderCleanerTests
             // Undo the batch: the original directory is gone, so the restore skips - it is not recreated.
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
+            var replayer = new UndoReplayer(port, new CapturingEventBus());
             var undo = await replayer.RevertAsync(batch!, default);
 
             Assert.Equal(0, undo.Undone);
@@ -299,7 +299,7 @@ public sealed class EmptySourceFolderCleanerTests
     private static RenamerExecutor NewExecutor(DbContext db, out CapturingEventBus bus)
     {
         bus = new CapturingEventBus();
-        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());
+        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
     }
 
     private static string DirOf(string fullPath)

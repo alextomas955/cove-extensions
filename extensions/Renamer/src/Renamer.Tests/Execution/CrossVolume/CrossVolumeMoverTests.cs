@@ -220,7 +220,7 @@ public sealed class CrossVolumeMoverTests
         var takenFrom = dir.Touch("clip.fr.srt", "taken sidecar source");
         var takenTo = dir.Touch("moved/clip.fr.srt", "pre-existing sidecar");
 
-        var sidecars = new List<CrossVolumeMover.SidecarMove>
+        var sidecars = new List<SidecarMove>
         {
             new(freeFrom, freeTo),
             new(takenFrom, takenTo),

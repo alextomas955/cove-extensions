@@ -52,7 +52,7 @@ public sealed class MoveOutcomeReportingTests
                 (inFlight, ct) => File.WriteAllTextAsync(inFlight, "corrupted", ct));
             var executor = new RenamerExecutor(
                 new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(),
-                "run-test", new DiskMover(), cross);
+                "run-test", cross);
 
             var plan = new RenamerPlan(0, RenamerFileKind.Video,
             [

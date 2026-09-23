@@ -53,7 +53,7 @@ public sealed class SuffixBudgetTests
 
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());
+                new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(
                 plan,

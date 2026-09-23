@@ -274,7 +274,7 @@ public sealed class UndoSidecarRestoreTests
         await journal.BeginBatchAsync(runId, runId, RenamerFileKind.Video, Opened);
 
         var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-        var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId, new DiskMover())
+        var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId)
             .ExecuteAsync(plan, options, default);
         Assert.Single(forward.Renamed);
 
@@ -286,7 +286,7 @@ public sealed class UndoSidecarRestoreTests
         var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
 
-        return await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch);
+        return await new UndoReplayer(port, new CapturingEventBus()).RevertAsync(batch);
     }
 
     private static async Task<int> SeedCaptionAsync(DbContext db, int fileId, string filename)

@@ -478,7 +478,7 @@ public sealed partial class Renamer
             {
                 var db = services.GetRequiredService<DbContext>();
                 var exec = new RenamerExecutor(
-                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
+                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId);
                 return exec.ExecuteAsync(unit.Plan, run.Options, folderIdByPath, token);
             });
             LogBatchItem(runId, run.Kind, unit.EntityId, result);

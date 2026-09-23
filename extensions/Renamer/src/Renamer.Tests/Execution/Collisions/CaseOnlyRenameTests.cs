@@ -48,7 +48,7 @@ public sealed class CaseOnlyRenameTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -103,7 +103,7 @@ public sealed class CaseOnlyRenameTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 

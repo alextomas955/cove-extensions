@@ -51,7 +51,7 @@ public sealed class RollbackTests
             var port = new CollisionBlindDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -110,7 +110,7 @@ public sealed class RollbackTests
             ]);
 
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -165,7 +165,7 @@ public sealed class RollbackTests
             var port = new MismatchedRecomputedPathDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -230,7 +230,7 @@ public sealed class RollbackTests
             };
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), bus, journal, "run-test", new DiskMover());
+                new CoveRenamerDataPort(db), bus, journal, "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -291,7 +291,7 @@ public sealed class RollbackTests
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(
                 new ReoccupyOldSlotThenMisreportDataPort(db, oldA), new CapturingEventBus(), journal,
-                "run-test", new DiskMover());
+                "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -351,7 +351,7 @@ public sealed class RollbackTests
             // slot there makes the sidecar rollback warn while the primary's own slot stays free.
             var executor = new RenamerExecutor(
                 new ReoccupyOldSlotThenMisreportDataPort(db, oldCaption), new CapturingEventBus(),
-                new FakeRevertJournal(), "run-test", new DiskMover());
+                new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -398,7 +398,7 @@ public sealed class RollbackTests
             var bus = new CapturingEventBus { PublishThrow = new InvalidOperationException("bus is down") };
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), bus, journal, "run-test", new DiskMover());
+                new CoveRenamerDataPort(db), bus, journal, "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 

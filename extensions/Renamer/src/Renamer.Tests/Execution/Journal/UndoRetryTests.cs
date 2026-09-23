@@ -278,7 +278,7 @@ public sealed class UndoRetryTests
                 var plan = await new RenamerPlanner(port)
                     .PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
                 var forward = await new RenamerExecutor(
-                        port, new CapturingEventBus(), journal, RunId, new DiskMover())
+                        port, new CapturingEventBus(), journal, RunId)
                     .ExecuteAsync(plan, options, default);
                 Assert.Single(forward.Renamed);
             }

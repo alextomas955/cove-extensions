@@ -48,7 +48,7 @@ public sealed class UndoReplayerTests
             // Forward: plan + execute through the real spine, opening a batch first (the endpoint's job).
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
 
@@ -60,7 +60,7 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover());
+            var replayer = new UndoReplayer(port, undoBus);
             var result = await replayer.RevertAsync(batch!, default);
 
             // Result: one undone, none failed/skipped.
@@ -120,7 +120,7 @@ public sealed class UndoReplayerTests
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
-                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                     .ExecuteAsync(plan, options, default);
             }
 
@@ -129,7 +129,7 @@ public sealed class UndoReplayerTests
             Assert.Equal(2, batch!.Rows.Count);
 
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
 
             Assert.Equal(2, result.Undone);
             // The two published events carry exactly the two entity ids (each from its own row),
@@ -160,7 +160,7 @@ public sealed class UndoReplayerTests
             var options = new RenamerOptions { FilenameTemplate = "$title" };
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
 
             // The folder's row now names another path, so the original folder exists on disk only.
@@ -170,7 +170,7 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            var result = await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, new CapturingEventBus()).RevertAsync(batch!, default);
 
             Assert.Single(result.Skipped);
             Assert.False(await db.Set<Folder>().AnyAsync(f => f.Path == folderPath));
@@ -204,7 +204,7 @@ public sealed class UndoReplayerTests
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
-                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                     .ExecuteAsync(plan, options, default);
             }
 
@@ -214,7 +214,7 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!, default);
 
             // video2 restored; video1 reported as skipped/failed (never clobbered).
             Assert.Equal(1, result.Undone);
@@ -255,7 +255,7 @@ public sealed class UndoReplayerTests
 
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -267,7 +267,7 @@ public sealed class UndoReplayerTests
             // A port that throws on the reverse save forces the rollback path.
             var throwingPort = new ThrowOnSaveDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(throwingPort, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(throwingPort, undoBus).RevertAsync(batch!, default);
 
             Assert.Equal(0, result.Undone);
             Assert.Single(result.Failed);
@@ -308,7 +308,7 @@ public sealed class UndoReplayerTests
 
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -319,7 +319,7 @@ public sealed class UndoReplayerTests
 
             // A reverse save that cancels forces the OCE path: rollback to new, then propagate.
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(new CancelOnReverseSaveDataPort(db), undoBus, new DiskMover());
+            var replayer = new UndoReplayer(new CancelOnReverseSaveDataPort(db), undoBus);
             await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch!, default));
 
             // Disk rolled back to new (no half-state), no event published - a cancel, not an UndoFailure.
@@ -355,7 +355,7 @@ public sealed class UndoReplayerTests
             // Forward renamer under one root → an in-place same-volume pair.
             await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(plan, options, default);
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
@@ -375,7 +375,7 @@ public sealed class UndoReplayerTests
             });
 
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover(), cross: recordingCross)
+            var result = await new UndoReplayer(port, undoBus, cross: recordingCross)
                 .RevertAsync(batch!, default);
 
             // The entry was undone via the verbatim v1.3 DiskMover path; the cross mover was never invoked.
@@ -406,7 +406,7 @@ public sealed class UndoReplayerTests
             var undoBus = new CapturingEventBus();
             var batch = new RevertBatch("run-test", RenamerFileKind.Video, Array.Empty<RevertRow>());
 
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
 
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
@@ -458,7 +458,7 @@ public sealed class UndoReplayerTests
             // volume) - no stored field is read.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
