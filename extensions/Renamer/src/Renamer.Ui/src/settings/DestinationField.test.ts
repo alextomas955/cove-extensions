@@ -1,58 +1,15 @@
 // @vitest-environment jsdom
-/**
- * That the destination editor's advice names a control the user can actually see.
- *
- * The root picker is withheld when Cove has no library path to offer - the read failed, or the host has
- * none configured - and the path-shape hint beside the template input is the one line telling the user
- * a typed path is about to become literal folder names. Sending them to "the root beside it" in that
- * state points at nothing, which leaves the only warning they get unactionable.
- *
- * A DOM is needed because the claim is about which of two sentences is on screen, and that depends on
- * a derivation the component runs. A render commits on React's own schedule, so the
- * test waits for the field to appear rather than for a span.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. PathShapeHint's stand-in reproduces its real gate - it renders only for an absolute-path
- * shape - by calling the real predicate, so a hint this test reads is one the user would see.
- */
-import { test, expect, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+// The destination editor's path-shape hint names only a control the user can see. The root picker is
+// withheld when Cove has no library path to offer, and the hint is the one line saying a typed path is
+// about to become literal folder names.
+import { test, expect } from "vitest";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 
+import { DestinationField } from "./DestinationField";
 import { CONTAINING_ROOT, type Destination, type LibraryPathsState } from "./options";
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const { isAbsolutePathShape } =
-    await import("../../../../../../shared/ui-shared/src/primitivesLogic");
-  return {
-    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
-    Field: (props: {
-      label?: string;
-      helper?: string;
-      children: (controlId: string) => ReactNode;
-    }) =>
-      h("div", { "data-stub": "Field" }, props.label, props.helper, props.children("stub-control")),
-    Select: (props: { options?: { label: string }[] }) =>
-      h(
-        "div",
-        { "data-stub": "Select" },
-        (props.options ?? []).map((o, i) => h("span", { key: i }, o.label)),
-      ),
-    TextInput: () => h("input", { "data-stub": "TextInput" }),
-    StatusText: (props: { children?: ReactNode }) =>
-      h("div", { "data-stub": "StatusText" }, props.children),
-    // The real gate, so an assertion here reads a hint the user would be shown.
-    PathShapeHint: (props: { value: string; message: string }) =>
-      isAbsolutePathShape(props.value)
-        ? h("div", { "data-stub": "PathShapeHint" }, props.message)
-        : null,
-  };
-});
-
-const { DestinationField } = await import("./DestinationField");
 
 /** A template a user typed as a path, which is what the hint exists to catch. */
 const TYPED_PATH = "D:/Media/Studio";
@@ -65,12 +22,13 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
   root.render(
     createElement(DestinationField, { value, onChange: () => undefined, library, label: "Folder" }),
   );
-  await waitFor(
-    "the field to render",
-    () => container.querySelector('[data-stub="Field"]') !== null,
-  );
+  await waitFor("the field to render", () => container.querySelector("input") !== null);
 
-  const hint = container.querySelector('[data-stub="PathShapeHint"]');
+  // The warning spans after the template input; the library-path notices render before it.
+  const input = container.querySelector("input")!;
+  const hint = [...container.querySelectorAll("span.text-amber-400")].find(
+    (e) => input.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
   return {
     hint: hint?.textContent ?? null,
     hasPicker: container.textContent.includes("Under"),
@@ -82,7 +40,6 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
 }
 
 test("with no root picker on screen the hint does not send the user to one", async () => {
-  // the case: Cove reported no library paths, so `showPicker` is false and no "Under" select renders.
   const field = await renderField({ paths: [], loading: false, failed: false });
 
   expect(field.hasPicker).toBe(false);

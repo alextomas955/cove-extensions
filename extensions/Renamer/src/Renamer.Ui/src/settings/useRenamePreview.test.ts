@@ -1,17 +1,7 @@
 // @vitest-environment jsdom
-/**
- * That the pane shows the preview for the options the user is on, when two requests overlap.
- *
- * The pure decision has its own suite, and a green one there proves nothing on its own - a hook that
- * never consults it repaints from whichever request answers last however correct the decision is. So
- * this renders the real hook and holds two POSTs open at once, then settles them in reverse issue
- * order, which is the ordering the debounce cannot prevent.
- *
- * One seam is stubbed, and it is not the subject: the host request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. Its stand-in hands each call's resolver back to
- * the test so settle order is the test's to choose, and the promise itself so a test can let the
- * hook's own handler run before reading the result.
- */
+// The pane shows the preview for the options the user is on when two requests overlap. The request
+// mock hands each call's resolver back to the test, so the test settles them in reverse issue order,
+// which the debounce cannot prevent.
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -58,13 +48,6 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
     });
     return promise;
   },
-}));
-
-// The shared barrel re-exports the React primitives, whose `react`/`lucide-react` imports resolve only
-// inside a consuming bundle. This hook reaches the barrel for one route builder, so the stand-in
-// re-exports the real one from the pure module that defines it.
-vi.mock("@cove-extensions/ui-shared", async () => ({
-  extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
 }));
 
 const sleep = (ms: number) =>

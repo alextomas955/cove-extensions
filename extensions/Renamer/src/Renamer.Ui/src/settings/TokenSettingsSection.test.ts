@@ -1,70 +1,22 @@
 // @vitest-environment jsdom
-/**
- * The format examples this section shows beside each option, and the one sentence ranking genders.
- * The examples are the only thing telling a user what a format string will produce.
- *
- * Every expectation below was produced by running the engine's own formatter over the reference value
- * (`TimeSpan.ToString(format, InvariantCulture)`, as `MetadataProjector.FormatDuration` calls it) and
- * transcribed by hand. None is derived from the module under test, which would only prove it agrees
- * with itself. The whole list is pinned rather than each entry, so an option added with no example
- * checked here fails too.
- *
- * The gender-order sentence is read off the rendered screen, because it says what
- * `MultiValue.GenderRank` does with a gender the user left out. The shared primitives stand in,
- * because their `react` import resolves only inside a consuming bundle, and the entity adapter
- * stands in whole because `@cove/runtime/*` resolves only inside a running Cove. A render commits on React's own
- * schedule, so the test waits for the token group to appear rather than for a span.
- */
-import { test, expect, vi } from "vitest";
+// The format examples beside each option, and the sentence ranking genders. Every expected example
+// was produced by the engine's formatter (`TimeSpan.ToString(format, InvariantCulture)`, as
+// `MetadataProjector.FormatDuration` calls it) and copied here, never derived from the module under
+// test. The whole list is pinned, so an option added with no example checked here fails too.
+import { test, expect } from "vitest";
 import assert from "node:assert/strict";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 
 import { someOptions } from "./testOptions";
 
-vi.mock("./EntitySelectField", () => ({ EntitySelectField: () => null }));
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const text = (v: unknown) => (typeof v === "string" ? v : null);
-  const box = (stub: string) => (p: { children?: ReactNode }) =>
-    h("div", { "data-stub": stub }, p.children);
-
-  return {
-    SectionCard: box("SectionCard"),
-    GroupCard: box("GroupCard"),
-    Badge: box("Badge"),
-    Chip: box("Chip"),
-    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
-    Field: (p: { label?: string; helper?: string; children: (controlId: string) => ReactNode }) =>
-      h(
-        "label",
-        { "data-stub": "Field" },
-        h("span", null, text(p.label)),
-        p.children("stub-control"),
-        h("span", null, text(p.helper)),
-      ),
-    FieldGroup: (p: { label?: string; helper?: string; children?: ReactNode }) =>
-      h(
-        "div",
-        { "data-stub": "FieldGroup", role: "group" },
-        h("span", null, text(p.label)),
-        p.children,
-        h("span", null, text(p.helper)),
-      ),
-    NumberInput: () => h("input", { type: "number" }),
-    Select: () => h("select", null),
-    ExampleSelect: () => h("select", null),
-    SeparatorChips: () => h("div", null),
-    ChipMultiSelect: () => h("div", null),
-    OrderedPickToAdd: () => h("div", null),
-  };
-});
-
-const { DATE_FORMAT_OPTIONS, DURATION_FORMAT_OPTIONS, TokenSettingsSection } =
-  await import("./TokenSettingsSection");
+import {
+  DATE_FORMAT_OPTIONS,
+  DURATION_FORMAT_OPTIONS,
+  TokenSettingsSection,
+} from "./TokenSettingsSection";
 
 const pairs = (options: readonly { value: string; example: string }[]) =>
   options.map((o) => [o.value, o.example]);
@@ -112,10 +64,7 @@ test("the gender order says where a gender the user left out ends up", async () 
       insertToken: () => undefined,
     }),
   );
-  await waitFor(
-    "the token group to render",
-    () => container.querySelector('[data-stub="GroupCard"]') !== null,
-  );
+  await waitFor("the token group to render", () => container.querySelector("h3") !== null);
 
   expect(textNodes(container, "Most-preferred first. Anyone else sorts last.")).toBe(1);
   expect(textNodes(container, "Most-preferred first.")).toBe(0);

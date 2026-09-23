@@ -1,26 +1,8 @@
 // @vitest-environment jsdom
-/**
- * Wiring contract for the panel's whole-library rename: that the hook the panel calls really does
- * stop on the poll decision's verdict.
- *
- * The pure decision has its own suite, and a green one there proves nothing on its own - a poller
- * that never consults it is unbounded however correct the decision is. So this renders the real hook
- * and drives the real `pollJob` loop over a stubbed job-status route, then asserts the two things a user
- * would notice: the request stream stops, and the button comes back with a banner.
- *
- * Two seams are stubbed, and neither is the subject. The host request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. And the two tuning constants, shrunk so a bound
- * is reachable in seconds of real time - `decidePoll` itself runs unmocked, so what is under test is
- * the shipped decision, not a stand-in for it.
- *
- * This is the one UI suite that needs a DOM: the subject is a hook, and its stopping is observable
- * only once React has run its effects and re-rendered. Hence the environment pragma above, which the
- * other suites (all pure modules) neither carry nor need. `node:assert` is unreachable under it, so
- * the assertions here are vitest's `expect` rather than the node:assert the pure suites use. A render
- * commits on React's own schedule, so each step waits for the state its assertion is about - with one
- * exception, marked where it stands, which waits on real elapsed time because it asserts that nothing
- * happens while it elapses.
- */
+// The whole-library rename hook stops on the poll decision's verdict. It drives the real `pollJob`
+// loop over a scripted job-status route, with the two tuning constants shrunk so a bound is reached
+// in seconds, and asserts what a user notices: the requests stop and the button comes back with a
+// banner. One test waits on real elapsed time, because it asserts that nothing happens meanwhile.
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -51,14 +33,6 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
         : { jobId: "job-under-test" },
     );
   },
-}));
-
-// The shared barrel re-exports the React primitives, whose `react`/`lucide-react` imports resolve only
-// inside a consuming bundle - that package deliberately has no node_modules of its own. This hook
-// reaches the barrel for one route builder, so the stand-in re-exports the real one from the pure
-// module that defines it rather than restating a path shape that could then drift.
-vi.mock("@cove-extensions/ui-shared", async () => ({
-  extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
 }));
 
 // A one-millisecond stall budget and a one-read failure allowance, so the bound the shipped constants

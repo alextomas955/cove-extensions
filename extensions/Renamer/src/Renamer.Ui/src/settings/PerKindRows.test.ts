@@ -1,18 +1,8 @@
 // @vitest-environment jsdom
-/**
- * What each row says about a kind, and what the two buttons do to the stored map. The state line and
- * the button labels are the whole of what a user reads here, so they are read off a real render
- * rather than inferred from the pure map helper.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. `Button` stands in as a real <button> so a click reaches the handler; DestinationField
- * stands in whole, so what the assertions read is this component's own output.
- *
- * A render commits on React's own schedule, so the test waits for the rows to appear rather than
- * for a span.
- */
+// What each row says about a kind, and what its two buttons do to the stored map, read off a real
+// render. The destination editor stands in, so the rows read only this component's text.
 import { test, expect, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
@@ -20,22 +10,6 @@ import { waitFor } from "../common/lib/flushRender";
 import { PerKindRows } from "./PerKindRows";
 import { RENAMABLE_KINDS, type LibraryPathsState, type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  return {
-    StatusText: ({ children }: { children: ReactNode }) => h("span", null, children),
-    Button: ({
-      children,
-      onClick,
-      disabled,
-    }: {
-      children: ReactNode;
-      onClick: () => void;
-      disabled?: boolean;
-    }) => h("button", { type: "button", onClick, disabled }, children),
-  };
-});
 
 vi.mock("./DestinationField", () => ({
   DestinationField: () => null,

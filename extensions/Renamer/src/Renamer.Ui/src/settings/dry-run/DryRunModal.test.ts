@@ -1,25 +1,10 @@
 // @vitest-environment jsdom
-/**
- * That the row walk follows a page which carried no rows.
- *
- * The pure predicate has its own suite, and a green one there proves nothing on its own - a modal that
- * re-evaluates only when the row count moves never asks it again after the one page that moved nothing.
- * So this renders the real modal and answers `/scan-rows` with a scripted sequence in which a zero-row
- * page carries a live cursor, then reads the footer, which is where a user learns whether the walk is
- * finished.
- *
- * Three seams are stubbed and none is the subject. The host request helper, because it reaches
- * `@cove/runtime/api`, which exists only inside Cove. The scan-job poller, so the summary lands without
- * a second of real polling. And the shared primitives plus the icon set, whose `react`/`lucide-react`
- * imports resolve only inside a consuming bundle: each stand-in renders the text-bearing props and the
- * children it is handed, so what the assertions read is this modal's own output.
- *
- * A render commits on React's own schedule, so each step waits for the state its assertion is about -
- * save one, marked where it stands, which waits on real elapsed time because it asserts that a stopped
- * walk stays stopped.
- */
+// The row walk follows a page that carried no rows. `/scan-rows` answers with a scripted sequence in
+// which a zero-row page carries a live cursor, and the test reads the footer, where a user learns
+// whether the walk is finished. The scan-job poller resolves at once. One test waits on real elapsed
+// time, because it asserts that a stopped walk stays stopped.
 import { test, expect, vi, beforeEach } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../../common/lib/flushRender";
@@ -64,30 +49,6 @@ vi.mock("../jobStatusStore", () => ({
     cancel: () => undefined,
   }),
 }));
-
-vi.mock("lucide-react", () => ({
-  Search: () => null,
-  AlertTriangle: () => null,
-}));
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const stub = (name: string) =>
-    function Stub(props: Record<string, unknown>) {
-      return h("div", { "data-stub": name }, props.label as string, props.children as ReactNode);
-    };
-
-  return {
-    extensionApi: (await import("../../../../../../../shared/ui-shared/src/actions")).extensionApi,
-    // A real <button>, because whether it is disabled is the whole of what some assertions read.
-    Button: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) =>
-      h("button", { type: "button", disabled }, children),
-    ProgressBar: stub("ProgressBar"),
-    Spinner: stub("Spinner"),
-    StatusPill: stub("StatusPill"),
-    useOverlayKeys: () => undefined,
-  };
-});
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {

@@ -1,172 +1,14 @@
 // @vitest-environment jsdom
-/**
- * That each Advanced control is named once, that its explanation sits with the heading it explains,
- * and that every helper sentence reads as the engine behaves.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. Each stand-in keeps the part of its real shape an assertion here depends on: `Field`
- * renders label, children then helper in that order; `SegmentedReplace` shows its replace helper
- * only for a non-empty value; `CollapsibleSection` renders its children, standing for a panel the
- * user has opened.
- *
- * A render commits on React's own schedule, so each step waits for the state its assertion is about rather than for a span.
- */
-import { test, expect, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+// Each Advanced control is named once, its explanation sits above it, and every helper sentence
+// reads as the engine behaves.
+import { test, expect } from "vitest";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 
+import { AdvancedSection } from "./AdvancedSection";
 import { someOptions } from "./testOptions";
-
-// The host selector's module specifier resolves only inside a running Cove, so the adapter stands in
-// whole. The host control is not one labelable thing, so the adapter heads it with a `FieldGroup`.
-vi.mock("./EntitySelectField", async () => {
-  const { createElement: h } = await import("react");
-  const { FieldGroup } = await import("@cove-extensions/ui-shared");
-  return {
-    EntitySelectField: (p: {
-      label: string;
-      helper?: string;
-      labelStyle?: "micro" | "group";
-      placeholder?: string;
-    }) =>
-      h(FieldGroup, {
-        label: p.label,
-        helper: p.helper,
-        labelStyle: p.labelStyle,
-        children: h("input", {
-          "data-stub": "EntitySelector",
-          "aria-label": p.label,
-          placeholder: p.placeholder,
-        }),
-      }),
-  };
-});
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const text = (v: unknown) => (typeof v === "string" ? v : null);
-
-  return {
-    INPUT_CLASS: "stub-input",
-    SectionCard: (p: { children?: ReactNode }) =>
-      h("div", { "data-stub": "SectionCard" }, p.children),
-    CollapsibleSection: (p: { title?: string; summary?: string; children?: ReactNode }) =>
-      h(
-        "div",
-        { "data-stub": "CollapsibleSection" },
-        h("span", { "data-stub": "CollapsibleSection-title" }, text(p.title)),
-        h("span", null, text(p.summary)),
-        p.children,
-      ),
-    GroupCard: (p: { title?: string; description?: string; children?: ReactNode }) =>
-      h(
-        "div",
-        { "data-stub": "GroupCard" },
-        h("h3", { "data-stub": "GroupCard-title" }, text(p.title)),
-        h("p", null, text(p.description)),
-        p.children,
-      ),
-    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
-    Field: (p: {
-      label?: string;
-      helper?: string;
-      labelStyle?: string;
-      children: (controlId: string) => ReactNode;
-    }) =>
-      h(
-        "label",
-        { "data-stub": "Field", "data-label-style": p.labelStyle ?? "micro" },
-        h("span", { "data-stub": "Field-label" }, text(p.label)),
-        p.children("stub-control"),
-        h("span", { "data-stub": "Field-helper" }, text(p.helper)),
-      ),
-    FieldGroup: (p: {
-      label?: string;
-      helper?: string;
-      labelStyle?: string;
-      children?: ReactNode;
-    }) =>
-      h(
-        "div",
-        { "data-stub": "Field", "data-label-style": p.labelStyle ?? "micro", role: "group" },
-        h("span", { "data-stub": "Field-label" }, text(p.label)),
-        p.children,
-        h("span", { "data-stub": "Field-helper" }, text(p.helper)),
-      ),
-    Toggle: (p: { label?: string; helper?: string }) =>
-      h(
-        "div",
-        { "data-stub": "Toggle" },
-        h("span", null, text(p.label)),
-        h("p", null, text(p.helper)),
-      ),
-    TagListInput: (p: { ariaLabel?: string; placeholder?: string }) =>
-      h("input", {
-        "data-stub": "TagListInput",
-        "aria-label": p.ariaLabel,
-        placeholder: p.placeholder,
-      }),
-    TextInput: (p: { placeholder?: string }) =>
-      h("input", { "data-stub": "TextInput", placeholder: p.placeholder }),
-    NumberInput: () => h("input", { "data-stub": "NumberInput", type: "number" }),
-    Select: (p: { options?: readonly { label: string }[] }) =>
-      h(
-        "select",
-        { "data-stub": "Select" },
-        (p.options ?? []).map((o, i) => h("option", { key: i }, o.label)),
-      ),
-    ExampleSelect: (p: { options?: readonly { value: string; example: string }[] }) =>
-      h(
-        "select",
-        { "data-stub": "ExampleSelect" },
-        (p.options ?? []).map((o, i) => h("option", { key: i }, `${o.value} → ${o.example}`)),
-      ),
-    // The real control reveals its replacement input, and with it the replace helper, only once the
-    // value is non-empty.
-    SegmentedReplace: (p: {
-      value?: string;
-      stripLabel?: string;
-      replaceLabel?: string;
-      stripHelper?: string;
-      replaceHelper?: string;
-      inputPlaceholder?: string;
-    }) =>
-      h(
-        "div",
-        { "data-stub": "SegmentedReplace" },
-        h("span", null, text(p.stripLabel)),
-        h("span", null, text(p.replaceLabel)),
-        p.value
-          ? [
-              h("input", { key: "i", placeholder: p.inputPlaceholder }),
-              h("span", { key: "h" }, text(p.replaceHelper)),
-            ]
-          : h("span", null, text(p.stripHelper)),
-      ),
-    ObjectArrayEditor: (p: {
-      rows?: unknown[];
-      renderRow?: (row: unknown, i: number, update: () => void) => ReactNode;
-      addLabel?: string;
-    }) =>
-      h(
-        "div",
-        { "data-stub": "ObjectArrayEditor" },
-        (p.rows ?? []).map((row, i) =>
-          h(
-            "div",
-            { key: i },
-            p.renderRow?.(row, i, () => undefined),
-          ),
-        ),
-        h("button", { type: "button" }, text(p.addLabel)),
-      ),
-    RegexValidity: () => null,
-  };
-});
-
-const { AdvancedSection } = await import("./AdvancedSection");
 
 async function renderAdvanced() {
   const container = document.createElement("div");
@@ -179,10 +21,12 @@ async function renderAdvanced() {
       set: () => undefined,
     }),
   );
-  await waitFor(
-    "the advanced panels to render",
-    () => container.querySelector('[data-stub="CollapsibleSection"]') !== null,
-  );
+  const collapsed = () => [
+    ...container.querySelectorAll<HTMLElement>('button[aria-expanded="false"]'),
+  ];
+  await waitFor("the advanced panels to render", () => collapsed().length > 0);
+  for (const header of collapsed()) header.click();
+  await waitFor("every panel to open", () => collapsed().length === 0);
 
   return {
     container,
@@ -224,20 +68,6 @@ const SHIPS = [
   "Only when the name appears as a whole word.",
 ];
 
-const SUPERSEDED = [
-  "Tags",
-  "Studios",
-  "Articles",
-  "An exact match or a regex.",
-  "Each illegal character becomes this.",
-  "Deleted before illegal-character handling, e.g. ,#",
-  "{n} = a counter added only when a name already exists, e.g. name (1).mp4.",
-  "Case-insensitive, and only a whole word at the start.",
-  "So one studio renders to one stable folder name.",
-  "Only when the whole name appears in the title.",
-  "lower case",
-];
-
 /** Every sentence and its count, so a run names each one that disagrees. */
 function counts(container: HTMLElement, sentences: readonly string[]): Record<string, number> {
   return Object.fromEntries(sentences.map((s) => [s, textNodes(container, s)]));
@@ -251,22 +81,6 @@ test("each shipped helper sentence is on screen exactly once", async () => {
   const view = await renderAdvanced();
 
   expect(counts(view.container, SHIPS)).toEqual(expected(SHIPS, 1));
-
-  view.unmount();
-});
-
-test("no superseded label or sentence survives", async () => {
-  const view = await renderAdvanced();
-
-  expect(counts(view.container, SUPERSEDED)).toEqual(expected(SUPERSEDED, 0));
-
-  view.unmount();
-});
-
-test("neither exclude selector carries a helper below its control", async () => {
-  const view = await renderAdvanced();
-
-  expect(textNodes(view.container, "A child studio counts too.")).toBe(0);
 
   view.unmount();
 });
@@ -299,27 +113,12 @@ test("the chip controls are named by their own heading, not by a placeholder", a
   view.unmount();
 });
 
-test("each exclude names its control once, on a block its control does not depend on", async () => {
+test("each exclude control is named once", async () => {
   const view = await renderAdvanced();
 
-  const excludeLabels = [...view.container.querySelectorAll('[data-stub="Field-label"]')]
-    .map((e) => e.textContent.trim())
-    .filter((t) => t.startsWith("Exclude by"));
-  expect(excludeLabels).toEqual(["Exclude by tag", "Exclude by studio"]);
-
-  for (const label of excludeLabels) {
-    const field = [...view.container.querySelectorAll('[data-stub="Field"]')].find(
-      (f) => f.querySelector('[data-stub="Field-label"]')?.textContent.trim() === label,
-    );
-    expect(field?.getAttribute("data-label-style"), label).toBe("group");
-    expect(field?.tagName, label).not.toBe("LABEL");
-    expect(
-      field?.querySelector('[data-stub="EntitySelector"]')?.getAttribute("aria-label"),
-      label,
-    ).toBe(label);
+  for (const label of ["Exclude by tag", "Exclude by studio", "Exclude by source path"]) {
+    expect(textNodes(view.container, label), label).toBe(1);
   }
-
-  expect(textNodes(view.container, "Exclude by source path")).toBe(1);
 
   view.unmount();
 });

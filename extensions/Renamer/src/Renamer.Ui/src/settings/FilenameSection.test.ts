@@ -1,20 +1,8 @@
 // @vitest-environment jsdom
-/**
- * That the save refusal is visible. A dead Save button with no reason reads as the user's own mistake,
- * and the hook's suite can only prove the write was refused - not that anything on screen says so. So
- * this renders the real section and reads the rendered text, which is the only form of the claim a
- * user would recognise.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle: that package deliberately has no node_modules of its own. Each stand-in renders the
- * text-bearing props and the children it is handed and nothing else, so what the assertions read is
- * this section's own output.
- *
- * A render commits on React's own schedule, so the test waits for the card to appear rather than for
- * a span.
- */
-import { test, expect, vi } from "vitest";
-import { createElement, createRef, type ReactNode } from "react";
+// A refused save says so on screen. The hook's suite proves the write was refused; only the rendered
+// text shows a user why the Save button is dead.
+import { test, expect } from "vitest";
+import { createElement, createRef } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
@@ -22,37 +10,6 @@ import { waitFor } from "../common/lib/flushRender";
 import { FilenameSection, type FilenameSectionProps } from "./FilenameSection";
 import { type LibraryPathsState } from "./options";
 import { someOptions } from "./testOptions";
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  const stub = (name: string) =>
-    function Stub(props: Record<string, unknown>) {
-      return h(
-        "div",
-        { "data-stub": name },
-        props.label as string,
-        props.title as string,
-        props.description as string,
-        props.children as ReactNode,
-      );
-    };
-
-  // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
-  const fieldStub = (p: { label?: string; children: (controlId: string) => ReactNode }) =>
-    h("label", { "data-stub": "Field" }, p.label, p.children("stub-control"));
-
-  return {
-    Field: fieldStub,
-    TextInput: stub("TextInput"),
-    SectionCard: stub("SectionCard"),
-    CardSection: stub("CardSection"),
-    Chip: stub("Chip"),
-    StatusText: stub("StatusText"),
-    Select: stub("Select"),
-    PathShapeHint: stub("PathShapeHint"),
-    Button: stub("Button"),
-  };
-});
 
 const LIBRARY: LibraryPathsState = { paths: ["D:/library"], loading: false, failed: false };
 
@@ -76,10 +33,7 @@ async function renderSection(overrides: Partial<FilenameSectionProps>) {
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(FilenameSection, props));
-  await waitFor(
-    "the card to render",
-    () => container.querySelector('[data-stub="SectionCard"]') !== null,
-  );
+  await waitFor("the card to render", () => container.textContent.includes("Presets"));
 
   return {
     text: () => container.textContent,
