@@ -42,6 +42,21 @@ public sealed class RevertJournalTests
     }
 
     [Fact]
+    public async Task OpeningBatches_LeavesNoneTracked_SoAWholeLibraryRunHoldsNoneOfThem()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        await using var _ = db;
+        await using var __ = conn;
+        await using var journal = new CoveRevertJournal(db);
+
+        await journal.BeginBatchAsync("run-1", "op", RenamerFileKind.Video, Opened);
+        await journal.BeginBatchAsync("run-2", "op", RenamerFileKind.Video, Opened);
+
+        Assert.Empty(db.ChangeTracker.Entries<RevertBatchEntity>());
+        Assert.Equal(2, await db.Set<RevertBatchEntity>().CountAsync());
+    }
+
+    [Fact]
     public async Task RetiringOneRow_LeavesTheOthersPending()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

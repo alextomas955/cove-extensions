@@ -99,6 +99,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDispo
             _db.Set<RevertBatchEntity>().Add(batch);
 
             await _db.SaveChangesAsync(ct);
+            _db.Entry(batch).State = EntityState.Detached;
         }
         finally
         {
