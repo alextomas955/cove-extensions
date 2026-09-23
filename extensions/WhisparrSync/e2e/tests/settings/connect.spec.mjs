@@ -17,6 +17,20 @@ import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
 
+// The generation row names each option for the generation it is, and its control for the generation
+// it selects.
+const GENERATION_LABELS = { v3: "Whisparr v3 (Eros)", v2: "Whisparr v2" };
+
+/**
+ * The option the row marks as the generation the form holds.
+ *
+ * The mark is a word inside that option. Every ancestor of it matches too, so the innermost is
+ * taken: the line holding the generation's own name beside the mark.
+ */
+function draftedGenerationIn(page) {
+  return page.locator("div").filter({ hasText: "Selected" }).last();
+}
+
 // The builds this extension's classifier pins were transcribed from. Hand-written here, so a moved
 // image fails loudly instead of the suite quietly agreeing with whatever answered.
 const PINNED_VERSIONS = { v3: "3.3.8.1097", v2: "2.2.0.231" };
@@ -34,16 +48,16 @@ const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
 
 /**
- * Opens the panel on `generation`'s card and returns its controls.
+ * Opens the panel on `generation` and returns its controls.
  *
  * The path is not one of the host's own routes. The host carries the unknown key only until it
  * finishes loading extensions, then answers a load that produced no matching tab by switching to its
  * first built-in tab and rewriting the address. Nothing after that rewrite can reach this panel, and
  * only a fresh navigation recovers it.
  *
- * The page opens on the generation Cove is set to use, which is v3 until a save moves it. Reaching
- * the other card is the page's own Switch affordance, so a leg below runs against the card a user
- * would be looking at.
+ * The page opens on the generation Cove is set to use, which is v3 until a save moves it. The other
+ * generation is reached through the row inside Connection, whose control is named for the
+ * generation it selects, so a leg below runs against the generation a user would be looking at.
  */
 async function openPanel(page, baseUrl, generation) {
   const panelUrl = `${baseUrl}${SETTINGS_PAGE_PATH}`;
@@ -62,13 +76,16 @@ async function openPanel(page, baseUrl, generation) {
   ).toBeVisible();
 
   if (generation !== "v3") {
-    const otherCard = page.getByRole("button", { name: "Switch" });
+    const select = page.getByRole("button", { name: `Select ${GENERATION_LABELS[generation]}` });
     await expect(
-      otherCard,
-      `the ${generation} card offered no Switch, so the form is still editing another generation`,
+      select,
+      `the row offered no control selecting ${generation}, so the form is still on another generation`,
     ).toBeVisible();
-    await otherCard.click();
-    await expect(page.getByText("Editing", { exact: false })).toBeVisible();
+    await select.click();
+    await expect(
+      draftedGenerationIn(page),
+      `selecting ${generation} did not mark it as the generation the form holds`,
+    ).toContainText(GENERATION_LABELS[generation]);
   }
 
   return {
@@ -133,7 +150,7 @@ for (const generation of ["v3", "v2"]) {
       await expect(page.getByText("Nothing answered at", { exact: false })).toHaveCount(0);
     });
 
-    test(`an address nothing listens on, on the ${generation} card, reads as unreachable`, async ({
+    test(`an address nothing listens on, on ${generation}, reads as unreachable`, async ({
       page,
       baseUrl,
       whisparr,
