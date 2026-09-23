@@ -290,10 +290,10 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
   decision it takes on each read. Both bounds live in the logic module: a job that stops reporting
   progress and a job id that stops answering each end the wait. An expiry is kept distinct from the
   job's own reported failure, because only the second one means nothing was written.
-- `UndoSection.tsx` - the undo control backed by `/undo` and `/last-batch`.
-- `EntitySelectField.tsx` / `StudioMap.tsx`: the adapter over Cove's own entity selector (every
-  studio/tag/performer field in the panel goes through it, with the create affordance off) and the
-  per-studio destination-map editor. A rule stores the entity's stable id, and the host resolves that
+- `UndoSection.tsx` and `useLastBatch.ts` - the undo footer and its `/last-batch` and `/undo` calls.
+- `EntitySelectField.tsx` / `EntityDestinationsEditor.tsx`: the adapter over Cove's own entity
+  selector (every studio/tag/performer field in the panel goes through it, with the create affordance
+  off) and the per-studio and per-tag destination-map editor. A rule stores the entity's stable id, and the host resolves that
   id to a name for display: one cached lookup per configured rule, never a list sized by the library.
 - `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
   `options.ts`, `preview.ts` - supporting UI, types, and the inline token validation. The `*Logic.ts`
