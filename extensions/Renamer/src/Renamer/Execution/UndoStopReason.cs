@@ -37,11 +37,6 @@ public enum UndoStopReason
     // The path recomputed after the save did not equal the restored path, so the move was rolled back.
     RestoredPathMismatch,
 
-    // The save returned no row for this file, so the restored path could not be checked at all and the
-    // move was rolled back. Distinct from RestoredPathMismatch because nothing was compared: reporting
-    // a mismatch would name a path the save never reported.
-    SaveReportedNoRow,
-
     // The database save threw after a successful reverse move, which was then rolled back.
     DatabaseSaveFailed,
 }

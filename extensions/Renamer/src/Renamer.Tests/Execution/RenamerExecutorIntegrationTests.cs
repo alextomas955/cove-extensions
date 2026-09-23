@@ -528,8 +528,8 @@ public sealed class RenamerExecutorIntegrationTests
     private sealed class ReoccupyOldSlotThenThrowDataPort(DbContext db, string oldSlot)
         : CoveRenamerDataPort(db)
     {
-        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
         {
             File.WriteAllText(oldSlot, "intruder bytes re-occupying the old slot");
             throw new InvalidOperationException("forced save failure");
@@ -540,8 +540,8 @@ public sealed class RenamerExecutorIntegrationTests
     /// executor's post-move OCE path - rollback, then propagate - rather than the data-failure path.</summary>
     private sealed class CancelOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
-        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
             => throw new OperationCanceledException("host shutting down mid-save");
     }
 }

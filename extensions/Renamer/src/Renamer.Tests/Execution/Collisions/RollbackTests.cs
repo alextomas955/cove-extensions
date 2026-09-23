@@ -198,63 +198,6 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The save commits but reports no row for the file at all. That is not a path mismatch - there is
-    /// no recomputed path to disagree with - so the executor must say so and leave the committed move
-    /// alone. Rolling back here would revert a save that succeeded.
-    /// </summary>
-    [Fact]
-    public async Task SaveReturnsNoRowForTheFile_ReportedAsMissing_NotAsAMismatch_AndNotRolledBack()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
-
-            string oldA = Path.Combine(dir.Root, "a.mkv");
-            File.WriteAllText(oldA, "A-bytes");
-            string newPath = Path.Combine(dir.Root, "b.mkv");
-
-            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
-            [
-                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Rename, "b.mkv", folderPath),
-            ]);
-
-            var bus = new CapturingEventBus();
-            var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(
-                new EmptySaveResultDataPort(db), bus, journal, "run-test", new DiskMover());
-
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
-
-            var failedItem = Assert.Single(result.Failed);
-            Assert.Equal(RenamerStatus.Failed, failedItem.Status);
-            Assert.Contains("no row", failedItem.Reason);
-            Assert.DoesNotContain("recomputed Path", failedItem.Reason);
-            Assert.DoesNotContain("rolled back", failedItem.Reason);
-            Assert.Empty(result.Renamed);
-            Assert.Empty(journal.Rows);
-            Assert.Empty(bus.Published);
-
-            // The committed move stands: the file is where the save put it, not back at the old path.
-            Assert.True(File.Exists(newPath), "a committed move must not be rolled back");
-            Assert.Equal("A-bytes", File.ReadAllText(newPath));
-            Assert.False(File.Exists(oldA), "the old slot must stay empty");
-
-            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
-            Assert.Equal("b.mkv", basename);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    /// <summary>
     /// The journal append runs after the save committed and the on-disk path was asserted, so a throw
     /// there is not a save failure: rolling the disk back would revert a move the database already
     /// agrees with, and would report the item failed for something the save did not do. The move stands
@@ -480,7 +423,7 @@ public sealed class RollbackTests
 
     /// <summary>
     /// Test-only port: performs the real save (so the DB row genuinely commits the new basename), then
-    /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong, so the executor's
+    /// returns a recomputed path that is deliberately wrong, so the executor's
     /// post-save "recomputed Path == on-disk path" assertion fails on the success path. Only the first
     /// save is misreported; the executor's restore of the row is left to report itself truthfully.
     /// </summary>
@@ -488,13 +431,11 @@ public sealed class RollbackTests
     {
         private int _saves;
 
-        public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override async Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
         {
-            var saved = await base.ApplyAndSaveAsync(mutations, ct);
-            return ++_saves == 1
-                ? [.. saved.Select(s => new SavedFile(s.FileId, s.RecomputedPath + ".WRONG"))]
-                : saved;
+            string recomputed = await base.ApplyAndSaveAsync(mutation, ct);
+            return ++_saves == 1 ? recomputed + ".WRONG" : recomputed;
         }
     }
 
@@ -505,26 +446,13 @@ public sealed class RollbackTests
     private sealed class ReoccupyOldSlotThenMisreportDataPort(DbContext db, string oldSlot)
         : CoveRenamerDataPort(db)
     {
-        public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override async Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
         {
-            var saved = await base.ApplyAndSaveAsync(mutations, ct);
+            string recomputed = await base.ApplyAndSaveAsync(mutation, ct);
             File.WriteAllText(oldSlot, "intruder bytes re-occupying the old slot");
-            return [.. saved.Select(sf => new SavedFile(sf.FileId, sf.RecomputedPath + ".WRONG"))];
+            return recomputed + ".WRONG";
         }
     }
 
-    /// <summary>
-    /// Test-only port: performs the real save, then reports no rows at all. The production port throws
-    /// when a file id is absent, so a fake is the only way to reach the executor's missing-row arm.
-    /// </summary>
-    private sealed class EmptySaveResultDataPort(DbContext db) : CoveRenamerDataPort(db)
-    {
-        public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
-        {
-            await base.ApplyAndSaveAsync(mutations, ct);
-            return [];
-        }
-    }
 }

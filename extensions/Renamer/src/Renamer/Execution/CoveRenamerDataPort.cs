@@ -436,70 +436,56 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return folder;
     }
 
-    // Applies each mutation to its tracked file row: Basename, optionally ParentFolderId and the
+    // Applies the mutation to its tracked file row: Basename, optionally ParentFolderId and the
     // ParentFolder navigation so the recompute resolves the new folder path, and each moved caption's
-    // Filename. Path is never set; Cove recomputes it in the one SaveChangesAsync, whose result is the
-    // recomputed Path of each saved file. A save failure, such as the unique-index violation, throws so
-    // the executor's catch rolls the disk back.
-    //
-    // Every caller passes a single mutation today, so no batch shape is exercised: this costs a tracked
-    // query per mutation, and another per mutation that changes folder, deduping neither. A batching
-    // caller wants the chunked in list of LoadEntitiesAsync.
-    public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-        IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+    // Filename. Path is never set; Cove recomputes it in SaveChangesAsync.
+    public virtual async Task<string> ApplyAndSaveAsync(
+        RenamerFileMutation mutation, CancellationToken ct = default)
     {
-        var touched = new List<BaseFileEntity>(mutations.Count);
+        var file = await _db.Set<BaseFileEntity>()
+            .Include(f => f.ParentFolder)
+            .FirstOrDefaultAsync(f => f.Id == mutation.FileId, ct)
+            ?? throw new InvalidOperationException($"file {mutation.FileId} not found");
 
-        foreach (var m in mutations)
+        file.Basename = mutation.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
+
+        if (mutation.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
         {
-            var file = await _db.Set<BaseFileEntity>()
-                .Include(f => f.ParentFolder)
-                .FirstOrDefaultAsync(f => f.Id == m.FileId, ct)
-                ?? throw new InvalidOperationException($"file {m.FileId} not found");
-
-            file.Basename = m.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
-
-            if (m.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
-            {
-                file.ParentFolderId = newFolderId;
-                // The navigation is set too, so ComputeFilePaths resolves the new folder path in memory.
-                file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
-            }
-
-            if (m.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
-            {
-                // The rows are queried and not reached through file.Captions. Every read this port makes
-                // is AsNoTracking, so in production nothing has put this file's captions in the change
-                // tracker and the navigation is empty: a lookup through it finds nothing and each rename
-                // is dropped in silence, leaving the row naming a file the move has taken away. A test
-                // that seeds a caption through the same context gets the navigation populated by
-                // relationship fix-up, so a fixture hides this.
-                var captionIds = m.CaptionRenames.Select(cr => cr.CaptionId).ToList();
-                var captions = await _db.Set<VideoCaption>()
-                    .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
-                    .ToListAsync(ct);
-
-                foreach (var (captionId, newFilename) in m.CaptionRenames)
-                {
-                    var cap = captions.FirstOrDefault(c => c.Id == captionId);
-                    if (cap is not null)
-                    {
-                        cap.Filename = newFilename;
-                    }
-                }
-            }
-
-            if (m.EntityTitle is RenamerEntityTitleWrite titleWrite)
-            {
-                await ApplyDerivedTitleAsync(titleWrite, ct);
-            }
-
-            touched.Add(file);
+            file.ParentFolderId = newFolderId;
+            // The navigation is set too, so ComputeFilePaths resolves the new folder path in memory.
+            file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
         }
 
-        await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here
+        if (mutation.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
+        {
+            // The rows are queried and not reached through file.Captions. Every read this port makes
+            // is AsNoTracking, so in production nothing has put this file's captions in the change
+            // tracker and the navigation is empty: a lookup through it finds nothing and each rename
+            // is dropped in silence, leaving the row naming a file the move has taken away. A test
+            // that seeds a caption through the same context gets the navigation populated by
+            // relationship fix-up, so a fixture hides this.
+            var captionIds = mutation.CaptionRenames.Select(cr => cr.CaptionId).ToList();
+            var captions = await _db.Set<VideoCaption>()
+                .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
+                .ToListAsync(ct);
 
-        return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
+            foreach (var (captionId, newFilename) in mutation.CaptionRenames)
+            {
+                var cap = captions.FirstOrDefault(c => c.Id == captionId);
+                if (cap is not null)
+                {
+                    cap.Filename = newFilename;
+                }
+            }
+        }
+
+        if (mutation.EntityTitle is RenamerEntityTitleWrite titleWrite)
+        {
+            await ApplyDerivedTitleAsync(titleWrite, ct);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return file.Path;
     }
 
     // Records a filename-derived title on its media entity, and only on one that still has none.

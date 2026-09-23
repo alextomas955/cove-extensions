@@ -129,14 +129,13 @@ public sealed class TextRenameIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             await port.ApplyAndSaveAsync(
-            [
                 new RenamerFileMutation(
                     titlelessFileId, "notes renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titlelessId, "field notes")),
+                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titlelessId, "field notes")));
+            await port.ApplyAndSaveAsync(
                 new RenamerFileMutation(
                     titledFileId, "manual renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titledId, "manual")),
-            ]);
+                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titledId, "manual")));
 
             db.ChangeTracker.Clear();
             var titles = await db.Set<TextDocument>().AsNoTracking()

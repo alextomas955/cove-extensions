@@ -199,25 +199,8 @@ public sealed class UndoReplayer
             entry.FileId, oldBasename, oldFolderId, restoredCaptions.Count > 0 ? restoredCaptions : null);
         try
         {
-            var saved = await _port.ApplyAndSaveAsync([mutation], ct);
-
-            // The recomputed path must equal the old path just restored to. The lookup is nullable
-            // because default(SavedFile) carries a null RecomputedPath, which the comparison below reads
-            // as a differing path: a save reporting no row would then take the rollback branch and undo
-            // a restore that committed.
-            SavedFile? savedFile = saved
-                .Where(s => s.FileId == entry.FileId)
-                .Select(s => (SavedFile?)s)
-                .FirstOrDefault();
-            if (savedFile is null)
-            {
-                return new RevertOutcome.Failed(new UndoFailure(
-                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
-                    "the save reported no row for this file, so the restored path could not be verified",
-                    UndoStopReason.SaveReportedNoRow));
-            }
-
-            string recomputed = savedFile.Value.RecomputedPath;
+            // The recomputed path must equal the old path just restored to.
+            string recomputed = await _port.ApplyAndSaveAsync(mutation, ct);
             string expected = NormalizeSlash(entry.OldPath);
             if (!PathsEqual(recomputed, expected))
             {

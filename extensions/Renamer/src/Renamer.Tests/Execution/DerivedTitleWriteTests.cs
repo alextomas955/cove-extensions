@@ -34,14 +34,13 @@ public sealed class DerivedTitleWriteTests
 
             var port = new CoveRenamerDataPort(db);
             await port.ApplyAndSaveAsync(
-            [
                 new RenamerFileMutation(
                     titlelessFileId, "one renamed.mkv", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titlelessId, "one")),
+                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titlelessId, "one")));
+            await port.ApplyAndSaveAsync(
                 new RenamerFileMutation(
                     titledFileId, "two renamed.mkv", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titledId, "two")),
-            ]);
+                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titledId, "two")));
 
             // The rename half of both mutations committed, so the refusal below is the title check and
             // not a save that never happened.

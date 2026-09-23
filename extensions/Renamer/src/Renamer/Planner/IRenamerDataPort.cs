@@ -206,20 +206,15 @@ public interface IRenamerDataPort
     Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default);
 
     /// <summary>
-    /// Applies each mutation to basename, parent folder and caption filenames, persists them in one
-    /// save, and returns each saved file's recomputed path.
+    /// Applies the mutation to the file's basename, parent folder and caption filenames, saves it, and
+    /// returns the path Cove recomputed for the file, in forward-slash form.
     /// </summary>
     /// <remarks>
-    /// An implementation throws on a save failure, such as a unique-index violation, so the caller's
-    /// catch can roll the on-disk move back. Both callers pass a single mutation, so an
-    /// implementation may cost a query per element.
+    /// Throws on a save failure, such as a unique-index violation, so the caller's catch can roll the
+    /// on-disk move back, and when the file row no longer exists.
     /// </remarks>
-    Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
+    Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default);
 }
-
-/// <summary>A saved file row's recomputed identity, read back after a save for the path assertion and event.</summary>
-/// <remarks><c>RecomputedPath</c> is the path Cove recomputed on save, in forward-slash form.</remarks>
-public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
 /// <summary>One file's intended database mutation, handed to <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>.</summary>
 /// <remarks>

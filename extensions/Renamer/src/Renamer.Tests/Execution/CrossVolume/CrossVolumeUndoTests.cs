@@ -364,8 +364,8 @@ public sealed class CrossVolumeUndoTests
     /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
     private sealed class ThrowOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
-        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
-            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        public override Task<string> ApplyAndSaveAsync(
+            RenamerFileMutation mutation, CancellationToken ct = default)
             => throw new InvalidOperationException("forced save failure");
     }
 }

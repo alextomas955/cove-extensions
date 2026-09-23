@@ -149,24 +149,12 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
         => Task.FromResult(!MissingSources.Contains(fullPath));
 
-    /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this - the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
-    public Exception? ApplyAndSaveThrow { get; set; }
+    /// <summary>Every <see cref="ApplyAndSaveAsync"/> call's mutation, in order.</summary>
+    public List<RenamerFileMutation> ApplyAndSaveCalls { get; } = new();
 
-    /// <summary>Per-file <c>RecomputedPath</c> a successful <see cref="ApplyAndSaveAsync"/> returns; a file id absent here echoes its new basename.</summary>
-    public Dictionary<int, string> RecomputedPaths { get; } = new();
-
-    /// <summary>Every <see cref="ApplyAndSaveAsync"/> call's mutations, in order, for assertions.</summary>
-    public List<IReadOnlyList<RenamerFileMutation>> ApplyAndSaveCalls { get; } = new();
-
-    public Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+    public Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default)
     {
-        ApplyAndSaveCalls.Add(mutations);
-        if (ApplyAndSaveThrow is not null)
-        {
-            throw ApplyAndSaveThrow;
-        }
-
-        return Task.FromResult<IReadOnlyList<SavedFile>>(
-            [.. mutations.Select(m => new SavedFile(m.FileId, RecomputedPaths.GetValueOrDefault(m.FileId, m.NewBasename)))]);
+        ApplyAndSaveCalls.Add(mutation);
+        return Task.FromResult(mutation.NewBasename);
     }
 }

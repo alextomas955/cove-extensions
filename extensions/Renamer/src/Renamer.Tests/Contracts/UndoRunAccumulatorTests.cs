@@ -208,7 +208,6 @@ public sealed class UndoRunAccumulatorTests
         { UndoStopReason.ReverseMoveVerifyFailed, false },
         { UndoStopReason.ReverseMoveCancelled, false },
         { UndoStopReason.RestoredPathMismatch, false },
-        { UndoStopReason.SaveReportedNoRow, false },
         { UndoStopReason.DatabaseSaveFailed, false },
     };
 

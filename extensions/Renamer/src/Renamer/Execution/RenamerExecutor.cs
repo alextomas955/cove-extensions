@@ -225,26 +225,9 @@ public sealed class RenamerExecutor
 
         try
         {
-            var saved = await _port.ApplyAndSaveAsync([mutation], ct);
-
-            // A runtime check, not Debug.Assert, which no-ops in Release: the Path Cove recomputed on
-            // save has to match the on-disk location just moved to, and a divergence means disk and
-            // database disagree.
-            // Found as a nullable and never as default(SavedFile): that default carries a null
-            // RecomputedPath, which the comparison below reads as a differing path, so a save reporting
-            // no row for this file would take the rollback branch and revert a save that committed.
-            SavedFile? savedFile = saved
-                .Where(s => s.FileId == item.FileId)
-                .Select(s => (SavedFile?)s)
-                .FirstOrDefault();
-            if (savedFile is null)
-            {
-                failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed,
-                    "the save reported no row for this file, so the on-disk path could not be verified"));
-                return;
-            }
-
-            string recomputed = savedFile.Value.RecomputedPath;
+            // The Path Cove recomputed on save has to match the on-disk location just moved to, and a
+            // divergence means disk and database disagree.
+            string recomputed = await _port.ApplyAndSaveAsync(mutation, ct);
             string expected = NormalizeSlash(newFull);
             if (!PathsEqual(recomputed, expected))
             {
@@ -606,13 +589,13 @@ public sealed class RenamerExecutor
             .Select(c => (c.CaptionId, NewFilename: c.Filename))
             .ToList();
 
-        IReadOnlyList<SavedFile> saved;
+        string recomputed;
         try
         {
-            saved = await _port.ApplyAndSaveAsync(
-                [new RenamerFileMutation(
+            recomputed = await _port.ApplyAndSaveAsync(
+                new RenamerFileMutation(
                     fileId, srcFile.Basename, isMove ? srcFile.ParentFolderId : null,
-                    restoredCaptions.Count > 0 ? restoredCaptions : null)],
+                    restoredCaptions.Count > 0 ? restoredCaptions : null),
                 ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -620,21 +603,10 @@ public sealed class RenamerExecutor
             return ex.Message;
         }
 
-        // The same check the forward save gets, and the one the undo path makes after its own reverse
-        // save: a restore that recomputes somewhere else has not put the row back.
-        SavedFile? savedFile = saved
-            .Where(s => s.FileId == fileId)
-            .Select(s => (SavedFile?)s)
-            .FirstOrDefault();
-
-        if (savedFile is null)
-        {
-            return "the restore reported no row for this file";
-        }
-
-        return PathsEqual(savedFile.Value.RecomputedPath, oldFullPath)
+        // A restore that recomputes somewhere else has not put the row back.
+        return PathsEqual(recomputed, oldFullPath)
             ? null
-            : $"it recomputed to '{savedFile.Value.RecomputedPath}', not '{NormalizeSlash(oldFullPath)}'";
+            : $"it recomputed to '{recomputed}', not '{NormalizeSlash(oldFullPath)}'";
     }
 
     // A caption "video.en.vtt" alongside "video.mkv" becomes "<newStem>.en.vtt". A caption that does not
