@@ -39,6 +39,7 @@ import {
 import {
   callbackSecret,
   deliveryNaming,
+  instanceSettings,
   readOptions,
   restartWorker,
   storedOptions,
@@ -281,7 +282,7 @@ for (const generation of ["v3", "v2"]) {
         throw new Error(
           `${cause.message}\nThe extension recorded: mark ${adapter.storedSection(recorded)?.BackstopWatermarkUtc}, ` +
             `health ${JSON.stringify(recorded?.ImportHealth)}, ` +
-            `refusals ${JSON.stringify(recorded?.ImportRefusals)}.`,
+            `refusals ${JSON.stringify(instanceSettings(recorded ?? {}).ImportRefusals)}.`,
         );
       });
       expect(
