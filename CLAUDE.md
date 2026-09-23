@@ -39,9 +39,9 @@ every `.ps1` in this repo with `pwsh`, never Windows PowerShell 5.1.
 
 ```sh
 dotnet build CoveExtensions.slnx                   # every project; warnings are errors
-npm ci --no-workspaces && npm run generate:wire    # before any UI typecheck, UI test, root lint, or knip
+npm ci --no-workspaces && npm run generate:wire    # before any UI typecheck, UI test or root lint
 npm run format:cs                                  # not raw `dotnet format`, which also formats ../cove
-npm run lint && npm run knip && npm run jscpd && npm run syncpack && npm run format:check
+npm run lint && npm run knip && npm run jscpd && npm run syncpack && npm run format:check  # knip first needs a plain `npm ci`: it reads the e2e workspaces' configs
 node scripts/validate-extension-repo.mjs           # catalog paths, solution membership, host floor
 npm test                                           # tests for scripts/
 ```
