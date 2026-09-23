@@ -58,7 +58,7 @@ with one error rather than running a smaller set.
 
 ## Frontend (the settings panel)
 
-The panel bundle is built with an offline, vendored `@cove/extension-sdk` tarball (`npm install`
+The panel bundle is built with an offline, vendored `@cove/extension-sdk` tarball (`npm ci`
 resolves it from `src/Renamer.Ui/vendor/`, no registry access needed). The panel's wire types are
 generated from the committed OpenAPI document and gitignored, so generate them from the repo root
 before the first frontend command on a fresh clone:
@@ -85,19 +85,14 @@ need to build or commit the bundle for a normal source change.
 
 ## Local dev deploy
 
-`scripts/deploy-dev.ps1` runs the full build → frontend-build → assemble → deploy → restart loop
-against a local Cove dev instance. It builds against a local sibling `../cove` checkout (or
-`$COVE_REPO`) so the extension is ABI-identical to the running host.
+```sh
+pwsh scripts/deploy-dev.ps1
+```
 
-Invoke it as `pwsh` on any OS - Windows PowerShell 5.1 does not define the `$IsWindows` variable the
-script reads. Only the _default_ data root is Windows-specific: with no `COVE_HOME` set the script
-falls back to the per-user local-application-data `cove` folder, which exists on Windows only, so on
-macOS and Linux you must set `COVE_HOME`. It throws there rather than guessing, because a guessed data
-root deploys into a directory Cove never reads and then reports success.
-
-The assemble step is the shared `scripts/assemble-package.mjs` and installs the file set
-`extensions/catalog.json` declares for Renamer - the same set a release ships - so a bug you hit in
-dev is a bug in the shipped shape.
+This builds against the `../cove` sibling (or `$COVE_REPO`), assembles the file set a release ships
+and installs it into a local Cove. Restart Cove afterwards. On macOS and Linux set `COVE_HOME` to the
+Cove data directory. [Deploy into a local Cove host](https://alextomas955.github.io/cove-extensions/contributing/development#deploy-into-a-local-cove-host)
+has the details.
 
 ## Releasing
 

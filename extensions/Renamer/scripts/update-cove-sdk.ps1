@@ -1,45 +1,22 @@
 <#
 .SYNOPSIS
-    Re-pack the @cove/extension-sdk frontend SDK into the committed vendor tarball.
+    Re-packs the @cove/extension-sdk frontend SDK into the vendored tarball.
 
 .DESCRIPTION
-    The Renamer frontend depends on @cove/extension-sdk, which is not published to npm. It is
-    vendored into this extension as a committed tarball at
-    src/Renamer.Ui/vendor/cove-extension-sdk-0.1.0.tgz and referenced from
-    src/Renamer.Ui/package.json as `file:vendor/cove-extension-sdk-0.1.0.tgz`.
-    `npm ci` resolves that tarball offline with an integrity hash, so a clean checkout (and CI) can
-    build the frontend with no sibling Cove monorepo present. The vendored SDK is AGPL-3.0, the same
-    license as this extension, so vendoring it is license-compatible.
+    @cove/extension-sdk is not on npm. src/Renamer.Ui/package.json references it as
+    `file:vendor/cove-extension-sdk-<version>.tgz`, so `npm ci` installs it offline and a clean
+    checkout builds with no Cove source present. The SDK is AGPL-3.0, like this extension.
 
-    This script refreshes that tarball from a local Cove checkout when the SDK changes:
-
-      1. Resolve the Cove repo root from -CoveRepo, else $env:COVE_REPO, else ../cove relative
-         to the monorepo root (the Cove checkout is expected as a sibling directory of this
-         extensions/ monorepo). The SDK package lives at <cove>/sdk/frontend.
-      2. Optionally build the SDK (`npm run build`, tsc) so dist/ is current before packing.
-      3. `npm pack` the SDK into src/Renamer.Ui/vendor/ (the SDK's `files: ["dist"]` field keeps the
-         tarball to dist/ + package.json only).
-
-    The tarball name encodes the SDK version (cove-extension-sdk-<version>.tgz). When the SDK version
-    changes, the package.json `file:vendor/...` ref and CONTRIBUTING must be updated to match.
-
-    After running this, the lock must be regenerated and the frontend re-verified:
-        cd src/Renamer.Ui
-        npm install      # records the new tarball + integrity in package-lock.json
-        npm run verify
-        npm run build    # rebuilds dist/index.mjs; commit it if it changed
+    This packs <cove>/sdk/frontend into src/Renamer.Ui/vendor/. The tarball name carries the SDK
+    version, so a version change also needs the `file:vendor/...` reference in package.json updated.
+    Afterwards, from src/Renamer.Ui, run `npm install` to record the new tarball and its integrity in
+    package-lock.json, then `npm run verify`.
 
 .PARAMETER CoveRepo
-    Path to the Cove monorepo root. Overrides $env:COVE_REPO. Defaults to ../cove relative to
-    the extensions monorepo root (three levels up from this script).
+    The Cove checkout. Defaults to $env:COVE_REPO, then the ../cove sibling of the monorepo root.
 
 .PARAMETER Build
-    Build the SDK (npm run build in the SDK dir) before packing, so dist/ is fresh.
-
-.NOTES
-    The sibling-Cove default path is ../cove relative to the MONOREPO root (this repo's own
-    root, one level above its extensions/ subfolder), not relative to this extension's own
-    folder — extensions/Renamer/ is two levels deeper than the monorepo root.
+    Build the SDK before packing, so its dist/ is current.
 #>
 [CmdletBinding()]
 param(
@@ -49,8 +26,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# $PSScriptRoot = extensions/Renamer/scripts; the extension root is one level up, and the
-# monorepo root is one level above that extensions/ subfolder (two levels above extensionRoot).
 $extensionRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $monorepoRoot  = Resolve-Path (Join-Path $extensionRoot '../..')
 $vendorDir     = Join-Path $extensionRoot 'src/Renamer.Ui/vendor'
@@ -65,28 +40,23 @@ if (-not $coveRoot) {
 
 $sdkDir = Join-Path $coveRoot 'sdk/frontend'
 if (-not (Test-Path (Join-Path $sdkDir 'package.json'))) {
-    throw "No @cove/extension-sdk package at '$sdkDir' (expected <cove>/sdk/frontend)."
+    throw "No @cove/extension-sdk package at '$sdkDir'."
 }
 
-if ($Build) {
-    Write-Host "Building SDK (tsc) in $sdkDir"
-    Push-Location $sdkDir
-    try { npm run build } finally { Pop-Location }
-}
-
-if (-not (Test-Path (Join-Path $sdkDir 'dist'))) {
-    throw "SDK dist/ is missing at '$sdkDir/dist'. Re-run with -Build to compile it first."
-}
-
-if (-not (Test-Path $vendorDir)) { New-Item -ItemType Directory -Path $vendorDir | Out-Null }
-
-Write-Host "Packing $sdkDir -> $vendorDir"
 Push-Location $sdkDir
-try { npm pack --pack-destination $vendorDir } finally { Pop-Location }
+try {
+    if ($Build) {
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw "SDK build failed with exit code $LASTEXITCODE." }
+    }
+    if (-not (Test-Path 'dist')) {
+        throw "SDK dist/ is missing at '$sdkDir/dist'. Re-run with -Build."
+    }
+    if (-not (Test-Path $vendorDir)) { New-Item -ItemType Directory -Path $vendorDir | Out-Null }
+    npm pack --pack-destination $vendorDir
+    if ($LASTEXITCODE -ne 0) { throw "npm pack failed with exit code $LASTEXITCODE." }
+} finally {
+    Pop-Location
+}
 
-Write-Host ''
-Write-Host 'Tarball refreshed. Next:'
-Write-Host '  cd src/Renamer.Ui'
-Write-Host '  npm install      # update package-lock.json (tarball + integrity)'
-Write-Host '  npm run verify'
-Write-Host '  npm run build    # commit dist/index.mjs if it changed'
+Write-Host "Tarball refreshed in $vendorDir. Next, from src/Renamer.Ui: npm install, then npm run verify."
