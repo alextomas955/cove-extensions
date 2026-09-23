@@ -5,12 +5,10 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
 import { FolderAgreementSection } from "./FolderAgreementSection";
-import { GenerationCards } from "./GenerationCards";
 import { ImportBanner } from "./ImportBanner";
 import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { SyncLibrarySection } from "./SyncLibrarySection";
-import { valuesForCard } from "./connectLogic";
 import { testsStoredConnection, unsavedFields, unsavedSummary } from "./settingsDraftLogic";
 import { syncSentences } from "./syncLibraryLogic";
 import { useSettingsDraft } from "./useSettingsDraft";
@@ -45,7 +43,6 @@ export function WhisparrSyncPage() {
   const banner = useImportBanner();
   const agreement = useFolderAgreement();
   const sync = useSyncLibrary();
-  const stored = valuesForCard(state.settings, state.draft.generation);
   const unsaved = unsavedFields(state.settings, state.draft);
   const now = useNow();
 
@@ -74,16 +71,9 @@ export function WhisparrSyncPage() {
         <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />
       )}
 
-      <GenerationCards
-        settings={state.settings}
-        card={state.draft.generation}
-        now={now}
-        onShowCard={chooseGeneration}
-      />
-
       <ConnectionSection
         card={state.draft.generation}
-        stored={stored}
+        settings={state.settings}
         readFailed={state.read.failed}
         draft={state.draft}
         test={state.test}
@@ -93,6 +83,7 @@ export function WhisparrSyncPage() {
         onAddressChange={editAddress}
         onKeyChange={editKey}
         onClearStoredKey={clearStoredKey}
+        onChooseGeneration={chooseGeneration}
         onTest={test}
       />
 

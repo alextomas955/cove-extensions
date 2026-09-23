@@ -2,10 +2,10 @@
 import { expect, test } from "vitest";
 import { createElement } from "react";
 
-import { render } from "../common/lib/testRender";
-import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
+import { press, render } from "../common/lib/testRender";
+import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { ConnectionSection } from "./ConnectionSection";
-import type { TransientTest } from "./connectLogic";
+import type { CardGeneration, TransientTest } from "./connectLogic";
 import type { SettingsDraft } from "./settingsDraftLogic";
 
 const NEVER_VERIFIED: WhisparrSyncGenerationSettingsView = {
@@ -23,6 +23,18 @@ const VERIFIED: WhisparrSyncGenerationSettingsView = {
   lastReachableAtUtc: "2026-06-24T11:56:00Z",
 };
 
+const NOTHING_STORED: WhisparrSyncGenerationSettingsView = {
+  address: "",
+  keyIsSet: false,
+  recordedVersion: null,
+  versionVerifiedAtUtc: null,
+  lastReachableAtUtc: null,
+};
+
+function settingsWith(v3: WhisparrSyncGenerationSettingsView): WhisparrSyncSettingsView {
+  return { selectedGeneration: "v3", upgradeBehavior: "add", v3, v2: NOTHING_STORED };
+}
+
 const NOW = Date.parse("2026-06-24T12:00:00Z");
 
 const NO_DRAFT: SettingsDraft = {
@@ -37,10 +49,12 @@ function section(overrides: {
   stored?: WhisparrSyncGenerationSettingsView | null;
   draft?: SettingsDraft;
   test?: TransientTest;
+  onChooseGeneration?: (generation: CardGeneration) => void;
 }) {
+  const stored = overrides.stored === undefined ? NEVER_VERIFIED : overrides.stored;
   return createElement(ConnectionSection, {
     card: "v3",
-    stored: overrides.stored === undefined ? NEVER_VERIFIED : overrides.stored,
+    settings: stored === null ? null : settingsWith(stored),
     readFailed: false,
     draft: overrides.draft ?? NO_DRAFT,
     test: overrides.test ?? { phase: "none" },
@@ -50,9 +64,30 @@ function section(overrides: {
     onAddressChange: () => undefined,
     onKeyChange: () => undefined,
     onClearStoredKey: () => undefined,
+    onChooseGeneration: overrides.onChooseGeneration ?? (() => undefined),
     onTest: () => undefined,
   });
 }
+
+test("the section says which generation the form is editing, and offers the other one", async () => {
+  const chosen: CardGeneration[] = [];
+  const host = await render(
+    section({ onChooseGeneration: (generation) => chosen.push(generation) }),
+  );
+
+  const marked = [...host.querySelectorAll(".grid > *")].filter((option) =>
+    option.textContent.includes("Selected"),
+  );
+  expect(marked, "the section marks no generation as the selected one").toHaveLength(1);
+  expect(marked[0].textContent).toContain("Whisparr v3 (Eros)");
+
+  const select = [...host.querySelectorAll("button")].filter((button) =>
+    button.textContent.startsWith("Select "),
+  );
+  expect(select, "the section offers no control that selects the other generation").toHaveLength(1);
+  await press(select[0]);
+  expect(chosen).toEqual(["v2"]);
+});
 
 test("a version never verified does not read the same as one verified against an instance that has since failed", async () => {
   const never = await render(section({ stored: NEVER_VERIFIED }));
@@ -90,7 +125,14 @@ test("a pressed control reads as busy and cannot be pressed again", async () => 
 
 test("the key pill reports that a key is set without disclosing any of it", async () => {
   const set = await render(section({ stored: NEVER_VERIFIED }));
-  expect(set.textContent).toContain("Key is set");
+
+  // The generation row states the same thing for each generation, so the pill is taken from
+  // outside it: the field's own report is what this asserts.
+  const grid = set.querySelector(".grid");
+  const pill = [...set.querySelectorAll("span")].filter(
+    (span) => span.textContent === "Key is set" && grid?.contains(span) !== true,
+  );
+  expect(pill, "the key field reported nothing about the stored key").toHaveLength(1);
 
   // The response carries no key; SettingsProjectionTests asserts that. So a leak here could only
   // come from the field's own draft.
