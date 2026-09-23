@@ -1,7 +1,7 @@
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace Renamer.Tests.Execution;
+namespace Renamer.Tests.TestSupport;
 
 internal static class ExecutorTestSeed
 {

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution.Collisions;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;

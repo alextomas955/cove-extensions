@@ -3,7 +3,6 @@ using Cove.Core.Events;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;

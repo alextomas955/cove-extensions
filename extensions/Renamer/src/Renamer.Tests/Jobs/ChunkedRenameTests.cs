@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 

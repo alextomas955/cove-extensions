@@ -1,6 +1,7 @@
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 

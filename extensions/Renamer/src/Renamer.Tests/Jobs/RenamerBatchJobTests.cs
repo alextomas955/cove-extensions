@@ -4,7 +4,6 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;

@@ -4,7 +4,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Preview;

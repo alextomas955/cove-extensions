@@ -4,7 +4,6 @@ using Cove.Core.Entities;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 

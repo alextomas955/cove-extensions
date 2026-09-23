@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 
-namespace Renamer.Tests.Execution.Collisions;
+namespace Renamer.Tests.TestSupport;
 
 internal sealed class CollisionBlindDataPort : CoveRenamerDataPort
 {

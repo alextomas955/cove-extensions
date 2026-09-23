@@ -1,7 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Plugins;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;

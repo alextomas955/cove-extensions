@@ -4,7 +4,6 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 

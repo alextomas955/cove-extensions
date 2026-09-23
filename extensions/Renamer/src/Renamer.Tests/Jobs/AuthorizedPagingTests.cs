@@ -5,7 +5,6 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Options;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
 

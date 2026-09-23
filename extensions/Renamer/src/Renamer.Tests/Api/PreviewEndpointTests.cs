@@ -3,7 +3,6 @@ using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
