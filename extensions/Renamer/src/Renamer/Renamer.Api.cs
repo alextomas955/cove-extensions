@@ -583,11 +583,8 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
-        // The tolerant options set OptionsStore uses, so the scan interprets it identically to a saved
-        // load; a null/blank/corrupt blob falls back to the persisted options (the original no-body
-        // behavior). Parsed here at enqueue time, then captured into the detached job closure - the job
-        // cannot re-read the request, exactly like readableKinds.
+        // A dry run on unsaved edits carries the panel's options. They are parsed here, because the
+        // detached job cannot read the request.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
         var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
@@ -603,8 +600,9 @@ public sealed partial class Renamer
     }
 
     // Returns null when the blob is absent, blank or unparseable, so a corrupt override falls back
-    // to the saved options and does not fail the scan. Matches OptionsStore's tolerant read.
-    private static RenamerOptions? TryParseOptionsOverride(string? optionsJson)
+    // to the saved options and does not fail the scan. A blob that binds gets the repair a saved load
+    // gets.
+    private RenamerOptions? TryParseOptionsOverride(string? optionsJson)
     {
         if (string.IsNullOrWhiteSpace(optionsJson))
         {
@@ -613,7 +611,8 @@ public sealed partial class Renamer
 
         try
         {
-            return JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
+            var bound = JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
+            return bound is null ? null : new OptionsStore(Store, _log).Repair(bound);
         }
         catch (JsonException)
         {
@@ -795,7 +794,7 @@ public sealed partial class Renamer
             options = req?.Options;
         }
 
-        options ??= new RenamerOptions();
+        options = options is null ? new RenamerOptions() : new OptionsStore(Store, _log).Repair(options);
 
         var results = SampleTokenSets.All
             .Select(sample => RenderSample(sample, options))

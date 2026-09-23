@@ -94,6 +94,15 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
+    public void PreviewSample_OptionsWithANullListAndAZeroCap_RenderAsASavedLoadWouldRepairThem()
+    {
+        var repaired = PreviewRaw("""{ "Options": { "DropOrder": null, "FullPathMax": 0 } }""");
+        var defaults = PreviewRaw("""{ "Options": {} }""");
+
+        Assert.Equal(defaults.Select(r => r.NewName), repaired.Select(r => r.NewName));
+    }
+
+    [Fact]
     public void PreviewSample_DefaultOptions_VideoRendersTitle_NoFlags()
     {
         var all = Preview(new RenamerOptions());
