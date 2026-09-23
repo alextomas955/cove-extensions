@@ -228,6 +228,25 @@ public sealed class DestinationResolverSourcePathRoutingTests
         => new(1, RenamerFileKind.Video, "T", null, null, null, true,
                [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, path)]);
 
+    // Windows and macOS treat two spellings that differ only in case as one folder, and Linux does not.
+    // Routing must agree with the collision and equality checks, which read PathOps' rule.
+    [Fact]
+    public void AnExactSourcePathRule_MatchesACaseVariant_ExactlyWhenPathOpsTreatsThemAsOnePath()
+    {
+        var options = new RenamerOptions
+        {
+            PathDestinations =
+            [
+                new PathDestinationRule { Pattern = "Media/Raw", Dest = new Destination { Root = "P:exact" } },
+            ],
+        };
+        var lk = RouteLookups.From(options, (_, _) => { });
+
+        var r = DestinationResolver.Resolve(AtPath("media/raw"), options, lk);
+
+        Assert.Equal(PathOps.PathsIgnoreCase, r.Category == RouteCategory.SourcePath);
+    }
+
     [Fact]
     public void ExactSourcePath_BeatsRegex()
     {

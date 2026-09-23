@@ -20,12 +20,11 @@ namespace Renamer.Planner;
 // arrive pre-parsed in RouteLookups; this resolver only calls IsMatch and never compiles a pattern.
 public static class DestinationResolver
 {
-    // The case rule for exact source-path matching: paths are case-insensitive on Windows, the primary
-    // platform, and case-sensitive elsewhere. The exact-path dictionary is built with this comparer so a
-    // rule for "media/incoming" matches a stored "Media/Incoming" on Windows instead of silently falling
-    // through. Mirrors VolumeClassifier and PathConfinement.IsUnderRoot.
-    public static StringComparer SourcePathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    // The case rule for exact source-path matching, which is PathOps' file-identity rule: a rule for
+    // "media/incoming" matches a stored "Media/Incoming" wherever those name one folder, so on Windows
+    // and macOS instead of silently falling through. Collision and equality checks use the same rule,
+    // so routing and targeting never disagree about whether two spellings are one location.
+    public static StringComparer SourcePathComparer => PathOps.PathComparer;
 
     // Normalizes a source path for exact-match keying: trims a single trailing forward slash so a rule
     // for "media/incoming" also matches a stored "media/incoming/". Separator style is already

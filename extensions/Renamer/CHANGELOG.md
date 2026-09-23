@@ -80,6 +80,8 @@ computed, which it could not before.
   early for lack of space.
 - A whole-library rename that fails or is cancelled partway no longer says nothing was changed.
   The banner says some files may already be renamed and points you to the undo line.
+- On macOS, a source-path rule now matches a path that differs from it only in letter case, the way
+  Renamer already compares file names there.
 - The Job Drawer names a whole-library run **Rename library** and an empty one **Nothing to
   rename.** They read "Renamer library" and "Nothing to renamer."
 - On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a
