@@ -121,7 +121,12 @@ public sealed class StoredConnectionTestTests
         var options = await SeededAsync(null, null, null, address: "");
         var tester = RecordingConnectionTester.Connected("3.3.8.1097");
 
-        var view = await NewRunner(tester, options, KeyPort()).TestStoredAsync(TestCt);
+        // The row holds the key alone, which is the only way an address can be unset.
+        var view = await NewRunner(
+                tester,
+                options,
+                new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey))
+            .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.NotConfigured, view.Kind);
         Assert.Equal(ConnectionSetting.Address, view.MissingSetting);
@@ -134,7 +139,8 @@ public sealed class StoredConnectionTestTests
         var options = new OptionsStore(new FakeStore());
         var tester = RecordingConnectionTester.Connected("3.3.8.1097");
 
-        var view = await NewRunner(tester, options, KeyPort()).TestStoredAsync(TestCt);
+        var view = await NewRunner(tester, options, new RecordingCredentialPort())
+            .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionSetting.Address, view.MissingSetting);
         Assert.Empty(tester.Calls);
@@ -149,7 +155,12 @@ public sealed class StoredConnectionTestTests
         var options = await SeededAsync(null, null, null);
         var tester = RecordingConnectionTester.Connected("3.3.8.1097");
 
-        var view = await NewRunner(tester, options, WithRawKey(new RecordingCredentialPort(), key))
+        var view = await NewRunner(
+                tester,
+                options,
+                WithRawKey(
+                    new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey),
+                    key))
             .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.NotConfigured, view.Kind);
@@ -166,7 +177,8 @@ public sealed class StoredConnectionTestTests
         var options = await SeededAsync(null, null, null, address: "");
         var tester = RecordingConnectionTester.Connected("3.3.8.1097");
 
-        var view = await NewRunner(tester, options, WithRawKey(new RecordingCredentialPort(), null))
+        // No row at all, which is what neither setting being set means now that the two share one.
+        var view = await NewRunner(tester, options, new RecordingCredentialPort())
             .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionSetting.Address, view.MissingSetting);
@@ -273,12 +285,15 @@ public sealed class StoredConnectionTestTests
         => new(tester, options, new OptionsWriteGate(), credentials, new FixedClock(Now));
 
     private static RecordingCredentialPort KeyPort()
-        => new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+        => new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
 
     // A key the port answers with verbatim, including the blank spellings a stored row cannot hold but
-    // a hand-edited one could.
+    // a hand-edited one could. A null key is a row holding the address alone, because the two share
+    // one row and an absent row would be a missing address instead.
     private static ICredentialPort WithRawKey(RecordingCredentialPort port, string? key)
-        => key is null ? port : new RawKeyPort(port, key);
+        => key is null
+            ? new RecordingCredentialPort().HoldingAddressOnly(WhisparrGeneration.V3, StoredAddress)
+            : new RawKeyPort(port, key);
 
     private static async Task<WhisparrSyncGenerationConnection> ConnectionAsync(OptionsStore options)
     {
