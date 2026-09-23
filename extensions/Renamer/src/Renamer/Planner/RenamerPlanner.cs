@@ -121,8 +121,8 @@ public sealed class RenamerPlanner
         // own file count.
         //
         // Membership follows the platform's own case rule, because what it decides is whether two
-        // planned paths name one file on disk; the resolver's comparer owns that rule.
-        var claimedTargets = new HashSet<string>(DestinationResolver.SourcePathComparer);
+        // planned paths name one file on disk.
+        var claimedTargets = new HashSet<string>(PathComparer);
 
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)

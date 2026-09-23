@@ -138,4 +138,21 @@ public sealed class CollisionTests
         Assert.False(first.Suffixed);
         Assert.True(second.Suffixed);
     }
+
+    [Fact]
+    public async Task TwoFilesOfOneEntity_RenderingNamesThatDifferOnlyInCase_AreSuffixed_WhereCaseIsIgnored()
+    {
+        Assert.SkipUnless(
+            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(),
+            "needs a platform whose default filesystem ignores case");
+
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity(File(1, "raw.MKV"), File(2, "extra.mkv")));
+        var planner = new RenamerPlanner(port);
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+
+        Assert.Equal("My Film.MKV", plan.Items[0].NewBasename);
+        Assert.Equal("My Film (1).mkv", plan.Items[1].NewBasename);
+    }
 }

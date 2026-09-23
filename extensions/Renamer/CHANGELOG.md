@@ -64,6 +64,9 @@ computed, which it could not before.
 
 ### Fixes
 
+- On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a
+  sibling's only in upper and lower case. The rename already added the suffix; the dry run showed
+  both files under the one name.
 - With **Delete the source folder when a move leaves it empty** on, a source folder that is a
   symlink is now left alone. Renamer used to delete the empty folder the link pointed at, which
   could be outside your library, and leave a broken link behind.
