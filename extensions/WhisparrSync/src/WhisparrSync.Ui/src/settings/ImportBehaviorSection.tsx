@@ -7,6 +7,7 @@ import { Field, SectionCard, Select, StatusText } from "@cove-extensions/ui-shar
 
 import type { UpgradeBehavior } from "../wire/api";
 import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
+import { OFF_SCREEN } from "../common/ui/offScreen";
 
 export interface ImportBehaviorSectionProps {
   /** Null until the stored value has arrived, which is not a choice anyone made. */
@@ -37,16 +38,21 @@ export function ImportBehaviorSection({
       title="When Whisparr replaces a file"
       description="What happens to the scene Cove already holds when a better file arrives for it."
     >
-      <div className="space-y-2">
+      <div className="space-y-2" title={sharedReason ?? undefined}>
+        {/* The reason follows the label inside it, so the control is announced by its own name and
+            then by why it cannot be used. It is off-screen because the page states it once. */}
         <Field label="Replacement files" labelStyle="mono">
           {(id) => (
-            <Select
-              id={id}
-              value={behavior ?? "add"}
-              options={CHOICES.map((choice) => ({ value: choice.value, label: choice.label }))}
-              disabled={behavior === null || sharedReason !== null}
-              onChange={onChange}
-            />
+            <>
+              <Select
+                id={id}
+                value={behavior ?? "add"}
+                options={CHOICES.map((choice) => ({ value: choice.value, label: choice.label }))}
+                disabled={behavior === null || sharedReason !== null}
+                onChange={onChange}
+              />
+              {sharedReason === null ? null : <span style={OFF_SCREEN}>{sharedReason}</span>}
+            </>
           )}
         </Field>
 

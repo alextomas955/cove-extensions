@@ -458,6 +458,10 @@ export function searchAllMonitoredConfirmation(count: number): string {
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 
+/** The read behind the block failed, so whether any import was refused is not known. */
+export const IMPORT_REPORT_UNREADABLE =
+  "Cove could not read what happened to the files Whisparr imported.";
+
 /** A refresh that failed over content already on screen. */
 export const READ_IS_STALE =
   "Cove couldn't check this just now. These are the last values it read.";
