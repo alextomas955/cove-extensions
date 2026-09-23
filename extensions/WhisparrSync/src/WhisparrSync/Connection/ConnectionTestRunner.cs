@@ -65,7 +65,7 @@ internal sealed class ConnectionTestRunner(
         // connection comes from the same resolution, so nothing here could make a request without
         // both settings.
         var resolution = await OutboundPair
-            .ResolveAsync(stored, credentials, generation, ct).ConfigureAwait(false);
+            .ResolveAsync(credentials, generation, ct).ConfigureAwait(false);
         if (resolution.Binding is not { } binding)
         {
             return ConnectionTestView.NotConfigured(

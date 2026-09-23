@@ -16,58 +16,6 @@ internal static class BoundedText
         => text is null || text.Length <= maxLength ? text : text[..maxLength];
 }
 
-/// <summary>
-/// Reads the withdrawn spelling of the narrower monitor scope, and writes only the current one.
-/// </summary>
-/// <remarks>
-/// A blob written before the two scope enums were collapsed into one names the narrower scope by a
-/// word the surviving enum does not declare. A blob the store cannot bind reads as defaults
-/// everywhere above, so one unrecognised word would reset an install's address, endpoints and
-/// callback host as well as its scope.
-/// <para>
-/// Declared on the property. The enum type's own attribute is the wire spelling for every other use
-/// of the enum and must not be widened to accept a word no wire document declares, and an entry in
-/// a serializer options collection would outrank that attribute rather than agree with it.
-/// </para>
-/// <para>
-/// Any spelling this does not recognise reads as the narrower scope: choosing the wide one wrongly
-/// marks a whole back catalogue wanted, which on v3 narrowing the scope again does not undo.
-/// </para>
-/// <para>
-/// Temporary. Once no stored blob anywhere can carry the withdrawn word, this converter and its
-/// property attribute can be deleted.
-/// </para>
-/// </remarks>
-public sealed class WithdrawnMonitorScopeSpelling : JsonConverter<MonitorScope>
-{
-    private const string WithdrawnNarrowScope = "newReleasesOnly";
-
-    public override MonitorScope Read(
-        ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        if (reader.TokenType != JsonTokenType.String)
-        {
-            reader.Skip();
-            return MonitorScope.FutureScenes;
-        }
-
-        var stored = reader.GetString();
-        return string.Equals(stored, WithdrawnNarrowScope, StringComparison.OrdinalIgnoreCase)
-            || !Enum.TryParse<MonitorScope>(stored, ignoreCase: true, out var named)
-            || !Enum.IsDefined(named)
-                ? MonitorScope.FutureScenes
-                : named;
-    }
-
-    public override void Write(
-        Utf8JsonWriter writer, MonitorScope value, JsonSerializerOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-        writer.WriteStringValue(
-            JsonNamingPolicy.CamelCase.ConvertName(value.ToString()));
-    }
-}
-
 /// <summary>What a redelivery naming a different file does to the item that already exists.</summary>
 /// <remarks>
 /// Neither value moves, renames or deletes a file in either system's storage. The wire spelling is
@@ -598,7 +546,6 @@ public sealed record WhisparrSyncOptions
     /// The default leaves the existing back catalogue unarmed. Both scopes stay non-grabbing whatever
     /// this is set to.
     /// </remarks>
-    [JsonConverter(typeof(WithdrawnMonitorScopeSpelling))]
     public MonitorScope DefaultMonitorScope { get; init; } = MonitorScope.FutureScenes;
 
     /// <summary>Which metadata provider counts as the identity source, per generation.</summary>

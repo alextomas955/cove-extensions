@@ -64,7 +64,7 @@ public sealed partial class SettingsProjectionTests
         const string key = "a4b8c1d5e9f20738a4b8c1d5e9f20738";
         var store = new FakeStore();
         var options = new OptionsStore(store);
-        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, key);
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, "http://whisparr-v3:6969", key);
 
         await WhisparrSyncFixture.Create().SaveSettingsAsync(
             new WhisparrSyncSettingsSaveRequest(

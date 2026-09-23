@@ -257,14 +257,17 @@ public sealed class RefusalBeforeRequestTests
             TestCt);
 
         var credentials = new RecordingCredentialPort();
-        if (apiKey is not null)
+        if (apiKey is null)
         {
-            credentials.Holding(WhisparrGeneration.V3, apiKey);
+            credentials.HoldingAddressOnly(WhisparrGeneration.V3, address);
+        }
+        else
+        {
+            credentials.Holding(WhisparrGeneration.V3, address, apiKey);
         }
 
         return new ReportedRootPort(
             new FixedInstanceFactory(client),
-            options,
             credentials,
             new ReportedRootCache(clock),
             NullLogger.Instance);
@@ -361,9 +364,13 @@ public sealed class RefusalBeforeRequestTests
             TestCt);
 
         var credentials = new RecordingCredentialPort();
-        if (apiKey is not null)
+        if (apiKey is null)
         {
-            credentials.Holding(generation, apiKey);
+            credentials.HoldingAddressOnly(generation, address);
+        }
+        else
+        {
+            credentials.Holding(generation, address, apiKey);
         }
 
         var http = new HttpClient(sent);

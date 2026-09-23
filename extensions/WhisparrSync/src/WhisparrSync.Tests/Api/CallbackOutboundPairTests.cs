@@ -56,19 +56,17 @@ public sealed class CallbackOutboundPairTests
         Assert.Equal(MovedKey, sent.Binding.ApiKey);
     }
 
-    // A row written before the address was stored there carries none, which is every installation
-    // saved before then.
+    // The row is the only source of the address. The stored blob names one here, so a registration
+    // that still consulted it would present this row's secret to that instance.
     [Fact]
-    public async Task ARowCarryingNoAddressStillBindsToTheStoredOne()
+    public async Task ARowCarryingNoAddressRegistersNothing()
     {
         var notifications = new RecordingNotificationPort();
         var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, MovedKey);
 
         await RegisterCallbackAsync(credentials, notifications);
 
-        var sent = Assert.Single(notifications.Registrations);
-        Assert.True(ConnectionTester.IsSameAddress(
-            StoredAddress, sent.Binding.BaseAddress.ToString()));
+        Assert.Empty(notifications.Registrations);
     }
 
     [Fact]
@@ -76,7 +74,9 @@ public sealed class CallbackOutboundPairTests
     {
         var notifications = new RecordingNotificationPort();
 
-        var view = await RegisterCallbackAsync(new RecordingCredentialPort(), notifications);
+        var view = await RegisterCallbackAsync(
+            new RecordingCredentialPort().HoldingAddressOnly(WhisparrGeneration.V3, StoredAddress),
+            notifications);
 
         Assert.Equal(ConnectionSetting.ApiKey, view.MissingSetting);
         Assert.Empty(notifications.Registrations);
