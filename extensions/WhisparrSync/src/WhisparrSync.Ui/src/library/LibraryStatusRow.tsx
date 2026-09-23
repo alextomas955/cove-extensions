@@ -13,6 +13,7 @@ import {
   LIBRARY_COUNTS_ARE_FOR_THIS_PAGE,
   NOT_ADDED_ON_THIS_PAGE,
   NOT_LINKED_ON_THIS_PAGE,
+  NOT_LINKED_REASON,
   STILL_COUNTING,
   WHISPARR_STATUS_ROW,
 } from "../common/ui/copy";
@@ -67,39 +68,59 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
       </span>
     );
   } else {
+    // A figure still climbing is held back from full strength, and settles into it once the read is
+    // done. The fade is the design language's own: a short one, no loop, nothing that draws the eye
+    // away from the page. It never carries the meaning by itself - the spinner and its sentence do
+    // that - so a reader who cannot see the difference loses nothing.
+    const counting = answered < registered;
+
     body = (
       <span className="flex flex-1 flex-wrap items-center gap-2">
-        {PILL_ORDER.map((state) => (
-          <StatePill key={state} state={state} count={tally.states[state]} />
-        ))}
-        {/* Only where a card is in it, so an answered page owes the reader no entry. */}
-        {tally.states.statusUnknown === 0 ? null : (
-          <StatePill state="statusUnknown" count={tally.states.statusUnknown} />
-        )}
-        {/* Beside the states, not among them: a monitored and an unmonitored card can each hold a
+        <span
+          className={`flex flex-wrap items-center gap-2 transition-opacity ${counting ? "opacity-60" : ""}`}
+        >
+          {PILL_ORDER.map((state) => (
+            <StatePill key={state} state={state} count={tally.states[state]} />
+          ))}
+          {/* Only where a card is in it, so an answered page owes the reader no entry. */}
+          {tally.states.statusUnknown === 0 ? null : (
+            <StatePill state="statusUnknown" count={tally.states.statusUnknown} />
+          )}
+          {/* Beside the states, not among them: a monitored and an unmonitored card can each hold a
             file, so it partitions nothing.
 
             Scene cards only. Holding a file is a fact about one scene, and no answer on the studio
             or performer path carries one, so a figure drawn there would read as none held when
             nothing was ever asked. */}
-        {kind !== "video" ? null : (
-          <StatusPill
-            variant={FILE_MARKER.variant}
-            shape="tag"
-            icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
-          >
-            <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
-            <span className="text-secondary">{FILE_MARKER.label}</span>
-          </StatusPill>
-        )}
-        {/* The cards nothing was asked about. Without it the figures account for fewer cards than
-            the page holds, and a reader cannot tell the difference from a read that went missing. */}
-        {answered - tally.counted === 0 ? null : (
-          <span className="inline-flex items-center gap-1 text-xs text-muted">
-            <span className="font-semibold tabular-nums">{answered - tally.counted}</span>
-            {NOT_LINKED_ON_THIS_PAGE}
-          </span>
-        )}
+          {kind !== "video" ? null : (
+            <StatusPill
+              variant={FILE_MARKER.variant}
+              shape="tag"
+              icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
+            >
+              <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
+              <span className="text-secondary">{FILE_MARKER.label}</span>
+            </StatusPill>
+          )}
+          {/* The cards nothing was asked about. Without it the figures account for fewer cards than
+            the page holds, and a reader cannot tell the difference from a read that went missing.
+
+            Drawn as a pill carrying the same glyph the cards do, because the row is the key to the
+            marks below it. Only where a card is in it: it is not a state every page has one of. */}
+          {answered - tally.counted === 0 ? null : (
+            <StatusPill
+              variant="gray"
+              shape="tag"
+              icon={<StateGlyph iconKey="unlink" />}
+              title={NOT_LINKED_REASON}
+            >
+              <span className="font-semibold tabular-nums text-foreground">
+                {answered - tally.counted}
+              </span>
+              <span className="text-secondary">{NOT_LINKED_ON_THIS_PAGE}</span>
+            </StatusPill>
+          )}
+        </span>
         <span className="ml-auto inline-flex items-center gap-2 text-xs text-muted">
           {/* A page is answered a batch at a time, so a subtotal is on screen well before the
               read finishes and reads exactly like a finished one. */}
@@ -109,7 +130,9 @@ function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
               {STILL_COUNTING}
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1">
+          <span
+            className={`inline-flex items-center gap-1 transition-opacity ${counting ? "opacity-60" : ""}`}
+          >
             <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
             {NOT_ADDED_ON_THIS_PAGE}
           </span>

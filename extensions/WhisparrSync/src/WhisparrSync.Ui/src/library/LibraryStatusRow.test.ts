@@ -247,7 +247,16 @@ test("the row says it is still counting while a later read is still out", async 
     return createElement(
       "div",
       null,
-      createElement("button", { type: "button", onClick: () => { setMore(true); } }, "mount more"),
+      createElement(
+        "button",
+        {
+          type: "button",
+          onClick: () => {
+            setMore(true);
+          },
+        },
+        "mount more",
+      ),
       createElement(WhisparrVideoLibraryRow),
       createElement(WhisparrVideoCardBadge, { key: 1, video: { id: 1 } }),
       ...(more ? [createElement(WhisparrVideoCardBadge, { key: 2, video: { id: 2 } })] : []),
@@ -259,6 +268,51 @@ test("the row says it is still counting while a later read is still out", async 
 
   await press(page.querySelector("button"));
 
+  expect(page.textContent).toContain(STILL_COUNTING);
+  release();
+});
+
+// The fade never carries the meaning by itself, so the sentence is asserted with it: a reader who
+// cannot see the difference still learns the figures are provisional.
+test("the figures are held back from full strength while a read is still out", async () => {
+  showBadges();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  requestJson.mockImplementation(async (_path, options) => {
+    const body = JSON.parse((options as { body: string }).body) as { coveIds: number[] };
+    if (!body.coveIds.includes(1)) await held;
+    return {
+      kind: "video",
+      rows: body.coveIds.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true, inLibrary: false },
+      })),
+      refusal: "none",
+      moreNotAnswered: false,
+    };
+  });
+
+  function Harness() {
+    const [more, setMore] = useState(false);
+    return createElement(
+      "div",
+      null,
+      createElement("button", { type: "button", onClick: () => { setMore(true); } }, "mount more"),
+      createElement(WhisparrVideoLibraryRow),
+      createElement(WhisparrVideoCardBadge, { key: 1, video: { id: 1 } }),
+      ...(more ? [createElement(WhisparrVideoCardBadge, { key: 2, video: { id: 2 } })] : []),
+    );
+  }
+
+  const page = await render(createElement(Harness));
+  expect(page.querySelector(".opacity-60")).toBeNull();
+
+  await press(page.querySelector("button"));
+
+  expect(page.querySelector(".opacity-60")).not.toBeNull();
   expect(page.textContent).toContain(STILL_COUNTING);
   release();
 });
