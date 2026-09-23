@@ -64,6 +64,9 @@ computed, which it could not before.
 
 ### Fixes
 
+- A source-path pattern that takes too long to check now leaves the file where it is, with the
+  badge **A regex rule timed out** naming the pattern. Before, a timed-out exclude rule let the file
+  be renamed anyway, and a timed-out routing rule sent it to the default folder.
 - Clicking the heading above a list of tags, performers or studios no longer deletes the first entry
   from it. It used to remove one with no message shown and nothing to put it back.
 - The note beside **Undo last rename** now says what undo does: it reverts the most recent rename

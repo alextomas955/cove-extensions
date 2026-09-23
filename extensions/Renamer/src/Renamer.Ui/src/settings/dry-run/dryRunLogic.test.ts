@@ -41,6 +41,7 @@ const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   skipCollision: "attention",
   skipGated: "attention",
   skipExcluded: "attention",
+  skipRuleTimedOut: "attention",
   skipLocked: "attention",
   skipMissingSource: "attention",
   // `ScanBucket.Of` classifies this like any other, and nothing a scan counts ever carries it: the

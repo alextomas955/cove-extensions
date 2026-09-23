@@ -466,6 +466,28 @@ public sealed class RoutingPlannerTests
     }
 
     [Fact]
+    public async Task ATimedOutExcludeRule_SkipsEveryFile_AndNamesThePattern()
+    {
+        var port = Port(SrcRoot);
+        port.SeedEntity(Entity(
+            VideoFile(1, "a.mkv", SrcRoot),
+            VideoFile(2, "b.mkv", SrcRoot)));
+        var planner = new RenamerPlanner(port);
+        var redos = new Regex("^(.+)+#$", RegexOptions.None, TimeSpan.FromMilliseconds(1));
+        var lk = Lookups(excludePathRegex: [redos]);
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), lk, default);
+
+        Assert.Equal(2, plan.Items.Count);
+        Assert.All(plan.Items, item =>
+        {
+            Assert.Equal(RenamerStatus.SkipRuleTimedOut, item.Status);
+            Assert.Equal(item.OldFullPath, item.NewFullPath);
+            Assert.Contains("Exclude:Path:regex:^(.+)+#$", item.Reason);
+        });
+    }
+
+    [Fact]
     public async Task ExcludedAndGated_ReportsSkipExcluded_NotSkipGated()
     {
         // An item that is both gated (unorganized, only-organized on, no unorganized destination) and

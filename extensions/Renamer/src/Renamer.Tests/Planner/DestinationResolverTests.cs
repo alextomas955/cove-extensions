@@ -286,13 +286,6 @@ public sealed class DestinationResolverSourcePathRoutingTests
     }
 }
 
-/// <summary>
-/// A valid-but-backtracking source-path regex must be treated as "no match" (skip the rule,
-/// keep cascading) when it times out at match time - never an uncaught throw that aborts the batch.
-/// The build-time guard only catches a syntax-invalid pattern (ArgumentException); a pattern that
-/// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
-/// time, which the resolver now catches and falls through.
-/// </summary>
 public sealed class DestinationResolverRegexTimeoutTests
 {
     private static RenamerEntity AtPath(string path)
@@ -300,27 +293,22 @@ public sealed class DestinationResolverRegexTimeoutTests
                [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, path)]);
 
     [Fact]
-    public void BacktrackingRegex_TimesOut_FallsThroughToNextCascadeStage_NotThrow()
+    public void BacktrackingRoutingRegex_TimesOut_LeavesTheItemUndecided_NotTheDefault()
     {
-        // Classic ReDoS pattern + a long non-matching input → catastrophic backtracking. A tiny
-        // match timeout makes the test fast and deterministic. The pattern compiles fine (no
-        // ArgumentException), so the build-time guard would have admitted it.
+        // The pattern compiles, so the build-time guard admits it, and backtracks past its timeout on
+        // this input.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
-        string evil = new string('a', 40) + "!";   // never matches → forces the backtracking blowup
-
-        // The timing-out regex is the first source-path rule; a second, benign exact rule for the same
-        // path proves the cascade keeps going after the timeout (exact is tried before regex, so to
-        // exercise the regex-timeout fall-through we set only the regex rule and assert Unmatched).
+        string evil = new string('a', 40) + "!";
         var lk = new RouteLookups(
             new Dictionary<int, Destination>(),
             new Dictionary<int, Destination>(),
             new Dictionary<string, Destination>(StringComparer.Ordinal),
             [(redos, new Destination { Root = "P:never" })]);
 
-        // Must not throw, and the timed-out rule must not match → fall through to source-confine.
         var r = DestinationResolver.Resolve(AtPath(evil), new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.Unmatched, r.Category);
+        Assert.Equal(RouteCategory.RuleTimedOut, r.Category);
+        Assert.Equal("SourcePath:regex:^(a+)+$", r.MatchedRule);
         Assert.Null(r.Destination);
     }
 
@@ -415,9 +403,8 @@ public sealed class DestinationResolverUnmatchedTests
 /// <summary>
 /// Excludes run first in the resolver - a matching tag / studio (incl.
 /// parent, stable id) / source-path (exact + regex) returns <see cref="RouteCategory.Excluded"/>
-/// before any routing category (including Unorganized) is considered, with a clear label. A
-/// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
-/// aborting resolution. pure - no DB, no disk.
+/// before any routing category (including Unorganized) is considered, with a clear label. pure - no
+/// DB, no disk.
 /// </summary>
 public sealed class DestinationResolverExcludeTests
 {
@@ -640,14 +627,9 @@ public sealed class DestinationResolverExcludeTests
         Assert.Equal(RouteCategory.Unmatched, r.Category);
     }
 
-    // --- ReDoS: match-time timeout on an exclude regex = no-match (classify-not-throw) -----------
-
     [Fact]
-    public void ExcludeRegex_Backtracking_TimesOut_TreatedAsNoMatch_NotThrow()
+    public void ExcludeRegex_Backtracking_TimesOut_LeavesTheItemUndecided_NotRenamed()
     {
-        // Classic ReDoS pattern + a long non-matching path → catastrophic backtracking. A tiny match
-        // timeout makes it fast/deterministic. The timeout must be a no-match (the item is not
-        // excluded by that rule) and must not throw - so resolution completes as Unmatched.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
         string evil = new string('a', 40) + "!";
         var e = Entity(parentFolderPath: evil);
@@ -655,6 +637,7 @@ public sealed class DestinationResolverExcludeTests
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.Unmatched, r.Category);
+        Assert.Equal(RouteCategory.RuleTimedOut, r.Category);
+        Assert.Equal("Exclude:Path:regex:^(a+)+$", r.MatchedRule);
     }
 }

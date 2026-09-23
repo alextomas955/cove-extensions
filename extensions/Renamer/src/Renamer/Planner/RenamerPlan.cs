@@ -29,6 +29,10 @@ public enum RenamerStatus
     // the run log attribute an exclude correctly; the matched rule label travels in the item's Reason.
     SkipExcluded,
 
+    // Planner-only: a source-path regex rule, routing or exclude, timed out on the item's folder. The
+    // rule's pattern travels in the reason.
+    SkipRuleTimedOut,
+
     // Executor-only: the source file was locked or in use at move time.
     SkipLocked,
 

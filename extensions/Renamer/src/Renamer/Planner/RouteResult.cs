@@ -25,6 +25,9 @@ public enum RouteCategory
     // A source-path rule matched, exact before regex.
     SourcePath,
 
+    // A source-path regex, routing or exclude, exceeded its match timeout.
+    RuleTimedOut,
+
     // No rule matched, so the item takes the default destination. RouteResult.Destination is null for
     // this category: no rule supplied one, and the default is the planner's to read.
     Unmatched,
@@ -33,7 +36,7 @@ public enum RouteCategory
 // The result of routing one entity: the winning category, a short human label for the preview and the
 // log ("Tag:anime", "Studio:42(direct)", "SourcePath:exact", "Default"), and the one destination that
 // decides where the item lands. Destination is null for Unmatched, which takes the default instead, and
-// for Excluded, which is never rendered at all.
+// for Excluded and RuleTimedOut, which are never rendered at all.
 //
 // One lookup, one destination. The planner asks where a file goes exactly once and renders a single
 // answer, which is what makes a destination stable under the move it names: two user-authored folder

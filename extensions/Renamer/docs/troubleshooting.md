@@ -22,19 +22,20 @@ unless its name was adjusted. A row that won't be renamed has a badge that gives
 
 ### Rows that need attention
 
-| Badge                                                  | Why it stopped                                                           | What to do                                                                   |
-| ------------------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| **Needs a required field**                             | A token in **Required fields** is empty for this item.                   | Fill in that field in Cove, or remove it from **Required fields**.           |
-| **An exclude rule matched**                            | One of your exclude rules covers this item.                              | Nothing, if that's intended. Otherwise edit **Excludes** under **Advanced**. |
-| **Name conflict**                                      | Another file already has the new name, and Renamer never overwrites.     | Rename or remove the other file, or change your template.                    |
-| **File missing on disk**                               | Cove has a record for a file that isn't there.                           | Check where the file went, then rescan the library in Cove.                  |
-| **File in use**                                        | Another program had the file open.                                       | Close that program and run again.                                            |
-| **Permission denied**                                  | Cove isn't allowed to write to the destination, or to move the file.     | Fix the folder permissions for the account Cove runs as.                     |
-| **File is outside your Cove library**                  | The file isn't under any of Cove's library paths.                        | Add its folder to Cove's library paths, or pick a library path in **Under**. |
-| **The rule's destination is no longer a library path** | The library path a rule points at was removed from Cove.                 | Pick another path for the rule, or add the folder back in Cove.              |
-| **Destination outside its own root**                   | The folder template isn't relative, or it climbs out of its destination. | Make the folder template relative, such as `$studio/$year`.                  |
-| **Path too long**                                      | The full path would be longer than **Full-path max length**.             | Shorten the folder template or the filename template.                        |
-| **Cancelled** (gray)                                   | Cove shut down during the run. Nothing was half-written.                 | Run the rename again. It picks this file up.                                 |
+| Badge                                                  | Why it stopped                                                            | What to do                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Needs a required field**                             | A token in **Required fields** is empty for this item.                    | Fill in that field in Cove, or remove it from **Required fields**.           |
+| **An exclude rule matched**                            | One of your exclude rules covers this item.                               | Nothing, if that's intended. Otherwise edit **Excludes** under **Advanced**. |
+| **A regex rule timed out**                             | A path pattern took too long on this item's folder, so it was left alone. | Simplify the pattern the reason names.                                       |
+| **Name conflict**                                      | Another file already has the new name, and Renamer never overwrites.      | Rename or remove the other file, or change your template.                    |
+| **File missing on disk**                               | Cove has a record for a file that isn't there.                            | Check where the file went, then rescan the library in Cove.                  |
+| **File in use**                                        | Another program had the file open.                                        | Close that program and run again.                                            |
+| **Permission denied**                                  | Cove isn't allowed to write to the destination, or to move the file.      | Fix the folder permissions for the account Cove runs as.                     |
+| **File is outside your Cove library**                  | The file isn't under any of Cove's library paths.                         | Add its folder to Cove's library paths, or pick a library path in **Under**. |
+| **The rule's destination is no longer a library path** | The library path a rule points at was removed from Cove.                  | Pick another path for the rule, or add the folder back in Cove.              |
+| **Destination outside its own root**                   | The folder template isn't relative, or it climbs out of its destination.  | Make the folder template relative, such as `$studio/$year`.                  |
+| **Path too long**                                      | The full path would be longer than **Full-path max length**.              | Shorten the folder template or the filename template.                        |
+| **Cancelled** (gray)                                   | Cove shut down during the run. Nothing was half-written.                  | Run the rename again. It picks this file up.                                 |
 
 ### Red badges
 

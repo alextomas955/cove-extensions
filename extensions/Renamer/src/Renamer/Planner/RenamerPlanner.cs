@@ -65,6 +65,17 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, excluded);
         }
 
+        if (route.Category == RouteCategory.RuleTimedOut)
+        {
+            var undecided = entity.Files
+                .Select(f => SkipItem(
+                    f, RenamerStatus.SkipRuleTimedOut,
+                    $"skipped: the rule {route.MatchedRule} timed out matching this item's folder, so "
+                        + "whether it applies is unknown - simplify the pattern"))
+                .ToList();
+            return new RenamerPlan(entity.EntityId, entity.Kind, undecided);
+        }
+
         // A gated item is skipped for every one of its files and never rendered.
         if (TryGate(entity, options, out var gateReason))
         {

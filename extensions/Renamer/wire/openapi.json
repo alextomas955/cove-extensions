@@ -1256,6 +1256,7 @@
           "skipCollision",
           "skipGated",
           "skipExcluded",
+          "skipRuleTimedOut",
           "skipLocked",
           "skipMissingSource",
           "skipNoSpace",

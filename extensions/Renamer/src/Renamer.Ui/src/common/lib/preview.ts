@@ -48,6 +48,10 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipGated: { clause: "need a required field", reason: "needs a required field" },
   skipCollision: { clause: "have a name conflict", reason: "name conflict" },
   skipExcluded: { clause: "are excluded by a rule", reason: "excluded by a rule" },
+  skipRuleTimedOut: {
+    clause: "have a regex rule that timed out",
+    reason: "a regex rule timed out",
+  },
   skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
   skipUnanchored: { clause: "sit outside your Cove library", reason: "outside your Cove library" },
   skipRootMissing: {

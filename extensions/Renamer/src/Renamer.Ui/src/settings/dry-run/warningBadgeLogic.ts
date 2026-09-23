@@ -92,6 +92,10 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
     badge: { label: "An exclude rule matched", variant: "amber" },
     readsAdvisoryFlags: false,
   },
+  skipRuleTimedOut: {
+    badge: { label: "A regex rule timed out", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
   skipLocked: {
     badge: { label: "File in use", variant: "amber" },
     readsAdvisoryFlags: false,
