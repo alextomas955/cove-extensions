@@ -9,7 +9,7 @@
 //
 //   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
 //   2. that the elevated library read returns real rows through Cove's own authorization filters,
-//      which exist only under Npgsql and so are absent from the SQLite L1 tier;
+//      which exist only under Npgsql and so are absent from the SQLite unit tier;
 //   3. that the panel then renders the converted ids as entity names rather than as numbers, empty
 //      fields, or the host's "Loading tag..." placeholder.
 //
@@ -23,10 +23,8 @@
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof.
 import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import { expect, pollUntil, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { expect, pollUntil, RENAMER_EXTENSION, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
-
-const RENAMER_ID = "com.alextomas955.renamer";
 
 // Its own Cove instance, for a reason stronger than data isolation: this test restarts the host. A
 // restart re-binds the published port and invalidates every token minted before it, so running it
@@ -47,7 +45,7 @@ function clientFor(harness) {
 
 /** The extension's stored options blob, parsed, or undefined when the key is absent. */
 async function storedOptions(api) {
-  const all = await api.get(`/api/extensions/${RENAMER_ID}/data`);
+  const all = await api.get(`/api/extensions/${EXTENSION_ID}/data`);
   expect(all.ok, `reading the extension store answered ${all.status}: ${all.text}`).toBe(true);
   const blob = (all.json ?? {}).options;
   return blob ? JSON.parse(blob) : undefined;
@@ -175,7 +173,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   };
   // Single JSON.stringify: the [FromBody] string binder wants exactly one JSON string literal.
   const seeded = await seedApi.put(
-    `/api/extensions/${RENAMER_ID}/data/options`,
+    `/api/extensions/${EXTENSION_ID}/data/options`,
     JSON.stringify(legacyBlob),
   );
   expect(

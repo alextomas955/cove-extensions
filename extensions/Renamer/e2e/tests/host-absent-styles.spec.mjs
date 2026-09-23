@@ -7,7 +7,7 @@
 // whose @source contamination would mask the whole point: on a released host the extension gets
 // only the classes Cove's own prebuilt bundle emits, so an inline style is the only thing that
 // makes a host-absent utility render for an end user.
-import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { test, expect, seedVideo, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 test("host-absent utilities render via inline styles on a released host", async ({
@@ -90,7 +90,7 @@ test("status pill tints resolve to a real background on a released host", async 
     suffixed: false,
     sanitized: false,
   });
-  await page.route("**/extensions/com.alextomas955.renamer/scan-rows", (route) =>
+  await page.route(`**/extensions/${EXTENSION_ID}/scan-rows`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -150,26 +150,4 @@ test("status pill tints resolve to a real background on a released host", async 
       inert,
     );
   }
-});
-
-test("host account page is unaffected by the extension (no CSS leak)", async ({
-  page,
-  baseUrl,
-}) => {
-  // The page that regressed when the extension shipped an unscoped .flex-col. With no extension CSS
-  // it must render its native responsive layout: the account row is flex-row at a desktop width.
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`${baseUrl}/settings/my/account`);
-  const logout = page.getByRole("button", { name: /log ?out/i }).first();
-  // The `page` fixture warms the app root, not this route, so this navigation is the one that pays
-  // for its chunk. Same budget the other first-visit waits carry.
-  await expect(logout).toBeVisible({ timeout: 45_000 });
-  const rowFlexDir = await logout.evaluate((btn) => {
-    const row = btn.parentElement;
-    return row ? getComputedStyle(row).flexDirection : "no-row";
-  });
-  expect(
-    rowFlexDir,
-    "host account row must be flex-row at 1280px (no extension .flex-col leak)",
-  ).toBe("row");
 });

@@ -18,14 +18,12 @@ import {
   createApiClient,
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
-import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { RENAMER_EXTENSION, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 
 // The first browser navigation against a fresh container pays the app's cold start, which the page
 // objects budget for and the default assertion timeout does not: that default is sized for a warm
 // app. Bounded by what the test has left, for the reason the page objects document.
 const COLD_START_BUDGET_MS = 120_000;
-
-const EXTENSION_ID = "com.alextomas955.renamer";
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),

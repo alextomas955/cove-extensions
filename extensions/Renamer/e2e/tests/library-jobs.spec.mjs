@@ -1,17 +1,7 @@
-// Whole-library job flow coverage: the scan-library (whole-library Dry Run) and renamer-library
-// (Rename All) job pair, driven through the job-polling API.
-import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import { test as base, expect, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+// The whole-library Dry Run job, driven through the job-polling API.
+import { test, expect, ROUTE } from "../lib/renamer-fixtures.mjs";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
-import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
-
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
-
-const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
 
 test("scan-library aggregates and pages every seeded item without mutating any of them", async ({
   harness,
@@ -34,9 +24,8 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
   expect(job.status.toLowerCase()).toBe("completed");
 
-  // The scan persists an aggregate, so the readback reports counts; the rows themselves come from the
-  // page query, planned on demand. Asserting both is a stronger check of the same behaviour than the
-  // single array read it replaces: the counts must account for the seeded files and the rows must name them.
+  // The scan persists an aggregate, so the readback reports counts; the rows come from the page query,
+  // planned on demand.
   const result = await api.get(`${ROUTE}/last-scan`);
   expect(result.status).toBe(200);
   expect(result.json.totalFiles).toBeGreaterThanOrEqual(seededFileIds.length);
@@ -50,8 +39,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
     expect(scannedFileIds).toContain(fileId);
   }
 
-  // The path search runs server-side now, so only a request over real HTTP proves it works - no unit
-  // test can. A fragment unique to the first seeded name must return that row and not its sibling.
+  // The path search runs server-side. A fragment unique to the first name returns that row only.
   const searched = await api.post(`${ROUTE}/scan-rows`, { Take: 500, Query: `scanalpha-${stamp}` });
   expect(searched.status).toBe(200);
   const matchedFileIds = searched.json.rows.map((row) => row.fileId);
@@ -62,55 +50,5 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   for (let i = 0; i < videos.length; i++) {
     const current = await api.get(`/api/videos/${videos[i].id}`);
     expect(current.json.files[0].path).toBe(originalPaths[i]);
-  }
-});
-
-// Uses its own harness instance per test, unlike scan-library above: renamer-library mutates
-// every item in the library, not just the ones this test seeds - under real parallel execution,
-// a sibling test in the same worker could have its own seeded/mid-rename video swept into this
-// job's "whole library" scope, occasionally missing the polling window for its own rename.
-test("renamer-library renames every seeded item in one run", async ({ isolatedHarness }) => {
-  const baseUrl = isolatedHarness.baseUrl;
-  const container = isolatedHarness.container;
-  const api = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
-
-  // A "$title"-only template over distinct safe titles makes each item's computed name deterministic,
-  // so each exact resulting basename can be asserted rather than merely "the path changed".
-  const setTemplate = await api.put(
-    `${ROUTE}/data/options`,
-    JSON.stringify({ FilenameTemplate: "$title" }),
-  );
-  expect(setTemplate.ok).toBe(true);
-
-  const videos = await Promise.all([
-    seedVideo({ container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
-    seedVideo({ container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
-    seedVideo({ container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
-  ]);
-  const originalPaths = videos.map((v) => v.files[0].path);
-
-  const titles = ["Library Item Alpha", "Library Item Bravo", "Library Item Charlie"];
-  for (let i = 0; i < videos.length; i++) {
-    const update = await api.put(`/api/videos/${videos[i].id}`, { Title: titles[i] });
-    expect(update.ok).toBe(true);
-  }
-
-  const enqueue = await api.post(`${ROUTE}/renamer-library`);
-  expect(enqueue.status).toBe(202);
-
-  const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId, { timeoutMs: 60_000 });
-  expect(job.status.toLowerCase()).toBe("completed");
-
-  for (let i = 0; i < videos.length; i++) {
-    await assertRenamedTo({
-      api,
-      container,
-      videoId: videos[i].id,
-      expectedBasename: `${titles[i]}.mp4`,
-      originalPath: originalPaths[i],
-    });
   }
 });

@@ -8,12 +8,9 @@
 //
 // It saves a global "$title" filename template, so it takes `restoredOptions`.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import { test, expect, pollUntil, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { test, expect, pollUntil, seedVideo, ROUTE } from "../lib/renamer-fixtures.mjs";
 import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
-
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 test(
   "renaming two items to the same computed target name auto-suffixes rather than clobbering",

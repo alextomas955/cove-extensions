@@ -17,9 +17,13 @@
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
 import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
-import { expect, seedVideo, pollUntil, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
-
-const RENAMER_ID = "com.alextomas955.renamer";
+import {
+  expect,
+  seedVideo,
+  pollUntil,
+  RENAMER_EXTENSION,
+  EXTENSION_ID,
+} from "../lib/renamer-fixtures.mjs";
 
 // Three, not two: two cannot distinguish "renamed every selected item" from "renamed the first and
 // the last", and one cannot distinguish multi-select from single-select at all.
@@ -44,7 +48,7 @@ test(
     // fixture's own metadata resolves to, so "did this item's path change" stays a question about the
     // batch's reach rather than about what the seeded media happens to carry.
     const options = await api.put(
-      `/api/extensions/${RENAMER_ID}/data/options`,
+      `/api/extensions/${EXTENSION_ID}/data/options`,
       JSON.stringify({ FilenameTemplate: "$title [multi]" }),
     );
     expect(options.ok, `seeding the template returned ${options.status}: ${options.text}`).toBe(

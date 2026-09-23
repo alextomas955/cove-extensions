@@ -6,13 +6,11 @@
 // per-test harness rather than the worker-shared one. It stays in the default run regardless: it
 // provisions its own instance and shares no state, and a spec CI does not run guards nothing.
 //
-// what makes it falsifiable, and it is not what it looks like. A logged-in browser holds an
-// `cove_access_token` cookie, and the host's principal middleware falls back to that cookie whenever
-// a request carries no Authorization header - so an extension calling plain `fetch` same-origin is
-// authenticated by ambient authority and answers 200 either way. Measured: this spec passed against
-// the unmigrated bundle until the cookie was taken out of the picture. That cookie is also what
-// delivers the extension's own UI bundle (`/api/extensions/assets/...` requires ExtensionsRead and a
-// module import cannot carry a bearer), so it must be present for the panel to mount at all.
+// A logged-in browser holds a `cove_access_token` cookie, and the host's principal middleware falls
+// back to that cookie whenever a request carries no Authorization header - so an extension calling
+// plain `fetch` same-origin is authenticated by ambient authority and answers 200 either way. That
+// cookie also delivers the extension's own UI bundle (`/api/extensions/assets/...` requires
+// ExtensionsRead and a module import cannot carry a bearer), so the panel cannot mount without it.
 //
 // Hence the shape below: the panel mounts and reads with the cookie, then the cookie is dropped and
 // the write is exercised on the already-mounted panel. A logged-in session whose access cookie has

@@ -1,11 +1,8 @@
 // A move from /data into /data2 crosses filesystems: /data2 is a tmpfs mount, so the kernel raises
 // EXDEV for a plain rename and the volume classifier keys it as a second volume. The move must go
 // through the copy-verify-delete path and land the file at the new path with nothing left behind.
-import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { test, expect, seedVideo, EXTENSION_ID, ROUTE } from "../lib/renamer-fixtures.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
-
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 async function fileExists(container, path) {
   const probe = await container.exec(["test", "-f", path]);

@@ -6,12 +6,11 @@
 // cheapest file that carries it. `build.yml` selects them with `--grep @smoke` on a leg whose role is
 // newest-GA and nothing else, and states there why that leg asks only this much. It is a selection,
 // never a tier: every one of these runs in the full suite too.
-import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { test, expect, seedVideo, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
 
-const EXTENSION_ID = "com.alextomas955.renamer";
 const DEFAULT_FILENAME_TEMPLATE = "{$date - }$title{ [$resolution]}";
 
 /**

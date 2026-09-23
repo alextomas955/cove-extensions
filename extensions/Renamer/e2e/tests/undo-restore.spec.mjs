@@ -7,17 +7,15 @@
 // "The extension is enabled" is therefore not evidence. The table is asserted here, in the database
 // itself, through the harness's execDb handle.
 //
-// Two things research could only reason about, recorded as assumptions, are settled here by running
-// them instead:
+// Two things are settled here by running them:
 //
 //   * Whether the database driver executes a multi-statement migration string in one command the way
-//     the command-line client did. That was verified through psql, never through Npgsql. If Npgsql
-//     refused it, the failure would be silent in exactly the way described above - so the first
-//     assertion below is what turns that assumption into a measurement.
+//     the command-line client did. If Npgsql refused it, the failure would be
+//     silent in the way described above, so the first assertion below checks it.
 //   * Whether an uninstall/reinstall round trip still loads. Uninstall deletes only the extension's
 //     directory, and nothing anywhere deletes a migration receipt, so a reinstall meets a stale table
 //     and a receipt that makes the host skip the migration. The extension must then reuse a table it
-//     did not just create. That path is exercised at the end rather than argued from source.
+//     did not just create. That path is exercised at the end.
 //
 // Beyond those: a rename that carries a caption and a neighbour file, an undo that brings all three
 // home, and a partial undo that can be retried and acts only on what is left. The panel's own gate
@@ -34,13 +32,17 @@ import {
   createApiClient,
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
-import { pollUntil, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import {
+  pollUntil,
+  seedVideo,
+  RENAMER_EXTENSION,
+  EXTENSION_ID,
+  ROUTE,
+} from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
-const EXTENSION_ID = "com.alextomas955.renamer";
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 const MIGRATION_NAME = "001_create_revert_journal";
 const MEDIA_DIR = "/data";
 
