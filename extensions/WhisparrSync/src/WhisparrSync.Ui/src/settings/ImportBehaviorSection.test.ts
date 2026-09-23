@@ -9,8 +9,17 @@ import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
-    Field: (props: { label: string; children: (controlId: string) => ReactNode }) =>
-      h("label", { htmlFor: "control" }, props.label, props.children("control")),
+    Field: (props: {
+      label: string;
+      labelStyle?: string;
+      children: (controlId: string) => ReactNode;
+    }) =>
+      h(
+        "label",
+        { htmlFor: "control", "data-label-style": props.labelStyle },
+        props.label,
+        props.children("control"),
+      ),
     Select: (props: {
       value: string;
       disabled?: boolean;
@@ -45,6 +54,14 @@ test("both choices are offered, whichever one is stored", async () => {
 
   const offered = [...host.querySelectorAll("option")].map((option) => option.value);
   expect(offered).toEqual(["add", "replace"]);
+});
+
+// The stub renders the label style rather than the class, because the section's claim is which
+// style it asks the shared field for. What that style draws is pinned where the field is drawn.
+test("the field takes the page's mono micro-label", async () => {
+  const host = await renderNode(section({ behavior: "add" }));
+
+  expect(host.querySelector("label")?.getAttribute("data-label-style")).toBe("mono");
 });
 
 test("the consequence shown is the chosen one's, and the two do not read the same", async () => {
