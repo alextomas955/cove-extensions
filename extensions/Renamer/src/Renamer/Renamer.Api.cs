@@ -132,9 +132,8 @@ public sealed partial class Renamer
 
     // Each endpoint declares the coarse gate its own handler re-checks. An endpoint carrying none of
     // the SDK's authorization conventions is treated as anonymous, and the host warns at boot naming
-    // every such route. The in-handler check stays, because it keeps behavior identical on a host
-    // predating policy enforcement. Both read the same AnyReadPermissions and AnyWritePermissions
-    // arrays, so the declaration and the enforcement cannot drift.
+    // every such route. The declaration and the handler read the same AnyReadPermissions and
+    // AnyWritePermissions arrays, so they cannot drift.
     //
     // Coarse is the most the host can express here. A per-kind check has no endpoint-level
     // equivalent: the kind travels in the request body and the host binds an entity policy to a
@@ -157,16 +156,9 @@ public sealed partial class Renamer
                 => RenamerEnqueue(req, principal, jobs, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
-        // NB: this endpoint binds the raw HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions - the host's default
-        // minimal-API JsonSerializerOptions has no JsonStringEnumConverter, so a body carrying
-        // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
-        // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
-        // the body ourselves with the converter-aware options.
-        // The handler reads the raw request so it can parse the options blob with the extension's own
-        // tolerant serializer rather than the host's. No parameter therefore declares the body, and
-        // without .Accepts<> the emitted document carries no request schema for this route at all -
-        // which also silently exempts that body from the drift check the document exists for.
+        // The handler reads the raw request so an empty body means the defaults, which typed binding
+        // cannot express. No parameter declares the body, so .Accepts<> is what puts its schema in the
+        // emitted document and under its drift check.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
@@ -224,9 +216,9 @@ public sealed partial class Renamer
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
             .RequireCovePermission(Permissions.ExtensionsConfigure);
 
-        // Binds the raw HttpContext for the reason /preview-sample does: the body carries string enum
-        // values, and the host's minimal-API serializer has no enum converter, so typed binding would
-        // 400 before the handler ran. .Accepts<> is what puts the request schema in the document.
+        // Binds the raw HttpContext so the pending-conversion refusal comes before the body is read and
+        // a malformed body is this route's own 400. .Accepts<> is what puts the request schema in the
+        // document.
         endpoints.MapPut(OptionsRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SaveOptionsAsync(http.Request, principal, ct))
@@ -383,14 +375,12 @@ public sealed partial class Renamer
     }
 
     // The synchronous read-only dry run: plans each requested id and returns the accumulated items.
-    // Mutates nothing. The permission is enforced in-handler because the host's filter is MVC-only
-    // and inert on minimal-API endpoints.
+    // Mutates nothing.
     internal async Task<Results<Ok<PreviewResponse>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewAsync(
         RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // Resolve the kind first so the permission check below gates on the request's own entity kind
-        // (videos/images/audios.read) rather than always videos.read. An unparseable kind is a 400
-        // before the auth check leaks nothing - it carries no ids and reads no data either way.
+        // The kind is resolved first so the check gates on that kind's read permission. An unparseable
+        // kind is a 400 before the check; it carries no ids and reads no data.
         if (!TryParseKind(req.EntityType, out var kind))
         {
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
@@ -447,10 +437,6 @@ public sealed partial class Renamer
         // different limits and disagree.
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
-        // buildConfirmSummary reads as a non-renamer - so the renamer would silently never fire. The
-        // string spelling comes from CamelCaseStringEnumConverter declared on RenamerStatus and
-        // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
             new PreviewResponse(
                 [.. items.Select(i => PreviewItemView.From(
@@ -467,7 +453,7 @@ public sealed partial class Renamer
         RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
         IAuthorizationService authz, CancellationToken ct)
     {
-        // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
+        // The kind is resolved first so the check gates on that kind's write permission.
         if (!TryParseKind(req.EntityType, out var kind))
         {
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
@@ -526,17 +512,13 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        // The journal is a database read now, so this endpoint needs the scope it never had.
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
 
         await using var journal = new CoveRevertJournal(db);
 
-        // The read /undo names its target with, which is what makes the line this endpoint feeds
-        // describe the work the button will do. Two reads that merely agreed today drifted the moment a
-        // newer batch could settle while an older one still held rows.
-        //
-        // The counts are the operation's, summed over every batch the click opened, and the timestamp
+        // The same read /undo names its target with, so the line this feeds describes the work the
+        // button will do. The counts are the operation's, summed over every batch the click opened, and the timestamp
         // is the earliest of them: the moment the user clicked, not the moment its last kind started.
         var summary = await journal.ReadUndoTargetAsync(ct);
         return TypedResults.Ok(new LastBatchSummary(
@@ -747,16 +729,8 @@ public sealed partial class Renamer
 
     // Runs the template engine over fixed samples with the in-flight options from the request body.
     // Selection-less and pure: no planner, no database, no disk, so a hostile template cannot escape
-    // or amplify. The permission is enforced before any body read or engine work.
-    //
-    // The body is deserialized with RenamerOptions.JsonOptions, not the host's default minimal-API
-    // options, which carry no enum converter and would 400 a panel body holding string enum values.
-    // An empty or null-options body takes the defaults; malformed JSON is a 400.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers " +
-            "(PreviewAsync/RenamerEnqueue/UndoAsync/LastBatchAsync) and the test call sites that invoke " +
-            "it through an extension instance; making it static would churn those call sites without " +
-            "any behavior change.")]
+    // or amplify. The permission is enforced before any body read or engine work. An empty or
+    // null-options body takes the defaults; malformed JSON is a 400.
     internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewSampleAsync(
         HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
@@ -786,8 +760,6 @@ public sealed partial class Renamer
             PreviewSampleRequest? req;
             try
             {
-                // Converter-aware parse: case-insensitive props + JsonStringEnumConverter, so a body
-                // carrying string enum values deserializes instead of 400ing on the host's default opts.
                 req = JsonSerializer.Deserialize<PreviewSampleRequest>(body, RenamerOptions.JsonOptions);
             }
             catch (JsonException)

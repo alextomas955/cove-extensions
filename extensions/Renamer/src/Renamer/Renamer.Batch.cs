@@ -8,9 +8,8 @@ using Renamer.Planner;
 
 namespace Renamer;
 
-// One rename run's fixed settings, carried whole from the entry point down to the chunk body. The
-// three methods below take it instead of repeating its fields, which they had grown to nine
-// arguments of. A null FreeSpaceProbe measures the real volume.
+// One rename run's fixed settings, carried whole from the entry point down to the chunk body. A null
+// FreeSpaceProbe measures the real volume.
 internal sealed record RenameRun(
     RenamerFileKind Kind,
     int TotalEntities,
@@ -350,9 +349,8 @@ public sealed partial class Renamer
                 }
 
                 LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
-                // Planning drives the first half of the chunk's bar; execution drives the second, so the
-                // bar only ever advances. The message names the phase, so the UI reads "Planning 769/1000"
-                // rather than a silent 0%.
+                // Planning drives the first half of the chunk's bar and execution the second, so the bar
+                // only advances, and the message names the phase.
                 progress.Report(
                     (double)planIndex / ids.Count * PlanningProgressShare,
                     $"Planning {planIndex}/{ids.Count}...");
@@ -503,7 +501,6 @@ public sealed partial class Renamer
             });
             LogBatchItem(runId, run.Kind, unit.EntityId, result);
 
-            // Thread-safe tally: a racing `+=` would lose increments under parallel workers.
             Interlocked.Add(ref totalRenamed, result.Renamed.Count);
             Interlocked.Add(ref totalSkipped, result.Skipped.Count);
             Interlocked.Add(ref totalFailed, result.Failed.Count);
@@ -552,11 +549,8 @@ public sealed partial class Renamer
             ? $" {contestedFiles} file(s) refused: more than one record names the same file."
             : "";
 
-    /// <summary>
-    /// Records one planned entity's per-file outcomes to the host log: a line per renamed/moved file
-    /// (old → new), per skip (with its reason), and per failure. Paths are logged so a maintainer can
-    /// audit exactly what moved and revert from the log if needed.
-    /// </summary>
+    // Logs one entity's per-file outcomes with their paths, so a maintainer can audit what moved and
+    // revert from the log.
     private void LogBatchItem(string runId, RenamerFileKind kind, int entityId, RenamerExecutor.RenamerRunResult result)
     {
         foreach (var r in result.Renamed)

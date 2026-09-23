@@ -153,33 +153,20 @@ public static class OptionsMigration
         return new Conversion(root.ToJsonString(), dropped, collapses, discarded);
     }
 
-    /// <summary>One destination rule rewritten from a typed root into a library root + relative template.</summary>
-    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
-    /// <param name="From">The value as stored, a typed absolute destination root.</param>
-    /// <param name="ToRoot">The Cove library path the stored root turned out to live under.</param>
-    /// <param name="ToTemplate">The remainder joined to the stored global folder template.</param>
+    /// <summary>One destination rule rewritten from a typed root into a library root and a template.</summary>
+    /// <remarks><c>Rule</c> names the field and its key or index, for the log.</remarks>
     public sealed record RewrittenDestination(string Rule, string From, string ToRoot, string ToTemplate);
 
     /// <summary>One destination rule removed because its stored root lies under no Cove library path.</summary>
-    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
-    /// <param name="Stored">The stored root that could not be placed.</param>
     public sealed record DroppedDestination(string Rule, string Stored);
 
     /// <summary>The destination conversion's result: the blob, what it rewrote, and what it removed.</summary>
-    /// <param name="Json">The converted blob, or the input unchanged when nothing was done.</param>
-    /// <param name="Rewritten">Every rule whose stored root was placed under a library path.</param>
-    /// <param name="Dropped">Every rule removed for lying under no library path.</param>
-    /// <param name="Deferred">
-    /// True when there was work to do and no library paths to do it against, so nothing was changed and
-    /// the caller must not stamp. Converting against an empty list would drop every rule the user has.
-    /// </param>
-    /// <param name="RemovedEmptyRoutes">
-    /// How many stored destinations were removed rather than rewritten, because the field spells "there
-    /// is no route" as the absent member and the blob still holds the empty value that used to spell it.
-    /// Nothing about the user's routing changes, but the blob does, so a caller reading only
-    /// <see cref="Rewritten"/> and <see cref="Dropped"/> would leave a value the current model cannot
-    /// bind sitting in the store.
-    /// </param>
+    /// <remarks>
+    /// <c>Deferred</c> is true when there was work and no library paths to do it against, so nothing
+    /// changed and the caller must not stamp. <c>RemovedEmptyRoutes</c> counts destinations removed
+    /// because the blob still held the empty value that once meant no route: the routing is unchanged,
+    /// but the blob is not, so it still has to be written back.
+    /// </remarks>
     public sealed record DestinationConversion(
         string Json,
         IReadOnlyList<RewrittenDestination> Rewritten,

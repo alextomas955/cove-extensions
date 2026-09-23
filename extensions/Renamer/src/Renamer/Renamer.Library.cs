@@ -46,17 +46,10 @@ public sealed partial class Renamer
         });
     }
 
-    /// <summary>
-    /// Plans every entity of each readable kind through the planner <c>/preview</c> uses and persists
-    /// one bounded aggregate. Mutates neither disk nor database.
-    /// </summary>
-    /// <remarks>
-    /// Persists per-kind counts and blast radius, never the rows: a per-file collection is O(library)
-    /// in both the heap and the stored value, and one oversized stored value makes Cove's bulk
-    /// extension-data read fail for every key this extension owns. The rows are served on demand by
-    /// the <c>/scan-rows</c> page query. The port is a parameter so that boundedness can be proven
-    /// over a fake, with no live database.
-    /// </remarks>
+    // Plans every entity of each readable kind through the planner /preview uses and persists one
+    // bounded aggregate, mutating neither disk nor database. It stores per-kind counts and the blast
+    // radius, never the rows: one oversized stored value makes Cove's bulk extension-data read fail for
+    // every key this extension owns. /scan-rows serves the rows a page at a time.
     internal async Task RunScanCoreAsync(
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
         AllowedIds allowedIds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
@@ -158,16 +151,9 @@ public sealed partial class Renamer
             JsonSerializer.Serialize(aggregator.ToSummary(DateTime.UtcNow.Ticks), PreviewResponseJsonOptions),
             ct);
 
-    /// <summary>
-    /// Renames every entity of each writable kind, a chunk at a time, through the same chunk a
-    /// single-kind selection drives.
-    /// </summary>
-    /// <remarks>
-    /// Every batch the run opens carries one operation id, which is what <c>/undo</c> acts on, so the
-    /// whole run is one undoable action however many kinds and chunks it spanned. The job is enqueued
-    /// as a closure, so no id list that grows with the library reaches the host's parameter map. A
-    /// kind with no entities is skipped, so no empty batch header opens for it.
-    /// </remarks>
+    // Renames every entity of each writable kind a chunk at a time, through the chunk a selection
+    // drives. Every batch the run opens carries one operation id, which is what /undo acts on, so the
+    // whole run is one undoable action. A kind with no entities opens no batch.
     internal async Task RunRenamerLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
         Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null)

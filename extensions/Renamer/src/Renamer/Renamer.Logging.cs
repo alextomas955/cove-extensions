@@ -45,9 +45,7 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId} done: {Renamed} renamed, {Skipped} skipped, {Failed} failed")]
     private partial void LogBatchDone(string runId, int renamed, int skipped, int failed);
 
-    // A batch plans and classifies every id before it reports any progress percentage, so a large
-    // library sits at zero with no other signal. These lines make a long wait legible as planning
-    // rather than a hang.
+    // These trace a batch's planning in Cove's log.
 
     [LoggerMessage(
         EventId = 1005, Level = LogLevel.Information,
@@ -88,8 +86,7 @@ public sealed partial class Renamer
         Message = "[Renamer] library rename: {Kind}: {Count} item(s) to plan")]
     private partial void LogLibraryKind(RenamerFileKind kind, int count);
 
-    // The whole-library dry run reports progress only when it finishes, so these trace its planning
-    // the way the rename batch traces its own and keep a large scan legible in Cove's log.
+    // These trace the whole-library dry run's planning in Cove's log.
 
     [LoggerMessage(
         EventId = 1050, Level = LogLevel.Information,

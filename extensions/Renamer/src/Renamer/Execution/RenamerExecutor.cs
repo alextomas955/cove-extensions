@@ -167,8 +167,8 @@ public sealed class RenamerExecutor
         }
 
         // The suffix loop works from a fresher snapshot than the plan saw, so it can settle on a name
-        // longer than any the plan measured. This re-measure precedes the sidecar plan, the canonical
-        // guard and every disk write, so a rejected candidate leaves the source where it is.
+        // longer than any the plan measured. This re-measure precedes the sidecar plan and every disk
+        // write, so a rejected candidate leaves the source where it is.
         var budget = PathConfinement.WithinBudget(targetFolder, candidate, options);
         if (!budget.Accepted)
         {
@@ -384,8 +384,8 @@ public sealed class RenamerExecutor
         {
             // A caption filename is a basename, never a path fragment: a separator or a parent-traversal
             // segment would let a malformed row build a sidecar move reaching outside the primary's
-            // source and target folders. Nothing downstream re-checks it, since the canonical guard
-            // resolves the primary and not the sidecars, and the movers apply no confinement.
+            // source and target folders. Nothing downstream re-checks it: the movers apply no
+            // confinement.
             if (!IsPlainBasename(cap.Filename))
             {
                 warnings.Add($"sidecar skipped: caption filename '{cap.Filename}' is not a plain basename");

@@ -29,17 +29,15 @@ public sealed partial class Renamer : FullExtensionBase
     // never blocks a rename. The generator binds to this field by its ILogger type.
     private ILogger _log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
-    /// <summary>The scope factory captured at init. Throws if read before initialization.</summary>
     private IServiceScopeFactory ScopeFactory =>
         _scopeFactory ?? throw new InvalidOperationException(
             "Renamer extension used before InitializeAsync ran (IServiceScopeFactory not captured).");
 
-    /// <summary>The host event bus captured at init. Throws if read before initialization.</summary>
     private IEventBus EventBus =>
         _eventBus ?? throw new InvalidOperationException(
             "Renamer extension used before InitializeAsync ran (IEventBus not captured).");
 
-    /// <summary>Cove's configured library paths, the list every destination root is chosen from.</summary>
+    // Cove's configured library paths, the list every destination root is chosen from.
     private IReadOnlyList<string> LibraryRoots => CoveRenamerDataPort.ReadLibraryRoots(_coveConfig);
 
     public override async Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)

@@ -228,10 +228,7 @@ public sealed record ScanRowsPage(
 /// The <c>/scan-rows</c> request body: where to resume, how much to take, and how to filter.
 /// </summary>
 /// <remarks>
-/// Every member is a string or an int, so the body binds typed. The host's minimal-API serializer
-/// has no string-enum converter, so a body carrying a bare enum value would fail typed binding, and
-/// <c>Options</c> therefore travels as a PascalCase JSON string, as it does on <c>/scan-library</c>.
-/// <c>Options</c> null plans with the saved options, <c>Kind</c> null starts at the first readable
+/// <c>Options</c> travels as a JSON string, as it does on <c>/scan-library</c>. <c>Options</c> null plans with the saved options, <c>Kind</c> null starts at the first readable
 /// kind, <c>AfterEntityId</c> null starts at the beginning of the kind, a non-positive <c>Take</c>
 /// falls back to the pager default and is otherwise clamped to its maximum, <c>Query</c> is a
 /// case-insensitive path substring, and <c>Bucket</c> takes a <see cref="ScanBucketKind"/> name or

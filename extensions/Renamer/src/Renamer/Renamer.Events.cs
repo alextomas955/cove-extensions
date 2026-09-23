@@ -52,7 +52,7 @@ public sealed partial class Renamer
             var options = await StoredOptions.LoadAsync(ct);
             if (!options.AutoRenamerOnUpdate)
             {
-                return; // opt-in, default off — do no database work when disabled.
+                return;
             }
 
             // One elevated scope for the whole handler, from the seam that elevates as it creates. The

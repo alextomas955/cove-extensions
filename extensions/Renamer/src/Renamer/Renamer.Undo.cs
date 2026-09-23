@@ -19,10 +19,9 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
         ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
     {
-        // Refuse a caller holding no renamer-write permission before any journal read or disk touch,
-        // so an unauthorized caller cannot learn whether a batch exists. The host's
-        // [RequiresPermission] filter is inert on minimal-API endpoints. The per-kind check below
-        // needs the batch to know the kinds, so it cannot be this gate.
+        // Refuse a caller holding no write permission before any journal read or disk touch, so an
+        // unauthorized caller cannot learn whether a batch exists. The per-kind check below needs the
+        // batch's kinds, so it cannot be this gate.
         if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
@@ -153,8 +152,7 @@ public sealed partial class Renamer
 
                 // The cursor is the lowest sequence this page returned and the next page returns only
                 // rows strictly below it, so it decreases and the loop terminates whatever the outcomes
-                // were. A cursor that failed to advance would re-read one page forever, which is a hang
-                // rather than an error, so a test pins it.
+                // were.
                 page = await journal.ReadBatchPageAsync(
                     current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
             }
