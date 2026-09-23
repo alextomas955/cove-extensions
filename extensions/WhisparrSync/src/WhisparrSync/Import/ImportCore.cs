@@ -71,7 +71,7 @@ internal sealed class ImportCore(
                 // follow-up covers the item in case the delivery that registered it was interrupted
                 // after the host committed and before it could be noted.
                 followUp.NoteImported(path, library);
-                await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
+                await ClearAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
                 return ImportOutcome.AlreadyHeld;
             }
 
@@ -119,7 +119,7 @@ internal sealed class ImportCore(
         }
 
         followUp.NoteImported(path, library);
-        await RecordImportedAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
+        await RecordImportedAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
     }
 
@@ -251,7 +251,7 @@ internal sealed class ImportCore(
 
         if (cause is { } recorded)
         {
-            await RecordAsync(reading.RefusalRoot, candidate.ReportedPath, recorded, ct)
+            await RecordAsync(candidate.Generation, reading.RefusalRoot, candidate.ReportedPath, recorded, ct)
                 .ConfigureAwait(false);
         }
 
@@ -259,39 +259,59 @@ internal sealed class ImportCore(
     }
 
     private async Task RecordAsync(
-        string root, string path, ImportRefusalCause cause, CancellationToken ct)
+        WhisparrGeneration generation,
+        string root,
+        string path,
+        ImportRefusalCause cause,
+        CancellationToken ct)
         => await gate.MutateAsync(
             options,
-            stored => stored with
-            {
-                ImportRefusals = ImportRefusalProjector.Refuse(stored.ImportRefusals, root, path, cause),
-            },
+            stored => WithRefusals(
+                stored,
+                generation,
+                ImportRefusalProjector.Refuse(
+                    stored.InstanceSettingsOrEmptyFor(generation).ImportRefusals, root, path, cause)),
             ct).ConfigureAwait(false);
 
     // No member of the health aggregate is touched: the caller reached this without registering a
     // file, and a delivery whose file was already there is not an import.
-    private async Task ClearAsync(string root, CancellationToken ct)
+    private async Task ClearAsync(
+        WhisparrGeneration generation, string root, CancellationToken ct)
         => await gate.MutateAsync(
             options,
-            stored => stored with
-            {
-                ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root),
-            },
+            stored => WithRefusals(
+                stored,
+                generation,
+                ImportRefusalProjector.Succeed(
+                    stored.InstanceSettingsOrEmptyFor(generation).ImportRefusals, root)),
             ct).ConfigureAwait(false);
 
     // The instant is taken before the gate, so it records when the file was registered rather than
     // when the lock came free. This is its only writer: the live channel imports with no pass
     // running, so a member the pass wrote would read as never against a working webhook.
-    private async Task RecordImportedAsync(string root, CancellationToken ct)
+    private async Task RecordImportedAsync(
+        WhisparrGeneration generation, string root, CancellationToken ct)
     {
         var workedAt = clock.GetUtcNow();
         await gate.MutateAsync(
             options,
-            stored => stored with
+            stored => WithRefusals(
+                stored,
+                generation,
+                ImportRefusalProjector.Succeed(
+                    stored.InstanceSettingsOrEmptyFor(generation).ImportRefusals, root))
+                with
             {
-                ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root),
                 ImportHealth = stored.ImportHealth with { LastWorkedAtUtc = workedAt },
             },
             ct).ConfigureAwait(false);
     }
+
+    private static WhisparrSyncOptions WithRefusals(
+        WhisparrSyncOptions stored,
+        WhisparrGeneration generation,
+        List<ImportRootRefusals> refusals)
+        => stored.WithInstanceSettingsFor(
+            generation,
+            stored.InstanceSettingsOrEmptyFor(generation) with { ImportRefusals = refusals });
 }

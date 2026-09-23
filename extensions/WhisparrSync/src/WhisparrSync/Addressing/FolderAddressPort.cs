@@ -87,7 +87,9 @@ internal sealed class FolderAddressPort(
         // Read before the cache is asked, not inside the establishing path: a held reading taken
         // under a path that has since been withdrawn or changed must lose to the store.
         var stated = OutboundRefusalProjector.MappingFor(
-            (await StoredAsync(ct).ConfigureAwait(false)).OutboundMappings, coveRoot);
+            (await StoredAsync(ct).ConfigureAwait(false))
+                .InstanceSettingsOrEmptyFor(target.Binding.Generation).OutboundMappings,
+            coveRoot);
 
         var reading = cache.Held(target, coveRoot, stated)
             ?? await EstablishAsync(target, coveRoot, stated, ct).ConfigureAwait(false);
@@ -133,7 +135,9 @@ internal sealed class FolderAddressPort(
 
         // Read before the cache is asked, for the reason the folder overload states.
         var stated = OutboundRefusalProjector.MappingFor(
-            (await StoredAsync(ct).ConfigureAwait(false)).OutboundMappings, coveRoot);
+            (await StoredAsync(ct).ConfigureAwait(false))
+                .InstanceSettingsOrEmptyFor(target.Binding.Generation).OutboundMappings,
+            coveRoot);
 
         var reading = cache.Held(target, coveRoot, stated)
             ?? await EstablishAsync(target, coveRoot, stated, ct).ConfigureAwait(false);

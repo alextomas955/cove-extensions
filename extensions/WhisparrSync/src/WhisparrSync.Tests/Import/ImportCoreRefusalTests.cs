@@ -20,7 +20,7 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(ImportOutcome.RefusedNotFound, await ingest.DeliverAsync());
 
         Assert.Empty(ingest.Library.Imported);
-        var entry = Assert.Single((await ingest.StoredAsync()).ImportRefusals);
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(WhisparrRoot, entry.Root);
         Assert.Equal(1, entry.CountSinceLastSuccess);
         Assert.Equal(
@@ -39,7 +39,7 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(ImportOutcome.RefusedAmbiguous, await ingest.DeliverAsync());
 
         Assert.Empty(ingest.Library.Imported);
-        var entry = Assert.Single((await ingest.StoredAsync()).ImportRefusals);
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(
             ImportRefusalCause.AmbiguousCandidates,
             Assert.Single(entry.NewestPaths).Cause);
@@ -51,7 +51,7 @@ public sealed class ImportCoreRefusalTests
         var ingest = new Ingest();
         await ingest.DeliverAsync();
         await ingest.DeliverAsync(root: "/whisparr-other", path: "/whisparr-other/other.mp4");
-        Assert.Equal(2, (await ingest.StoredAsync()).ImportRefusals.Count);
+        Assert.Equal(2, (await ingest.StoredAsync()).Instance().ImportRefusals.Count);
 
         ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
         Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
@@ -59,7 +59,7 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
         Assert.Equal(
             "/whisparr-other",
-            Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
+            Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals).Root);
     }
 
     // A delivery arrives per file, so a save on every one would rewrite the whole blob per file. Its
@@ -88,7 +88,7 @@ public sealed class ImportCoreRefusalTests
 
         Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
 
-        Assert.Empty((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(1, ingest.Store.SetCallCount);
     }
 
@@ -103,7 +103,7 @@ public sealed class ImportCoreRefusalTests
 
         Assert.Equal(ImportOutcome.RefusedHostImportUnavailable, await ingest.DeliverAsync());
 
-        Assert.Empty((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(0, ingest.Store.SetCallCount);
     }
 
@@ -118,7 +118,7 @@ public sealed class ImportCoreRefusalTests
 
         Assert.Equal(ImportOutcome.RefusedHostRefusedFile, await ingest.DeliverAsync());
 
-        var entry = Assert.Single((await ingest.StoredAsync()).ImportRefusals);
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(WhisparrRoot, entry.Root);
         Assert.Equal(ImportRefusalCause.Unreadable, Assert.Single(entry.NewestPaths).Cause);
         Assert.Equal(ReportedPath, entry.NewestPaths[0].Path);
@@ -154,7 +154,7 @@ public sealed class ImportCoreRefusalTests
         Assert.Empty(ingest.Library.Imported);
         Assert.Equal(
             ImportRefusalProjector.NoReportedRoot,
-            Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
+            Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals).Root);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class ImportCoreRefusalTests
 
         Assert.Equal(ImportOutcome.RefusedNoLibraryRoots, await ingest.DeliverAsync());
 
-        Assert.Empty((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
         Assert.Equal(0, ingest.Store.SetCallCount);
     }
 
