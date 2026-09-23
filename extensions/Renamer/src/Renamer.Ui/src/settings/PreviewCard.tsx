@@ -26,7 +26,7 @@ function flagMessage(flag: string, r: PreviewSampleResult): string | null {
   }
 }
 
-export function PreviewCard({ result }: { result: PreviewSampleResult }) {
+export function PreviewCard({ result }: Readonly<{ result: PreviewSampleResult }>) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">

@@ -11,7 +11,79 @@ import { EXTENSION_ID } from "../common/lib/extension";
 import { buildUndoStatus, type UndoFeedback } from "./undoLogic";
 import { useLastBatch } from "./useLastBatch";
 
-export function UndoSection({ refreshKey }: { refreshKey: number }) {
+type UndoStatus = ReturnType<typeof buildUndoStatus>;
+
+// What the footer shows beside the extension id, in precedence order: the check in flight, the check
+// failing, an undoable rename, then an expired one or none.
+function UndoStatusRow({
+  loading,
+  summaryError,
+  onRetry,
+  status,
+  hasUndoable,
+  feedback,
+  undoing,
+  onUndo,
+}: Readonly<{
+  loading: boolean;
+  summaryError: string | null;
+  onRetry: () => void;
+  status: UndoStatus;
+  hasUndoable: boolean;
+  feedback: UndoFeedback | null;
+  undoing: boolean;
+  onUndo: () => void;
+}>) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-secondary">
+        <Spinner />
+        Checking for a recent rename…
+      </div>
+    );
+  }
+
+  if (summaryError) {
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <StatusText kind="error">
+          Couldn&apos;t check for a recent rename: {summaryError}.
+        </StatusText>
+        <Button variant="ghost" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const feedbackLine = feedback ? (
+    <StatusText kind={feedback.kind}>{feedback.text}</StatusText>
+  ) : null;
+
+  if (hasUndoable && status) {
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {feedbackLine}
+        <span className="text-sm text-foreground">Last rename: {status.line}</span>
+        <Button variant="ghost" onClick={onUndo} disabled={undoing}>
+          <Undo2 className="h-4 w-4" />
+          Undo last rename
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {feedbackLine}
+      <span className="text-sm text-secondary">
+        {status ? `Last rename: ${status.line}` : "No rename to undo."}
+      </span>
+    </div>
+  );
+}
+
+export function UndoSection({ refreshKey }: Readonly<{ refreshKey: number }>) {
   const {
     summary,
     loadedAtMs,
@@ -49,43 +121,18 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       </p>
 
       <div className="shrink-0">
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-secondary">
-            <Spinner />
-            Checking for a recent rename…
-          </div>
-        ) : summaryError ? (
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <StatusText kind="error">
-              Couldn&apos;t check for a recent rename: {summaryError}.
-            </StatusText>
-            <Button variant="ghost" onClick={() => void reload()}>
-              Retry
-            </Button>
-          </div>
-        ) : hasUndoable ? (
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
-            <span className="text-sm text-foreground">Last rename: {status.line}</span>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setConfirming(true);
-              }}
-              disabled={undoing}
-            >
-              <Undo2 className="h-4 w-4" />
-              Undo last rename
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
-            <span className="text-sm text-secondary">
-              {status ? `Last rename: ${status.line}` : "No rename to undo."}
-            </span>
-          </div>
-        )}
+        <UndoStatusRow
+          loading={loading}
+          summaryError={summaryError}
+          onRetry={() => void reload()}
+          status={status}
+          hasUndoable={hasUndoable}
+          feedback={feedback}
+          undoing={undoing}
+          onUndo={() => {
+            setConfirming(true);
+          }}
+        />
       </div>
 
       <ConfirmDialog

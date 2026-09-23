@@ -12,7 +12,7 @@ export function Dialog({
   pending = false,
   onCancel,
   children,
-}: {
+}: Readonly<{
   /** id of the element that labels the dialog (the title) - wired to aria-labelledby. */
   titleId: string;
   /** optional id of the element that describes the dialog - wired to aria-describedby. */
@@ -21,7 +21,7 @@ export function Dialog({
   pending?: boolean;
   onCancel: () => void;
   children: ReactNode;
-}) {
+}>) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const requestCancel = useCallback(() => {
@@ -56,7 +56,7 @@ export function Dialog({
 }
 
 /** Shared error box (matches Cove `ConfirmDialog`'s destructive error styling). */
-export function ErrorBox({ children }: { children: ReactNode }) {
+export function ErrorBox({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <div className="rounded border border-red-700 bg-red-950/60 px-3 py-2 text-sm text-red-200">
       {children}

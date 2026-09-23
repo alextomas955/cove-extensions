@@ -30,7 +30,7 @@ import { PRESETS } from "./presets";
  * confirm. Chips reuse the legend-chip class (prose labels drop font-mono). Every preset label is a
  * React text node (auto-escaped); the templates come from the static PRESETS list.
  */
-function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void }) {
+function PresetRow({ onApply }: Readonly<{ onApply: (filenameTemplate: string) => void }>) {
   return (
     <div>
       <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
@@ -83,7 +83,7 @@ export function FilenameSection({
   pendingNameMigration,
   pendingDestinationMigration,
   library,
-}: FilenameSectionProps) {
+}: Readonly<FilenameSectionProps>) {
   return (
     <div className="col-span-2 space-y-6">
       {recoveredFromBadBlob ? (

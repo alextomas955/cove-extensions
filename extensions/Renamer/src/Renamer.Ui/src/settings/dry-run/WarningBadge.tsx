@@ -11,7 +11,7 @@ import { StatusPill } from "@cove-extensions/ui-shared";
 
 import { badgesFor, type Badge, type Badgeable } from "./warningBadgeLogic";
 
-function Pill({ badge }: { badge: Badge }) {
+function Pill({ badge }: Readonly<{ badge: Badge }>) {
   const showGlyph = badge.variant === "amber" || badge.variant === "red";
   return (
     <StatusPill
@@ -24,7 +24,7 @@ function Pill({ badge }: { badge: Badge }) {
 }
 
 /** Render every badge for an item (may be empty → renders nothing). */
-export function WarningBadges({ item }: { item: Badgeable }) {
+export function WarningBadges({ item }: Readonly<{ item: Badgeable }>) {
   const badges = badgesFor(item);
   if (badges.length === 0) return null;
   return (

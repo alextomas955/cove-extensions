@@ -143,7 +143,7 @@ test("superseding a request aborts it, and that abort is not reported as a failu
   await sleep(PAST_DEBOUNCE_MS);
   hook.retarget(second);
   await sleep(PAST_DEBOUNCE_MS);
-  expect(host.calls.length).toBe(2);
+  expect(host.calls).toHaveLength(2);
 
   expect(host.calls[0].aborted(), "the superseded request was not aborted").toBe(true);
   expect(host.calls[1].aborted()).toBe(false);

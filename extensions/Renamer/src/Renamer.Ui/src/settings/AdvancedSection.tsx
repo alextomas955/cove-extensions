@@ -84,7 +84,7 @@ interface AdvancedSectionProps {
   set: SetOption;
 }
 
-export function AdvancedSection({ options, set }: AdvancedSectionProps) {
+export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>) {
   return (
     <SectionCard title="Advanced">
       <CollapsibleSection

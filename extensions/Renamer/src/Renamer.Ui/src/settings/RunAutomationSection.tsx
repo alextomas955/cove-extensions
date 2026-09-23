@@ -29,7 +29,7 @@ export function RunAutomationSection({
   runLibraryFeedback,
   onDryRun,
   onRenameAll,
-}: RunAutomationSectionProps) {
+}: Readonly<RunAutomationSectionProps>) {
   return (
     <SectionCard title="Run & automation">
       <Toggle

@@ -53,7 +53,7 @@ export function DestinationRoutingSection({
   options,
   set,
   library,
-}: DestinationRoutingSectionProps) {
+}: Readonly<DestinationRoutingSectionProps>) {
   // Live (not-yet-committed) associatedExtensions input, so the sidecar-extension advisory reflects
   // what the user is currently typing, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");

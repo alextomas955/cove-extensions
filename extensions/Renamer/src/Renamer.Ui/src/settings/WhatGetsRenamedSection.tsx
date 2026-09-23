@@ -48,7 +48,7 @@ interface WhatGetsRenamedSectionProps {
   set: SetOption;
 }
 
-export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionProps) {
+export function WhatGetsRenamedSection({ options, set }: Readonly<WhatGetsRenamedSectionProps>) {
   return (
     <SectionCard title="What gets renamed">
       <Toggle
