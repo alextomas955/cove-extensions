@@ -29,6 +29,7 @@ export function GenerationRow({ settings, drafted, sharedReason, onChoose }: Gen
   return (
     <FieldGroup
       label="Whisparr generation"
+      labelStyle="mono"
       helper="Each generation keeps its own address and key. Saving moves Cove to the one selected here."
     >
       <div className="grid grid-cols-2 gap-2">
