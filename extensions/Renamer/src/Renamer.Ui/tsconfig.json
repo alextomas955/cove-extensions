@@ -21,9 +21,6 @@
       "@cove-extensions/ui-shared/extensionRequest": [
         "../../../../shared/ui-shared/src/extensionRequest.ts"
       ],
-      "@cove-extensions/ui-shared/extensionStore": [
-        "../../../../shared/ui-shared/src/extensionStore.ts"
-      ],
       "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],

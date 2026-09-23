@@ -22,7 +22,7 @@ import type { RenamerOptions } from "../options";
 import type { RenameProgress } from "../useRenameLibrary";
 import { DryRunRows } from "./DryRunRows";
 import { ScanProgress } from "./ScanProgress";
-import { useLibraryScan } from "./useLibraryScan";
+import { useLibraryScan, type ScanDisplay } from "./useLibraryScan";
 import {
   bucketTotal,
   formatEta,
@@ -238,9 +238,7 @@ function filterPlaceholder(rows: number): string {
   return `Filter ${rows} row${rows === 1 ? "" : "s"}`;
 }
 
-function Scanning({
-  display,
-}: Readonly<{ display: ReturnType<typeof useLibraryScan>["progress"] }>) {
+function Scanning({ display }: Readonly<{ display: ScanDisplay | null }>) {
   if (display) return <ScanProgress display={display} />;
   return (
     <div className="flex items-center gap-2 py-8 text-sm text-secondary">

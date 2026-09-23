@@ -169,7 +169,7 @@ export function DryRunRows({
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const lastVisible = virtualRows.length > 0 ? (virtualRows.at(-1)?.index ?? -1) : -1;
+  const lastVisible = virtualRows.at(-1)?.index ?? -1;
   // How many rows the loaded window needs to cover: one prefetch window past the last row the
   // virtualizer handed back, so the next page is requested before the user reaches the end.
   const targetRows = lastVisible + PREFETCH_ROWS + 1;
