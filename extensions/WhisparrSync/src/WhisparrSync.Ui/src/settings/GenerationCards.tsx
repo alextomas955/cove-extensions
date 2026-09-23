@@ -21,7 +21,7 @@ export interface GenerationCardsProps {
   /** The card the form below is editing. */
   card: CardGeneration;
   now: number;
-  onShowCard: (card: CardGeneration) => void;
+  onShowCard: (generation: CardGeneration) => void;
 }
 
 export function GenerationCards({ settings, card, now, onShowCard }: GenerationCardsProps) {

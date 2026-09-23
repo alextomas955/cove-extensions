@@ -1,20 +1,19 @@
 /**
- * The settings page's state. State only - every request lives in `useConnection.ts`.
+ * The settings page's state. State only - every request lives in `useSettingsDraft.ts`.
  *
  * An instance is created per page lifetime rather than at module scope, so a second visit starts
  * from a fresh read instead of rendering the previous visit's answer as though it had just arrived.
  */
-import type { ConnectionTestView, WhisparrSyncSettingsView } from "../wire/api";
+import type { ConnectionTestView, UpgradeBehavior, WhisparrSyncSettingsView } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 import {
   afterAddressEdit,
   NO_TRANSIENT_TEST,
-  valuesForCard,
   type CardGeneration,
-  type GenerationDraft,
   type TransientTest,
 } from "./connectLogic";
+import { draftFor, type SettingsDraft } from "./settingsDraftLogic";
 
 export type SaveState =
   | { readonly status: "idle" }
@@ -23,46 +22,53 @@ export type SaveState =
   | { readonly status: "failed"; readonly message: string };
 
 /** Everything the page renders from. */
-export interface ConnectionPageState {
+export interface SettingsPageState {
   readonly read: AsyncRead;
   readonly settings: WhisparrSyncSettingsView | null;
   readonly readError: string | null;
-  readonly card: CardGeneration;
-  readonly draft: GenerationDraft;
+  readonly draft: SettingsDraft;
   readonly test: TransientTest;
   readonly save: SaveState;
 }
 
-/** What a card starts at, and what a switch returns it to. */
-const EMPTY_DRAFT: GenerationDraft = { address: "", apiKey: "", keyCleared: false };
+/** What the form holds before anything has arrived to seed it. */
+const EMPTY_DRAFT: SettingsDraft = {
+  generation: "v3",
+  address: "",
+  apiKey: "",
+  keyCleared: false,
+  upgradeBehavior: null,
+};
 
 /**
  * Before the first read completes. The settings are absent rather than empty, so "nothing has
  * answered yet" does not render as "nothing is stored".
  */
-export const INITIAL_CONNECTION_STATE: ConnectionPageState = {
+export const INITIAL_SETTINGS_STATE: SettingsPageState = {
   read: INITIAL_ASYNC_READ,
   settings: null,
   readError: null,
-  card: "v3",
   draft: EMPTY_DRAFT,
   test: NO_TRANSIENT_TEST,
   save: { status: "idle" },
 };
 
-export interface ConnectionStore {
+export interface SettingsDraftStore {
   subscribe: (listener: () => void) => () => void;
-  getSnapshot: () => ConnectionPageState;
+  getSnapshot: () => SettingsPageState;
   beginRead: () => void;
-  /** Takes one settings answer, and seeds the form from the card it names. */
+  /** Takes one settings answer, and seeds the draft from the generation it names. */
   loaded: (view: WhisparrSyncSettingsView) => void;
   readFailed: (message: string) => void;
   editAddress: (next: string) => void;
   editKey: (next: string) => void;
   /** Marks the stored key for removal by the next save, or takes that mark back. */
   clearStoredKey: (cleared: boolean) => void;
-  /** Shows the other card's stored values, discarding whatever the form held. */
-  showCard: (card: CardGeneration) => void;
+  editBehavior: (next: UpgradeBehavior) => void;
+  /** Drafts the other generation, showing that generation's stored address and no typed key. */
+  chooseGeneration: (generation: CardGeneration) => void;
+  /** Returns every member of the draft to what is stored. */
+  discard: () => void;
   beginTest: (address: string) => void;
   answered: (address: string, result: ConnectionTestView) => void;
   testFailed: (address: string, message: string) => void;
@@ -71,20 +77,23 @@ export interface ConnectionStore {
   saveFailed: (message: string) => void;
 }
 
-function draftFor(view: WhisparrSyncSettingsView, card: CardGeneration): GenerationDraft {
-  return { ...EMPTY_DRAFT, address: valuesForCard(view, card)?.address ?? "" };
-}
-
-export function createConnectionStore(): ConnectionStore {
-  let state = INITIAL_CONNECTION_STATE;
+export function createSettingsDraftStore(): SettingsDraftStore {
+  let state = INITIAL_SETTINGS_STATE;
   // Once the form has been touched, a read that answers afterwards must not overwrite it. A slow
   // first read would otherwise type over anyone who started entering an address straight away.
   let touched = false;
   const listeners = new Set<() => void>();
 
-  const emit = (next: ConnectionPageState) => {
+  const emit = (next: SettingsPageState) => {
     state = next;
     for (const listener of listeners) listener();
+  };
+
+  // An edit and a report of the last save cannot stand together: the bar would say the settings
+  // were saved while holding something that is not.
+  const edited = (next: SettingsPageState) => {
+    touched = true;
+    emit({ ...next, save: { status: "idle" } });
   };
 
   return {
@@ -106,14 +115,17 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     loaded(view) {
-      const card = view.selectedGeneration ?? state.card;
+      const generation = view.selectedGeneration ?? state.draft.generation;
       emit({
         ...state,
         read: { reading: false, failed: false, hasContent: true },
         settings: view,
         readError: null,
-        card,
-        draft: touched ? state.draft : draftFor(view, card),
+        draft: touched
+          ? // A behaviour nobody has chosen is still unread rather than entered, and a control
+            // left disabled would never become usable.
+            { ...state.draft, upgradeBehavior: state.draft.upgradeBehavior ?? view.upgradeBehavior }
+          : draftFor(view, generation),
       });
     },
 
@@ -128,8 +140,7 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     editAddress(next) {
-      touched = true;
-      emit({
+      edited({
         ...state,
         draft: { ...state.draft, address: next },
         test: afterAddressEdit(state.test, state.draft.address, next),
@@ -139,25 +150,43 @@ export function createConnectionStore(): ConnectionStore {
     editKey(next) {
       // Typing a key takes back a pending removal. The two requests contradict each other, so the
       // later one wins.
-      touched = true;
-      emit({ ...state, draft: { ...state.draft, apiKey: next, keyCleared: false } });
+      edited({ ...state, draft: { ...state.draft, apiKey: next, keyCleared: false } });
     },
 
     clearStoredKey(cleared) {
-      touched = true;
-      emit({ ...state, draft: { ...state.draft, keyCleared: cleared, apiKey: "" } });
+      edited({ ...state, draft: { ...state.draft, keyCleared: cleared, apiKey: "" } });
     },
 
-    showCard(card) {
-      if (card === state.card) return;
-      // Unsaved edits are dropped with no dialog and no save. The form is re-seeded from the card
-      // being shown, so it never carries the other card's values across.
+    editBehavior(next) {
+      edited({ ...state, draft: { ...state.draft, upgradeBehavior: next } });
+    },
+
+    chooseGeneration(generation) {
+      if (generation === state.draft.generation) return;
+      // The address and the key are that generation's own. The replacement behaviour is not per
+      // generation, so it carries across.
+      edited({
+        ...state,
+        draft:
+          state.settings === null
+            ? { ...EMPTY_DRAFT, generation, upgradeBehavior: state.draft.upgradeBehavior }
+            : {
+                ...draftFor(state.settings, generation),
+                upgradeBehavior: state.draft.upgradeBehavior,
+              },
+        test: NO_TRANSIENT_TEST,
+      });
+    },
+
+    discard() {
+      const view = state.settings;
+      if (view === null) return;
+      const restored = draftFor(view, view.selectedGeneration ?? state.draft.generation);
       touched = false;
       emit({
         ...state,
-        card,
-        draft: state.settings === null ? EMPTY_DRAFT : draftFor(state.settings, card),
-        test: NO_TRANSIENT_TEST,
+        draft: restored,
+        test: afterAddressEdit(state.test, state.draft.address, restored.address),
         save: { status: "idle" },
       });
     },
@@ -185,7 +214,7 @@ export function createConnectionStore(): ConnectionStore {
         ...state,
         settings: view,
         read: { reading: false, failed: false, hasContent: true },
-        draft: draftFor(view, state.card),
+        draft: draftFor(view, view.selectedGeneration ?? state.draft.generation),
         save: { status: "saved" },
       });
     },

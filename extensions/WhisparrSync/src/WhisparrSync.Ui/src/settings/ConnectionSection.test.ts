@@ -5,8 +5,9 @@ import { createElement } from "react";
 import { render } from "../common/lib/testRender";
 import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
 import { ConnectionSection } from "./ConnectionSection";
-import type { GenerationDraft, TransientTest } from "./connectLogic";
-import type { SaveState } from "./connectionStore";
+import type { TransientTest } from "./connectLogic";
+import type { SettingsDraft } from "./settingsDraftLogic";
+import type { SaveState } from "./settingsDraftStore";
 
 const NEVER_VERIFIED: WhisparrSyncGenerationSettingsView = {
   address: "http://whisparr:6969",
@@ -25,15 +26,17 @@ const VERIFIED: WhisparrSyncGenerationSettingsView = {
 
 const NOW = Date.parse("2026-06-24T12:00:00Z");
 
-const NO_DRAFT: GenerationDraft = {
+const NO_DRAFT: SettingsDraft = {
+  generation: "v3",
   address: "http://whisparr:6969",
   apiKey: "",
   keyCleared: false,
+  upgradeBehavior: "add",
 };
 
 function section(overrides: {
   stored?: WhisparrSyncGenerationSettingsView | null;
-  draft?: GenerationDraft;
+  draft?: SettingsDraft;
   test?: TransientTest;
   save?: SaveState;
 }) {
@@ -97,9 +100,7 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   // The response carries no key; SettingsProjectionTests asserts that. So a leak here could only
   // come from the field's own draft.
   const typed = "e2ewriteonly7c41b9a6d2f80e35a1c4";
-  const withDraft = await render(
-    section({ draft: { address: "http://whisparr:6969", apiKey: typed, keyCleared: false } }),
-  );
+  const withDraft = await render(section({ draft: { ...NO_DRAFT, apiKey: typed } }));
 
   expect(withDraft.textContent).not.toContain(typed);
   expect(withDraft.textContent).not.toContain(typed.slice(0, 4));
