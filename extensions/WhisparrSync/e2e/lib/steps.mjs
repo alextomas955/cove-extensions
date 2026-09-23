@@ -157,13 +157,25 @@ export async function storedOptions(api) {
   return options;
 }
 
-// The member the backend serializes its refusal aggregate under. PascalCase, matching the C# record,
-// and pinned by the backend's own test.
+// The members the backend serializes under, PascalCase to match the C# record and pinned by the
+// backend's own tests. A refusal names a root the connected instance declares, so it is held under
+// the generation that answered rather than shared by both.
 const REFUSALS = "ImportRefusals";
+const INSTANCE_SETTINGS = { v3: "InstanceSettingsV3", v2: "InstanceSettingsV2" };
+const SELECTED = "SelectedGeneration";
 
-/** The refusal aggregate the extension has stored, read through Cove's own bulk data route. */
-export async function importRefusals(api) {
-  return (await storedOptions(api))[REFUSALS] ?? [];
+/** One generation's stored instance settings, empty where that generation has never answered. */
+export function instanceSettings(options, generation) {
+  const under = generation ?? options[SELECTED] ?? "v3";
+  return options[INSTANCE_SETTINGS[under]] ?? {};
+}
+
+/**
+ * The refusal aggregate the extension has stored for one generation, read through Cove's own bulk
+ * data route. Defaults to the generation in use.
+ */
+export async function importRefusals(api, generation) {
+  return instanceSettings(await storedOptions(api), generation)[REFUSALS] ?? [];
 }
 
 /** One root's stored refusal line, or undefined while that root has none. */

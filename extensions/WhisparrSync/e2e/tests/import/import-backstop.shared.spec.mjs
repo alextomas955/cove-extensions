@@ -27,6 +27,7 @@ import { randomUUID } from "node:crypto";
 import { expect, SPEC_BUDGET_MS, test } from "../../lib/connected-fixture.mjs";
 import { BACKSTOP_INTERVAL_FLOOR_SECONDS, COVE_ROOT, WHISPARR_ROOT } from "../../lib/contract.mjs";
 import {
+  instanceSettings,
   readOptions,
   restartWorker,
   storedOptions,
@@ -171,7 +172,7 @@ for (const generation of ["v3", "v2"]) {
         throw new Error(
           `${cause.message}\nThe extension recorded: mark ${adapter.storedSection(recorded)?.BackstopWatermarkUtc}, ` +
             `health ${JSON.stringify(recorded?.ImportHealth)}, ` +
-            `refusals ${JSON.stringify(recorded?.ImportRefusals)}. ` +
+            `refusals ${JSON.stringify(instanceSettings(recorded ?? {}).ImportRefusals)}. ` +
             `The reported path was ${WHISPARR_ROOT}/${tail} and the file is at ${covePath}.\n` +
             `The page the walk reads holds:\n${JSON.stringify(walked, null, 2)}\n` +
             `The host's log tail:\n${logged}`,
