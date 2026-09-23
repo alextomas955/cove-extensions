@@ -81,7 +81,9 @@ export default defineConfig({
   // `failOnFlakyTests` above correctly refuses to call that green. The per-test budget stays the
   // ceiling; this only stops a single assertion giving up long before the test has to.
   expect: { timeout: 20_000 },
-  reporter: [["list"]],
+  // In CI the github reporter annotates each failure on the pull request, and the html reporter
+  // gathers the traces and screenshots from test-results into the report the workflow uploads.
+  reporter: process.env.CI ? [["list"], ["github"], ["html", { open: "never" }]] : [["list"]],
   use: {
     trace: process.env.CI ? "on-first-retry" : "retain-on-failure",
     screenshot: "only-on-failure",
