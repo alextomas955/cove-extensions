@@ -44,8 +44,22 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       h("section", null, props.title, props.description, props.children),
     StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
-    Button: (props: { children: ReactNode; disabled?: boolean; onClick: () => void }) =>
-      h("button", { disabled: props.disabled, onClick: props.onClick }, props.children),
+    // The variant is rendered because the section's claim is which control it asks for in accent.
+    Button: (props: {
+      children: ReactNode;
+      disabled?: boolean;
+      variant?: string;
+      onClick: () => void;
+    }) =>
+      h(
+        "button",
+        {
+          disabled: props.disabled,
+          onClick: props.onClick,
+          "data-variant": props.variant ?? "primary",
+        },
+        props.children,
+      ),
     Toggle: shared.Toggle,
     extensionApi: (id: string) => (path: string) => `/extensions/${id}/${path}`,
   };
@@ -773,4 +787,30 @@ describe("the section reads in the noun the run registers", () => {
       SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
     ]);
   });
+});
+
+test("the section asks for one accent control, and it is the one that syncs", async () => {
+  const host = await renderNode(section({ counts: COUNTS, preview: CONTENT }));
+
+  const buttons = [...host.querySelectorAll("button")];
+  expect(buttons.length, "the section offers nothing to press").toBeGreaterThan(1);
+  // Keyed on the shared control's variant, so the switch the toggle draws is not counted as one.
+  const accent = buttons.filter(
+    (button) => button.dataset.variant !== undefined && button.dataset.variant !== "ghost",
+  );
+  expect(accent, "the section asks for more than one accent control").toHaveLength(1);
+  expect(accent[0].textContent).toContain(SYNC_LIBRARY);
+});
+
+test("a hairline closes the counts off from the run they describe", async () => {
+  const host = await renderNode(section({ counts: COUNTS, preview: CONTENT }));
+
+  const sync = [...host.querySelectorAll("button")].find((button) =>
+    button.textContent.startsWith(SYNC_LIBRARY),
+  );
+  const divided = sync?.closest(".border-t");
+  expect(divided, "the run is separated from the counts by spacing alone").not.toBeNull();
+  expect([...(divided?.classList ?? [])]).toEqual(
+    expect.arrayContaining(["border-t", "border-border"]),
+  );
 });
