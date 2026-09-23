@@ -5,10 +5,11 @@
 // The shared primitives and the host's authenticated request are mocked because each resolves only
 // inside a consuming bundle.
 import { afterEach, expect, test, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 
-import { render } from "../common/lib/testRender";
+import { press, render } from "../common/lib/testRender";
 import { FILE_MARKER } from "../common/ui/stateVocabularyLogic";
+import { NOT_LINKED_ON_THIS_PAGE, STILL_COUNTING } from "../common/ui/copy";
 import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -201,4 +202,63 @@ test("the studio row draws no file figure, because no studio answer carries one"
 
   expect(page.textContent).toContain("Unmonitored");
   expect(page.textContent).not.toContain(FILE_MARKER.label);
+});
+
+// A card carrying no id the connected generation could name is answered with nothing. Left out of
+// every figure, the row accounts for fewer cards than the page holds and a reader cannot tell that
+// from a read that went missing.
+test("the row counts the cards nothing could be asked about", async () => {
+  showBadges();
+  const page = await pageOf([{ excluded: false, present: true, monitored: true }, null, null]);
+
+  expect(page.textContent).toContain(NOT_LINKED_ON_THIS_PAGE);
+  const linked = /(\d+)\s*not linked/.exec(page.textContent);
+  expect(linked?.[1]).toBe("2");
+});
+
+// A page is answered a batch at a time, so a subtotal is on screen well before the read finishes.
+// Drawn without a mark it reads exactly like a finished count.
+//
+// The two rounds are what a real page does: cards mount as the reader scrolls, so a later batch is
+// still out while the first one's answers are already drawn. The second read is held open here.
+test("the row says it is still counting while a later read is still out", async () => {
+  showBadges();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  requestJson.mockImplementation(async (_path, options) => {
+    const body = JSON.parse((options as { body: string }).body) as { coveIds: number[] };
+    if (!body.coveIds.includes(1)) await held;
+    return {
+      kind: "video",
+      rows: body.coveIds.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true, inLibrary: false },
+      })),
+      refusal: "none",
+      moreNotAnswered: false,
+    };
+  });
+
+  function Harness() {
+    const [more, setMore] = useState(false);
+    return createElement(
+      "div",
+      null,
+      createElement("button", { type: "button", onClick: () => { setMore(true); } }, "mount more"),
+      createElement(WhisparrVideoLibraryRow),
+      createElement(WhisparrVideoCardBadge, { key: 1, video: { id: 1 } }),
+      ...(more ? [createElement(WhisparrVideoCardBadge, { key: 2, video: { id: 2 } })] : []),
+    );
+  }
+
+  const page = await render(createElement(Harness));
+  expect(page.textContent).toContain("Monitored");
+
+  await press(page.querySelector("button"));
+
+  expect(page.textContent).toContain(STILL_COUNTING);
+  release();
 });
