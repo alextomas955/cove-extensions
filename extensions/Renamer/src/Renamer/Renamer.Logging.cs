@@ -237,4 +237,9 @@ public sealed partial class Renamer
         EventId = 1030, Level = LogLevel.Warning,
         Message = "[Renamer] routing: skipped invalid source-path regex '{Pattern}': {Reason}")]
     private partial void LogInvalidRouteRegex(string pattern, string reason);
+
+    [LoggerMessage(
+        EventId = 1075, Level = LogLevel.Warning,
+        Message = "[Renamer] library rename {RunId}: completed, but its counts could not be stored")]
+    private partial void LogLibraryRenameSummaryNotStored(Exception ex, string runId);
 }

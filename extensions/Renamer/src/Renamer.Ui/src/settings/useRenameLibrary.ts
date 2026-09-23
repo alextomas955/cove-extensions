@@ -6,7 +6,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { JobEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire/api";
+import type {
+  LibraryRenameEnqueued,
+  LibraryRenameSummaryView,
+  RenamerJobStatus,
+} from "../wire/api";
 import { JobUnresponsiveError } from "./jobPollLogic";
 import { pollJob } from "./jobStatusStore";
 import {
@@ -78,14 +82,19 @@ export function useRenameLibrary(): UseRenameLibrary {
   );
 
   // The shared "Rename all files" handler, called by the panel-level button and the Dry Run modal's
-  // footer button alike. The job is exclusive, so once it completes /last-library-rename holds its
-  // counts.
+  // footer button alike. The counts are read by the run id the enqueue returned, so a run that
+  // completed after this one is never reported as this one.
   const renameLibrary = useCallback(async () => {
     setRenamingLibrary(true);
     setRunLibraryFeedback(null);
     setRenameProgress(null);
+    // Whether the job was accepted. From then on a failure may follow renames that already happened.
+    let started = false;
     try {
-      const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, { method: "POST" });
+      const { jobId, runId } = await requestJson<LibraryRenameEnqueued>(RENAME_LIBRARY_PATH, {
+        method: "POST",
+      });
+      started = true;
       await runPoll(jobId, (job) => {
         if (mounted.current)
           setRenameProgress({
@@ -96,9 +105,9 @@ export function useRenameLibrary(): UseRenameLibrary {
       });
       // The job has completed, so a failed read of its counts must not land in the catch below,
       // which reports the library as untouched.
-      const summary = await requestJson<LibraryRenameSummaryView>(api("last-library-rename")).catch(
-        () => null,
-      );
+      const summary = await requestJson<LibraryRenameSummaryView>(
+        `${api("last-library-rename")}/${encodeURIComponent(runId)}`,
+      ).catch(() => null);
 
       if (!mounted.current) return;
       setDryRunOpen(false);
@@ -114,7 +123,7 @@ export function useRenameLibrary(): UseRenameLibrary {
           text:
             err instanceof JobUnresponsiveError
               ? buildRenameLibraryUnconfirmed(err.message)
-              : buildRenameLibraryError(text),
+              : buildRenameLibraryError(text, started),
         });
       }
     } finally {

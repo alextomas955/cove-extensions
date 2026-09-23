@@ -51,9 +51,15 @@ export function buildRenameLibraryResult(
   return { kind: "success", text: `Rename finished. ${counts}` };
 }
 
-/** The banner for a run the job itself reported as failed or cancelled. */
-export function buildRenameLibraryError(detail: string): string {
-  return `Couldn't rename: ${detail}. Nothing was changed; you can try again.`;
+/**
+ * The banner for a rename that failed. Before the job was accepted nothing can have changed. After,
+ * the job may have renamed some chunks before it failed or was cancelled, so the banner never says
+ * nothing changed.
+ */
+export function buildRenameLibraryError(detail: string, started: boolean): string {
+  return started
+    ? `The rename stopped before it finished: ${detail}. Some files may already be renamed; check the undo line and run a dry run before you try again.`
+    : `Couldn't rename: ${detail}. Nothing was changed; you can try again.`;
 }
 
 /**

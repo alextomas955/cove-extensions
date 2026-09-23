@@ -152,12 +152,32 @@ public sealed partial class Renamer
             JsonSerializer.Serialize(aggregator.ToSummary(DateTime.UtcNow.Ticks), PreviewResponseJsonOptions),
             ct);
 
+    // Written inside the job, so the counts are stored by the time the job reads as completed. The
+    // renames are done by now, so the write takes no cancellation and a failure is only logged: a job
+    // failing here would be reported as a failed rename after files had moved. The panel reads a
+    // missing summary as a finished run whose counts it could not read.
+    private async Task TryStoreLibraryRenameSummaryAsync(LibraryRenameSummary summary)
+    {
+        try
+        {
+            await Store.SetAsync(
+                LastLibraryRenameSummaryKey,
+                JsonSerializer.Serialize(summary, PreviewResponseJsonOptions),
+                CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogLibraryRenameSummaryNotStored(ex, summary.RunId);
+        }
+    }
+
     // Renames every entity of each writable kind a chunk at a time, through the chunk a selection
     // drives. Every batch the run opens carries one operation id, which is what /undo acts on, so the
     // whole run is one undoable action. A kind with no entities opens no batch.
     internal async Task RunRenamerLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
-        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
+        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
+        string? runId = null)
     {
         var options = await StoredOptions.LoadAsync(ct);
 
@@ -192,8 +212,9 @@ public sealed partial class Renamer
         int planned = 0;
 
         // One click, one operation, however many kinds it spans. Each kind opens its own batches,
-        // since a journal row carries no kind, but the operation is what /undo acts on.
-        var operationId = Guid.NewGuid().ToString("N");
+        // since a journal row carries no kind, but the operation is what /undo acts on. It is also the
+        // run id the stored counts carry.
+        var operationId = runId ?? Guid.NewGuid().ToString("N");
 
         var refused = new List<RenamerFileKind>();
         var tallies = new List<LibraryRenameKindTally>(countByKind.Count);
@@ -221,13 +242,9 @@ public sealed partial class Renamer
             planned += count;
         }
 
-        // Written inside the job, so the counts are stored by the time the job reads as completed.
-        await Store.SetAsync(
-            LastLibraryRenameSummaryKey,
-            JsonSerializer.Serialize(
-                new LibraryRenameSummary(LibraryRenameSummary.CurrentSchemaVersion, DateTime.UtcNow.Ticks, tallies),
-                PreviewResponseJsonOptions),
-            ct);
+        await TryStoreLibraryRenameSummaryAsync(
+            new LibraryRenameSummary(
+                LibraryRenameSummary.CurrentSchemaVersion, operationId, DateTime.UtcNow.Ticks, tallies));
 
         progress.Report(
             1d,

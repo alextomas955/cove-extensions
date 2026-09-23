@@ -42,7 +42,7 @@ public sealed partial class Renamer
     private string LastBatchRoute => RouteBase + "/last-batch";
     private string ScanLibraryRoute => RouteBase + "/scan-library";
     private string LastScanRoute => RouteBase + "/last-scan";
-    private string LastLibraryRenameRoute => RouteBase + "/last-library-rename";
+    private string LastLibraryRenameRoute => RouteBase + "/last-library-rename/{runId}";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
     private string LibraryPathsRoute => RouteBase + "/library-paths";
@@ -195,7 +195,8 @@ public sealed partial class Renamer
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(LastLibraryRenameRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LibraryRenameResultAsync(principal, ct))
+            (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => LibraryRenameResultAsync(runId, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerLibraryRoute,
@@ -658,12 +659,13 @@ public sealed partial class Renamer
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
     }
 
-    // Reads back the last completed whole-library rename's counts, or 404 when none has completed.
-    // The run is an exclusive job, so once the panel's own run completes this is that run. As with
-    // /last-scan, the counts are stored per kind and summed over only the kinds the caller may read,
-    // and a blob that will not parse or carries an unknown schema version reads as "no run yet".
+    // Reads back one whole-library rename's counts, or 404 when the stored run is not runId. Only the
+    // latest run is kept, so a run that completed after the caller's reads as 404 rather than as the
+    // caller's own counts. As with /last-scan, the counts are stored per kind and summed over only the
+    // kinds the caller may read, and a blob that will not parse or carries an unknown schema version
+    // reads as 404 too.
     internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenCode>> LibraryRenameResultAsync(
-        ICurrentPrincipalAccessor principal, CancellationToken ct)
+        string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -686,7 +688,9 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        if (summary is null || summary.SchemaVersion != LibraryRenameSummary.CurrentSchemaVersion)
+        if (summary is null
+            || summary.SchemaVersion != LibraryRenameSummary.CurrentSchemaVersion
+            || !string.Equals(summary.RunId, runId, StringComparison.Ordinal))
         {
             return TypedResults.NotFound();
         }
@@ -751,7 +755,7 @@ public sealed partial class Renamer
     // into the job closure, because the detached job cannot re-resolve the principal. A copy of the
     // principal is captured beside them, because holding a kind's write permission does not grant
     // write access to every entity of that kind and the job authorizes each candidate it derives.
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+    internal Results<Accepted<LibraryRenameEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
         ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
@@ -761,14 +765,16 @@ public sealed partial class Renamer
 
         var writableKinds = HeldKinds(principal, write: true);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
+        var runId = Guid.NewGuid().ToString("N");
 
         var jobId = jobs.Enqueue(
             OwnJobType("renamer-library"),
             $"[{Name}] Rename library",
-            (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunRenamerLibraryJobAsync(
+                caller, writableKinds, new HostProgress(coreProgress), ct, runId: runId),
             exclusive: true);
 
-        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
+        return TypedResults.Accepted((string?)null, new LibraryRenameEnqueued(jobId, runId));
     }
 
     // Runs the template engine over fixed samples with the in-flight options from the request body.

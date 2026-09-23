@@ -14,20 +14,29 @@ public sealed record LibraryRenameKindTally(
     int Failed,
     bool StoppedForSpace);
 
-/// <summary>What a completed whole-library rename persists: per-kind file counts.</summary>
+/// <summary>What a completed whole-library rename persists: its run id and per-kind file counts.</summary>
 /// <remarks>
-/// Nothing per file is stored, so the value's size depends on the kind count alone. The figures stay
-/// split per kind so the readback can drop the kinds the caller may not see. <c>Kinds</c> holds one
-/// entry per kind that had at least one entity.
+/// Nothing per file is stored, so the value's size depends on the kind count alone. One value is kept,
+/// the latest run's, and <c>RunId</c> says which run that is. The figures stay split per kind so the
+/// readback can drop the kinds the caller may not see. <c>Kinds</c> holds one entry per kind that had
+/// at least one entity.
 /// </remarks>
 public sealed record LibraryRenameSummary(
     int SchemaVersion,
+    string RunId,
     long CompletedAtUtcTicks,
     IReadOnlyList<LibraryRenameKindTally> Kinds)
 {
     // The readback 404s on a stamp it does not recognise, so a later reshape reads as "no run yet".
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 }
+
+/// <summary>What <c>POST /renamer-library</c> returns: the job to poll and the run to read back.</summary>
+/// <remarks>
+/// <c>RunId</c> is what <c>/last-library-rename/{runId}</c> takes, so a caller reads its own run's
+/// counts and never those of a run that completed after it.
+/// </remarks>
+public sealed record LibraryRenameEnqueued(string JobId, string RunId);
 
 /// <summary>
 /// What <c>/last-library-rename</c> returns: the stored <see cref="LibraryRenameSummary"/> summed over

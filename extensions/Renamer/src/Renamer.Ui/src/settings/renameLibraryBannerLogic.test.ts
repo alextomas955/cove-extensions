@@ -60,11 +60,21 @@ test("counts that could not be read never say nothing changed", () => {
   assert.ok(!banner.text.includes("Nothing was changed"));
 });
 
-test("a failed run names the failure and says the library is untouched", () => {
+test("a rename refused before its job started says the library is untouched", () => {
   assert.equal(
-    buildRenameLibraryError("500 the job did not complete"),
-    "Couldn't rename: 500 the job did not complete. Nothing was changed; you can try again.",
+    buildRenameLibraryError("403 forbidden", false),
+    "Couldn't rename: 403 forbidden. Nothing was changed; you can try again.",
   );
+});
+
+test("a job that failed after starting never says nothing changed", () => {
+  const failed = buildRenameLibraryError("the job was cancelled", true);
+
+  assert.equal(
+    failed,
+    "The rename stopped before it finished: the job was cancelled. Some files may already be renamed; check the undo line and run a dry run before you try again.",
+  );
+  assert.ok(!failed.includes("Nothing was changed"));
 });
 
 test("a run the UI stopped watching claims nothing about what the job did", () => {
@@ -82,7 +92,7 @@ test("a run the UI stopped watching claims nothing about what the job did", () =
 test("an unconfirmed run and a failed one do not read the same", () => {
   const detail = "the job did not complete";
 
-  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail));
-  assert.ok(buildRenameLibraryError(detail).startsWith("Couldn't rename"));
+  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail, true));
+  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail, false));
   assert.ok(buildRenameLibraryUnconfirmed(detail).startsWith("Couldn't confirm the rename"));
 });

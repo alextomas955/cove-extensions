@@ -69,8 +69,8 @@ computed, which it could not before.
 - The preview and dry-run endpoints now report an in-place rename with the status `rename`. It
   used to read `renamer`. A dry-run summary saved by an earlier version reads as no dry run yet, so
   run a new one after upgrading.
-- `GET /last-library-rename` returns the last whole-library rename's counts: files renamed,
-  skipped and failed, and the kinds that stopped for lack of space.
+- `POST /renamer-library` now also returns a `runId`. `GET /last-library-rename/{runId}` returns that
+  run's counts: files renamed, skipped and failed, and the kinds that stopped for lack of space.
 
 ### Fixes
 
@@ -78,6 +78,8 @@ computed, which it could not before.
   banner, and on a large library it doubled the work with no progress shown. The banner now reports
   what the rename itself did: how many files it renamed, skipped and failed, and which kinds stopped
   early for lack of space.
+- A whole-library rename that fails or is cancelled partway no longer says nothing was changed.
+  The banner says some files may already be renamed and points you to the undo line.
 - The Job Drawer names a whole-library run **Rename library** and an empty one **Nothing to
   rename.** They read "Renamer library" and "Nothing to renamer."
 - On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a

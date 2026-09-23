@@ -28,7 +28,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   errorText: (err: unknown) => String(err),
   requestJson: (path: string) => {
     host.reads.push(path);
-    if (path.endsWith("/last-library-rename")) {
+    if (path.includes("/last-library-rename")) {
       return host.summary === null
         ? Promise.reject(new Error("500 boom"))
         : Promise.resolve(host.summary);
@@ -36,7 +36,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
     return Promise.resolve(
       path.includes("/job-status/")
         ? { status: host.status, progress: host.progress }
-        : { jobId: "job-under-test" },
+        : { jobId: "job-under-test", runId: "run-under-test" },
     );
   },
 }));
@@ -144,7 +144,7 @@ test("a completed job still resolves through the same poll", async () => {
   expect(host.reads).toEqual([
     "/extensions/com.alextomas955.renamer/renamer-library",
     "/extensions/com.alextomas955.renamer/job-status/job-under-test",
-    "/extensions/com.alextomas955.renamer/last-library-rename",
+    "/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
   ]);
 
   hook.unmount();
@@ -162,6 +162,21 @@ test("a completed job whose counts cannot be read is not reported as a rename th
   expect(feedback?.text).toContain("Rename finished.");
   expect(feedback?.text).not.toContain("Nothing was changed");
   expect(hook.current.undoRefreshKey).toBe(1);
+
+  hook.unmount();
+}, 30_000);
+
+test("a job that fails after it started never reports the library as untouched", async () => {
+  host.status = "failed";
+  const hook = await mountHook();
+
+  await hook.current.renameLibrary();
+  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+
+  const feedback = hook.current.runLibraryFeedback;
+  expect(feedback?.kind).toBe("error");
+  expect(feedback?.text).toContain("The rename stopped before it finished");
+  expect(feedback?.text).not.toContain("Nothing was changed");
 
   hook.unmount();
 }, 30_000);

@@ -345,10 +345,20 @@
         }
       }
     },
-    "/api/extensions/com.alextomas955.renamer/last-library-rename": {
+    "/api/extensions/com.alextomas955.renamer/last-library-rename/{runId}": {
       "get": {
         "tags": [
           "Renamer"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -388,7 +398,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobEnqueued"
+                  "$ref": "#/components/schemas/LibraryRenameEnqueued"
                 }
               }
             }
@@ -731,6 +741,21 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "LibraryRenameEnqueued": {
+        "required": [
+          "jobId",
+          "runId"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
           }
         }
       },
