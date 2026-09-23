@@ -15,7 +15,7 @@ Installing this release adds a **Whisparr Sync** tab under Settings → Extensio
   The result names the version the instance reported and which generation answered.
 - **Keep both generations.** Whisparr v3 (Eros) and Whisparr v2 each keep their own address, key and
   recorded version, so switching to the other generation and back returns the first one unchanged.
-  One of the two is the generation Cove uses; saving the card you are editing makes it that one.
+  One of the two is the generation Cove uses; selecting the other and saving makes it that one.
 - **Register the import webhook.** One click writes Cove's callback into the connected instance, or
   you can copy the address and paste it into Whisparr yourself. The status line below it says whether
   the callback is registered, and whether anything has arrived through it.
