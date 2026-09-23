@@ -37,7 +37,11 @@ export function KeyStateField({ id, value, storedKeyIsSet, onChange }: KeyStateF
         }}
         className={INPUT_CLASS}
         style={{ paddingRight: `${KEY_FIELD_PADDING_RIGHT_PX}px` }}
-        autoComplete="off"
+        // Browsers ignore `off` on a password field and fill it with a credential saved for this
+        // origin, which here is the password the user signs in to Cove with. A filled field reads
+        // as a typed key, so the page offers to save it and a press would store it as the Whisparr
+        // key. `new-password` is the value that suppresses that fill.
+        autoComplete="new-password"
       />
       {storedKeyIsSet === null ? null : (
         // `-translate-y-1/2` sets `translate`, not `transform`. The pill takes no pointer events, so
