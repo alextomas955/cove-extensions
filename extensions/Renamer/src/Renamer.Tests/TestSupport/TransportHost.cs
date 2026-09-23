@@ -24,7 +24,7 @@ public sealed class TransportHost : IAsyncDisposable
     private readonly WebApplication _app;
     private readonly SqliteConnection _conn;
     private readonly DbContext _db;
-    private readonly StubJobService _jobs;
+    private readonly RecordingJobService _jobs;
 
     // A client bound to the in-process server; request paths start at BaseRoute.
     public HttpClient Client { get; }
@@ -37,14 +37,14 @@ public sealed class TransportHost : IAsyncDisposable
     public IReadOnlyList<RouteEndpoint> Endpoints { get; }
 
     // How many jobs the handlers enqueued.
-    public int EnqueuedJobs => _jobs.EnqueuedCount;
+    public int EnqueuedJobs => _jobs.Enqueued.Count;
 
     private TransportHost(
         WebApplication app,
         HttpClient client,
         SqliteConnection conn,
         DbContext db,
-        StubJobService jobs,
+        RecordingJobService jobs,
         IReadOnlyList<RouteEndpoint> endpoints)
     {
         _app = app;
@@ -73,7 +73,7 @@ public sealed class TransportHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(principal);
         builder.Services.AddSingleton<DbContext>(db);
-        var jobs = new StubJobService();
+        var jobs = new RecordingJobService();
         builder.Services.AddSingleton<IJobService>(jobs);
         builder.Services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
@@ -105,21 +105,4 @@ public sealed class TransportHost : IAsyncDisposable
         await _conn.DisposeAsync();
     }
 
-    // Counts every enqueue and never runs it; all other members are unused and throw.
-    private sealed class StubJobService : IJobService
-    {
-        public int EnqueuedCount { get; private set; }
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            EnqueuedCount++;
-            return "job-1";
-        }
-
-        public bool Cancel(string jobId) => throw new NotSupportedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotSupportedException();
-        public JobInfo? GetJob(string jobId) => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotSupportedException();
-    }
 }

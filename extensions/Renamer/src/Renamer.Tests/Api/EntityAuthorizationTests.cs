@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Renamer.Options;
@@ -14,23 +13,6 @@ namespace Renamer.Tests.Api;
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class EntityAuthorizationTests
 {
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<string> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add(type);
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
     private static global::Renamer.Renamer NewExtension()
     {
         var ext = RenamerFixture.Create();

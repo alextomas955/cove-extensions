@@ -2,7 +2,6 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
@@ -17,23 +16,6 @@ public sealed class EntityIdsCapTests
     private const int Cap = 1000;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
-
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<(string type, string description)> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add((type, description));
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
 
     private static global::Renamer.Renamer NewExtension()
     {

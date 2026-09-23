@@ -12,7 +12,6 @@ public sealed class FakeRevertJournal : IRevertJournal
     private readonly ConcurrentDictionary<string, Batch> _batches = new(StringComparer.Ordinal);
     private readonly ConcurrentQueue<RevertRow> _appended = new();
     private readonly ConcurrentDictionary<(string RunId, long Seq), bool> _retired = new();
-    private readonly ConcurrentQueue<DateTime> _purgeCalls = new();
     private long _lastSeq;
 
     // Every appended row, in append order, whether or not it has since been retired.
@@ -21,9 +20,6 @@ public sealed class FakeRevertJournal : IRevertJournal
     // The rows still awaiting restore - what a real journal would still be holding.
     public IReadOnlyList<RevertRow> PendingRows =>
         [.. _appended.Where(r => !_retired.ContainsKey((r.RunId, r.Seq)))];
-
-    // Each PurgeExpiredAsync call's timestamp, in order.
-    public IReadOnlyList<DateTime> PurgeCalls => [.. _purgeCalls];
 
     // When set, AppendAsync throws this instead of recording the row - the seam that drives the
     // executor's post-commit failure path, where the database save has already committed.
@@ -119,13 +115,7 @@ public sealed class FakeRevertJournal : IRevertJournal
         return Task.CompletedTask;
     }
 
-    // Recorded rather than thrown: a fake exists to be called, and a caller that reaches the purge is
-    // exactly what a test of the retention window needs to assert on.
-    public Task PurgeExpiredAsync(DateTime nowUtc, CancellationToken ct = default)
-    {
-        _purgeCalls.Enqueue(nowUtc);
-        return Task.CompletedTask;
-    }
+    public Task PurgeExpiredAsync(DateTime nowUtc, CancellationToken ct = default) => Task.CompletedTask;
 
     private RevertBatchSummary Summarize(string runId)
     {

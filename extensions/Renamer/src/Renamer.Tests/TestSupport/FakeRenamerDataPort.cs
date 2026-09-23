@@ -58,21 +58,9 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public IReadOnlyList<string> LibraryRoots => LibraryPathList;
 
-    // Rows ResolveNamesAsync resolves against, per entity table.
-    private readonly Dictionary<RenamerEntityKind, List<(int Id, string Name)>> _namedEntities = new();
-
-    // Seeds resolvable (id, name) rows for kind.
-    public void SeedNamedEntities(RenamerEntityKind kind, params (int Id, string Name)[] rows)
-        => _namedEntities[kind] = [.. rows];
-
     public Task<NameResolution> ResolveNamesAsync(
         RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default)
-    {
-        var rows = _namedEntities.TryGetValue(kind, out var seeded) ? seeded : [];
-        IReadOnlyList<(int Id, string Name)> matches =
-            [.. rows.Where(r => names.Contains(r.Name, StringComparer.OrdinalIgnoreCase))];
-        return Task.FromResult(new NameResolution(rows.Count > 0, matches));
-    }
+        => Task.FromResult(new NameResolution(false, []));
 
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
     {

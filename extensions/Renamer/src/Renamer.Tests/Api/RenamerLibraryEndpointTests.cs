@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
@@ -16,23 +15,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class RenamerLibraryEndpointTests
 {
-    private sealed class RecordingJobService : IJobService
-    {
-        public List<(string type, string description)> Enqueued { get; } = [];
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-        {
-            Enqueued.Add((type, description));
-            return "job-123";
-        }
-
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public JobInfo? GetJob(string jobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions? renamerOptions = null, string[]? libraryPaths = null)
     {

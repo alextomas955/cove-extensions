@@ -14,18 +14,6 @@ public sealed class JobStatusEndpointTests
     private const string OwnScanJob = "ext:com.alextomas955.renamer:scan-library";
     private const string ForeignJob = "ext:com.example.other:its-own-work";
 
-    private sealed class StubJobService(JobInfo? job) : IJobService
-    {
-        public JobInfo? GetJob(string jobId) => job is not null && job.Id == jobId ? job : null;
-
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-            => throw new NotImplementedException();
-        public bool Cancel(string jobId) => throw new NotImplementedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotImplementedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
-    }
-
     private static JobInfo Job(string id, string type, JobStatus status, double progress = 0.5) => new(
         Id: id,
         Type: type,
@@ -52,7 +40,7 @@ public sealed class JobStatusEndpointTests
     public void ReadPermissionAndOwnJob_ReturnsTheRunsProgress()
     {
         var ext = NewExtension();
-        var jobs = new StubJobService(Job("job-1", OwnScanJob, JobStatus.Running));
+        var jobs = new RecordingJobService(Job("job-1", OwnScanJob, JobStatus.Running));
 
         var view = OkView(ext.JobStatus(
             "job-1", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs));
@@ -69,7 +57,7 @@ public sealed class JobStatusEndpointTests
     public void JobOwnedByAnotherExtension_IsNotFound_NotForbidden()
     {
         var ext = NewExtension();
-        var jobs = new StubJobService(Job("job-2", ForeignJob, JobStatus.Running));
+        var jobs = new RecordingJobService(Job("job-2", ForeignJob, JobStatus.Running));
 
         var result = ext.JobStatus(
             "job-2", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs);
@@ -83,7 +71,7 @@ public sealed class JobStatusEndpointTests
     public void UnknownJobId_IsNotFound()
     {
         var ext = NewExtension();
-        var jobs = new StubJobService(job: null);
+        var jobs = new RecordingJobService(job: null);
 
         Assert.IsType<NotFound>(Unwrap(ext.JobStatus(
             "no-such-job", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs)));
@@ -98,7 +86,7 @@ public sealed class JobStatusEndpointTests
     public void EveryHostStatus_MapsToItsOwnWireState(JobStatus host, RenamerJobState expected)
     {
         var ext = NewExtension();
-        var jobs = new StubJobService(Job("job-3", OwnScanJob, host));
+        var jobs = new RecordingJobService(Job("job-3", OwnScanJob, host));
 
         Assert.Equal(expected, OkView(ext.JobStatus(
             "job-3", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs)).Status);

@@ -20,16 +20,6 @@ internal static class OptionsJson
             ?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
     }
 
-    // Serializes, reads back, and returns the reloaded instance, failing if the document changed.
-    public static RenamerOptions AssertRoundTrips(RenamerOptions original)
-    {
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-        Assert.NotNull(reloaded);
-        Assert.Equal(Canonical(original), Canonical(reloaded));
-        return reloaded;
-    }
-
     private static JsonNode? Sorted(JsonNode? node)
     {
         switch (node)
