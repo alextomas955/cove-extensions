@@ -269,10 +269,10 @@ second time whenever that default resolves somewhere other than where the rule p
 
 ### Sidecar files and empty folders
 
-| Setting                                              | What it does                                                                                                                                        | Default   |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./how-to/undo) brings them back with it. | _(empty)_ |
-| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                       | Off       |
+| Setting                                              | What it does                                                                                                                                            | Default   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./how-to/undo) brings them back with it.     | _(empty)_ |
+| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). A folder that is a symlink is left alone. Undo will not re-create it. | Off       |
 
 An extension is matched ignoring case, so `srt`, `.srt` and `SRT` all take the same file, and a moved
 sidecar keeps the extension casing it had on disk. An existing file at the sidecar's target name is

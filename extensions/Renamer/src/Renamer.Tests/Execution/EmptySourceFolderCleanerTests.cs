@@ -63,6 +63,31 @@ public sealed class EmptySourceFolderCleanerTests
     }
 
     [Fact]
+    public void ALinkedFolder_IsLeftAlone_AndSoIsTheEmptyFolderItPointsAt()
+    {
+        using var dir = new TempDir();
+        string target = Path.Combine(dir.Root, "outside-the-library");
+        Directory.CreateDirectory(target);
+        string link = Path.Combine(dir.Root, "linked");
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Windows grants symlink creation only to an elevated or developer-mode account.
+            Assert.Skip($"cannot create a directory symlink here: {ex.Message}");
+        }
+
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(link.Replace('\\', '/'));
+
+        Assert.False(removed);
+        Assert.Null(warning);
+        Assert.True(Directory.Exists(target));
+        Assert.NotNull(new DirectoryInfo(link).LinkTarget);
+    }
+
+    [Fact]
     public void DriveRoot_IsNeverDeleted()
     {
         string root = Path.GetPathRoot(Path.GetTempPath())!; // e.g. "C:\" — a real, existing root

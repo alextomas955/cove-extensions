@@ -64,6 +64,9 @@ computed, which it could not before.
 
 ### Fixes
 
+- With **Delete the source folder when a move leaves it empty** on, a source folder that is a
+  symlink is now left alone. Renamer used to delete the empty folder the link pointed at, which
+  could be outside your library, and leave a broken link behind.
 - The dead **Rename selected** row under Settings -> Operations -> Extension Tasks is gone. Its
   **Run** button sent no selection and did nothing. **Rename selected** on your lists works as
   before.
