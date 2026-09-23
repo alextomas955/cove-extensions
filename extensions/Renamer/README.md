@@ -1,23 +1,31 @@
 # Renamer
 
-A Cove extension (`com.alextomas955.renamer`) that renames your videos, images, audio files and
-text documents to a naming pattern you choose, and can file them into folders to match. You see
-every change before anything moves, the file and its Cove record change together, and the last run
-can be undone.
+Renamer is a Cove extension (`com.alextomas955.renamer`) that gives the files in your library tidy,
+consistent names built from their metadata, and can sort them into folders. A dry run shows every
+change before anything moves, and the last rename can be undone for 7 days.
 
-Each kind can be left out, or sent to a folder of its own, under Per kind in the settings panel.
+![The Renamer settings page, with the filename template and a live preview of the new names.](docs/img/settings-overview.jpg)
+
+## Install
+
+1. In Cove 1.4.1 or later, open **Settings**, and under **Extensions** select **Discover**.
+2. Search for **Renamer**, then select **Install**.
+
+To install a specific release, download its ZIP from
+[Releases](https://github.com/alextomas955/cove-extensions/releases) and use **Install from ZIP…** in
+the **⋯** menu on the same page.
 
 ## Documentation
 
-**User docs live on the docs site - start there:**
+The docs site has step-by-step guides with screenshots:
 
-- **[Renamer docs](https://alextomas955.github.io/cove-extensions/extensions/renamer)** - overview and index
-- [User guide](https://alextomas955.github.io/cove-extensions/extensions/renamer/guide) - enable, set a template, dry-run, rename, undo
-- [Settings reference](https://alextomas955.github.io/cove-extensions/extensions/renamer/settings) - every setting, with defaults
-- [Naming templates](https://alextomas955.github.io/cove-extensions/extensions/renamer/templates) - tokens, presets, and examples
+- [Quick start](https://alextomas955.github.io/cove-extensions/extensions/renamer/quick-start) - install, pick a pattern, preview and rename.
+- [How-to guides](https://alextomas955.github.io/cove-extensions/extensions/renamer/how-to/sort-into-folders) - folders, per-studio routing, renaming a few items, undo.
+- [Troubleshooting](https://alextomas955.github.io/cove-extensions/extensions/renamer/troubleshooting) - what each badge and message means.
+- [Naming templates](https://alextomas955.github.io/cove-extensions/extensions/renamer/templates) and [Settings reference](https://alextomas955.github.io/cove-extensions/extensions/renamer/settings) - every token and setting.
+- [Changelog](https://alextomas955.github.io/cove-extensions/extensions/renamer/changelog).
 
-Design and safety model: [Architecture](https://alextomas955.github.io/cove-extensions/extensions/renamer/architecture).
-Release history: [Changelog](https://alextomas955.github.io/cove-extensions/extensions/renamer/changelog).
+How it works inside: [Architecture](https://alextomas955.github.io/cove-extensions/extensions/renamer/architecture).
 
 The rest of this file is for contributors working on the extension itself.
 

@@ -184,8 +184,12 @@ Libraries reach millions of files. Nothing may grow with the library.
 ## Update docs in the same change
 
 A change to settings, options, API, or behavior updates `extensions/<Name>/docs/`, its `README.md`,
-its `CHANGELOG.md`, and the matching docs-site page in the same change. How to write them:
+its `CHANGELOG.md`, and the matching docs-site page in the same change. A UI change also recaptures
+any screenshot of the screen it altered. How to write them, and how to capture and strip images:
 `.claude/rules/docs-writing.md`.
+
+User docs are for people who run Cove, not developers. Steps and screenshots come first. Edge cases go on
+the extension's troubleshooting page.
 
 ## Adding an extension
 

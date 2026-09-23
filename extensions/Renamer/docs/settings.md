@@ -1,12 +1,12 @@
 ---
 id: settings
 title: Settings reference
-sidebar_position: 3
+sidebar_position: 6
 ---
 
-Every Renamer setting, grouped by the section it appears in on the **Renamer** settings tab
-(Settings → Extensions → Renamer). Defaults are what a fresh install uses. For how these fit
-together in practice, start with the [User guide](./guide); for the template tokens, see
+Every Renamer setting, grouped by the card it appears in on the Renamer page (**Settings** →
+**Extensions** → **Renamer**), in page order. Defaults are what a fresh install uses. For a guided
+first run, start with the [Quick start](./quick-start). For the template tokens, see
 [Naming templates](./templates).
 
 Settings are saved as one block when you click **Save**; **Discard** reverts unsaved edits.
@@ -35,6 +35,8 @@ it here.
 
 ### Filename
 
+![The Filename section, with the preset buttons, the filename template and the token list.](./img/filename.jpg)
+
 | Setting           | What it does                                                                                                 | Default                            |
 | ----------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
 | Filename template | The pattern used to build each new filename. Plain text plus `$tokens`. See [Naming templates](./templates). | `{$date - }$title{ [$resolution]}` |
@@ -47,6 +49,8 @@ cursor of whichever template field you used last - _Filename template_ or _Folde
 either template already uses is tinted in that list.
 
 ### Where files go
+
+![The Where files go section, with Under, Folder template and the Per kind list.](./img/where-files-go.jpg)
 
 This is the destination for an item no routing rule matched.
 
@@ -101,6 +105,8 @@ which is the only button that starts renaming it again.
 
 ## What gets renamed
 
+![The What gets renamed card.](./img/what-gets-renamed.jpg)
+
 | Setting                                | What it does                                                                                                                                               | Default |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Only rename organized items            | Skip items whose _Organized_ flag is off, so unorganized items don't get names. (Turning on the _Unorganized destination_ overrides this for those items.) | Off     |
@@ -126,6 +132,8 @@ is called at the time.
 
 ## Run & automation
 
+![The Run & automation card, with Auto-rename on update, Dry run and Rename all files.](./img/run-automation.jpg)
+
 | Setting               | What it does                                                                                | Default |
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
@@ -141,12 +149,14 @@ back and forth for as long as the events kept arriving. A later edit of the same
 normally, and an item already sitting at its computed name and folder is left alone.
 
 This section also holds the **Dry run** and **Rename all files** actions (see the
-[User guide](./guide#preview-with-a-dry-run)). Those run a rename; they aren't saved settings.
+[Quick start](./quick-start#4-preview-with-a-dry-run)). Those run a rename; they aren't saved settings.
 **Rename all files** is disabled while you have unsaved edits. A finished run leaves a banner here
 saying whether it succeeded, whether the job reported failure, or whether Renamer stopped watching
-before the job reached a verdict - the three outcomes are described under [Rename](./guide#rename).
+before the job reached a verdict - the outcomes are described under [Rename messages](./troubleshooting#rename-messages).
 
 ## Token settings
+
+![The Token settings card, showing the Date format option for $date.](./img/token-settings.jpg)
 
 These cards appear only when your template uses the matching token.
 
@@ -173,6 +183,8 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Duration format | .NET duration format for `$duration`: `hh\-mm\-ss`, `hh\.mm\.ss`, `mm\-ss`, or your own. The backslashes escape the separators. A format .NET rejects falls back to the duration in seconds rather than failing the rename. | `hh\-mm\-ss` |
 
 ## Destination routing
+
+![The Destination routing card, with the unorganized, per-studio, per-tag and source-path sections and the sidecar options.](./img/routing.jpg)
 
 Renamer decides where each item goes by checking rules in a fixed **precedence order**:
 
@@ -257,16 +269,18 @@ second time whenever that default resolves somewhere other than where the rule p
 
 ### Sidecar files and empty folders
 
-| Setting                                              | What it does                                                                                                                                                       | Default   |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./guide#undo-the-last-rename) brings them back with it. | _(empty)_ |
-| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                                      | Off       |
+| Setting                                              | What it does                                                                                                                                        | Default   |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./how-to/undo) brings them back with it. | _(empty)_ |
+| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                       | Off       |
 
 An extension is matched ignoring case, so `srt`, `.srt` and `SRT` all take the same file, and a moved
 sidecar keeps the extension casing it had on disk. An existing file at the sidecar's target name is
 never overwritten. The captions Cove tracks for an item always move, whatever this list holds.
 
 ## Advanced
+
+![The Advanced card, with its five collapsed panels.](./img/advanced.jpg)
 
 ### Clean up the name
 

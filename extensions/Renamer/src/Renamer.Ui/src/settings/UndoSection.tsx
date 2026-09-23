@@ -112,8 +112,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
     >
       <p className="text-xs text-secondary">
-        Reverts the most recent batch. Only one batch is kept. <span aria-hidden="true">·</span>{" "}
-        <span className="font-mono">{EXTENSION_ID}</span>
+        Undo reverts the most recent rename that still has files to put back.{" "}
+        <span aria-hidden="true">·</span> <span className="font-mono">{EXTENSION_ID}</span>
       </p>
 
       <div className="shrink-0">
