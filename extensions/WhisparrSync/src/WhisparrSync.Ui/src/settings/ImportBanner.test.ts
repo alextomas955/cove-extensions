@@ -10,6 +10,7 @@ import {
   IMPORT_CAUSE_NOT_FOUND,
   IMPORT_CAUSE_UNREADABLE,
   importRefusalsWithNoReportedRootSentence,
+  IMPORT_REPORT_UNREADABLE,
   IMPORTS_UNREADABLE,
 } from "../common/ui/copy";
 
@@ -67,6 +68,13 @@ test("a read that has not answered yet puts nothing on the screen", async () => 
 
   expect(view.blocks.length).toBe(0);
   expect(view.text).toBe("");
+});
+
+test("a read that failed says so rather than reading as imports that all went through", async () => {
+  const view = await render({ reading: false, failed: true, hasContent: false }, null);
+
+  expect(view.blocks.length).toBe(1);
+  expect(view.text).toContain(IMPORT_REPORT_UNREADABLE);
 });
 
 test("two roots produce ONE block holding one line each", async () => {

@@ -10,7 +10,7 @@ import type { ImportBannerView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
-import { IMPORTS_UNREADABLE } from "../common/ui/copy";
+import { IMPORT_REPORT_UNREADABLE, IMPORTS_UNREADABLE } from "../common/ui/copy";
 import {
   bannerLines,
   describeCause,
@@ -34,10 +34,18 @@ export function ImportBanner({ read, view, now }: ImportBannerProps) {
   return (
     <AsyncRegion
       state={deriveAsyncRegionState(read)}
-      available={hasAnythingToSay(view)}
+      // A failed read must still draw something. Drawing nothing reads as an import that went
+      // through.
+      available={hasAnythingToSay(view) || read.failed}
       reading={null}
       empty={null}
-      failed={null}
+      failed={
+        <SectionCard>
+          <div role="alert">
+            <StatusText kind="error">{IMPORT_REPORT_UNREADABLE}</StatusText>
+          </div>
+        </SectionCard>
+      }
       content={
         <SectionCard>
           <div role="alert" className="space-y-2">
