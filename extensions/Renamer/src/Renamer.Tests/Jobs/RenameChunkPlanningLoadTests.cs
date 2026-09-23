@@ -6,7 +6,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -83,7 +82,7 @@ public sealed class RenameChunkPlanningLoadTests
             var progress = new FakeJobProgress();
 
             interceptor.ReaderCount = 0;
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             Assert.Equal(1d, progress.LastPercent);
             return interceptor.ReaderCount;
@@ -142,7 +141,7 @@ public sealed class RenameChunkPlanningLoadTests
             // the id after it.
             int absent = second.Id + 500;
             await ext.RunRenamerBatchAsync(
-                RenamerJob.Encode("video", [firstId, absent, second.Id]), progress, default);
+                RenamerFileKind.Video, [firstId, absent, second.Id], progress, default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "Second Film.mkv")));

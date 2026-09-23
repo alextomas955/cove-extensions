@@ -4,7 +4,6 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -89,7 +88,7 @@ public sealed class ParallelFolderCreationTests
             var (ext, _, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             // exactly one Folder row for the shared destination path - no duplicate rows from a racing
             // check-then-act create across parallel workers.
@@ -137,7 +136,7 @@ public sealed class ParallelFolderCreationTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], progress, default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
@@ -177,7 +176,7 @@ public sealed class ParallelFolderCreationTests
             var progress = new FakeJobProgress();
 
             // The duplicate id => two acting units with the same OldFullPath. Must not throw; completes.
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId, videoId]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId, videoId], progress, default);
 
             Assert.Equal(1d, progress.LastPercent);
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));

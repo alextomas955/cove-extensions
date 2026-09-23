@@ -4,7 +4,6 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Jobs;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
@@ -87,7 +86,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, v2]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [v1, v2], progress, default);
 
             // Disk: both renamed to "$title.mkv", old gone, content intact.
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
@@ -130,7 +129,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", []), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [], progress, default);
 
             // Untouched on disk; no renamer event published; only a final 1.0 reported.
             Assert.True(File.Exists(Path.Combine(dir.Root, "keep me.mkv")));
@@ -174,7 +173,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, video2.Id]), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [v1, video2.Id], progress, default);
 
             // The file is untouched and neither row moved, so nothing renamed the file the other claims.
             Assert.True(File.Exists(Path.Combine(dir.Root, "a.mkv")));
@@ -216,36 +215,13 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
 
             await ext.RunRenamerBatchAsync(
-                RenamerJob.Encode("video", [videoId, videoId]), new FakeJobProgress(), default);
+                RenamerFileKind.Video, [videoId, videoId], new FakeJobProgress(), default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("First Film.mkv", basename);
             Assert.Single(bus.Published);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task UnsupportedEntityType_IsCleanNoOp_ReportsFinalOne()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var bus = new CapturingEventBus();
-            var ext = await BuildExtensionAsync(conn, bus);
-            var progress = new FakeJobProgress();
-
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("gallery", [1, 2]), progress, default);
-
-            Assert.Empty(bus.Published);
-            Assert.Equal(1d, progress.LastPercent);
         }
         finally
         {

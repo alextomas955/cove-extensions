@@ -64,6 +64,9 @@ computed, which it could not before.
 
 ### Fixes
 
+- The dead **Rename selected** row under Settings -> Operations -> Extension Tasks is gone. Its
+  **Run** button sent no selection and did nothing. **Rename selected** on your lists works as
+  before.
 - Someone whose Cove role can read only text documents now sees the undo footer and the live
   preview. Both used to refuse them with a permission error.
 - If the settings page cannot load your saved settings, it now says so and offers **Retry**. It

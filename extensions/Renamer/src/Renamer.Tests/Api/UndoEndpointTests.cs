@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -86,7 +85,7 @@ public sealed class UndoEndpointTests
             await SeedTitleOptionsAsync(store); // → "My Film.mkv"
 
             // Forward renamer via the shared batch core - writes one real batch to the store.
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
             bus.Published.Clear(); // drop the forward event; we assert only the undo event below.
@@ -157,7 +156,7 @@ public sealed class UndoEndpointTests
             var (ext, store) = await BuildExtensionAsync(db, bus);
             await SeedTitleOptionsAsync(store);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("image", [imageId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Image, [imageId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
@@ -212,7 +211,7 @@ public sealed class UndoEndpointTests
                 FilenameTemplate = "$title",
                 PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = Dest.At(destPath) }],
             });
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull), "forward move landed on dest");
             Assert.False(File.Exists(oldFull));
 
@@ -298,7 +297,7 @@ public sealed class UndoEndpointTests
             var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
             await SeedTitleOptionsAsync(store);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
 
             // The state a library nobody renames for longer than the window is in. Back-dating the row
@@ -352,7 +351,7 @@ public sealed class UndoEndpointTests
             Assert.False(empty.HasBatch);
             Assert.Equal(0, empty.Count);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
             // After a renamer: a one-row, not-yet-consumed batch with a real server timestamp.
             var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
@@ -399,7 +398,7 @@ public sealed class UndoEndpointTests
             var (ext, store) = await BuildExtensionAsync(db, bus);
             await SeedTitleOptionsAsync(store);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("text", [textId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Text, [textId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
 
             var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsWrite);

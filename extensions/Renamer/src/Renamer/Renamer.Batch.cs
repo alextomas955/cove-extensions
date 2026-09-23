@@ -3,7 +3,6 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 
@@ -68,17 +67,14 @@ public sealed partial class Renamer
         }
     }
 
-    // Renames every id in the decoded batch. One selection is one user action, so this call is its
-    // own operation and everything it renames comes back from a single undo. Job parameters are
-    // untrusted: bad, empty or unsupported input is a no-op that still reports the final 1.0, and
-    // this never throws on them.
+    // Renames every selected id. One selection is one user action, so this call is its own operation
+    // and everything it renames comes back from a single undo. An empty selection is a no-op that
+    // still reports the final 1.0.
     internal async Task RunRenamerBatchAsync(
-        IReadOnlyDictionary<string, string>? parameters, IJobProgress progress, CancellationToken ct,
+        RenamerFileKind kind, IReadOnlyList<int> ids, IJobProgress progress, CancellationToken ct,
         Func<string, long>? freeSpaceProbe = null)
     {
-        var (entityType, ids) = RenamerJob.Decode(parameters);
-
-        if (!TryParseKind(entityType, out var kind) || ids.Length == 0)
+        if (ids.Count == 0)
         {
             progress.Report(1d, "Nothing to renamer.");
             return;
@@ -95,7 +91,7 @@ public sealed partial class Renamer
         }
 
         var run = new RenameRun(
-            kind, ids.Length, Guid.NewGuid().ToString("N"), options, freeSpaceProbe);
+            kind, ids.Count, Guid.NewGuid().ToString("N"), options, freeSpaceProbe);
         await RunRenameChunksAsync(run, NextChunk, progress, ct);
     }
 

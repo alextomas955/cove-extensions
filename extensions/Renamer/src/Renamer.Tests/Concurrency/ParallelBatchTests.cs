@@ -3,7 +3,6 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -71,7 +70,7 @@ public sealed class ParallelBatchTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             // All K renamed on disk.
             for (int i = 0; i < k; i++)
@@ -145,7 +144,7 @@ public sealed class ParallelBatchTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
             // Every item whose source existed renamed; the faulting item did not (its target was never
             // created) and the batch still finished at 1.0 - one bad item never aborts the run.
@@ -202,7 +201,7 @@ public sealed class ParallelBatchTests
                 new RenamerOptions { FilenameTemplate = "$title", CrossVolumeConcurrency = 1 });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default,
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default,
                 freeSpaceProbe: _ => 1L);
 
             for (int i = 0; i < k; i++)
@@ -271,7 +270,7 @@ public sealed class ParallelBatchTests
             long Probe(string vol) => Interlocked.Increment(ref calls) == 1 ? 1L << 40 : 1L;
 
             var progress = new FakeJobProgress();
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default, Probe);
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], progress, default, Probe);
 
             // The in-flight drop skipped the move: the file stayed at its source and never landed on the
             // routed destination. The batch finished cleanly (no throw, final 1.0).

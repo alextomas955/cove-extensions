@@ -14,7 +14,6 @@ using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Engine;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
@@ -86,7 +85,7 @@ public sealed partial class Renamer
                 handlerName: "renamerSelected",
                 order: 100,
                 requiredPermission: Permissions.VideosWrite,
-                // The rename runs as a job (showInTaskList) that reports into the top-right Job Drawer, so the
+                // The rename runs as a job that reports into the top-right Job Drawer, so the
                 // host's queued-success window.alert is suppressed. The before-disk window.confirm gate stays.
                 suppressSuccessAlert: true)
             .AddAction(
@@ -130,16 +129,6 @@ public sealed partial class Renamer
             .AddSettingsSection(targetTab: "renamer", label: "Renamer", componentName: "RenamerPage")
             .WithJsBundle("index.mjs")
             .Build();
-
-    // Invoked from the FullExtensionBase constructor, so RenamerJob.JobId must already exist here.
-    protected override void DefineJobs()
-        => Job(
-            id: RenamerJob.JobId,
-            name: "Rename selected",
-            handler: (parameters, progress, ct) => RunRenamerBatchAsync(parameters, progress, ct),
-            description: "Renames the items you selected, using your naming pattern.",
-            supportsParameters: true,
-            showInTaskList: true);
 
     // Each endpoint declares the coarse gate its own handler re-checks. An endpoint carrying none of
     // the SDK's authorization conventions is treated as anonymous, and the host warns at boot naming
@@ -323,6 +312,8 @@ public sealed partial class Renamer
     // The prefix the host mints onto every job type this extension enqueues.
     private string OwnJobTypePrefix => "ext:" + Id + ":";
 
+    private string OwnJobType(string name) => OwnJobTypePrefix + name;
+
     // Where one of this extension's own runs has got to. Cove gates its job route on unrestricted
     // read, so a scoped account is refused there even for a run it started, and this serves the same
     // few fields under the extension's own check.
@@ -469,8 +460,7 @@ public sealed partial class Renamer
                 summary));
     }
 
-    // Encodes the request into the job parameters and hands the host a delegate that calls
-    // RunRenamerBatchAsync. Returns 403 before any enqueue.
+    // Hands the host a delegate that calls RunRenamerBatchAsync. Returns 403 before any enqueue.
     //
     // One id the caller cannot write refuses the whole request, and the 403 carries no body, so the
     // response names none of the ids that were denied. The per-entity decision runs in the request
@@ -509,15 +499,13 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);
-
         // Enqueue exclusive (the host's JobService default): a renamer batch mutates disk + DB, so two
         // batches running at once could plan against each other's stale snapshots or target the same
         // paths. Exclusive serializes them - the second waits for the first to finish.
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:{RenamerJob.JobId}",
+            OwnJobType("renamer-batch"),
             $"[{Name}] Rename selected",
-            (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunRenamerBatchAsync(kind, req.EntityIds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
@@ -608,7 +596,7 @@ public sealed partial class Renamer
         var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:scan-library",
+            OwnJobType("scan-library"),
             $"[{Name}] Scan library",
             (coreProgress, ct) => RunScanLibraryJobAsync(caller, readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
@@ -747,7 +735,7 @@ public sealed partial class Renamer
         var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
-            $"ext:{Id}:renamer-library",
+            OwnJobType("renamer-library"),
             $"[{Name}] Renamer library",
             (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);

@@ -4,7 +4,6 @@ using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Jobs;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
@@ -78,7 +77,7 @@ public sealed class PerWorkerScopeTests
         await ext.InitializeAsync(provider);
 
         var progress = new FakeJobProgress();
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
 
         // Structural proof: the planning pass opens one read scope; the execution pass opens one scope per acting unit.
         // The distinct-instance count must be at least the worker count (n acting items), and every

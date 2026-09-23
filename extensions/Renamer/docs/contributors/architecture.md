@@ -259,10 +259,11 @@ scan and rename drop a disabled kind before reading it; the planner gates it, wh
 selection-based rename of a disabled kind meets. The manifest's description states the endpoint reach and the bulk action's narrower
 one together, because that description is what an operator reads before granting the extension access.
 
-The bulk-action registration, the job definition, and the optional auto-rename event hook live
-alongside in `src/Renamer/Renamer.cs` (shared batch core) and `src/Renamer/Renamer.Events.cs`
-(`video.updated` / `image.updated` auto-rename, opt-in and re-entrancy-guarded), with the
-background job runner in `src/Renamer/Jobs/`.
+The bulk-action registration lives in `src/Renamer/Renamer.Api.cs`, the selected-item job body in
+`src/Renamer/Renamer.Batch.cs`, and the optional auto-rename event hook in
+`src/Renamer/Renamer.Events.cs` (`video.updated` / `image.updated`, opt-in and re-entrancy-guarded).
+Renamer registers no host job definition, so every rename starts from one of its own endpoints and
+passes that endpoint's permission checks.
 
 ### Frontend - `src/Renamer.Ui/src/`
 

@@ -5,7 +5,6 @@ using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -112,7 +111,7 @@ public sealed class DetachedElevationTests
 
         var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
 
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library);
 
@@ -148,7 +147,7 @@ public sealed class DetachedElevationTests
 
         var (ext, _) = await LoadedExtensionAsync(library, options, folderPath);
 
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
         await AssertEveryCoveReadRanAsSystemAsync(library);
 
@@ -174,7 +173,7 @@ public sealed class DetachedElevationTests
 
         var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
 
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
         await AssertEveryCoveReadRanAsSystemAsync(library);
 

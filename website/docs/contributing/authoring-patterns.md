@@ -36,7 +36,7 @@ seam is the wire contract, not a shared folder layout - so do not force the two 
 
 - **The C# backend** is sliced by capability at the project root, alongside foundation folders. An
   extension that is one rich capability layers it by domain instead, which is what Renamer does today:
-  `Engine/`, `Planner/`, `Execution/` beside `Api/`, `Contracts/`, `Jobs/`, `Options/`. An extension
+  `Engine/`, `Planner/`, `Execution/` beside `Api/`, `Contracts/`, `Options/`. An extension
   covering several capabilities would carry a folder per capability there instead, each named for what
   it does.
 - **The UI** is sliced by feature directly under `src/`, next to `index.ts`, `wire/`, and `common/`.

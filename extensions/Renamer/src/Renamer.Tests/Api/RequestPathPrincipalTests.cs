@@ -1,6 +1,5 @@
 using Cove.Core.Auth;
 using Cove.Plugins;
-using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -59,7 +58,7 @@ public sealed class RequestPathPrincipalTests
         // A real forward rename first, so the undo has a journalled batch to replay and its whole spine
         // - the journal read, the restore and the row retirement - runs inside the observation window.
         // The batch itself is detached and elevated; DetachedElevationTests is where that is asserted.
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
         Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
 
         var caller = Caller(Permissions.VideosRead, Permissions.VideosWrite);
