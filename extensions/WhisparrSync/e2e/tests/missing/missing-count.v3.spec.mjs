@@ -205,8 +205,8 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   });
 
   // The catalogue this spec serves is a fixed size, so the pager has a page to turn to and the
-  // assertions below always run. They used to sit behind a count that could be zero, which is a
-  // guard that silently removes them whenever the answer is small.
+  // assertions below always run. Behind a count that could be zero they would be skipped silently
+  // whenever the answer was small.
   const next = page.getByRole("button", { name: "Next page" }).first();
   await expect(
     next,

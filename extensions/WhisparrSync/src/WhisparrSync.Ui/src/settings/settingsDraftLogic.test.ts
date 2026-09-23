@@ -153,7 +153,7 @@ describe("what one save writes", () => {
     expect(request.v2).not.toBeNull();
   });
 
-  // The per-control write this replaced could not touch a connection. Neither can this one.
+  // A save of the replacement behaviour alone touches no connection.
   it("writes neither connection for a save of the replacement behaviour alone", () => {
     const request = writeRequestFor(STORED, { ...SAVED_DRAFT, upgradeBehavior: "replace" });
 
