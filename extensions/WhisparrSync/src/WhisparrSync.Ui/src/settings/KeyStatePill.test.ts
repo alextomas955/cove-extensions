@@ -26,10 +26,17 @@ test("a stored key is reported on the field itself, and no part of a key is draw
   const input = host.querySelector("input");
   expect(input?.type).toBe("password");
 
+  // The innermost span carrying the wording: the pill holds a glyph, and the span positioning it
+  // reports the same text.
   const pill = [...host.querySelectorAll("span")].filter(
-    (span) => span.textContent === "Key is set" && span.childElementCount === 0,
+    (span) => span.textContent === "Key is set" && span.querySelector("span") === null,
   );
   expect(pill, "the field reported nothing about the stored key").toHaveLength(1);
+
+  // A mark beside the word, as every other status pill the product draws carries one.
+  expect(pill[0]?.querySelector("svg"), "the pill says it with a tint and a word alone").not.toBe(
+    null,
+  );
 
   expect(host.textContent).not.toContain(typed);
   expect(host.textContent).not.toContain(typed.slice(0, 4));

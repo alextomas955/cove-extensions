@@ -5,20 +5,20 @@
  * catalogue toolbar and the selection bar. A surface maps its own row keys onto these names rather
  * than naming an icon, so a verb cannot pick up a second shape on one surface.
  *
- * Separate from the state vocabulary on purpose. A state says what an entity is and a verb says
- * what pressing does, so the two families are told apart by shape: `Monitored` is a bookmark and
- * the monitor verb is a radar.
+ * A verb that produces a state takes that state's own mark: pressing `Monitor` is what makes an
+ * entity `Monitored`, and a reader meets the two a tab apart. The tint is what separates them - a
+ * state is tinted by what it means and a verb by the surface it sits on.
  *
  * A scope is here too, because choosing one carries the monitor gesture out.
  */
 import {
   Ban,
+  Bookmark,
+  BookmarkMinus,
   CalendarClock,
-  CircleSlash,
   FileCheck2,
   Library,
   Plus,
-  Radar,
   RefreshCw,
   Search,
 } from "lucide-react";
@@ -38,7 +38,7 @@ export type WhisparrVerb =
 
 // Hidden from assistive technology in the one place a verb becomes a glyph, because every surface
 // draws the verb's own name beside it.
-function decorative(Icon: typeof Radar): RowIcon {
+function decorative(Icon: typeof Bookmark): RowIcon {
   return function VerbGlyph({ className }: { className?: string }) {
     return <Icon className={className} aria-hidden="true" />;
   };
@@ -52,8 +52,8 @@ function decorative(Icon: typeof Radar): RowIcon {
  */
 export const VERB_GLYPH: Record<WhisparrVerb, RowIcon> = {
   add: decorative(Plus),
-  monitor: decorative(Radar),
-  unmonitor: decorative(CircleSlash),
+  monitor: decorative(Bookmark),
+  unmonitor: decorative(BookmarkMinus),
   search: decorative(Search),
   exclude: decorative(Ban),
   refresh: decorative(RefreshCw),

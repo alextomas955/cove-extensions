@@ -21,7 +21,10 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       h("section", null, props.title, props.description, props.children),
     StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
-    StatusPill: (props: { children: ReactNode }) => h("span", null, props.children),
+    // The mark is rendered, not dropped: a stub that discards `icon` lets a pill that carries none
+    // pass.
+    StatusPill: (props: { icon?: ReactNode; children: ReactNode }) =>
+      h("span", null, props.icon, props.children),
     // A real button, because the native disabled attribute decides whether a press can act. The
     // variant is rendered because the section's claim is that it asks for no accent control.
     Button: (props: {
@@ -177,6 +180,12 @@ test("one unresolved folder shows one prompt, naming it and the path that was tr
   expect(page.text()).toContain("/media");
   expect(page.text()).toContain(FOLDER_NOTHING_RESOLVED);
   expect(page.text()).toContain("/media/scene/clip.mp4");
+
+  // A mark beside the state's word, as every other status pill the product draws carries one.
+  expect(
+    page.promptFor("/media")?.querySelector("svg"),
+    "the row's state pill says it with a tint and a word alone",
+  ).not.toBe(null);
 });
 
 test("two unresolved folders show two prompts, each with its own field", async () => {
