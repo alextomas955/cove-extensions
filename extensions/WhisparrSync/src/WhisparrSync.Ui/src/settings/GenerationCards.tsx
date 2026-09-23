@@ -103,13 +103,6 @@ function GenerationCard({
           </div>
         )}
       </div>
-      {showing && !selected ? (
-        <div className="mt-2">
-          <StatusText kind="warning">
-            Saving below makes this the generation Cove uses, and reloads the page.
-          </StatusText>
-        </div>
-      ) : null}
     </div>
   );
 }
