@@ -22,12 +22,6 @@ export const CHECKING_WHISPARR = "Checking Whisparr…";
  */
 export const STILL_COUNTING = "still counting";
 
-/**
- * The cards nothing was asked about, so the figures beside it account for every card on the page.
- * Neither source is named: which one answers follows the connected generation.
- */
-export const NOT_LINKED_ON_THIS_PAGE = "not linked";
-
 /** Nothing could be reached, said once for the page on the control that asked. */
 export const WHISPARR_STATUS_COULD_NOT_BE_READ =
   "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
@@ -340,14 +334,6 @@ export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
  * stops.
  */
 export const WORKING_IN_WHISPARR = "Working";
-
-/**
- * What a card says where the library holds no link the connected Whisparr could name the entity by.
- *
- * Neither source is named: which one answers follows the connected generation, so a name written
- * here is wrong on the other one.
- */
-export const NOT_LINKED = "Not linked";
 
 /** Why the card was never asked about, for the chip's own title. */
 export const NOT_LINKED_REASON =

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   deriveState,
   describeState,
+  FILE_MARKER,
+  NOT_LINKED_MARKER,
   STATE_VOCABULARY,
   type EntityStateInput,
   type WhisparrEntityState,
@@ -19,10 +21,19 @@ const STATES: readonly WhisparrEntityState[] = [
 // Transcribed by hand from the spec's legend: the mark each state is named by.
 const EXPECTED_ICON_KEY: Record<WhisparrEntityState, string> = {
   monitored: "bookmark",
-  unmonitored: "circle",
+  unmonitored: "bookmarkMinus",
   notAdded: "circleDashed",
   excluded: "ban",
   statusUnknown: "circleQuestion",
+};
+
+// The legend's tints, transcribed by hand.
+const EXPECTED_VARIANT: Record<WhisparrEntityState, string> = {
+  monitored: "green",
+  unmonitored: "gray",
+  notAdded: "cyan",
+  excluded: "red",
+  statusUnknown: "amber",
 };
 
 // The legend's labels, transcribed by hand.
@@ -34,8 +45,9 @@ const EXPECTED_LABEL: Record<WhisparrEntityState, string> = {
   statusUnknown: "Status unknown",
 };
 
-// The marker that is not a state, so no entry may carry it.
-const IN_LIBRARY_ICON_KEY = "download";
+// Every badge the product draws, states and markers alike. A reader meets them side by side on one
+// row, so the set is checked as a whole rather than the states on their own.
+const BADGES = [...STATES.map((state) => describeState(state)), FILE_MARKER, NOT_LINKED_MARKER];
 
 const PRESENT_AND_MONITORED: EntityStateInput = {
   excluded: false,
@@ -60,29 +72,24 @@ describe("the transcribed vocabulary", () => {
     }
   });
 
-  it("gives every state a mark and a label with something in them", () => {
+  it("gives every state the tint the legend specifies", () => {
     for (const state of STATES) {
-      const { iconKey, label } = describeState(state);
-      expect(iconKey.trim(), state).not.toBe("");
-      expect(label.trim(), state).not.toBe("");
+      expect(describeState(state).variant, state).toBe(EXPECTED_VARIANT[state]);
     }
   });
 
-  it("gives no two states the same mark or the same label", () => {
-    expect(new Set(STATES.map((s) => describeState(s).iconKey)).size).toBe(STATES.length);
-    expect(new Set(STATES.map((s) => describeState(s).label)).size).toBe(STATES.length);
+  // The row draws all of these at once. Two sharing a mark or a tint there leaves the reader
+  // telling them apart by the label alone.
+  it("gives no two badges the same mark, tint or label", () => {
+    expect(new Set(BADGES.map((badge) => badge.iconKey)).size).toBe(BADGES.length);
+    expect(new Set(BADGES.map((badge) => badge.variant)).size).toBe(BADGES.length);
+    expect(new Set(BADGES.map((badge) => badge.label)).size).toBe(BADGES.length);
   });
 
-  it("still tells two states apart when they share a tint", () => {
-    const sharedTint = STATES.filter((s) => describeState(s).variant === "gray");
-    expect(sharedTint.length).toBeGreaterThan(1);
-    expect(new Set(sharedTint.map((s) => describeState(s).iconKey)).size).toBe(sharedTint.length);
-    expect(new Set(sharedTint.map((s) => describeState(s).label)).size).toBe(sharedTint.length);
-  });
-
-  it("gives no state the in-library marker, which is not a state", () => {
-    for (const state of STATES) {
-      expect(describeState(state).iconKey, state).not.toBe(IN_LIBRARY_ICON_KEY);
+  it("gives every badge a mark and a label with something in them", () => {
+    for (const badge of BADGES) {
+      expect(badge.iconKey.trim(), badge.label).not.toBe("");
+      expect(badge.label.trim()).not.toBe("");
     }
   });
 });
