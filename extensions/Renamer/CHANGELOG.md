@@ -62,6 +62,12 @@ computed, which it could not before.
 - The Save bar steps aside while the dry-run dialog is open, instead of sitting over it with a
   clickable Save button.
 
+### For API users
+
+- The preview and dry-run endpoints now report an in-place rename with the status `rename`. It
+  used to read `renamer`. A dry-run summary saved by an earlier version reads as no dry run yet, so
+  run a new one after upgrading.
+
 ### Fixes
 
 - On macOS, the dry run now shows the numbered suffix a file gets when its new name differs from a

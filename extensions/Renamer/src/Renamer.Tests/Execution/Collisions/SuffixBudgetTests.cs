@@ -48,7 +48,7 @@ public sealed class SuffixBudgetTests
             var plan = new RenamerPlan(10, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, $"{folderPath}/{SourceBasename}", plannedFullPath,
-                    RenamerStatus.Renamer, PlannedBasename, folderPath),
+                    RenamerStatus.Rename, PlannedBasename, folderPath),
             ]);
 
             var bus = new CapturingEventBus();

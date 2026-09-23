@@ -33,7 +33,7 @@ export type DryRunFilter = "all" | DryRunBucket;
  * against a transcription of the C# map.
  */
 export function classifyItem(item: { status: string }): DryRunBucket {
-  if (item.status === "renamer" || item.status === "move") return "will-change";
+  if (item.status === "rename" || item.status === "move") return "will-change";
   if (item.status === "noOp") return "no-change";
   return "attention";
 }

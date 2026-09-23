@@ -314,7 +314,7 @@ public sealed partial class Renamer
 
                     foreach (var item in plan.Items)
                     {
-                        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                         {
                             continue;
                         }

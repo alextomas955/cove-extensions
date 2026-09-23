@@ -106,7 +106,7 @@ function row(fileId: number): ScanRow {
     fileId,
     oldFullPath: `/media/raw-${fileId}.mkv`,
     newFullPath: `/media/Sorted/Clip ${fileId}.mkv`,
-    status: "renamer",
+    status: "rename",
     reason: null,
     suffixed: false,
     sanitized: false,
@@ -136,7 +136,7 @@ function summary(): ScanSummaryView {
     willChange: 5,
     attention: 0,
     noChange: 0,
-    statusCounts: [{ status: "renamer", count: 5 }],
+    statusCounts: [{ status: "rename", count: 5 }],
     blastRadius: {
       totalCount: 5,
       sameVolumeCount: 5,

@@ -437,8 +437,8 @@ public sealed class ScanLibraryEndpointTests
         // video-only caller reading it back must not receive the image/audio counts (the cross-kind leak).
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
-            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
+            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
         var view = await ReadSummaryAsync(ext, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
@@ -454,7 +454,7 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Image, 5, RenamerStatus.SkipGated),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
@@ -486,6 +486,25 @@ public sealed class ScanLibraryEndpointTests
                 EnumJson));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    [Fact]
+    public async Task ScanLibraryResultAsync_ASummaryStoredWithTheOldRenamerStatusName_Reads404()
+    {
+        var (ext, store) = await NewExtensionAsync();
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+        string current = JsonSerializer.Serialize(
+            new global::Renamer.Contracts.ScanSummary(
+                global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, 42L,
+                [MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename)]),
+            global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
+        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current);
+        Assert.IsNotType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(principal, default)));
+
+        Assert.Contains("\"rename\"", current);
+        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current.Replace("\"rename\"", "\"renamer\""));
+
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(principal, default)));
     }
 
     [Fact]
@@ -589,7 +608,7 @@ public sealed class ScanLibraryEndpointTests
     public async Task InitializeAsync_LeavesAPreExistingScanSummaryUntouched()
     {
         var store = new FakeStore();
-        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Renamer));
+        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Rename));
         await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
         string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
 

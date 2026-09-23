@@ -10,7 +10,7 @@ namespace Renamer.Tests.Execution.Collisions;
 /// Proves two things the executor's collision loop must get right:
 /// <list type="bullet">
 /// <item>A pure case-fix renamer (<c>movie.mkv</c> → <c>Movie.mkv</c>) - where the only thing occupying
-/// the target name is the source file itself - completes as a clean <see cref="RenamerStatus.Renamer"/>
+/// the target name is the source file itself - completes as a clean <see cref="RenamerStatus.Rename"/>
 /// to <c>Movie.mkv</c>, not a needlessly suffixed <c>Movie (1).mkv</c> and not a collision skip.</item>
 /// <item>A different file already at the case-variant target name still collides: a third source
 /// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
@@ -43,7 +43,7 @@ public sealed class CaseOnlyRenamerTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, folderPath + "/movie.mkv", folderPath + "/Movie.mkv",
-                    RenamerStatus.Renamer, "Movie.mkv", folderPath),
+                    RenamerStatus.Rename, "Movie.mkv", folderPath),
             ]);
 
             var port = new CoveRenamerDataPort(db);
@@ -55,7 +55,7 @@ public sealed class CaseOnlyRenamerTests
             // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
             // case-corrected target - not a suffixed Movie (1).mkv.
             var renamedItem = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.Empty(result.Skipped);
             Assert.Empty(result.Failed);
             Assert.EndsWith("Movie.mkv", renamedItem.NewPath);
@@ -98,7 +98,7 @@ public sealed class CaseOnlyRenamerTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(sourceId, folderPath + "/other.mkv", folderPath + "/Movie.mkv",
-                    RenamerStatus.Renamer, "Movie.mkv", folderPath),
+                    RenamerStatus.Rename, "Movie.mkv", folderPath),
             ]);
 
             var port = new CoveRenamerDataPort(db);

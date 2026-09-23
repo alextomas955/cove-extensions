@@ -67,7 +67,7 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   // copy stays because retiring live user-facing text is a decision of its own.
   skipLocked: { clause: "are in use", reason: "in use" },
   // Not a skip: the two statuses counted by `willRename`, and the item that needs no change.
-  renamer: null,
+  rename: null,
   move: null,
   noOp: null,
   // Executor-only, and produced only after this confirm: by the time a move fails, the OS refuses it,
@@ -149,7 +149,7 @@ export function buildConfirmSummary(
   text: string;
   willRenameCount: number;
 } {
-  const willRename = items.filter((it) => it.status === "renamer" || it.status === "move");
+  const willRename = items.filter((it) => it.status === "rename" || it.status === "move");
   const n = willRename.length;
   const m = items.length;
 

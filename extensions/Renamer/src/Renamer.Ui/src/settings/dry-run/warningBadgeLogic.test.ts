@@ -18,7 +18,7 @@ import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
  * fails the module's build.
  */
 const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
-  renamer: null, // the rename is happening; there is nothing to warn about
+  rename: null, // the rename is happening; there is nothing to warn about
   move: null,
   noOp: "No change needed",
   skipGated: "Needs a required field",
@@ -66,9 +66,9 @@ test("a skipped row's variant marks whether the user lost the file or only the r
 });
 
 test("an acting row reports what the planner had to change about its name", () => {
-  assert.deepEqual(labels(row("renamer", { suffixed: true })), ["Numbered to avoid a clash"]);
+  assert.deepEqual(labels(row("rename", { suffixed: true })), ["Numbered to avoid a clash"]);
   assert.deepEqual(labels(row("move", { sanitized: true })), ["Cleaned for the filesystem"]);
-  assert.deepEqual(labels(row("renamer", { suffixed: true, sanitized: true })), [
+  assert.deepEqual(labels(row("rename", { suffixed: true, sanitized: true })), [
     "Numbered to avoid a clash",
     "Cleaned for the filesystem",
   ]);
@@ -131,13 +131,13 @@ test("WarningBadges renders exactly the labels this module derives", () => {
 });
 
 test("a row with nothing to warn about renders no pill at all", () => {
-  assert.equal(WarningBadges({ item: row("renamer") }), null);
+  assert.equal(WarningBadges({ item: row("rename") }), null);
 });
 
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
   // Re-testing the status here would let a flag the server did set go unrendered if the two vocabularies
   // ever drifted, so the flag alone decides.
-  const eitherSide: RenamerStatus[] = ["renamer", "skipExcluded"];
+  const eitherSide: RenamerStatus[] = ["rename", "skipExcluded"];
   for (const status of eitherSide) {
     const badges = badgesFor(row(status, { inFlightPathOverflow: true }));
     const last = badges[badges.length - 1];
@@ -181,7 +181,7 @@ test("both wire row shapes satisfy Badgeable", () => {
  * quietly left out of the set.
  */
 const PLANNER_EMITS: Record<RenamerStatus, boolean> = {
-  renamer: true,
+  rename: true,
   move: true,
   noOp: true,
   skipCollision: true,

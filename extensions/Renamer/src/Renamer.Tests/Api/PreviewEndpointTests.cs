@@ -56,15 +56,12 @@ public sealed class PreviewEndpointTests
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
             Assert.Equal("First Film.mkv", item.NewBasename);
-            Assert.Equal(RenamerStatus.Renamer, item.Status);
+            Assert.Equal(RenamerStatus.Rename, item.Status);
 
-            // wire-shape regression (the bug live-browser verification caught): the response must
-            // serialize as camelCase with `status` the camelCase string "renamer" - not PascalCase,
-            // not the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
-            // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
-            // fires. Assert the actual bytes the response options produce.
+            // The UI's confirm summary reads it.status === "rename" and it.fileId, so a numeric enum or a
+            // PascalCase key reads as nothing to rename and the rename never fires.
             var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
-            Assert.Contains("\"status\":\"renamer\"", json);
+            Assert.Contains("\"status\":\"rename\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
             Assert.DoesNotContain("\"Status\":", json);

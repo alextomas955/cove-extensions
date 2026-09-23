@@ -87,7 +87,7 @@ public sealed class InFlightPathOverflowTests
         string overLength = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
 
         var sameVolume = Item(
-            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Renamer, RootOf("C"));
+            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Rename, RootOf("C"));
         var crossVolume = Item(
             2, OnVol("C", "b.mkv"), OnVol("D", overLength), RenamerStatus.Move, RootOf("D"));
 

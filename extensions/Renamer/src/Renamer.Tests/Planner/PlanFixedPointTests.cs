@@ -104,7 +104,7 @@ public sealed class PlanFixedPointTests
         var item = Assert.Single(
             (await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, 10, options, default)).Items);
 
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Null(item.DerivedTitle);
     }
 
@@ -173,7 +173,7 @@ public sealed class PlanFixedPointTests
             }
 
             var blocked = items.FirstOrDefault(
-                i => i.Status is not (RenamerStatus.Renamer or RenamerStatus.Move or RenamerStatus.NoOp));
+                i => i.Status is not (RenamerStatus.Rename or RenamerStatus.Move or RenamerStatus.NoOp));
             if (blocked is not null)
             {
                 return new Replay(Settled.Blocked, trace, firstDerived, blocked);

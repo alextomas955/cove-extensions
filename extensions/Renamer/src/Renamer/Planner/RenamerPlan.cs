@@ -10,7 +10,7 @@ namespace Renamer.Planner;
 public enum RenamerStatus
 {
     // In-place basename change, same parent folder.
-    Renamer,
+    Rename,
 
     // Basename change and a parent-folder move.
     Move,

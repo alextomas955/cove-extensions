@@ -119,7 +119,7 @@ public sealed class TransportSmokeTests
 
         // RenamerFileKind, RenamerStatus and ConfirmLevel, each as the camelCase string the UI matches.
         // A numeric enum here is the defect the converter exists to prevent: the panel compares against
-        // "renamer"/"noOp", so a 0 reads as a non-rename and the renamer silently never fires.
+        // "rename"/"noOp", so a 0 reads as a non-rename and the rename silently never fires.
         Assert.Contains("\"kinds\":[\"video\"]", body, StringComparison.Ordinal);
         Assert.Contains("\"status\":\"noOp\"", body, StringComparison.Ordinal);
         Assert.Contains("\"confirmLevel\":\"light\"", body, StringComparison.Ordinal);

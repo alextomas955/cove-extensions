@@ -74,7 +74,7 @@ public sealed partial class Renamer
                 // Re-entrancy guard: nothing moves, so the executor is not touched, no save happens,
                 // and the save-event-re-enter loop never starts. Gated items land here as SkipGated.
                 int actingFiles = plan.Items.Count(i =>
-                    i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
+                    i.Status is RenamerStatus.Rename or RenamerStatus.Move);
                 if (actingFiles == 0)
                 {
                     return;

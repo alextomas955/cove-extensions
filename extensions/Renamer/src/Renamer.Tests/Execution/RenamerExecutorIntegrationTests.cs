@@ -62,7 +62,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // Result buckets: one renamed, none skipped/failed; revert-log row written.
             var renamedItem = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
             var revert = Assert.Single(journal.Rows);
@@ -496,7 +496,7 @@ public sealed class RenamerExecutorIntegrationTests
             [
                 new RenamerPlanItem(
                     fileId, folderPath + "/raw clip.mkv", folderPath + "/taken.mkv",
-                    RenamerStatus.Renamer, "taken.mkv", folderPath, DerivedTitle: "raw clip"),
+                    RenamerStatus.Rename, "taken.mkv", folderPath, DerivedTitle: "raw clip"),
             ]);
 
             var executor = new RenamerExecutor(

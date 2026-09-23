@@ -31,7 +31,7 @@ public sealed class PlanItemFlagsTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.False(item.Suffixed);
     }
 
@@ -47,7 +47,7 @@ public sealed class PlanItemFlagsTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.True(item.Suffixed);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
     }

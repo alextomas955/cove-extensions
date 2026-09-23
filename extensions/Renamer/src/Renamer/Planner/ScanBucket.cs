@@ -18,7 +18,7 @@ public static class ScanBucket
     // throw, so the default arm catches it deliberately.
     public static ScanBucketKind Of(RenamerStatus status) => status switch
     {
-        RenamerStatus.Renamer or RenamerStatus.Move => ScanBucketKind.WillChange,
+        RenamerStatus.Rename or RenamerStatus.Move => ScanBucketKind.WillChange,
         RenamerStatus.NoOp => ScanBucketKind.NoChange,
         _ => ScanBucketKind.Attention,
     };

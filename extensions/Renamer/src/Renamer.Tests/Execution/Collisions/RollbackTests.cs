@@ -45,7 +45,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/taken.mkv",
-                    RenamerStatus.Renamer, "taken.mkv", folderPath),
+                    RenamerStatus.Rename, "taken.mkv", folderPath),
             ]);
 
             var port = new CollisionBlindDataPort(db);
@@ -106,7 +106,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/taken.mkv",
-                    RenamerStatus.Renamer, "taken.mkv", folderPath),
+                    RenamerStatus.Rename, "taken.mkv", folderPath),
             ]);
 
             var executor = new RenamerExecutor(
@@ -157,7 +157,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             // Port that commits the real save (new basename persisted) but reports a RecomputedPath that
@@ -220,7 +220,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             var bus = new CapturingEventBus();
@@ -278,7 +278,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             var journal = new FakeRevertJournal
@@ -294,7 +294,7 @@ public sealed class RollbackTests
             // The file is renamed, not failed and not rolled back.
             Assert.Empty(result.Failed);
             var renamedItem = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.NotNull(renamedItem.Reason);
             Assert.Contains("revert-log entry not written", renamedItem.Reason);
             Assert.Contains("journal write failed", renamedItem.Reason);
@@ -342,7 +342,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             var journal = new FakeRevertJournal();
@@ -401,7 +401,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             // The port runs after the disk move and before the rollback, so occupying the caption's old
@@ -449,7 +449,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             var bus = new CapturingEventBus { PublishThrow = new InvalidOperationException("bus is down") };

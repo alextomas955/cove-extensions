@@ -71,7 +71,7 @@ public sealed class CaptionRowWriteTests
         => new(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/" + oldBasename, folderPath + "/" + newBasename,
-                RenamerStatus.Renamer, newBasename, folderPath),
+                RenamerStatus.Rename, newBasename, folderPath),
         ]);
 
     private static RenamerExecutor RealExecutor(DbContext db)

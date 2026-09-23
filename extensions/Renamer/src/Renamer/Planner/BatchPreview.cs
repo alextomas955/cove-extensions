@@ -73,7 +73,7 @@ public static class BatchPreview
         ArgumentNullException.ThrowIfNull(sizeByFileId);
 
         var acting = items
-            .Where(i => i.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            .Where(i => i.Status is RenamerStatus.Rename or RenamerStatus.Move)
             .ToList();
 
         // The cross/same split and the destination-volume grouping key both read one value,
@@ -125,7 +125,7 @@ public static class BatchPreview
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return item.Status is RenamerStatus.Renamer or RenamerStatus.Move
+        return item.Status is RenamerStatus.Rename or RenamerStatus.Move
             && !VolumeClassifier.SameVolume(item.OldFullPath, item.NewFullPath, mountPoints)
             && item.NewFullPath.Length + CrossVolumeMover.InFlightSuffixLength > fullPathMax;
     }

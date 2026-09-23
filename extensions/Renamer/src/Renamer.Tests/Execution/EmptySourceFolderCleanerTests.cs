@@ -220,7 +220,7 @@ public sealed class EmptySourceFolderCleanerTests
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
                 .PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var item = Assert.Single(plan.Items);
-            Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
+            Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place renamer, not a move
 
             // The trigger predicate's two independent reasons to skip both hold for this item:
             // it is not a move, and the parent dir does not change.

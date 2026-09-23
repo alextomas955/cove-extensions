@@ -176,7 +176,7 @@ public sealed class RoutingPlannerTests
             }
 
             var blocked = items.FirstOrDefault(
-                i => i.Status is not (RenamerStatus.Renamer or RenamerStatus.Move or RenamerStatus.NoOp));
+                i => i.Status is not (RenamerStatus.Rename or RenamerStatus.Move or RenamerStatus.NoOp));
             Assert.True(blocked is null, $"pass {pass} was blocked as {blocked?.Status}: {blocked?.Reason}");
 
             firstMatchedRule ??= items[0].MatchedRule;
@@ -409,7 +409,7 @@ public sealed class RoutingPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Equal(Fwd(SrcRoot) + "/My Film.mkv", item.NewFullPath);
         Assert.Null(item.ResolvedDestinationRoot);
     }

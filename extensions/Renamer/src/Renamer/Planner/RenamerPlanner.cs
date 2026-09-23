@@ -135,7 +135,7 @@ public sealed class RenamerPlanner
             // This loop is the set's only writer and the callee only reads it. Claimed only for an item
             // that places the file: a no-op or a skip leaves the file where its own row already records
             // it, so the port's row check sees it.
-            if (item.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            if (item.Status is RenamerStatus.Rename or RenamerStatus.Move)
             {
                 claimedTargets.Add(item.NewFullPath);
             }
@@ -382,7 +382,7 @@ public sealed class RenamerPlanner
 
         return new RenamerPlanItem(
             file.FileId, oldFullPath, newFullPath,
-            isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
+            isMove ? RenamerStatus.Move : RenamerStatus.Rename,
             candidate, relTargetFolder, null, suffixed, sanitized,
             resolvedRoot, route.MatchedRule, targetVolume, derivedTitle);
     }

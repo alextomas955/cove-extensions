@@ -35,7 +35,7 @@ import type { RenamerStatus } from "../../wire/api";
  * hand transcription this table exists to be.
  */
 const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
-  renamer: "will-change",
+  rename: "will-change",
   move: "will-change",
   noOp: "no-change",
   skipCollision: "attention",
@@ -123,7 +123,7 @@ test("a page already in flight does not continue", () => {
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 3 },
+      { status: "rename", count: 3 },
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
@@ -159,7 +159,7 @@ test("summaryCounts over an empty status list returns all zeros", () => {
 test("summaryCounts counts an unknown status as attention and still sums correctly", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 2 },
+      { status: "rename", count: 2 },
       { status: "skipInvented", count: 3 },
     ],
   });
