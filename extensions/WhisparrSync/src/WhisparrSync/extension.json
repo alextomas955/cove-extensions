@@ -7,7 +7,7 @@
   "url": "https://github.com/alextomas955/cove-extensions",
   "iconUrl": "https://alextomas955.github.io/cove-extensions/img/whisparr-sync.svg",
   "categories": ["automation", "tools"],
-  "minCoveVersion": "1.4.1",
+  "minCoveVersion": "1.5.0",
   "entryDll": "WhisparrSync.dll",
   "jsBundle": "index.mjs",
   "permissions": {
