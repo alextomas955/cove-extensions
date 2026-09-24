@@ -11,7 +11,7 @@
          Declaration order is load-bearing and nothing guards it. MSBuild evaluates properties top to
          bottom, so reversing these two lines expands $(CoveMinVersion) before it holds a value and every
          Cove package reference silently takes an empty version. -->
-    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.4.1</CoveMinVersion>
+    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.5.0</CoveMinVersion>
     <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
     <!-- Where a released Cove image comes from. The version tested against is never set here: CI and
