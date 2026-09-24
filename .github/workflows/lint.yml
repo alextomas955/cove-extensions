@@ -210,7 +210,7 @@ jobs:
       - name: Generate the host runtime shims
         working-directory: cove/ui
         run: |
-          npm ci --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
           npm run generate:extension-runtime
       - name: Check lucide-react imports against the host
         working-directory: extensions
