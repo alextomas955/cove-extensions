@@ -71,7 +71,7 @@ for (const root of uiRoots) {
       for (const clause of m[2].split(",")) {
         const specifier = clause.trim();
         if (specifier.startsWith("type ")) continue;
-        const name = specifier.split(/\s+as\s+/)[0].trim();
+        const name = specifier.split(/\sas\s/)[0].trim();
         if (!name) continue;
         checked++;
         if (!hostExports.has(name)) missing.push({ file: path.relative(repoRoot, file), name });

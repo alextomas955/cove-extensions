@@ -50,6 +50,6 @@ Renamer works on videos, images, audio files and text documents.
 
 ## What you need
 
-- Cove 1.4.1 or later.
+- Cove 1.5.0 or later.
 - Write permission in Cove for the kinds of item you want to rename, and read permission to preview
   them.

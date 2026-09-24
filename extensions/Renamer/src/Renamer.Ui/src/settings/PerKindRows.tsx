@@ -74,11 +74,10 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
           return (
             // Each row names itself, so the four identical button pairs are told apart by a screen
             // reader and the row's own controls are reachable as a set.
-            <div
+            <fieldset
               key={kind}
-              role="group"
               aria-label={KIND_LABELS[kind]}
-              className="flex flex-wrap items-center gap-4 px-4 py-3"
+              className="flex min-w-0 flex-wrap items-center gap-4 px-4 py-3"
             >
               <span className="w-32 shrink-0 text-sm font-medium text-foreground">
                 {KIND_LABELS[kind]}
@@ -108,7 +107,7 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
                   {enabled ? "Exclude" : "Include"}
                 </Button>
               </div>
-            </div>
+            </fieldset>
           );
         })}
       </div>

@@ -302,7 +302,14 @@ public static class OptionsMigration
     private static List<DestinationSite> CollectDestinationSites(JsonObject root)
     {
         var sites = new List<DestinationSite>();
+        AddMapSites(root, sites);
+        AddPathRuleSites(root, sites);
+        AddUnorganizedSite(root, sites);
+        return sites;
+    }
 
+    private static void AddMapSites(JsonObject root, List<DestinationSite> sites)
+    {
         foreach (string mapName in new[] { StudioDestinations, TagDestinations })
         {
             if (Property(root, mapName) is not JsonObject map)
@@ -325,29 +332,37 @@ public static class OptionsMigration
                     () => map.Remove(mapKey)));
             }
         }
+    }
 
-        if (Property(root, PathDestinations) is JsonArray rules)
+    private static void AddPathRuleSites(JsonObject root, List<DestinationSite> sites)
+    {
+        if (Property(root, PathDestinations) is not JsonArray rules)
         {
-            // Walked in reverse so a drop removing an element never shifts an index a later site
-            // closed over.
-            for (int i = rules.Count - 1; i >= 0; i--)
-            {
-                if (rules[i] is not JsonObject rule
-                    || PropertyName(rule, PathRuleDest) is not { } member
-                    || StringOf(rule[member]) is not { } stored)
-                {
-                    continue;
-                }
-
-                int index = i;
-                sites.Add(new DestinationSite(
-                    $"{PathDestinations}[{index}]",
-                    stored,
-                    (r, t) => rule[member] = Pair(r, t),
-                    () => rules.RemoveAt(index)));
-            }
+            return;
         }
 
+        // Walked in reverse so a drop removing an element never shifts an index a later site
+        // closed over.
+        for (int i = rules.Count - 1; i >= 0; i--)
+        {
+            if (rules[i] is not JsonObject rule
+                || PropertyName(rule, PathRuleDest) is not { } member
+                || StringOf(rule[member]) is not { } stored)
+            {
+                continue;
+            }
+
+            int index = i;
+            sites.Add(new DestinationSite(
+                $"{PathDestinations}[{index}]",
+                stored,
+                (r, t) => rule[member] = Pair(r, t),
+                () => rules.RemoveAt(index)));
+        }
+    }
+
+    private static void AddUnorganizedSite(JsonObject root, List<DestinationSite> sites)
+    {
         if (PropertyName(root, UnorganizedDestination) is { } unorganizedKey
             && StringOf(root[unorganizedKey]) is { } unorganized)
         {
@@ -358,8 +373,6 @@ public static class OptionsMigration
                 () => root.Remove(unorganizedKey),
                 EmptyIsNoRoute: true));
         }
-
-        return sites;
     }
 
     // The stored form of a destination: the pair the current model deserializes.

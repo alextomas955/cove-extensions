@@ -8,7 +8,7 @@ change before anything moves, and the last rename can be undone for 7 days.
 
 ## Install
 
-1. In Cove 1.4.1 or later, open **Settings**, and under **Extensions** select **Discover**.
+1. In Cove 1.5.0 or later, open **Settings**, and under **Extensions** select **Discover**.
 2. Search for **Renamer**, then select **Install**.
 
 To install a specific release, download its ZIP from

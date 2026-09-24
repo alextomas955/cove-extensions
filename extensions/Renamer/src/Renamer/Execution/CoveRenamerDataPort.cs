@@ -195,8 +195,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // drift apart.
 
     // Each query's ancestor Include hop count is bound to MaxParentDepth and guarded by
-    // StudioDepthLockstepTests: add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
-    // constant and that test fails.
+    // StudioDepthLockstepTests: add or drop a ".Parent" hop in the Studio include path without matching
+    // the constant and that test fails. EF Core loads every navigation along that reference chain.
 
     // AsSplitQuery on every one of them: each query includes sibling collections (files, performers,
     // tags), and a single-statement join returns their product per entity. One row per file times one
@@ -204,7 +204,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // entity count does not.
     private IQueryable<Video> VideoQuery() => _db.Set<Video>()
         .AsNoTracking()
-        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Studio!.Parent!.Parent!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.Files).ThenInclude(f => f.Captions)
         .Include(x => x.VideoPerformers).ThenInclude(vp => vp.Performer)
@@ -213,7 +213,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
     private IQueryable<Image> ImageQuery() => _db.Set<Image>()
         .AsNoTracking()
-        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Studio!.Parent!.Parent!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.ImagePerformers).ThenInclude(ip => ip.Performer)
         .Include(x => x.ImageTags).ThenInclude(it => it.Tag)
@@ -221,7 +221,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
     private IQueryable<Audio> AudioQuery() => _db.Set<Audio>()
         .AsNoTracking()
-        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Studio!.Parent!.Parent!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
         .Include(x => x.AudioTags).ThenInclude(at => at.Tag)
@@ -229,7 +229,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
     private IQueryable<TextDocument> TextQuery() => _db.Set<TextDocument>()
         .AsNoTracking()
-        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Studio!.Parent!.Parent!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.TextPerformers).ThenInclude(tp => tp.Performer)
         .Include(x => x.TextTags).ThenInclude(tt => tt.Tag)

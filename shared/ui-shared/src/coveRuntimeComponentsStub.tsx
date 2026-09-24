@@ -51,7 +51,11 @@ export function ConfirmDialog({
 }>) {
   if (!open) return null;
   return (
-    <div role="dialog" aria-label={title}>
+    // Mirrors the host's ConfirmDialog, which is not a native <dialog>.
+    <div // NOSONAR
+      role="dialog"
+      aria-label={title}
+    >
       <p>{message}</p>
       <button type="button" onClick={onCancel}>
         Cancel

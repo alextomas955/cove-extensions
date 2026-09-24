@@ -112,13 +112,13 @@ public sealed class RenamerPlanner
         // Membership follows the platform's own case rule, because what it decides is whether two
         // planned paths name one file on disk.
         var claimedTargets = new HashSet<string>(PathComparer);
+        var context = new EntityPlanContext(entity, effective, route, destination, derivedTitle);
 
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)
         {
             ct.ThrowIfCancellationRequested();
-            var item = await PlanFileAsync(
-                entity, file, effective, route, destination, derivedTitle, claimedTargets, ct);
+            var item = await PlanFileAsync(context, file, claimedTargets, ct);
             items.Add(item);
 
             // This loop is the set's only writer and the callee only reads it. Claimed only for an item
@@ -192,10 +192,9 @@ public sealed class RenamerPlanner
     // Classifies a single file: render, anchor, confine, collision, status. claimedTargets is the
     // caller's set of destination paths already handed out in this plan, read-only here.
     private async Task<RenamerPlanItem> PlanFileAsync(
-        RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
-        Destination destination, string? derivedTitle, HashSet<string> claimedTargets,
-        CancellationToken ct)
+        EntityPlanContext context, RenamerFile file, HashSet<string> claimedTargets, CancellationToken ct)
     {
+        var (entity, options, route, destination, derivedTitle) = context;
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
         // Project and render, both pure. The performer records and tag pairs ride alongside the name
@@ -216,19 +215,7 @@ public sealed class RenamerPlanner
         // below sees its real depth.
         bool chosenRoot = destination.Root.Length > 0;
         bool isMove = chosenRoot || rendered.FolderPath.Length > 0;
-        string? libraryRoot;
-        if (chosenRoot)
-        {
-            libraryRoot = destination.Root;
-        }
-        else if (isMove)
-        {
-            libraryRoot = PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots);
-        }
-        else
-        {
-            libraryRoot = null;
-        }
+        string? libraryRoot = LibraryRootFor(file, destination, isMove);
 
         // Told to measure from the file's own library path, and the file is under none: the destination
         // is not forbidden, it is uncomputable, and every remaining candidate anchor is one the rename
@@ -251,10 +238,7 @@ public sealed class RenamerPlanner
         if (!confined.Accepted)
         {
             return new RenamerPlanItem(
-                file.FileId, oldFullPath, oldFullPath,
-                confined.Rejection == PathConfinement.ConfinementRejection.TooLong
-                    ? RenamerStatus.SkipTooLong
-                    : RenamerStatus.SkipNotAllowed,
+                file.FileId, oldFullPath, oldFullPath, RejectionStatus(confined.Rejection),
                 file.Basename, file.ParentFolderPath, confined.Reason);
         }
 
@@ -297,27 +281,18 @@ public sealed class RenamerPlanner
             ? await _port.TryGetFolderIdAsync(relTargetFolder, ct)
             : file.ParentFolderId;
 
-        // A candidate is taken by a path this plan has already handed out exactly as it is by an
-        // existing row. The in-memory test runs first so a claimed candidate costs no round trip, and it
-        // compares the whole candidate path: a non-moving file keeps its own folder, and a whole-path
-        // comparison cannot be wrong about which folder a claim was made in.
-        string candidate = newBasename;
-        int attempt = 0;
-        while (claimedTargets.Contains(JoinPath(relTargetFolder, candidate))
-            || (targetFolderId is int folderId
-            && await _port.CollisionExistsAsync(folderId, candidate, file.FileId, ct)))
+        var settled = await FindFreeNameAsync(
+            rendered, relTargetFolder, targetFolderId, file.FileId, options.DuplicateSuffixFormat,
+            claimedTargets, ct);
+        if (settled is not { } free)
         {
-            attempt++;
-            if (attempt > MaxSuffixAttempts)
-            {
-                return new RenamerPlanItem(
-                    file.FileId, oldFullPath, JoinPath(relTargetFolder, newBasename),
-                    RenamerStatus.SkipCollision, newBasename, relTargetFolder,
-                    $"skipped: no free target name within {MaxSuffixAttempts} suffix attempts");
-            }
-
-            candidate = ApplySuffix(rendered.Filename, rendered.Ext, options.DuplicateSuffixFormat, attempt);
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, JoinPath(relTargetFolder, newBasename),
+                RenamerStatus.SkipCollision, newBasename, relTargetFolder,
+                $"skipped: no free target name within {MaxSuffixAttempts} suffix attempts");
         }
+
+        var (candidate, attempt) = free;
 
         // Re-measure the budget against the settled candidate. The confinement gate ran before the loop
         // above, which lengthens the name by whatever DuplicateSuffixFormat spells and repeats up to
@@ -375,6 +350,58 @@ public sealed class RenamerPlanner
             candidate, relTargetFolder, null, suffixed, sanitized,
             resolvedRoot, route.MatchedRule, targetVolume, derivedTitle);
     }
+
+    // The anchor a moving file is measured from. Null when the file does not move, and null when it
+    // moves from its own library path and no library path holds it.
+    private string? LibraryRootFor(RenamerFile file, Destination destination, bool isMove)
+    {
+        if (destination.Root.Length > 0)
+        {
+            return destination.Root;
+        }
+
+        return isMove ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots) : null;
+    }
+
+    private static RenamerStatus RejectionStatus(PathConfinement.ConfinementRejection rejection)
+        => rejection == PathConfinement.ConfinementRejection.TooLong
+            ? RenamerStatus.SkipTooLong
+            : RenamerStatus.SkipNotAllowed;
+
+    // The first free name in the target folder and the suffix attempt that produced it, or null when
+    // every attempt up to MaxSuffixAttempts is taken.
+    //
+    // A candidate is taken by a path this plan has already handed out exactly as it is by an
+    // existing row. The in-memory test runs first so a claimed candidate costs no round trip, and it
+    // compares the whole candidate path: a non-moving file keeps its own folder, and a whole-path
+    // comparison cannot be wrong about which folder a claim was made in.
+    private async Task<(string Candidate, int Attempt)?> FindFreeNameAsync(
+        RenamerResult rendered, string relTargetFolder, int? targetFolderId, int fileId,
+        string suffixFormat, HashSet<string> claimedTargets, CancellationToken ct)
+    {
+        string candidate = rendered.Filename + rendered.Ext;
+        int attempt = 0;
+        while (claimedTargets.Contains(JoinPath(relTargetFolder, candidate))
+            || (targetFolderId is int folderId
+            && await _port.CollisionExistsAsync(folderId, candidate, fileId, ct)))
+        {
+            attempt++;
+            if (attempt > MaxSuffixAttempts)
+            {
+                return null;
+            }
+
+            candidate = ApplySuffix(rendered.Filename, rendered.Ext, suffixFormat, attempt);
+        }
+
+        return (candidate, attempt);
+    }
+
+    // The entity-level values every file of one entity plans against. Options carries the resolved
+    // destination's folder template.
+    private readonly record struct EntityPlanContext(
+        RenamerEntity Entity, RenamerOptions Options, RouteResult Route, Destination Destination,
+        string? DerivedTitle);
 
     // A skip item keeps the file at its current path.
     private static RenamerPlanItem SkipItem(RenamerFile file, RenamerStatus status, string reason)
