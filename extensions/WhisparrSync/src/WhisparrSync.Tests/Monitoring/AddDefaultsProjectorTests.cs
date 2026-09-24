@@ -265,4 +265,30 @@ public sealed class AddDefaultsProjectorTests
     private static IEnumerable<ActingCall> Acts(MonitorHost host)
         => host.Client.Acting.Where(call =>
             OutboundSeam.VerbClassByMember.GetValueOrDefault(call.Verb) != WhisparrVerbClass.Read);
+
+    // A hard link cannot cross a filesystem. An instance reaching two of the library's volumes mounts
+    // each under its own leading segment, so a folder is registered on the root sharing that segment
+    // rather than on whichever root the instance happened to list first.
+    [Fact]
+    public void AFolderIsRegisteredOnTheRootThatReachesItsOwnVolume()
+    {
+        string[] roots = ["/i/cove-dev/whisparr/library", "/g/tmp/whisparr-library"];
+
+        Assert.Equal(
+            "/g/tmp/whisparr-library",
+            AddDefaultsProjector.RootReachingFrom("/g/Downloads/P/videos/Studio", roots));
+        Assert.Equal(
+            "/i/cove-dev/whisparr/library",
+            AddDefaultsProjector.RootReachingFrom("/i/Downloads/P/videos/Studio", roots));
+    }
+
+    // A folder on a volume no declared root sits on answers none, so nothing is registered where a
+    // link would copy the file instead.
+    [Fact]
+    public void AFolderNoRootReachesAnswersNone()
+    {
+        Assert.Null(
+            AddDefaultsProjector.RootReachingFrom(
+                "/elsewhere/videos", ["/i/cove-dev/whisparr/library"]));
+    }
 }

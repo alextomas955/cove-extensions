@@ -13,6 +13,7 @@ import {
   SYNC_DOWNLOADS_NOTHING,
   SYNC_IS_COUNTING,
   SYNC_IS_STARTING,
+  SYNC_ALSO_LINKS_WHAT_YOU_OWN,
   SYNC_MONITORS_NOTHING,
   SYNC_NEEDS_A_COUNT_FIRST,
   SYNC_NOTHING_LEFT_TO_SYNC,
@@ -64,6 +65,8 @@ export interface SyncSentences {
   /** What the confirmation covers at any other size, given the figure already grouped. */
   readonly offersMany: (grouped: string) => string;
   readonly alsoMonitors: string;
+  /** What the run does with the files it owns, or blank where the run links nothing. */
+  readonly alsoLinks: string;
 }
 
 const SCENE_SENTENCES: SyncSentences = {
@@ -75,6 +78,7 @@ const SCENE_SENTENCES: SyncSentences = {
   offersOne: SYNC_OFFERS_ONE_SCENE,
   offersMany: syncOffersScenes,
   alsoMonitors: SYNC_ALSO_MONITORS_EACH,
+  alsoLinks: SYNC_ALSO_LINKS_WHAT_YOU_OWN,
 };
 
 const SITE_SENTENCES: SyncSentences = {
@@ -86,6 +90,7 @@ const SITE_SENTENCES: SyncSentences = {
   offersOne: SYNC_OFFERS_ONE_SITE,
   offersMany: syncOffersSites,
   alsoMonitors: SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
+  alsoLinks: "",
 };
 
 /**
@@ -178,7 +183,9 @@ export function syncConfirmation(
     ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
     : SYNC_MONITORS_NOTHING;
 
-  return `${covers}${skips}. ${monitoring} ${sentences.downloadsNothing}`;
+  const linking = sentences.alsoLinks === "" ? "" : `${sentences.alsoLinks} `;
+
+  return `${covers}${skips}. ${monitoring} ${linking}${sentences.downloadsNothing}`;
 }
 
 /**

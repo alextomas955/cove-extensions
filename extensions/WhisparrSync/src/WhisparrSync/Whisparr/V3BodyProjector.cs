@@ -43,7 +43,32 @@ internal static class V3BodyProjector
 
     internal const string RefreshStudiosCommand = "RefreshStudios";
 
+    // The quality and the language the instance answers a reading with, and the only two values it
+    // treats as asking rather than stating.
+    internal const int UnknownQualityId = 0;
+
+    internal const int UnknownLanguageId = 0;
+
     internal const string RefreshPerformersCommand = "RefreshPerformers";
+
+    // Asks the instance to read one file, by handing it the quality and the languages unstated. The
+    // instance fills a member that is present and unknown and keeps one that is stated, so sending
+    // the unknown members is what makes it read rather than accept. The route takes a list and is
+    // handed one entry.
+    internal static List<ManualImportReprocessResource> ReadOwnedFile(OwnedFilePlacement file)
+        => [
+            new ManualImportReprocessResource(
+                id: 0,
+                path: file.Path,
+                movieId: file.EntityId,
+                quality: new QualityModel(
+                    quality: new Quality(id: UnknownQualityId),
+                    revision: new Revision(varVersion: 1, real: 0, isRepack: false)),
+                languages: new List<Language> { new(id: UnknownLanguageId) },
+                releaseGroup: string.Empty,
+                downloadId: string.Empty,
+                indexerFlags: 0),
+        ];
 
     // Throws on an unexpressed scope, which must never resolve to the one that marks a whole back
     // catalogue wanted.

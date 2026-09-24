@@ -55,6 +55,19 @@ public sealed class FolderAddressPortTests
         Assert.Equal(CoveRoot, addressed.CoveRoot);
     }
 
+    // A library keeps files directly in its root as readily as in folders under it. Such a folder is
+    // the root, and it has to resolve to that root rather than to none: a blank one reports the run
+    // as holding folders under no library path, and leaves the registration with no root to pick.
+    [Fact]
+    public async Task TheLibraryRootItselfIsAddressedAndNamesItsOwnRoot()
+    {
+        var (port, handler) = Over(HoldingTheSample, ["/data"]);
+
+        var addressed = await port.AddressAsync(Target(handler), CoveRoot, TestCt);
+
+        Assert.Equal(CoveRoot, addressed.CoveRoot);
+    }
+
     [Fact]
     public async Task ACandidateTheInstanceReportsADirectoryAtDoesNotResolve()
     {

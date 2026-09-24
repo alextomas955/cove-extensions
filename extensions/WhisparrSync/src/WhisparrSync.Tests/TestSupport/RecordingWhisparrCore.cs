@@ -116,6 +116,12 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     // answer, and this is the absence of one.
     public HashSet<string> Unreachable { get; } = new(StringComparer.Ordinal);
 
+    // What the instance reads for every file a case hands it. Zero is the value it answers a path
+    // it could read nothing off, which is the case an import must not be composed from.
+    public int QualityRead { get; set; } = 7;
+
+    public int LanguageRead { get; set; } = 1;
+
     public List<NotificationCall> Notifications { get; } = [];
 
     public List<HistoryCall> Histories { get; } = [];
@@ -347,6 +353,35 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
                 Folder = folder,
             });
 
+    // The instance answers a reading with the row it was asked about, carrying the path it was
+    // asked with. A canned body cannot carry a path a case never spells, so the row is composed
+    // from the request and the quality alone is the case's to state.
+    public Task<WhisparrResponse> ReadFileAsync(OwnedFilePlacement file, CancellationToken ct)
+    {
+        Acting.Add(
+            new ActingCall(nameof(ReadFileAsync), Binding.BaseAddress, Binding.ApiKey)
+            {
+                Folder = file.Path,
+                EntityId = file.EntityId,
+            });
+        Verbs.Add(nameof(ReadFileAsync));
+
+        if (Unreachable.Contains(nameof(ReadFileAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        var rows = new JsonArray(new JsonObject
+        {
+            ["path"] = file.Path,
+            ["movieId"] = file.EntityId,
+            ["quality"] = new JsonObject { ["quality"] = new JsonObject { ["id"] = QualityRead } },
+            ["languages"] = new JsonArray(new JsonObject { ["id"] = LanguageRead }),
+        });
+
+        return Task.FromResult(Json(200, rows.ToJsonString()));
+    }
+
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
         JsonNode files, CancellationToken ct)
         => RecordActing(
@@ -378,6 +413,13 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         int sceneId, CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SearchSceneAsync), Binding.BaseAddress, Binding.ApiKey) { EntityId = sceneId });
+
+    // A library run reads the hard-link setting before it links anything, so a case whose subject
+    // is the registration pass answers it once and leaves the linking skipped.
+    public RecordingWhisparrCore AnsweringThatLinkingWouldCopy()
+        => Answering(
+            nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
+            MonitorHost.Json(200, """{"copyUsingHardlinks":false}"""));
 
     public RecordingWhisparrCore Answering(string verb, params WhisparrResponse[] answers)
     {
@@ -638,6 +680,7 @@ internal sealed class RecordingWhisparrV3Client(
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
+        IWhisparrOwnedFileReading,
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
