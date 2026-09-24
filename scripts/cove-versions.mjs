@@ -178,7 +178,14 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   // role is omitted rather than pointed at the nearest thing to it - the same refusal to substitute a
   // plausible answer as the throws above.
   const newestGa = ga.findLast((version) => compareSemver(version, parsedFloor) >= 0);
-  const newestPrerelease = prerelease.at(-1);
+  // A pre-release that sorts below the newest GA is a build that release superseded, and it may sit
+  // below the floor too. Upstream numbers a dev build after the release before it, so the newest
+  // pre-release published can be one of these.
+  const candidate = prerelease.at(-1);
+  const newestPrerelease =
+    candidate !== undefined && (newestGa === undefined || compareSemver(candidate, newestGa) > 0)
+      ? candidate
+      : undefined;
 
   const roles = [{ tag: floor, role: "floor", advisory: false }];
   if (newestGa !== undefined) {
@@ -373,9 +380,10 @@ async function fetchPullToken(registry, repository) {
   return token;
 }
 
-async function registryGetPath(registry, pathAndQuery, token) {
+async function registryGetPath(registry, pathAndQuery, token, accept) {
   const url = `https://${registry}${pathAndQuery}`;
-  const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  const headers = { authorization: `Bearer ${token}`, ...(accept ? { accept } : {}) };
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error(`GET ${url} failed with ${response.status} ${response.statusText}.`);
   }
@@ -389,6 +397,47 @@ async function readRegistryTags(registry, repository, token) {
     const body = await response.json();
     return { tags: body.tags ?? [], link: response.headers.get("link") ?? "" };
   }, `/v2/${repository}/tags/list`);
+}
+
+const MANIFEST_ACCEPT = [
+  "application/vnd.oci.image.index.v1+json",
+  "application/vnd.docker.distribution.manifest.list.v2+json",
+  "application/vnd.oci.image.manifest.v1+json",
+  "application/vnd.docker.distribution.manifest.v2+json",
+].join(", ");
+
+const REVISION_LABEL = "org.opencontainers.image.revision";
+
+/**
+ * The Cove commit an image tag was built from, read from the image's OCI revision label.
+ *
+ * A dev pre-release is an image tag with no git tag of the same name, so `v<tag>` names nothing to
+ * check out. `readJson` takes a registry path and returns the parsed body. Throws when the label is
+ * absent or is not a full commit hash.
+ */
+export async function readImageRevision(readJson, repository, tag) {
+  let manifest = await readJson(`/v2/${repository}/manifests/${tag}`);
+  if (Array.isArray(manifest.manifests)) {
+    const entry = manifest.manifests.find(
+      (m) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
+    );
+    if (entry === undefined) {
+      throw new Error(`${repository}:${tag} is an image index with no linux/amd64 image.`);
+    }
+    manifest = await readJson(`/v2/${repository}/manifests/${entry.digest}`);
+  }
+  const configDigest = manifest.config?.digest;
+  if (typeof configDigest !== "string") {
+    throw new Error(`${repository}:${tag} has a manifest with no config digest.`);
+  }
+  const config = await readJson(`/v2/${repository}/blobs/${configDigest}`);
+  const revision = config.config?.Labels?.[REVISION_LABEL] ?? "";
+  if (!/^[0-9a-f]{40}$/.test(revision)) {
+    throw new Error(
+      `${repository}:${tag} carries no ${REVISION_LABEL} commit (read '${revision}'), so its source cannot be checked out.`,
+    );
+  }
+  return revision;
 }
 
 /**
@@ -470,11 +519,39 @@ function coveRef() {
   return 0;
 }
 
-const USAGE = "Usage: cove-versions.mjs [--report] | --floors-only | --cove-ref";
+/**
+ * The Cove git ref holding one version's source, as a `ref=` line for $GITHUB_OUTPUT. A release is its
+ * `v<version>` tag. A pre-release is the commit its image was built from.
+ */
+async function sourceRef(version) {
+  const parsed = parseSemver(version);
+  if (parsed === null) {
+    throw new Error(`'${version}' is not a semver version, so it names no Cove source.`);
+  }
+  if (parsed.prerelease.length === 0) {
+    process.stdout.write(`ref=v${version}\n`);
+    return 0;
+  }
+  const image = readCoveImageReference();
+  const token = await fetchPullToken(image.registry, image.repository);
+  const revision = await readImageRevision(
+    async (pathAndQuery) =>
+      (await registryGetPath(image.registry, pathAndQuery, token, MANIFEST_ACCEPT)).json(),
+    image.repository,
+    version,
+  );
+  console.error(`${image.registry}/${image.repository}:${version} was built from ${revision}`);
+  process.stdout.write(`ref=${revision}\n`);
+  return 0;
+}
+
+const USAGE =
+  "Usage: cove-versions.mjs [--report] | --floors-only | --cove-ref | --source-ref <version>";
 
 export async function main(argv) {
   if (argv.length === 1 && argv[0] === "--floors-only") return floorLegs();
   if (argv.length === 1 && argv[0] === "--cove-ref") return coveRef();
+  if (argv.length === 2 && argv[0] === "--source-ref") return sourceRef(argv[1]);
   const unknown = argv.filter((argument) => argument !== "--report");
   if (unknown.length > 0) {
     throw new Error(`Unrecognised argument '${unknown[0]}'. ${USAGE}`);
