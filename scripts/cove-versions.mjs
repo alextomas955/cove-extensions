@@ -49,11 +49,13 @@ export function splitImageReference(reference) {
 
 // ---- Tag resolution: ranking is pure and the paginated read takes its page reader as an argument. ----
 
-// Strict X.Y.Z[-pre][+build]. This regex is the filter: it rejects `latest`, `nightly`, the
-// `sha-<hex>` digest tags and the truncated `X.Y` aliases without naming any of them, so an upstream
-// tag convention nobody anticipated cannot leak in through a denylist nobody updated.
-const SEMVER =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+// The identifier grammar of strict X.Y.Z[-pre][+build], one rule per identifier kind. The parser
+// below is the filter: it rejects `latest`, `nightly`, the `sha-<hex>` digest tags and the truncated
+// `X.Y` aliases without naming any of them, so an upstream tag convention nobody anticipated cannot
+// leak in through a denylist nobody updated.
+const CORE_NUMBER = /^(?:0|[1-9]\d*)$/;
+const PRERELEASE_IDENTIFIER = /^(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)$/;
+const BUILD_IDENTIFIER = /^[0-9A-Za-z-]+$/;
 
 /**
  * True when the tag on `image` is at or above `floor`.
@@ -77,15 +79,22 @@ export function imageAtLeastVersion(image, floor) {
 
 /** Parses a strict semver tag, or returns null for anything that is not one. */
 export function parseSemver(tag) {
-  const match = SEMVER.exec(String(tag ?? ""));
-  if (match === null) return null;
-  return {
-    tag,
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-    prerelease: match[4] === undefined ? [] : match[4].split("."),
-  };
+  const [withoutBuild, build, ...extraBuild] = String(tag ?? "").split("+");
+  if (extraBuild.length > 0) return null;
+  if (build !== undefined && !build.split(".").every((id) => BUILD_IDENTIFIER.test(id))) {
+    return null;
+  }
+
+  // The first hyphen ends the core: a pre-release identifier may itself contain hyphens.
+  const hyphen = withoutBuild.indexOf("-");
+  const core = hyphen === -1 ? withoutBuild : withoutBuild.slice(0, hyphen);
+  const prerelease = hyphen === -1 ? [] : withoutBuild.slice(hyphen + 1).split(".");
+  const numbers = core.split(".");
+  if (numbers.length !== 3 || !numbers.every((part) => CORE_NUMBER.test(part))) return null;
+  if (!prerelease.every((id) => PRERELEASE_IDENTIFIER.test(id))) return null;
+
+  const [major, minor, patch] = numbers.map(Number);
+  return { tag, major, minor, patch, prerelease };
 }
 
 /**
@@ -99,26 +108,25 @@ export function compareSemver(a, b) {
   if (a.major !== b.major) return a.major - b.major;
   if (a.minor !== b.minor) return a.minor - b.minor;
   if (a.patch !== b.patch) return a.patch - b.patch;
-  if (a.prerelease.length === 0 && b.prerelease.length === 0) return 0;
-  if (a.prerelease.length === 0) return 1;
-  if (b.prerelease.length === 0) return -1;
+  return comparePrerelease(a.prerelease, b.prerelease);
+}
 
-  for (let i = 0; i < Math.max(a.prerelease.length, b.prerelease.length); i += 1) {
-    const left = a.prerelease[i];
-    const right = b.prerelease[i];
-    if (left === undefined) return -1;
-    if (right === undefined) return 1;
-    const leftNumeric = /^\d+$/.test(left);
-    const rightNumeric = /^\d+$/.test(right);
-    if (leftNumeric && rightNumeric) {
-      if (Number(left) !== Number(right)) return Number(left) - Number(right);
-    } else if (leftNumeric !== rightNumeric) {
-      return leftNumeric ? -1 : 1;
-    } else if (left !== right) {
-      return left < right ? -1 : 1;
-    }
+function comparePrerelease(left, right) {
+  if (left.length === 0 || right.length === 0) return right.length - left.length;
+  for (let i = 0; i < Math.min(left.length, right.length); i += 1) {
+    const order = comparePrereleaseIdentifier(left[i], right[i]);
+    if (order !== 0) return order;
   }
-  return 0;
+  return left.length - right.length;
+}
+
+function comparePrereleaseIdentifier(left, right) {
+  const leftNumeric = /^\d+$/.test(left);
+  const rightNumeric = /^\d+$/.test(right);
+  if (leftNumeric && rightNumeric) return Number(left) - Number(right);
+  if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
 }
 
 /** Splits parsed versions into GA and pre-release, each ascending so the newest is last. */
@@ -284,6 +292,21 @@ export function readExtensionFloors(select, catalogPath = DEFAULT_CATALOG_PATH) 
 }
 
 /**
+ * The target of the `rel="next"` entry in a Link header, or null when it advertises none.
+ *
+ * Parsed by splitting rather than by one pattern, so the cost stays linear in the header's length.
+ */
+function nextLinkTarget(link) {
+  for (const entry of String(link ?? "").split(",")) {
+    const [target, ...params] = entry.split(";").map((part) => part.trim());
+    if (params.includes('rel="next"') && target.startsWith("<") && target.endsWith(">")) {
+      return target.slice(1, -1);
+    }
+  }
+  return null;
+}
+
+/**
  * Collects a repository's whole tag list, following the registry's `Link: rel="next"` pages.
  *
  * GHCR emits no `Link` header at today's tag count but does implement pagination, so reading one
@@ -302,8 +325,7 @@ export async function collectRegistryTags(readPage, firstPath, pageCap = 50) {
     for (const tag of tags ?? []) collected.push(tag);
     pages += 1;
 
-    const next = /<([^>]+)>\s*;\s*rel="next"/.exec(link ?? "");
-    pathAndQuery = next === null ? null : next[1];
+    pathAndQuery = nextLinkTarget(link);
     if (pathAndQuery !== null && !pathAndQuery.startsWith("/v2/")) {
       throw new Error(
         `The registry's Link: rel="next" points at '${pathAndQuery}', which is not a /v2/ path on this registry; refusing to follow it.`,

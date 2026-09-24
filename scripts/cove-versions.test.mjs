@@ -64,9 +64,9 @@ test("the real Directory.Build.props declares the image repository", () => {
 
 // ---- tag parsing, ranking and leg resolution ------------------------------------------------------
 
-test("the strict-semver regex is the whole filter: every non-semver tag spelling parses to null", () => {
+test("the strict-semver parser is the whole filter: every non-semver tag spelling parses to null", () => {
   // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere - the
-  // regex rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
+  // parser rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
   // through a list nobody updated.
   for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {
     assert.equal(parseSemver(spelling), null, spelling);
