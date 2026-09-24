@@ -104,18 +104,7 @@ public sealed partial class Renamer
                     _selfSaved.TryRemove(selfSaveKey, out _);
                 }
 
-                foreach (var r in result.Renamed)
-                {
-                    LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
-                    if (r.Reason is { Length: > 0 } warning)
-                    {
-                        LogAutoRenamedWithWarning(kind, entityId, warning);
-                    }
-                }
-                foreach (var f in result.Failed)
-                {
-                    LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
-                }
+                LogAutoRenamerResult(kind, entityId, result);
             });
         }
         catch (OperationCanceledException)
@@ -136,5 +125,21 @@ public sealed partial class Renamer
             LogAutoRenamerError(ex, kind, entityId);
         }
 #pragma warning restore CA1031
+    }
+
+    private void LogAutoRenamerResult(RenamerFileKind kind, int entityId, RenamerExecutor.RenamerRunResult result)
+    {
+        foreach (var r in result.Renamed)
+        {
+            LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
+            if (r.Reason is { Length: > 0 } warning)
+            {
+                LogAutoRenamedWithWarning(kind, entityId, warning);
+            }
+        }
+        foreach (var f in result.Failed)
+        {
+            LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
+        }
     }
 }

@@ -745,7 +745,7 @@ public sealed partial class Renamer
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
-            kinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
+            kinds, cursor, body?.Take ?? 0, new ScanRowFilter(body?.Query, bucket), options, lookups, ct);
 
         return TypedResults.Ok(page);
     }

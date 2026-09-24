@@ -157,21 +157,7 @@ public sealed partial class Renamer : FullExtensionBase
                 stored, resolved.tags.Matches, resolved.performers.Matches);
             stored = conversion.Json;
             rewrote = true;
-
-            foreach (var name in conversion.DroppedNames)
-            {
-                LogOptionsRuleDropped(name);
-            }
-
-            foreach (var collapse in conversion.CaseCollapses)
-            {
-                LogOptionsRuleCaseCollapsed(collapse.Name, collapse.MatchedId, collapse.AlsoMatchedIds.Count);
-            }
-
-            foreach (var discard in conversion.DiscardedDestinations)
-            {
-                LogOptionsDestinationDiscarded(discard.Key, discard.Id, discard.ClaimedBy);
-            }
+            LogRuleConversion(conversion);
         }
 
         var destinations = OptionsMigration.ConvertDestinationsToRoots(stored, LibraryRoots);
@@ -188,16 +174,7 @@ public sealed partial class Renamer : FullExtensionBase
         {
             stored = destinations.Json;
             rewrote = true;
-
-            foreach (var rule in destinations.Rewritten)
-            {
-                LogOptionsDestinationRewritten(rule.Rule, rule.From, rule.ToRoot, rule.ToTemplate);
-            }
-
-            foreach (var rule in destinations.Dropped)
-            {
-                LogOptionsDestinationDropped(rule.Rule, rule.Stored);
-            }
+            LogDestinationConversion(destinations);
         }
 
         if (rewrote)
@@ -206,6 +183,37 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+    }
+
+    private void LogRuleConversion(OptionsMigration.Conversion conversion)
+    {
+        foreach (var name in conversion.DroppedNames)
+        {
+            LogOptionsRuleDropped(name);
+        }
+
+        foreach (var collapse in conversion.CaseCollapses)
+        {
+            LogOptionsRuleCaseCollapsed(collapse.Name, collapse.MatchedId, collapse.AlsoMatchedIds.Count);
+        }
+
+        foreach (var discard in conversion.DiscardedDestinations)
+        {
+            LogOptionsDestinationDiscarded(discard.Key, discard.Id, discard.ClaimedBy);
+        }
+    }
+
+    private void LogDestinationConversion(OptionsMigration.DestinationConversion destinations)
+    {
+        foreach (var rule in destinations.Rewritten)
+        {
+            LogOptionsDestinationRewritten(rule.Rule, rule.From, rule.ToRoot, rule.ToTemplate);
+        }
+
+        foreach (var rule in destinations.Dropped)
+        {
+            LogOptionsDestinationDropped(rule.Rule, rule.Stored);
+        }
     }
 
     // Refuses to load when the undo journal cannot be read. The host logs a failed migration, stops

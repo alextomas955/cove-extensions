@@ -134,6 +134,13 @@ dotnet_diagnostic.S2325.severity = none
 # return. A Where/FirstOrDefault rewrite loses the early return and adds an enumerator chain for no
 # gain.
 dotnet_diagnostic.S3267.severity = none
+#
+# S3776 (cognitive complexity), S107 (too many parameters) and S9129 (combine Include chains) take
+# parameters, so the analyzer leaves them off by default while SonarCloud runs them. They are on here
+# so a local build reports what the SonarCloud gate reports.
+dotnet_diagnostic.S3776.severity = warning
+dotnet_diagnostic.S107.severity = warning
+dotnet_diagnostic.S9129.severity = warning
 
 # Tests: xUnit's Method_Scenario_Expectation naming is deliberate, and CA1707 governs public API
 # naming for cross-language consumers — which a test method is not. Keyed on the *.Tests shape, not
@@ -144,6 +151,8 @@ dotnet_diagnostic.CA1707.severity = none
 # inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
 # readability wins over a non-measurable allocation in a unit test.
 dotnet_diagnostic.CA1861.severity = none
+# S107: SonarCloud does not run it on test code, and a test fixture builder names every field it seeds.
+dotnet_diagnostic.S107.severity = none
 
 # S6966 (prefer the async file/stream overload) fires ~200 times in test ARRANGE code, which writes a
 # fixture file and waits. The rule guards against occupying a thread-pool thread on a hot path; a test

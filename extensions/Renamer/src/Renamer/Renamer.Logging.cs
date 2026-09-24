@@ -75,6 +75,8 @@ public sealed partial class Renamer
     [LoggerMessage(
         EventId = 1008, Level = LogLevel.Information,
         Message = "[Renamer] batch {RunId}: {Done}/{Total} starting {Kind} id={EntityId} (crossVolume={CrossVolume}, {SizeMb} MB) '{Old}'")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters",
+        Justification = "Each parameter is one placeholder of the structured log message.")]
     private partial void LogItemStarting(
         string runId, int done, int total, RenamerFileKind kind, int entityId, bool crossVolume, long sizeMb, string old);
 

@@ -23,55 +23,16 @@ public static class Tokenizer
         var lit = new StringBuilder();
         int depth = 0;
 
-        void Flush()
-        {
-            if (lit.Length > 0)
-            {
-                segs.Add(new Segment(SegKind.Literal, lit.ToString()));
-                lit.Clear();
-            }
-        }
-
         for (int i = 0; i < template.Length; i++)
         {
             char c = template[i];
             if (c == '$')
             {
-                // When a token name follows the second $, as in "$$title", only the first $ is
-                // consumed, so the loop reprocesses the second as a token start. Otherwise both are
-                // consumed and "$$" yields exactly one "$".
-                if (i + 1 < template.Length && template[i + 1] == '$')
-                {
-                    lit.Append('$');
-                    bool tokenFollows = i + 2 < template.Length
-                        && (char.IsLetterOrDigit(template[i + 2]) || template[i + 2] == '_');
-                    if (!tokenFollows)
-                    {
-                        i++;
-                    }
-
-                    continue;
-                }
-
-                int j = i + 1;
-                while (j < template.Length && (char.IsLetterOrDigit(template[j]) || template[j] == '_'))
-                {
-                    j++;
-                }
-
-                if (j == i + 1)
-                {
-                    lit.Append('$');
-                    continue;
-                }
-
-                Flush();
-                segs.Add(new Segment(SegKind.Token, template.Substring(i + 1, j - i - 1)));
-                i = j - 1;
+                i = ScanDollar(template, i, segs, lit);
             }
             else if (c == '{')
             {
-                Flush();
+                Flush(segs, lit);
                 segs.Add(new Segment(SegKind.GroupOpen, "{"));
                 depth++;
             }
@@ -83,7 +44,7 @@ public static class Tokenizer
                 }
                 else
                 {
-                    Flush();
+                    Flush(segs, lit);
                     segs.Add(new Segment(SegKind.GroupClose, "}"));
                     depth--;
                 }
@@ -94,7 +55,53 @@ public static class Tokenizer
             }
         }
 
-        Flush();
+        Flush(segs, lit);
         return segs;
+    }
+
+    // Scans from the $ at index i and returns the index of the last char it consumed, which the
+    // caller's loop then steps past.
+    private static int ScanDollar(string template, int i, List<Segment> segs, StringBuilder lit)
+    {
+        // When a token name follows the second $, as in "$$title", only the first $ is
+        // consumed, so the loop reprocesses the second as a token start. Otherwise both are
+        // consumed and "$$" yields exactly one "$".
+        if (i + 1 < template.Length && template[i + 1] == '$')
+        {
+            lit.Append('$');
+            bool tokenFollows = i + 2 < template.Length
+                && (char.IsLetterOrDigit(template[i + 2]) || template[i + 2] == '_');
+            if (!tokenFollows)
+            {
+                i++;
+            }
+
+            return i;
+        }
+
+        int j = i + 1;
+        while (j < template.Length && (char.IsLetterOrDigit(template[j]) || template[j] == '_'))
+        {
+            j++;
+        }
+
+        if (j == i + 1)
+        {
+            lit.Append('$');
+            return i;
+        }
+
+        Flush(segs, lit);
+        segs.Add(new Segment(SegKind.Token, template.Substring(i + 1, j - i - 1)));
+        return j - 1;
+    }
+
+    private static void Flush(List<Segment> segs, StringBuilder lit)
+    {
+        if (lit.Length > 0)
+        {
+            segs.Add(new Segment(SegKind.Literal, lit.ToString()));
+            lit.Clear();
+        }
     }
 }

@@ -306,112 +306,9 @@ public sealed partial class Renamer
         // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
         // as it found it. One elevated span for the whole pass, not one per entity: the background
         // principal is anonymous, and an unelevated read returns zero rows with no error.
-        var (planned, planSkipped) = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
-        {
-            var units = new List<BatchUnit>();
-            int skipped = 0;
-            var readDb = services.GetRequiredService<DbContext>();
-            var port = new CoveRenamerDataPort(readDb, _coveConfig);
-            var planner = new RenamerPlanner(port);
+        var (planned, planSkipped) = await PlanChunkAsync(run, ids, lookups, runId, progress, ct);
 
-            // The chunk's entities in one bounded set of round-trips, the same shape the library scan
-            // uses, rather than one entity-graph load per id. The walk below still follows the caller's
-            // id order, so the preview order and the units it produces do not depend on what the
-            // database returned first. An id naming an entity the load did not return vanished between
-            // the id list and this read, and contributes nothing.
-            var loaded = await port.LoadEntitiesAsync(run.Kind, ids, ct);
-            var byId = new Dictionary<int, RenamerEntity>(loaded.Count);
-            foreach (var entity in loaded)
-            {
-                byId[entity.EntityId] = entity;
-            }
-
-            int planIndex = 0;
-            foreach (var id in ids)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                int actingThisItem = 0;
-                if (byId.TryGetValue(id, out var entity))
-                {
-                    var plan = await planner.PlanLoadedEntity(entity, run.Options, lookups, ct);
-
-                    // File sizes for the free-space sum live on the loaded entity's files, not on the
-                    // plan item, so they are read off the entity the plan was built from.
-                    var sizeByFileId = entity.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
-
-                    foreach (var item in plan.Items)
-                    {
-                        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
-                        {
-                            if (ScanBucket.Of(item.Status) == ScanBucketKind.Attention)
-                            {
-                                skipped++;
-                            }
-
-                            continue;
-                        }
-
-                        actingThisItem++;
-                        long size = sizeByFileId.GetValueOrDefault(item.FileId);
-                        // Each worker is handed a single-file plan so the executor acts on exactly this
-                        // file; the parent entity id rides the unit for logging.
-                        var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
-                        units.Add(new BatchUnit(plan.EntityId, unitPlan,
-                            (item.OldFullPath, item.NewFullPath, size)));
-                    }
-                }
-
-                LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
-                // Planning drives the first half of the chunk's bar and execution the second, so the bar
-                // only advances, and the message names the phase.
-                progress.Report(
-                    (double)planIndex / ids.Count * PlanningProgressShare,
-                    $"Planning {planIndex}/{ids.Count}...");
-            }
-
-            return (units, skipped);
-        });
-
-        // One acting unit per source file. Naming the same entity twice in one request plans its files
-        // twice, and both units are then the same work, so the file is scheduled once.
-        //
-        // Grouped by the slice's file-identity rule, which ignores case on Windows and macOS. On a
-        // volume formatted case-sensitive there, two rows differing only in case are two files and both
-        // are refused: the refusal is recoverable by hand, while renaming one row's file out from under
-        // another's is not.
-        var bySourcePath = planned
-            .GroupBy(u => PathOps.NormalizeSlash(u.Move.OldFullPath), PathOps.PathComparer)
-            .ToList();
-
-        // Two different file rows naming one source path is database state a rename cannot arbitrate:
-        // acting on either moves the file the other row also claims. Every row of such a group is
-        // refused and named in the log, so the anomaly is reported rather than half-applied. The
-        // database answers this, because the twin row can sit in another chunk or under another kind,
-        // where a grouping over what was just planned cannot see it.
-        IReadOnlyDictionary<string, int> claimsByPath = new Dictionary<string, int>();
-        if (bySourcePath.Count > 0)
-        {
-            claimsByPath = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
-                new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
-                    .CountSourcePathClaimsAsync([.. bySourcePath.Select(g => g.Key)], ct));
-        }
-
-        var acting = new List<BatchUnit>(planned.Count);
-        int contestedFiles = 0;
-        foreach (var claimants in bySourcePath)
-        {
-            int rows = claimants.Select(u => u.Plan.Items[0].FileId).Distinct().Count();
-            int claims = Math.Max(rows, claimsByPath.GetValueOrDefault(claimants.Key));
-            if (claims == 1)
-            {
-                acting.Add(claimants.First());
-                continue;
-            }
-
-            contestedFiles += rows;
-            LogContestedSourcePath(runId, claimants.Key, claims);
-        }
+        var (acting, contestedFiles) = await SelectUncontestedAsync(planned, runId, ct);
 
         // Sum the projected cross-volume bytes per destination volume and refuse before touching disk if
         // a volume would not fit. Same-volume moves are excluded from the sum by the guard. This runs
@@ -439,21 +336,7 @@ public sealed partial class Renamer
         // run, and never inside the parallel execution below. Each worker reads its move's destination id
         // from this map, so no two of them check-then-act on a shared Folder row. An in-place rename uses
         // the source folder id and needs no entry.
-        var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
-        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
-        {
-            var port = new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig);
-            foreach (var unit in acting)
-            {
-                var planItem = unit.Plan.Items[0];
-                if (planItem.Status == RenamerStatus.Move
-                    && !folderIdByPath.ContainsKey(planItem.TargetFolderPath))
-                {
-                    folderIdByPath[planItem.TargetFolderPath] =
-                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
-                }
-            }
-        });
+        var folderIdByPath = await ResolveDestinationFoldersAsync(acting, ct);
 
         // Now, and only now, open exactly one batch: the chunk produced acting work and it fits.
         await journal.BeginBatchAsync(runId, run.OperationId, run.Kind, DateTime.UtcNow, ct);
@@ -556,6 +439,160 @@ public sealed partial class Renamer
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
         return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, planSkipped, null);
+    }
+
+    private Task<(List<BatchUnit> Units, int Skipped)> PlanChunkAsync(
+        RenameRun run,
+        IReadOnlyList<int> ids,
+        RouteLookups lookups,
+        string runId,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        return RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        {
+            var units = new List<BatchUnit>();
+            int skipped = 0;
+            var readDb = services.GetRequiredService<DbContext>();
+            var port = new CoveRenamerDataPort(readDb, _coveConfig);
+            var planner = new RenamerPlanner(port);
+
+            // The chunk's entities in one bounded set of round-trips, the same shape the library scan
+            // uses, rather than one entity-graph load per id. The walk below still follows the caller's
+            // id order, so the preview order and the units it produces do not depend on what the
+            // database returned first. An id naming an entity the load did not return vanished between
+            // the id list and this read, and contributes nothing.
+            var loaded = await port.LoadEntitiesAsync(run.Kind, ids, ct);
+            var byId = new Dictionary<int, RenamerEntity>(loaded.Count);
+            foreach (var entity in loaded)
+            {
+                byId[entity.EntityId] = entity;
+            }
+
+            int planIndex = 0;
+            foreach (var id in ids)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                int actingThisItem = 0;
+                if (byId.TryGetValue(id, out var entity))
+                {
+                    var plan = await planner.PlanLoadedEntity(entity, run.Options, lookups, ct);
+
+                    // File sizes for the free-space sum live on the loaded entity's files, not on the
+                    // plan item, so they are read off the entity the plan was built from.
+                    var sizeByFileId = entity.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
+
+                    actingThisItem = AddActingUnits(plan, sizeByFileId, units, ref skipped);
+                }
+
+                LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
+                // Planning drives the first half of the chunk's bar and execution the second, so the bar
+                // only advances, and the message names the phase.
+                progress.Report(
+                    (double)planIndex / ids.Count * PlanningProgressShare,
+                    $"Planning {planIndex}/{ids.Count}...");
+            }
+
+            return (units, skipped);
+        });
+    }
+
+    // Returns how many of the plan's items act. An item that needs attention counts into skipped.
+    private static int AddActingUnits(
+        RenamerPlan plan, Dictionary<int, long> sizeByFileId, List<BatchUnit> units, ref int skipped)
+    {
+        int acting = 0;
+        foreach (var item in plan.Items)
+        {
+            if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
+            {
+                if (ScanBucket.Of(item.Status) == ScanBucketKind.Attention)
+                {
+                    skipped++;
+                }
+
+                continue;
+            }
+
+            acting++;
+            long size = sizeByFileId.GetValueOrDefault(item.FileId);
+            // Each worker is handed a single-file plan so the executor acts on exactly this
+            // file; the parent entity id rides the unit for logging.
+            var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
+            units.Add(new BatchUnit(plan.EntityId, unitPlan,
+                (item.OldFullPath, item.NewFullPath, size)));
+        }
+
+        return acting;
+    }
+
+    private async Task<(List<BatchUnit> Acting, int ContestedFiles)> SelectUncontestedAsync(
+        List<BatchUnit> planned, string runId, CancellationToken ct)
+    {
+        // One acting unit per source file. Naming the same entity twice in one request plans its files
+        // twice, and both units are then the same work, so the file is scheduled once.
+        //
+        // Grouped by the slice's file-identity rule, which ignores case on Windows and macOS. On a
+        // volume formatted case-sensitive there, two rows differing only in case are two files and both
+        // are refused: the refusal is recoverable by hand, while renaming one row's file out from under
+        // another's is not.
+        var bySourcePath = planned
+            .GroupBy(u => PathOps.NormalizeSlash(u.Move.OldFullPath), PathOps.PathComparer)
+            .ToList();
+
+        // Two different file rows naming one source path is database state a rename cannot arbitrate:
+        // acting on either moves the file the other row also claims. Every row of such a group is
+        // refused and named in the log, so the anomaly is reported rather than half-applied. The
+        // database answers this, because the twin row can sit in another chunk or under another kind,
+        // where a grouping over what was just planned cannot see it.
+        IReadOnlyDictionary<string, int> claimsByPath = new Dictionary<string, int>();
+        if (bySourcePath.Count > 0)
+        {
+            claimsByPath = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+                new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
+                    .CountSourcePathClaimsAsync([.. bySourcePath.Select(g => g.Key)], ct));
+        }
+
+        var acting = new List<BatchUnit>(planned.Count);
+        int contestedFiles = 0;
+        foreach (var claimants in bySourcePath)
+        {
+            int rows = claimants.Select(u => u.Plan.Items[0].FileId).Distinct().Count();
+            int claims = Math.Max(rows, claimsByPath.GetValueOrDefault(claimants.Key));
+            if (claims == 1)
+            {
+                acting.Add(claimants.First());
+                continue;
+            }
+
+            contestedFiles += rows;
+            LogContestedSourcePath(runId, claimants.Key, claims);
+        }
+
+        return (acting, contestedFiles);
+    }
+
+    private async Task<Dictionary<string, int>> ResolveDestinationFoldersAsync(
+        List<BatchUnit> acting, CancellationToken ct)
+    {
+        var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        {
+            var port = new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig);
+            foreach (var unit in acting)
+            {
+                var planItem = unit.Plan.Items[0];
+                if (planItem.Status == RenamerStatus.Move
+                    && !folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                {
+                    folderIdByPath[planItem.TargetFolderPath] =
+                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                }
+            }
+        });
+
+        return folderIdByPath;
     }
 
     // The refusal has to reach the job's own message: its files rename nothing and produce no per-item
