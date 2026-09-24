@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Addressing;
@@ -6,6 +7,13 @@ using WhisparrSync.Import;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
+
+/// <summary>One entry the run registered: the instance's own id for it, and the path it gave it.</summary>
+/// <remarks>
+/// The path is carried so a file can be compared against where its entry will be written before
+/// anything is sent. A null path is one the instance answered without one.
+/// </remarks>
+internal sealed record RegisteredScene(int EntityId, string? Path);
 
 internal sealed record ReflectOwnedDecision(bool Act, ReflectOwnedSkipReason? Reason)
 {
@@ -56,7 +64,53 @@ internal sealed record ReflectOwnedRun(
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
     IReadOnlyList<string>? AddressedRoots = null,
     int EntriesLeftUnderAnotherRoot = 0,
-    bool RootsCouldNotBeRead = false);
+    bool RootsCouldNotBeRead = false,
+    // The figure a reader compares against the registered count, which is scenes. A folder count
+    // beside it reads as files and understates a run by orders of magnitude.
+    int FilesAttached = 0)
+{
+    // Folds one folder's run into the total a library-wide walk carries. The counts add; the two
+    // lists are unioned, because each names a library root and an operator creates those by hand,
+    // so neither grows with the library. A cancelled folder makes the whole total cancelled.
+    internal ReflectOwnedRun Plus(ReflectOwnedRun other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        return new ReflectOwnedRun(
+            other.Outcome is ReflectOwnedRunOutcome.Cancelled ? other.Outcome : Outcome,
+            FoldersAttached + other.FoldersAttached,
+            FoldersRefused + other.FoldersRefused,
+            Skipped ?? other.Skipped,
+            FoldersNotAddressed + other.FoldersNotAddressed,
+            Union(AddressRefusals, other.AddressRefusals, refusal => refusal.CoveRoot),
+            Union(AddressedRoots, other.AddressedRoots, root => root),
+            EntriesLeftUnderAnotherRoot + other.EntriesLeftUnderAnotherRoot,
+            RootsCouldNotBeRead || other.RootsCouldNotBeRead,
+            FilesAttached + other.FilesAttached);
+    }
+
+    private static IReadOnlyList<T>? Union<T>(
+        IReadOnlyList<T>? held, IReadOnlyList<T>? arrived, Func<T, string> keyed)
+    {
+        if (held is null || held.Count == 0)
+        {
+            return arrived;
+        }
+
+        if (arrived is null || arrived.Count == 0)
+        {
+            return held;
+        }
+
+        var byKey = new Dictionary<string, T>(StringComparer.Ordinal);
+        foreach (var entry in held.Concat(arrived))
+        {
+            byKey.TryAdd(keyed(entry), entry);
+        }
+
+        return [.. byKey.Values];
+    }
+}
 
 // The count travels with the entries because the entries reach the instance through an early
 // continue when there are none, and a count carried elsewhere would be lost exactly on the folder
@@ -82,6 +136,16 @@ internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot
 internal static class ReflectOwnedPlanner
 {
     internal const string CommandName = "ManualImport";
+
+    // How many of a folder's files one import carries. The reads that compose them cost about a
+    // second each, and they are held in memory until the import goes, so a folder of a few thousand
+    // would read for half an hour, show nothing while it did, and lose all of it on a stop.
+    internal const int FilesAttachedAtOnce = 100;
+
+    // A run given no lookup reads the instance's own match, which is what every caller but the
+    // library run does.
+    private static readonly IReadOnlyDictionary<string, int> NothingIdentified =
+        new Dictionary<string, int>(StringComparer.Ordinal);
 
     // The import mode that links when it can. The only other mode moves the file out of the
     // library, and is never composed.
@@ -112,9 +176,13 @@ internal static class ReflectOwnedPlanner
     // path sits under no declared root there is no comparison to make and the entry stays. An
     // instance whose root list could not be read never reaches here; the run stops first.
     internal static PlannedFiles Files(
-        WhisparrGeneration generation, string? importable, IReadOnlyList<string> instanceRoots)
+        WhisparrGeneration generation,
+        string? importable,
+        IReadOnlyList<string> instanceRoots,
+        IReadOnlyDictionary<string, int> identified)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentNullException.ThrowIfNull(identified);
 
         if (AsArray(importable) is not { } rows)
         {
@@ -126,7 +194,7 @@ internal static class ReflectOwnedPlanner
         var leftUnderAnotherRoot = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
-            if (Entry(reading, row) is not { } entry)
+            if (Entry(reading, row, identified) is not { } entry)
             {
                 continue;
             }
@@ -141,6 +209,126 @@ internal static class ReflectOwnedPlanner
         }
 
         return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+    }
+
+    // One folder's files, composed from what the library owns rather than from a listing of the
+    // directory. The instance answers a folder listing only once it has walked and parsed every
+    // entry in it, which on a directory of a few hundred files takes minutes and answers about files
+    // the reader does not own; this asks about the files the reader does own and nothing else.
+    //
+    // The quality and the languages are the instance's own reading of each file, never composed
+    // here. A file it reads no quality for is left out rather than sent with one nobody stated.
+    internal static IAsyncEnumerable<PlannedFiles> ComposedFilesAsync(
+        string instanceFolder,
+        IReadOnlyDictionary<string, RegisteredScene> identified,
+        IReadOnlyList<string> instanceRoots,
+        Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>> readFile,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceFolder);
+        ArgumentNullException.ThrowIfNull(identified);
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentNullException.ThrowIfNull(readFile);
+
+        return ComposingAsync(instanceFolder, identified, instanceRoots, readFile, ct);
+    }
+
+    private static async IAsyncEnumerable<PlannedFiles> ComposingAsync(
+        string instanceFolder,
+        IReadOnlyDictionary<string, RegisteredScene> identified,
+        IReadOnlyList<string> instanceRoots,
+        Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>> readFile,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        if (identified.Count == 0)
+        {
+            yield break;
+        }
+
+        var folderName = FolderNameOf(instanceFolder);
+        var files = new JsonArray();
+        var leftUnderAnotherRoot = 0;
+        foreach (var (fileName, scene) in identified)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var path = PathCandidateGuard.CandidateUnder(instanceFolder, fileName);
+            if (path is null)
+            {
+                continue;
+            }
+
+            // The linking import mode copies the whole file whenever the file and the entry it is
+            // written to are not on one filesystem, whatever the hard-link setting says, and reports
+            // it as a successful import. Compared by declared root, the same conservative stand-in
+            // the folder-listing path uses.
+            if (UnderDifferentRoots(path, scene.Path, instanceRoots))
+            {
+                leftUnderAnotherRoot++;
+                continue;
+            }
+
+            var read = await readFile(new OwnedFilePlacement(path, scene.EntityId), ct)
+                .ConfigureAwait(false);
+            if (ReadingOf(read?.Body) is not { } reading)
+            {
+                continue;
+            }
+
+            files.Add(new JsonObject
+            {
+                ["path"] = path,
+                ["folderName"] = folderName,
+                ["quality"] = reading.Quality.DeepClone(),
+                ["languages"] = reading.Languages.DeepClone(),
+                ["releaseGroup"] = string.Empty,
+                ["indexerFlags"] = 0,
+                ["movieId"] = scene.EntityId,
+            });
+
+            if (files.Count < FilesAttachedAtOnce)
+            {
+                continue;
+            }
+
+            yield return new PlannedFiles(files, leftUnderAnotherRoot);
+            files = [];
+            leftUnderAnotherRoot = 0;
+        }
+
+        if (files.Count > 0 || leftUnderAnotherRoot > 0)
+        {
+            yield return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+        }
+    }
+
+    // What the instance read for the file it was asked about, or null where it read no quality. The
+    // quality is required by the submit, and the instance answers the unknown one back unchanged
+    // where it could read none, so an unknown answer is not a reading.
+    private static (JsonObject Quality, JsonArray Languages)? ReadingOf(string? body)
+    {
+        if (AsArray(body) is not { } rows
+            || rows.OfType<JsonObject>().FirstOrDefault() is not { } row
+            || row["quality"] is not JsonObject quality
+            || QualityIdIn(quality) is null or V3BodyProjector.UnknownQualityId)
+        {
+            return null;
+        }
+
+        return (quality, row["languages"] as JsonArray ?? []);
+    }
+
+    private static int? QualityIdIn(JsonObject quality)
+        => quality["quality"] is JsonObject named && named["id"] is JsonValue id
+            && id.TryGetValue<int>(out var value)
+                ? value
+                : null;
+
+    private static string FolderNameOf(string instanceFolder)
+    {
+        var trimmed = instanceFolder.TrimEnd('/');
+        var cut = trimmed.LastIndexOf('/');
+        return cut < 0 ? trimmed : trimmed[(cut + 1)..];
     }
 
     internal static JsonObject Command(JsonNode files)
@@ -168,7 +356,8 @@ internal static class ReflectOwnedPlanner
         Func<string, CancellationToken, Task<AddressedFolder>> address,
         Func<string, CancellationToken, Task<ImportableListing>> readImportable,
         Func<JsonArray, CancellationToken, Task<bool>> attach,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? identify = null)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
         ArgumentNullException.ThrowIfNull(folders);
@@ -177,6 +366,7 @@ internal static class ReflectOwnedPlanner
         ArgumentNullException.ThrowIfNull(attach);
 
         var attached = 0;
+        var filesAttached = 0;
         var refused = 0;
         var unaddressed = 0;
         var leftUnderAnotherRoot = 0;
@@ -212,7 +402,11 @@ internal static class ReflectOwnedPlanner
                     continue;
                 }
 
-                var planned = Files(generation, listing.Rows, instanceRoots);
+                var identified = identify is null
+                    ? NothingIdentified
+                    : await identify(folder, ct).ConfigureAwait(false);
+
+                var planned = Files(generation, listing.Rows, instanceRoots, identified);
                 leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
                 if (planned.Entries is not { } files)
                 {
@@ -222,6 +416,7 @@ internal static class ReflectOwnedPlanner
                 if (await attach(files, ct).ConfigureAwait(false))
                 {
                     attached++;
+                    filesAttached += files.Count;
                 }
                 else
                 {
@@ -246,7 +441,8 @@ internal static class ReflectOwnedPlanner
                 [.. refusalByRoot.Values],
                 [.. addressedRoots],
                 leftUnderAnotherRoot,
-                RootsCouldNotBeRead: false);
+                RootsCouldNotBeRead: false,
+                FilesAttached: filesAttached);
     }
 
     // The most specific containing root answers for each path. Roots nest, and an instance
@@ -255,13 +451,20 @@ internal static class ReflectOwnedPlanner
     // there are two.
     private static bool UnderDifferentRoots(
         IWhisparrPayloadReading reading, JsonObject row, IReadOnlyList<string> instanceRoots)
+        => UnderDifferentRoots(
+            Text(row, "path"),
+            Text(row[reading.MatchedMember] as JsonObject, "path"),
+            instanceRoots);
+
+    private static bool UnderDifferentRoots(
+        string? filePath, string? entryPath, IReadOnlyList<string> instanceRoots)
     {
-        var file = RootOf(Text(row, "path"), instanceRoots);
-        var site = RootOf(Text(row[reading.MatchedMember] as JsonObject, "path"), instanceRoots);
+        var file = RootOf(filePath, instanceRoots);
+        var entry = RootOf(entryPath, instanceRoots);
 
         return file is not null
-            && site is not null
-            && !string.Equals(file, site, StringComparison.OrdinalIgnoreCase);
+            && entry is not null
+            && !string.Equals(file, entry, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? RootOf(string? path, IReadOnlyList<string> roots)
@@ -281,7 +484,8 @@ internal static class ReflectOwnedPlanner
 
     // The members every generation carries are composed here; the matched entity and its file are
     // the reader's, which answers null for a row it can attach nothing from.
-    private static JsonObject? Entry(IWhisparrPayloadReading reading, JsonObject row)
+    private static JsonObject? Entry(
+        IWhisparrPayloadReading reading, JsonObject row, IReadOnlyDictionary<string, int> identified)
     {
         if (row["quality"] is not JsonObject quality
             || row["languages"] is not JsonArray languages
@@ -300,6 +504,17 @@ internal static class ReflectOwnedPlanner
             ["indexerFlags"] = row["indexerFlags"]?.DeepClone(),
             ["downloadId"] = row["downloadId"]?.DeepClone(),
         };
+
+        // The entry Cove identified, not the one the instance managed to parse: the instance reads
+        // a studio and a date out of a file name, and a library whose names it cannot parse gets no
+        // file attached however certainly the library knows which scene it is. A name the library
+        // holds no identifier for is left for the instance's own reading.
+        if (PayloadMember.NameIn(row) is { } name
+            && identified.TryGetValue(name, out var entityId)
+            && reading.IdentifiedEntry(entry, entityId) is { } addressed)
+        {
+            return addressed;
+        }
 
         return reading.MatchedEntry(row, entry);
     }

@@ -675,7 +675,8 @@ export const SYNC_LIBRARY = "Sync library to Whisparr";
 
 /** What the sync card offers, stated under its title. */
 export const SYNC_REGISTERS_THE_SCENES_YOU_OWN =
-  "Register the scenes you already own, so Whisparr knows about them.";
+  "Register the scenes you already own, so Whisparr knows about them, " +
+  "and link the files you own to what it holds.";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
@@ -774,3 +775,15 @@ export const SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM =
 
 /** What the run does about monitoring with the choice off, whatever it registers. */
 export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
+
+/**
+ * What the run does with the files after it has registered, on the generation whose run links.
+ *
+ * States the mechanism and its precondition, as the per-entity control does: the setting is the
+ * instance's, and with it off every matched file would be copied in full rather than linked, so the
+ * run skips the linking instead. The generation registering studios links nothing and says nothing.
+ */
+export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
+  "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+  "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+  "setting is off.";

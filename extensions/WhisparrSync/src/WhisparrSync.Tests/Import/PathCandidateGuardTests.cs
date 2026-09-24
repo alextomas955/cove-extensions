@@ -12,6 +12,25 @@ public sealed class PathCandidateGuardTests
     // agrees with it whatever either says.
     private static readonly string[] HostRoots = ["/data", "/data2"];
 
+    // A library keeps files directly in its root as readily as in folders under it. Containment is
+    // tested against the root plus a separator, so the root does not contain itself, and a file kept
+    // there resolves to no library root at all.
+    [Theory]
+    [InlineData("G:/Downloads/P", "G:/Downloads/P")]
+    [InlineData("G:/Downloads/P/", "G:/Downloads/P")]
+    [InlineData("G:/Downloads/P", "G:/Downloads/P/")]
+    [InlineData("G:/Downloads/P/videos", "G:/Downloads/P")]
+    public void AFolderAtOrUnderARootIsContainedByIt(string folder, string root)
+        => Assert.True(PathCandidateGuard.IsAtOrBelow(folder, root));
+
+    [Theory]
+    [InlineData("G:/Downloads/Ported", "G:/Downloads/P")]
+    [InlineData("G:/Downloads", "G:/Downloads/P")]
+    [InlineData("", "G:/Downloads/P")]
+    [InlineData("G:/Downloads/P", "")]
+    public void AFolderBesideOrAboveARootIsNotContainedByIt(string folder, string root)
+        => Assert.False(PathCandidateGuard.IsAtOrBelow(folder, root));
+
     [Fact]
     public void OneTailUnderEachHostRootIsACandidate()
     {

@@ -27,6 +27,12 @@ internal interface IWhisparrPayloadReading
     // The submit entry for one matched row, composed onto the members every generation carries, or
     // null where the row names nothing this generation can attach a file to.
     JsonObject? MatchedEntry(JsonObject row, JsonObject entry);
+
+    /// <summary>
+    /// The entry addressed to the scene the library identified, or null where this generation
+    /// cannot address one by a single id.
+    /// </summary>
+    JsonObject? IdentifiedEntry(JsonObject entry, int entityId);
 }
 
 // Which monitor scope an instance's answer puts in force. Held by the generation whose resource
@@ -55,6 +61,19 @@ internal static class PayloadMember
 
     // The instance-side row id of the entity a file was matched to. An absent member, one of
     // another type and a non-positive id all read as no match.
+    // The file's own name, as the instance spells its path. A caller pairs it against what the
+    // library holds for the same folder.
+    internal static string? NameIn(JsonObject row)
+    {
+        if (row["path"] is not JsonValue named || !named.TryGetValue<string>(out var path))
+        {
+            return null;
+        }
+
+        var cut = path.Replace('\\', '/').LastIndexOf('/');
+        return cut < 0 ? path : path[(cut + 1)..];
+    }
+
     internal static int? MatchedId(JsonObject row, string member)
         => row[member] is JsonObject matched
             && matched["id"] is JsonValue named

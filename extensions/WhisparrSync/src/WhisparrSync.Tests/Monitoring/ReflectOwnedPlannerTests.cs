@@ -3,11 +3,123 @@ using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
 public sealed class ReflectOwnedPlannerTests
 {
+    // These cases are about what the instance itself matched, so they supply no identity of Cove's.
+    private static readonly IReadOnlyDictionary<string, int> NoIdentities =
+        new Dictionary<string, int>(StringComparer.Ordinal);
+
+    // The linking import mode copies the whole file whenever the file and the entry it is written to
+    // are not on one filesystem, and reports it as a successful import. The composed path guards that
+    // the same way the folder-listing path does.
+    [Fact]
+    public async Task AFileUnderADifferentRootFromItsEntryIsLeftRatherThanCopied()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/two/scenes/a"),
+            },
+            ["/one", "/two"],
+            (_, _) => throw new InvalidOperationException("A file it does not send is never read."),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(1, planned.LeftUnderAnotherRoot);
+    }
+
+    // Under one root the link is a link, so the file is composed and sent.
+    [Fact]
+    public async Task AFileUnderTheSameRootAsItsEntryIsSent()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/one/scenes/a"),
+            },
+            ["/one", "/two"],
+            (file, _) => Task.FromResult<WhisparrResponse?>(
+                new WhisparrResponse(200, null, Read(file, 7))),
+            TestContext.Current.CancellationToken);
+
+        var entry = Assert.IsType<JsonObject>(Assert.Single(planned.Entries!));
+        Assert.Equal(7, entry["movieId"]!.GetValue<int>());
+        Assert.Equal("/one/videos/a.mp4", entry["path"]!.GetValue<string>());
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // A file the instance read no quality for comes back carrying the unknown quality it was asked
+    // with. Sending that back would store a file the instance then treats as below every profile and
+    // replaces, so the file is left rather than sent.
+    [Fact]
+    public async Task AFileTheInstanceReadNoQualityForIsLeftRatherThanSentUnknown()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/one/scenes/a"),
+            },
+            ["/one"],
+            (file, _) => Task.FromResult<WhisparrResponse?>(
+                new WhisparrResponse(200, null, Read(file, 0))),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // The instance reads a studio and a date out of a file name to decide which scene a file is. A
+    // library whose names it cannot parse is answered "Unknown Movie" for every one of them, and the
+    // reader owns those scenes all the same.
+    [Fact]
+    public void AFileTheInstanceCouldNotIdentifyIsAttachedToTheSceneTheLibraryNames()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/a name it cannot parse.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V3,
+            unmatched,
+            ["/data"],
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["a name it cannot parse.mp4"] = 4242,
+            });
+
+        var entry = Assert.IsType<JsonObject>(Assert.Single(planned.Entries!));
+        Assert.Equal(4242, entry["movieId"]!.GetValue<int>());
+    }
+
+    // The identity is the library's, so a name it holds nothing for is left to the instance rather
+    // than attached to whatever happened to be registered nearby.
+    [Fact]
+    public void AFileTheLibraryNamesNoSceneForIsLeftToTheInstancesOwnReading()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/a name it cannot parse.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V3,
+            unmatched,
+            ["/data"],
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["another file.mp4"] = 4242 });
+
+        Assert.Null(planned.Entries);
+    }
+
     private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
 
@@ -251,7 +363,7 @@ public sealed class ReflectOwnedPlannerTests
     public void AFileWhoseSiteSitsUnderAnotherDeclaredRootReachesNoCommand()
     {
         var planned = ReflectOwnedPlanner.Files(
-            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", DeclaredRoots);
+            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", DeclaredRoots, NoIdentities);
 
         Assert.Null(planned.Entries);
         Assert.Equal(1, planned.LeftUnderAnotherRoot);
@@ -263,7 +375,7 @@ public sealed class ReflectOwnedPlannerTests
         var planned = ReflectOwnedPlanner.Files(
             WhisparrGeneration.V2,
             $"[{InboxRowMatchedToRootA},{RootARowMatchedToRootA}]",
-            DeclaredRoots);
+            DeclaredRoots, NoIdentities);
 
         var command = ReflectOwnedPlanner.Command(planned.Entries!).ToJsonString();
 
@@ -278,7 +390,7 @@ public sealed class ReflectOwnedPlannerTests
     public void AnInstanceDeclaringNoRootSendsEveryEntry()
     {
         var planned = ReflectOwnedPlanner.Files(
-            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", []);
+            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", [], NoIdentities);
 
         Assert.Single(planned.Entries!);
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
@@ -292,7 +404,7 @@ public sealed class ReflectOwnedPlannerTests
         ((JsonObject)row["series"]!).Remove("path");
 
         var planned = ReflectOwnedPlanner.Files(
-            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots);
+            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots, NoIdentities);
 
         Assert.Single(planned.Entries!);
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
@@ -305,7 +417,7 @@ public sealed class ReflectOwnedPlannerTests
         row.Remove("path");
 
         var planned = ReflectOwnedPlanner.Files(
-            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots);
+            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots, NoIdentities);
 
         Assert.Null(planned.Entries);
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
@@ -498,6 +610,84 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(["/data/Vixen"], read);
     }
 
+    // A folder of a few thousand files reads for about a second a file. Held back until the last one
+    // was read it would show nothing for half an hour and lose all of it on a stop, so each batch is
+    // handed over while the rest of the folder is still being read.
+    [Fact]
+    public async Task ALargeFolderHandsOverItsFirstBatchBeforeReadingTheRest()
+    {
+        const int held = 250;
+        var identified = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+        for (var index = 0; index < held; index++)
+        {
+            identified[$"scene {index}.mp4"] = new RegisteredScene(index + 1, "/one/scenes");
+        }
+
+        var reads = 0;
+        var readsWhenFirstArrived = -1;
+        var sizes = new List<int>();
+
+        await foreach (var batch in ReflectOwnedPlanner.ComposedFilesAsync(
+            "/one/videos",
+            identified,
+            ["/one"],
+            (file, _) =>
+            {
+                reads++;
+                return Task.FromResult<WhisparrResponse?>(
+                    new WhisparrResponse(200, null, Read(file, 7)));
+            },
+            TestContext.Current.CancellationToken))
+        {
+            if (readsWhenFirstArrived < 0)
+            {
+                readsWhenFirstArrived = reads;
+            }
+
+            sizes.Add(batch.Entries?.Count ?? 0);
+        }
+
+        Assert.Equal(ReflectOwnedPlanner.FilesAttachedAtOnce, readsWhenFirstArrived);
+        Assert.Equal(held, sizes.Sum());
+        Assert.All(sizes, size => Assert.True(size <= ReflectOwnedPlanner.FilesAttachedAtOnce));
+        Assert.Equal(3, sizes.Count);
+    }
+
+    // The composer hands over a batch at a time now. These cases are about what it composes rather
+    // than about how it is delivered, so the batches are folded back into one result here.
+    private static async Task<PlannedFiles> Composed(
+        string instanceFolder,
+        IReadOnlyDictionary<string, RegisteredScene> identified,
+        IReadOnlyList<string> instanceRoots,
+        Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>> readFile,
+        CancellationToken ct)
+    {
+        var entries = new JsonArray();
+        var left = 0;
+        await foreach (var batch in ReflectOwnedPlanner
+            .ComposedFilesAsync(instanceFolder, identified, instanceRoots, readFile, ct)
+            .ConfigureAwait(false))
+        {
+            left += batch.LeftUnderAnotherRoot;
+            foreach (var entry in batch.Entries ?? [])
+            {
+                entries.Add(entry!.DeepClone());
+            }
+        }
+
+        return new PlannedFiles(entries.Count == 0 ? null : entries, left);
+    }
+
+    // The instance answers a reading with the row it was asked about, carrying the quality it read
+    // off the whole path. Zero is what it answers where it read none.
+    private static string Read(OwnedFilePlacement file, int qualityId)
+        => new JsonArray(new JsonObject
+        {
+            ["path"] = file.Path,
+            ["quality"] = new JsonObject { ["quality"] = new JsonObject { ["id"] = qualityId } },
+            ["languages"] = new JsonArray(new JsonObject { ["id"] = qualityId == 0 ? 0 : 1 }),
+        }).ToJsonString();
+
     // The cases using this are about the loop rather than the addressing, so the instance spells a
     // folder the way the library does.
     private static Task<AddressedFolder> OnTheInstance(string folder, CancellationToken _)
@@ -509,7 +699,7 @@ public sealed class ReflectOwnedPlannerTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static JsonArray? Entries(WhisparrGeneration generation, string? rows)
-        => ReflectOwnedPlanner.Files(generation, rows, []).Entries;
+        => ReflectOwnedPlanner.Files(generation, rows, [], NoIdentities).Entries;
 
     private static async IAsyncEnumerable<string> Folders(params string[] folders)
     {
