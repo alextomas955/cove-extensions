@@ -195,6 +195,26 @@ public static class PathCandidateGuard
         => candidate.Probed.Exists
             && (reportedSize is null || candidate.Probed.Size == reportedSize);
 
+    /// <summary>Whether <paramref name="path"/> is the root itself or sits under it.</summary>
+    /// <remarks>
+    /// A library keeps files directly in a root as readily as in folders under it, and such a folder
+    /// has to resolve to that root. <see cref="TailBelow"/> answers null for it, because the tail
+    /// below a root the path equals is empty rather than absent, and every caller of that method
+    /// wants a tail to rebuild a path from.
+    /// </remarks>
+    internal static bool IsAtOrBelow(string path, string root)
+    {
+        var normalizedRoot = Normalize(root).TrimEnd('/');
+        if (normalizedRoot.Length == 0)
+        {
+            return false;
+        }
+
+        var normalizedPath = Normalize(path).TrimEnd('/');
+        return string.Equals(normalizedPath, normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            || TailBelow(path, root) is not null;
+    }
+
     // The part of the path below the root, or null when it is not under it. The prefix carries a
     // trailing separator, so a sibling whose name starts with the root's is not matched.
     // Compared case-insensitively: both strings come from the same instance describing its own

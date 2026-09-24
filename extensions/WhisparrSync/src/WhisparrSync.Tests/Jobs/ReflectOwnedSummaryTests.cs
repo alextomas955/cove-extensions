@@ -116,6 +116,30 @@ public sealed class ReflectOwnedSummaryTests
 
     // An instance that cannot be asked answers for every folder at once, so there is no one library
     // root to name.
+    // A library run links most of its folders and still meets folders under no library root. The
+    // refusal names no root, and read as a statement about the run it contradicts the count in front
+    // of it.
+    [Fact]
+    public void ARunThatLinkedFilesDoesNotThenSayNothingCouldBeLinked()
+    {
+        var line = ReflectOwnedJob.SummaryOf(Run(
+            6015,
+            0,
+            new FolderAddressRefusal(
+                string.Empty, FolderAgreementRefusal.FolderUnderNoLibraryRoot, [])));
+
+        Assert.StartsWith("6,015 linked, 0 refused.", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing could be linked", line, StringComparison.Ordinal);
+        Assert.Contains("Some folders were not linked", line, StringComparison.Ordinal);
+    }
+
+    // The figure is files. A run linking many files from few folders states the files, because the
+    // count beside it is scenes and a reader compares the two.
+    [Fact]
+    public void TheCountStatesFilesRatherThanTheFoldersTheyCameFrom()
+        => Assert.StartsWith(
+            "2 linked,", ReflectOwnedJob.SummaryOf(Run(2, 0)), StringComparison.Ordinal);
+
     [Fact]
     public void ARunOnAnInstanceThatCannotBeAskedNamesNoLibraryRoot()
     {
@@ -187,19 +211,26 @@ public sealed class ReflectOwnedSummaryTests
                     null,
                     2)));
 
-    private static ReflectOwnedRun LeftUnderAnotherRoot(int attached, int refused, int left)
-        => new(ReflectOwnedRunOutcome.Completed, attached, refused, null, 0, null, null, left);
+    // The figure the line states is files. A folder count travels with it because a file is only
+    // attached as part of one, and the two are not interchangeable in the sentence.
+    private static ReflectOwnedRun LeftUnderAnotherRoot(int filesAttached, int refused, int left)
+        => new(
+            ReflectOwnedRunOutcome.Completed,
+            filesAttached > 0 ? 1 : 0,
+            refused,
+            EntriesLeftUnderAnotherRoot: left,
+            FilesAttached: filesAttached);
 
     private static FolderAddressRefusal Refused(FolderAgreementRefusal refusal)
         => new(CoveRoot, refusal, [Tried]);
 
     private static ReflectOwnedRun Run(
-        int attached, int refused, params FolderAddressRefusal[] unaddressed)
+        int filesAttached, int refused, params FolderAddressRefusal[] unaddressed)
         => new(
             ReflectOwnedRunOutcome.Completed,
-            attached,
+            filesAttached > 0 ? 1 : 0,
             refused,
-            null,
-            unaddressed.Length,
-            unaddressed);
+            FoldersNotAddressed: unaddressed.Length,
+            AddressRefusals: unaddressed,
+            FilesAttached: filesAttached);
 }

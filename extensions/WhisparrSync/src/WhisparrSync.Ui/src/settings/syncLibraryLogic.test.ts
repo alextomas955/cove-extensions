@@ -86,7 +86,11 @@ describe("the confirmation names the figures and the consequence", () => {
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
-        "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
+        "It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off. " +
+        "Registering a scene in Whisparr downloads nothing.",
     );
   });
 
@@ -94,6 +98,9 @@ describe("the confirmation names the figures and the consequence", () => {
     expect(syncConfirmation(LIBRARY, true, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
         "It also marks each of them monitored. Monitoring a scene downloads nothing by itself. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -101,6 +108,9 @@ describe("the confirmation names the figures and the consequence", () => {
   it("reads as one scene at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_SCENE, false, SCENES)).toBe(
       "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -108,7 +118,11 @@ describe("the confirmation names the figures and the consequence", () => {
   it("agrees with a single skipped scene", () => {
     expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false, SCENES)).toBe(
       "This offers all 4 scenes you own to Whisparr, and skips 1 that cannot be registered. " +
-        "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
+        "It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off. " +
+        "Registering a scene in Whisparr downloads nothing.",
     );
   });
 
@@ -128,6 +142,9 @@ describe("the confirmation names the figures and the consequence", () => {
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SCENES)).toBe(
       "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -141,7 +158,8 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
-        "registered. It monitors nothing. Registering a studio in Whisparr downloads nothing.",
+        "registered. It monitors nothing. " +
+        "Registering a studio in Whisparr downloads nothing.",
     );
   });
 
@@ -151,7 +169,8 @@ describe("the confirmation reads in studios where the run registers studios", ()
     expect(syncConfirmation(STUDIOS, true, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It also marks the scenes you own on them monitored. Monitoring a scene " +
-        "downloads nothing by itself. Registering a studio in Whisparr downloads nothing.",
+        "downloads nothing by itself. " +
+        "Registering a studio in Whisparr downloads nothing.",
     );
   });
 

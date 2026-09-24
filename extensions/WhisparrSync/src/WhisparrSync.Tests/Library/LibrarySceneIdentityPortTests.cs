@@ -17,6 +17,85 @@ public sealed class LibrarySceneIdentityPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    // The root order decides which folders are reached first, so a caller that puts the roots its
+    // instance can reach in front reaches something it can act on from the first folder.
+    [Fact]
+    public async Task FoldersArriveInTheRootOrderTheCallerNamesRatherThanInPathOrder()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        await host.SeedStudioFileAsync(studioId, "/away/videos");
+        await host.SeedStudioFileAsync(studioId, "/library/videos");
+
+        // "/away" sorts first by path, so naming it second is what the assertion is about.
+        Assert.Equal(
+            ["/library/videos", "/away/videos"],
+            await FoldersAsync(host, ["/library", "/away"]));
+
+        Assert.Equal(
+            ["/away/videos", "/library/videos"],
+            await FoldersAsync(host, ["/away", "/library"]));
+    }
+
+    // A folder under none of the named roots is still walked, so nothing the library holds is
+    // silently left out of the linking half.
+    [Fact]
+    public async Task AFolderUnderNoneOfTheNamedRootsIsWalkedAfterAllOfThem()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        await host.SeedStudioFileAsync(studioId, "/elsewhere/videos");
+        await host.SeedStudioFileAsync(studioId, "/library/videos");
+
+        Assert.Equal(
+            ["/library/videos", "/elsewhere/videos"],
+            await FoldersAsync(host, ["/library"]));
+    }
+
+    // The identifiers the folder walk yields are the identity stream's own set, so the run offers
+    // the number the count answered however the folders are arranged.
+    [Fact]
+    public async Task TheFolderWalkYieldsEveryIdentifierTheIdentityStreamDoes()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, SecondScene);
+        await host.SeedStudioFileAsync(studioId, "/library/videos");
+
+        var carried = new List<string>();
+        await foreach (var row in host.LibraryScenes.SceneIdentitiesByFolder(
+            WhisparrGeneration.V3, ["/library"], TestCt))
+        {
+            if (row.RemoteId is { } remoteId)
+            {
+                carried.Add(remoteId);
+            }
+        }
+
+        Assert.Equal(
+            (await IdentitiesAsync(host)).Order(StringComparer.Ordinal),
+            carried.Order(StringComparer.Ordinal));
+    }
+
+    private static async Task<IReadOnlyList<string>> FoldersAsync(
+        MonitorHost host, IReadOnlyList<string> rootOrder)
+    {
+        var folders = new List<string>();
+        await foreach (var row in host.LibraryScenes.SceneIdentitiesByFolder(
+            WhisparrGeneration.V3, rootOrder, TestCt))
+        {
+            if (row.Folder is { } folder && !folders.Contains(folder, StringComparer.Ordinal))
+            {
+                folders.Add(folder);
+            }
+        }
+
+        return folders;
+    }
+
     [Fact]
     public async Task EveryIdentifiedSceneInTheLibraryIsAnsweredWhicheverEntityItSitsUnder()
     {

@@ -523,9 +523,12 @@ internal sealed class WhisparrV2Instance(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
 
+        // Under the library budget: the instance answers this only once it has walked and parsed
+        // every entry in the directory, which on a few hundred files runs past the ordinary one.
         return GeneratedReadAsync(
             api => api.Api<V2Api.IManualImportApi>().ListManualImportAsync(
-                folder: folder, filterExistingFiles: false, cancellationToken: ct));
+                folder: folder, filterExistingFiles: false, cancellationToken: ct),
+            WhisparrTransport.LibraryReadTimeout);
     }
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(JsonNode files, CancellationToken ct)

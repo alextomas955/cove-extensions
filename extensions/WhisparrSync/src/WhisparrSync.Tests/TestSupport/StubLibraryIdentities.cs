@@ -11,6 +11,7 @@ namespace WhisparrSync.Tests.TestSupport;
 internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
 {
     private readonly IReadOnlyList<string> _scenes;
+    private readonly IReadOnlyList<LibrarySceneInFolder> _byFolder;
     private readonly IReadOnlyList<LibrarySiteIdentity> _sites;
     private readonly int? _unidentifiedScenes;
     private readonly int? _unidentifiedSites;
@@ -19,17 +20,38 @@ internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
         IReadOnlyList<string> scenes,
         IReadOnlyList<LibrarySiteIdentity> sites,
         int? unidentifiedScenes,
-        int? unidentifiedSites)
+        int? unidentifiedSites,
+        IReadOnlyList<LibrarySceneInFolder>? byFolder = null)
     {
         _scenes = scenes;
+
+        // One folder holding every scene, unless a case states the folders itself. The scene pass
+        // walks the folder-carrying member, so a stub answering nothing there would report a
+        // library that holds no scene at all.
+        _byFolder = byFolder
+            ?? [.. scenes.Select(scene => new LibrarySceneInFolder(OneFolder, scene))];
         _sites = sites;
         _unidentifiedScenes = unidentifiedScenes;
         _unidentifiedSites = unidentifiedSites;
     }
 
+    /// <summary>The folder every scene sits in where a case does not say otherwise.</summary>
+    internal const string OneFolder = "/library/one";
+
     public static StubLibraryIdentities OfScenes(
         IReadOnlyList<string> scenes, int? unidentified = null)
         => new(scenes, [], unidentified, null);
+
+    // For a case whose subject is the folder walk: which folder each scene is carried under, and
+    // which folders carry none.
+    public static StubLibraryIdentities OfScenesInFolders(
+        IReadOnlyList<LibrarySceneInFolder> byFolder, int? unidentified = null)
+        => new(
+            [.. byFolder.Select(row => row.RemoteId).OfType<string>()],
+            [],
+            unidentified,
+            null,
+            byFolder);
 
     public static StubLibraryIdentities OfSites(
         IReadOnlyList<LibrarySiteIdentity> sites, int? unidentified = null)
@@ -38,6 +60,20 @@ internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
     public IAsyncEnumerable<string> SceneIdentities(
         WhisparrGeneration generation, CancellationToken ct)
         => Streamed(_scenes, ct);
+
+    // Every scene this stub holds, under the one folder it puts them in, named for its identifier so
+    // a case can pair a listing row against it.
+    public IAsyncEnumerable<LibraryFileIdentity> FileIdentitiesIn(
+        string coveFolder, WhisparrGeneration generation, CancellationToken ct)
+        => Streamed(
+            [.. _byFolder
+                .Where(row => row.RemoteId is not null && row.Folder == coveFolder)
+                .Select(row => new LibraryFileIdentity(row.RemoteId! + ".mp4", row.RemoteId!))],
+            ct);
+
+    public IAsyncEnumerable<LibrarySceneInFolder> SceneIdentitiesByFolder(
+        WhisparrGeneration generation, IReadOnlyList<string> rootOrder, CancellationToken ct)
+        => Streamed(_byFolder, ct);
 
     public IAsyncEnumerable<LibrarySiteIdentity> SiteIdentities(
         WhisparrGeneration generation, CancellationToken ct)

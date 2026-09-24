@@ -123,6 +123,16 @@ internal static class MonitoringProjector
                 ? entityId
                 : null;
 
+    // Where the instance placed the entry, as its own answer names it. Null where the answer carried
+    // none, which a refusal does.
+    internal static string? PathIn(string? body)
+        => AsObject(body) is { } entity
+            && entity["path"] is JsonValue named
+            && named.TryGetValue<string>(out var path)
+            && !string.IsNullOrWhiteSpace(path)
+                ? path
+                : null;
+
     // Null means the answer named no root, which says nothing about where the instance has the
     // entity. A caller leaves it alone rather than correcting a root read from nothing.
     internal static string? RootFolderPathIn(string? body)

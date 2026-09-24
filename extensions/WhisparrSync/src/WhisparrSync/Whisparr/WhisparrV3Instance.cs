@@ -29,6 +29,7 @@ internal sealed class WhisparrV3Instance(
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
+    IWhisparrOwnedFileReading,
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
@@ -557,14 +558,28 @@ internal sealed class WhisparrV3Instance(
 
     // The instance is asked to include what it already holds, so a file the library holds and the
     // instance has not attached is still answered for.
+    //
+    // Sent under the library budget rather than the ordinary one: the instance walks and parses
+    // every entry in the folder before it answers, so a folder holding a few hundred files takes
+    // longer than the ordinary timeout allows. Refused for time, the folder is counted as refused
+    // and its files are silently left unlinked.
     public Task<WhisparrResponse> ListImportableFilesAsync(string folder, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
 
         return GeneratedReadAsync(
             api => api.Api<V3Api.IManualImportApi>().ListManualImportAsync(
-                folder: folder, filterExistingFiles: false, cancellationToken: ct));
+                folder: folder, filterExistingFiles: false, cancellationToken: ct),
+            WhisparrTransport.LibraryReadTimeout);
     }
+
+    // The instance's own reading of the file itself. Sent under the library budget: it opens the
+    // file and reads it, which on a large one runs past the ordinary budget.
+    public Task<WhisparrResponse> ReadFileAsync(OwnedFilePlacement file, CancellationToken ct)
+        => GeneratedReadAsync(
+            api => api.Api<V3Api.IManualImportApi>().CreateManualImportAsync(
+                V3BodyProjector.ReadOwnedFile(file), ct),
+            WhisparrTransport.LibraryReadTimeout);
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(JsonNode files, CancellationToken ct)
         => GeneratedCommandAsync(ReflectOwnedPlanner.Command(files), ct);
@@ -619,7 +634,7 @@ internal sealed class WhisparrV3Instance(
     // The read class through the generated client. Re-issued on the same failure and for the same
     // reason the hand-composed read is: a re-read creates nothing.
     private async Task<WhisparrResponse> GeneratedReadAsync<TResponse>(
-        Func<Whisparr3Apis, Task<TResponse>> call)
+        Func<Whisparr3Apis, Task<TResponse>> call, TimeSpan? budget = null)
         where TResponse : V3Client.IApiResponse
     {
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
@@ -627,7 +642,7 @@ internal sealed class WhisparrV3Instance(
         {
             try
             {
-                return await GeneratedSendAsync(call).ConfigureAwait(false);
+                return await GeneratedSendAsync(call, budget).ConfigureAwait(false);
             }
             catch (Exception failure) when (failure is HttpRequestException or IOException)
             {
@@ -635,7 +650,7 @@ internal sealed class WhisparrV3Instance(
             }
         }
 
-        return await GeneratedSendAsync(call).ConfigureAwait(false);
+        return await GeneratedSendAsync(call, budget).ConfigureAwait(false);
     }
 
     // Sent once, for the reason the hand-composed acting send is: a request whose answer did not
@@ -657,10 +672,11 @@ internal sealed class WhisparrV3Instance(
     }
 
     private async Task<WhisparrResponse> GeneratedSendAsync<TResponse>(
-        Func<Whisparr3Apis, Task<TResponse>> call)
+        Func<Whisparr3Apis, Task<TResponse>> call, TimeSpan? budget = null)
         where TResponse : V3Client.IApiResponse
     {
-        var target = new Whisparr3Target(binding.BaseAddress, binding.ApiKey);
+        var target = new Whisparr3Target(
+            binding.BaseAddress, binding.ApiKey, budget ?? WhisparrTransport.RequestTimeout);
         try
         {
             using var apis = gateway.For(target);

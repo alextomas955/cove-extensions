@@ -128,6 +128,12 @@ internal static class SyncLibraryPlanner
     // the choice means monitor what I own, not monitor what I just added. It is handed the offer's
     // own answer, so the instance's numeric id costs no further request, and it answers a tally
     // because one entry can carry any number of scenes.
+    //
+    // folderOf and linkFolder are the linking half, and a pass that links nothing passes neither.
+    // A folder is linked once the walk has left it, so the entries its files attach to are already
+    // registered. A row carrying nothing to register is a folder the walk placed no identifier
+    // under: it takes no unit and is counted in no tally, because a reader is being told about
+    // their scenes rather than about the shape of their directories.
     internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
         SyncRegisters registers,
         Func<CancellationToken, IAsyncEnumerable<TIdentity>> identities,
@@ -135,7 +141,10 @@ internal static class SyncLibraryPlanner
         Func<TIdentity, CancellationToken, Task<SyncRegistration>> register,
         Func<TIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? monitor,
         IJobProgress progress,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<TIdentity, bool>? offers = null,
+        Func<TIdentity, string?>? folderOf = null,
+        Func<string, CancellationToken, Task>? linkFolder = null)
     {
         ArgumentNullException.ThrowIfNull(identities);
         ArgumentNullException.ThrowIfNull(named);
@@ -156,14 +165,21 @@ internal static class SyncLibraryPlanner
         var monitoring = SceneMonitorTally.Nothing;
         var offered = 0;
 
+        // The folder the walk is inside. Linked once the walk leaves it, and once more after the
+        // stream ends, so the last folder is not left out.
+        string? walking = null;
+
         try
         {
             ct.ThrowIfCancellationRequested();
 
             var total = 0;
-            await foreach (var _ in identities(ct).WithCancellation(ct).ConfigureAwait(false))
+            await foreach (var counting in identities(ct).WithCancellation(ct).ConfigureAwait(false))
             {
-                total++;
+                if (offers is null || offers(counting))
+                {
+                    total++;
+                }
             }
 
             // Answered before anything is declared. The host returns immediately from its progress
@@ -179,6 +195,25 @@ internal static class SyncLibraryPlanner
             await foreach (var identity in identities(ct).WithCancellation(ct).ConfigureAwait(false))
             {
                 ct.ThrowIfCancellationRequested();
+
+                // A row naming no folder leaves the walk where it is: it is an identifier the
+                // library holds no file for, so there is nothing to link on its account.
+                if (folderOf is not null && linkFolder is not null && folderOf(identity) is { } arrived)
+                {
+                    if (walking is not null
+                        && !string.Equals(walking, arrived, StringComparison.Ordinal))
+                    {
+                        await linkFolder(walking, ct).ConfigureAwait(false);
+                    }
+
+                    walking = arrived;
+                }
+
+                if (offers is not null && !offers(identity))
+                {
+                    continue;
+                }
+
                 offered++;
 
                 var line = LineFor(offered, total, registers);
@@ -234,6 +269,13 @@ internal static class SyncLibraryPlanner
                 }
 
                 unit.Complete(OutcomeFor(registration), line);
+            }
+
+            // The folder the stream ended inside. Nothing follows it to leave it, so it is linked
+            // here or not at all.
+            if (walking is not null && linkFolder is not null)
+            {
+                await linkFolder(walking, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
