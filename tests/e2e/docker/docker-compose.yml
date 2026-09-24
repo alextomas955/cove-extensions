@@ -54,6 +54,15 @@ services:
     # The cost: `docker compose up` in this directory starts nothing on its own. Go through the
     # harness (see ../README.md), or name an image in COVE_E2E_IMAGE.
     image: ${COVE_E2E_IMAGE:?set by tests/e2e/lib/harness.mjs from the catalog floor — this compose file declares no Cove version, so a bare docker compose invocation must name one}
+    # One network is one DNS namespace, and compose answers every stack's Cove to `cove` in it. A
+    # sibling container dialling that name reaches whichever stack's Cove the daemon picks, which is
+    # another worker's for five runs in six. Whisparr then registers its callback against a Cove that
+    # is not the one under test, delivers to it, and the spec waits out its budget on an instance that
+    # was never going to answer. The per-stack name is the one to dial, as it is for the database.
+    networks:
+      default:
+        aliases:
+          - cove-${COVE_E2E_STACK:?set by tests/e2e/lib/harness.mjs, one value per stack}
     depends_on:
       db:
         condition: service_healthy

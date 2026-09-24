@@ -19,6 +19,7 @@ import { createSharedVolume } from "./shared-volume.mjs";
 const SHARED_PATH = "/shared";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
+import { networkForSlot } from "./global-setup.mjs";
 import { attemptUntil } from "./poll.mjs";
 // Imported rather than re-parsed here: CI resolves the image repository and each extension's floor
 // through these same readers, and a second parse would be free to disagree with it.
@@ -130,6 +131,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   const composeEnv = {
     COVE_E2E_IMAGE: resolveCoveImage(image),
     COVE_E2E_STACK: randomUUID().slice(0, 8),
+    // This slot's own network. The fixtures reach each other by fixed names, so one namespace shared
+    // by every worker made those names ambiguous; global-setup creates one per slot.
+    COVE_E2E_NETWORK: networkForSlot(),
     COVE_E2E_SHARED_VOLUME: sharedVolume.name,
     ...env,
   };
@@ -171,6 +175,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     get baseUrl() {
       return `http://${coveContainer.getHost()}:${coveContainer.getMappedPort(5073)}`;
+    },
+    /**
+     * The address this stack's Cove answers on from INSIDE the shared network.
+     *
+     * `baseUrl` is a host-published ephemeral port that a sibling container has no route to, and the
+     * bare service name answers for every stack on the network at once. Anything a test asks another
+     * container to call has to use this one.
+     */
+    get internalBaseUrl() {
+      return `http://cove-${composeEnv.COVE_E2E_STACK}:5073`;
     },
     get containerId() {
       return coveContainer.getId();
