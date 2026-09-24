@@ -159,7 +159,7 @@ public sealed class ScanPagingEquivalenceTests
 
         do
         {
-            var page = await pager.PageAsync(RenamableKinds.All, cursor, take, query, bucket, Options, Lookups, default);
+            var page = await pager.PageAsync(RenamableKinds.All, cursor, take, new ScanRowFilter(query, bucket), Options, Lookups, default);
             Assert.True(page.EntitiesExamined <= ScanRowPager.MaxEntitiesPerRequest,
                 $"page examined {page.EntitiesExamined} entities, over the {ScanRowPager.MaxEntitiesPerRequest} budget");
             rows.AddRange(page.Rows);

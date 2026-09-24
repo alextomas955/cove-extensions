@@ -39,7 +39,7 @@ public sealed class ScanRowPagerTests
     private static Task<ScanRowsPage> PageAsync(
         FakeRenamerDataPort port, IReadOnlyList<RenamerFileKind> kinds, ScanCursor? cursor, int take,
         string? query = null, ScanBucketKind? bucket = null)
-        => NewPager(port).PageAsync(kinds, cursor, take, query, bucket, Options, NoRoutes, default);
+        => NewPager(port).PageAsync(kinds, cursor, take, new ScanRowFilter(query, bucket), Options, NoRoutes, default);
 
     private static async Task<List<ScanRow>> WalkAsync(
         FakeRenamerDataPort port, IReadOnlyList<RenamerFileKind> kinds, int take,
@@ -298,7 +298,7 @@ public sealed class ScanRowPagerTests
 
         var pager = new ScanRowPager(new RenamerPlanner(port), port, Mounts);
         var page = await pager.PageAsync(
-            [RenamerFileKind.Video], cursor: null, take: 10, query: null, bucket: null,
+            [RenamerFileKind.Video], cursor: null, take: 10, filter: new ScanRowFilter(Query: null, Bucket: null),
             OverflowOptions, OverflowLookups(), default);
 
         var byFileId = page.Rows.ToDictionary(r => r.FileId);
