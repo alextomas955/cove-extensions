@@ -29,8 +29,8 @@ npm test
 ```
 
 That runs Node's own test runner over every `scripts/*.test.mjs`. The subjects are the scripts CI
-calls: the catalog validator, the package assembler, the wire-type generator, and the Cove assembly
-fetcher. They are fixture-driven, so this tier needs nothing but Node and a root install.
+calls: the catalog validator, the package assembler, the wire-type generator, the Cove version
+resolver, and the coverage path rewriter. They are fixture-driven, so this tier needs nothing but Node and a root install.
 
 CI globs the same pattern rather than naming files, so a new test file under `scripts/` is covered as
 soon as it exists.

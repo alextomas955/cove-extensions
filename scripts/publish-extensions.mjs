@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { checkRelativePath } from "./catalog-paths.mjs";
+import { checkRelativePath, readJson } from "./repo-files.mjs";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows that
 // yields a leading-slash form which resolves to a doubled drive prefix.
@@ -22,13 +22,8 @@ const catalogPath = path.join(repoRoot, "extensions", "catalog.json");
 // nowhere else.
 const PUBLISH_SEGMENTS = ["artifacts", "publish"];
 
-// Built from its code point rather than written as a literal, so this file's own source stays plain
-// ASCII and the character cannot be lost or mangled by an editor that does not show it.
-const BYTE_ORDER_MARK = String.fromCodePoint(0xfeff);
-
 function readCatalogEntries() {
-  const text = fs.readFileSync(catalogPath, "utf8");
-  const catalog = JSON.parse(text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text);
+  const catalog = readJson(catalogPath);
   return Array.isArray(catalog.extensions) ? catalog.extensions : [];
 }
 

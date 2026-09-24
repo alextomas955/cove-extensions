@@ -14,20 +14,9 @@
     <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.4.1</CoveMinVersion>
     <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
-    <!-- Where a released Cove image comes from. Deliberately SEPARATE from $(CoveMinVersion) above:
-         that one is the floor the extension advertises and validate-extension-repo.mjs compares
-         extension.json's minCoveVersion to, while these name a moving upstream build. Editing
-         CoveMinVersion to make a version guard pass would silently re-advertise a different floor to
-         every user, so the two never share a value.
-
-         The two halves have different readers, and only one of them reaches the e2e suite. The
-         containerized harness takes the REPOSITORY from here and resolves the tag itself, from
-         COVE_E2E_TAG or the highest floor declared by an entry that has a suite - so raising the tag
-         below does not move the host those tests run against. The tag is read by
-         scripts/fetch-cove-assemblies.mjs, as its default when no tag is passed. -->
-
+    <!-- Where a released Cove image comes from. The version tested against is never set here: CI and
+         the e2e harness resolve each tag from the minCoveVersion an extension declares. -->
     <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
-    <CoveTestImageTag Condition="'$(CoveTestImageTag)' == ''">nightly</CoveTestImageTag>
   </PropertyGroup>
 
   <!--

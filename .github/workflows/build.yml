@@ -151,17 +151,9 @@ jobs:
         run: |
           set -o pipefail
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            node --input-type=module -e '
-              import { readExtensionFloors } from "./scripts/fetch-cove-assemblies.mjs";
-              const include = [];
-              for (const { entry, floor, manifestPath } of readExtensionFloors()) {
-                console.error("offline floor leg: " + entry.name + " " + floor + " (from " + manifestPath + ")");
-                include.push({ extension: entry, cove: { tag: floor, role: "floor", advisory: false } });
-              }
-              process.stdout.write(JSON.stringify({ include }) + "\n");
-            ' > /tmp/cove-legs.json
+            node scripts/cove-versions.mjs --floors-only > /tmp/cove-legs.json
           else
-            node scripts/fetch-cove-assemblies.mjs --resolve-tags --report > /tmp/cove-legs.json
+            node scripts/cove-versions.mjs --report > /tmp/cove-legs.json
           fi
           node -e '
             const fs = require("fs");

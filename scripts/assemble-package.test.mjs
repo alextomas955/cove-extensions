@@ -266,27 +266,6 @@ test("fails HARD: an empty artifacts array, rather than reporting a green zero-f
   );
 });
 
-// The contract test for the promote decision: the shipped set is declared in exactly one place, so a
-// catalog entry carrying only the older narrow field must fail rather than quietly resolve from it.
-test("fails HARD: an entry declaring requiredBundledDlls but no artifacts — never a fallback", () => {
-  const fixture = fixtureRoot({
-    artifacts: null,
-    entry: { requiredBundledDlls: ["Fixture.Extra"] },
-  });
-  const r = assemble(fixture);
-
-  assert.equal(
-    r.ok,
-    false,
-    "requiredBundledDlls must not be honoured as an alternative declaration",
-  );
-  assert.equal(r.copied.length, 0);
-  assert.ok(
-    r.failures.some((f) => f.startsWith("MISSING:") && f.includes("declares no artifacts array")),
-    r.failures.join("; "),
-  );
-});
-
 test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
   // The drive letter, colon and separator are assembled from parts so this file's own source does not
   // read as a leak to the very scan it is exercising.

@@ -94,18 +94,13 @@ users see as the minimum Cove version, so never edit it to make a version compar
 
 ### The Cove test image
 
-| Property                  | What it does                                                                                                                                                                |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CoveTestImageRepository` | The registry and repository of the released Cove container image. Read by `scripts/fetch-cove-assemblies.mjs` and by the end-to-end harness in `tests/e2e/lib/harness.mjs`. |
-| `CoveTestImageTag`        | The tag `scripts/fetch-cove-assemblies.mjs` extracts when you pass no explicit `--tag`.                                                                                     |
+`CoveTestImageRepository` in `Directory.Build.props` names the registry and repository of the
+released Cove container image. `scripts/cove-versions.mjs` and the end-to-end harness in
+`tests/e2e/lib/harness.mjs` read it.
 
-Both live in `Directory.Build.props`, and both are deliberately separate from `CoveMinVersion`: that
-one is the floor the extensions advertise to users, while these name a moving upstream build.
-
-Read the tag knob narrowly. The end-to-end harness takes only the registry and repository from
-`CoveTestImageRepository` and derives its own tag - from `COVE_E2E_TAG` when set, otherwise from the
-highest `minCoveVersion` declared by a catalog entry that has an e2e suite. So `CoveTestImageTag`
-does not decide which host version the e2e suite boots.
+No property sets the image tag. CI resolves its version legs from each extension's
+`minCoveVersion` and the tags the registry publishes. The harness uses `COVE_E2E_TAG` when set,
+otherwise the highest `minCoveVersion` declared by a catalog entry that has an e2e suite.
 
 ### Compiler and analyzer settings
 

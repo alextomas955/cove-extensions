@@ -63,9 +63,10 @@ Two of the checks inside `verify` are worth knowing separately:
   prop. The host's Tailwind pass never scans this bundle, so a class the host does not already emit
   renders unstyled with nothing reported anywhere.
 - `check-host-imports` resolves each host import-map external against the module the host actually
-  serves, read out of a local Cove checkout. A name can typecheck, build, and pass every other check
-  while the shipped bundle fails to load in the browser. With no checkout present it prints a skip
-  and exits 0, which is why it can never be a gate - see [What blocks a merge](#what-blocks-a-merge).
+  serves, read out of a Cove checkout. A name can typecheck, build, and pass every other check while
+  the shipped bundle fails to load in the browser. With no `../cove` sibling it prints a skip and
+  exits 0. The `host-imports` job in `lint.yml` is the gate: it checks Cove out, generates the host's
+  shim, and fails on a missing name.
 
 ## Regenerate the wire types after a handler change
 
@@ -193,6 +194,7 @@ push; run all of them if you touched root tooling.
 | markdownlint       | Markdown rule violations in the docs                                                                                     | `npx markdownlint-cli2`                                                | repo root        |
 | Catalog validator  | A declared catalog path that does not exist, a project missing from the solution, a floor that disagrees with a manifest | `node scripts/validate-extension-repo.mjs`                             | repo root        |
 | Repo tooling tests | A regression in the scripts under `scripts/`                                                                             | `npm test`                                                             | repo root        |
+| Host imports       | A `lucide-react` icon import the host's runtime shim does not export                                                     | `node scripts/check-host-imports.mjs`                                  | repo root        |
 | UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                       | the UI directory |
 
 The C# analyzers row needs a Cove source checkout. Its `-p:CoveSourceMode=source` refuses to fall
@@ -216,9 +218,9 @@ request.
 
 Three qualifications:
 
-- `check-host-imports` is the exception in the other direction. It needs a local Cove checkout, so
-  the copy that runs in CI inside a UI's `verify` always skips. It is a local check only, and it can
-  never fail a pull request.
+- The Host imports row needs a Cove checkout with its runtime shims generated. Run
+  `npm run generate:extension-runtime` in the checkout's `ui/` directory once. The copy inside a UI's
+  `verify` skips in CI, and the `host-imports` job in `lint.yml` is what gates it.
 - `build.yml` aggregates its own validate, build, test, and end-to-end legs into a single status
   check, so that one status stands for the whole chain. What a green aggregate does and does not prove
   is on [Monorepo architecture](./architecture). The jobs in `lint.yml` report separately, with no

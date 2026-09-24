@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { readJson } from "./repo-files.mjs";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
 // that yields a leading-slash form which resolves to a doubled drive prefix.
@@ -88,10 +89,6 @@ const REPO_ROOT_FALLBACK_NAMES = new Set([
 // order their failures are reported so identical input yields an identical message sequence. Each is
 // optional; only a field the manifest actually carries makes a claim.
 const MANIFEST_FILE_FIELDS = ["entryDll", "jsBundle", "cssBundle"];
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
-}
 
 function resolveEntry(catalog, idOrName) {
   return catalog.extensions.find((entry) => entry.id === idOrName || entry.name === idOrName);
@@ -507,47 +504,6 @@ function main(argv) {
   return 0;
 }
 
-/**
- * Whether this module is the process entry point, for the one runtime that cannot answer.
- *
- * @remarks
- * Both sides are realpathed, which is the whole reason this is not a plain `===` on the two strings:
- * Node realpaths the module URL and leaves process.argv[1] as the caller spelled it, so an invocation
- * through a junction or a symlink - the shape this repository's documented worktree workflow uses -
- * compares unequal, and the refusal below would then not fire on exactly the runtime and exactly the
- * invocation that need it. False on any answer it cannot establish: a wrong "yes" would break an
- * importer, where a wrong "no" only loses a diagnostic on a runtime this repository does not pin.
- */
-function invokedAsScript() {
-  const entry = process.argv[1];
-  if (typeof entry !== "string" || entry === "") return false;
-  const canonical = (value) => {
-    let resolved = path.resolve(value);
-    try {
-      resolved = fs.realpathSync.native(resolved);
-    } catch {
-      // Left as resolved: a path that cannot be realpathed is one that does not exist, and comparing
-      // the resolved form is no weaker than not comparing at all.
-    }
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-  };
-  return canonical(entry) === canonical(import.meta.filename);
-}
-
-// `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
-// `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
-// would then print nothing and exit 0 - the same silent success the two-file split existed to prevent,
-// arriving through the runtime instead of through a guard. The absent feature is refused by name.
-//
-// Scoped to the CLI on purpose: assemblePackage works fine on an older Node, and refusing at import
-// time would break the E2E harness and this file's own tests for a feature only the entry guard needs.
-if (typeof import.meta.main !== "boolean") {
-  if (invokedAsScript()) {
-    console.error(
-      `assemble-package: this Node (${process.version}) does not implement import.meta.main, so this script cannot tell it was run rather than imported and would assemble nothing while exiting 0. Node 22.18 or newer is required to run it.`,
-    );
-    process.exit(1);
-  }
-} else if (import.meta.main) {
+if (import.meta.main) {
   process.exit(main(process.argv.slice(2)));
 }

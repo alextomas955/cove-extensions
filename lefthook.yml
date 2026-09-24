@@ -26,9 +26,8 @@ pre-commit:
     # Every host import-map external (lucide-react) resolved against the module the HOST actually
     # serves, not the one in node_modules. Those differ: a name can typecheck, build and pass every
     # other check while the shipped bundle fails to load in the browser and every surface renders
-    # "Extension component not found". Local-only by construction: it reads the host's generated
-    # shim, so it skips with a notice when no ../cove sibling is present, which also means CI
-    # cannot run it.
+    # "Extension component not found". It reads the host's generated shim, so it skips with a notice
+    # when no ../cove sibling is present. lint.yml's host-imports job is the gate.
     check-host-imports:
       glob: "*.{ts,tsx}"
       run: node scripts/check-host-imports.mjs

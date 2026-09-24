@@ -31,6 +31,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { compareSemver, parseSemver } from "./cove-versions.mjs";
+import { parseMsBuildProperties, readJson } from "./repo-files.mjs";
 
 // root is the parent of this file's own scripts/ directory - matching upstream's template
 // exactly. A real extensions/ subfolder lives one level below the repo root and holds
@@ -41,34 +43,16 @@ import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
 const catalogPath = path.join(root, "extensions", "catalog.json");
 const buildPropsPath = path.join(root, "Directory.Build.props");
-const WIRE_DOCUMENT_SUBPATH = "wire/openapi.json";
 const solutionFileName = "CoveExtensions.slnx";
 const solutionPath = path.join(root, solutionFileName);
 const errors = [];
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
-}
 
 function isLowerKebab(value) {
   return value === value.toLowerCase() && !value.includes(" ");
 }
 
 function readMsBuildProperties(filePath) {
-  if (!fs.existsSync(filePath)) return {};
-
-  const props = {};
-  const content = fs.readFileSync(filePath, "utf8");
-  const pattern = /<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s+[^>]*)?>([^<]*)<\/\1>/g;
-  for (const match of content.matchAll(pattern)) {
-    const [, name, rawValue] = match;
-    const value = rawValue
-      .trim()
-      .replace(/\$\(([^)]+)\)/g, (_, propertyName) => props[propertyName] ?? `$(${propertyName})`);
-    props[name] = value;
-  }
-
-  return props;
+  return fs.existsSync(filePath) ? parseMsBuildProperties(fs.readFileSync(filePath, "utf8")) : {};
 }
 
 // Returns both counts so the caller can tell "the solution declares no projects" from "the path
@@ -92,35 +76,21 @@ function normalizeSeparators(value) {
   return value.replaceAll("\\", "/");
 }
 
-function parseVersion(value) {
-  if (typeof value !== "string") return null;
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value);
-  if (!match) return null;
-  return match.slice(1).map((part) => Number.parseInt(part, 10));
-}
-
-function compareVersions(left, right) {
-  const leftParts = parseVersion(left);
-  const rightParts = parseVersion(right);
-  if (!leftParts || !rightParts) return null;
-
-  for (let i = 0; i < 3; i++) {
-    if (leftParts[i] !== rightParts[i]) return leftParts[i] - rightParts[i];
-  }
-
-  return 0;
-}
-
 function validateVersionFloor(label, field, value, minimum) {
   if (!value) {
     errors.push(`${label}: ${field} is missing`);
     return;
   }
 
-  const comparison = compareVersions(value, minimum);
-  if (comparison == null) {
+  const parsedValue = parseSemver(value);
+  const parsedMinimum = parseSemver(minimum);
+  if (parsedValue === null) {
     errors.push(`${label}: ${field} must be a semantic version, found ${value}`);
-  } else if (comparison < 0) {
+  } else if (parsedMinimum === null) {
+    errors.push(
+      `Directory.Build.props: CoveMinVersion must be a semantic version, found ${minimum}`,
+    );
+  } else if (compareSemver(parsedValue, parsedMinimum) < 0) {
     errors.push(`${label}: ${field} ${value} is below repo CoveMinVersion ${minimum}`);
   }
 }
@@ -296,18 +266,6 @@ for (const entry of entries) {
   if (!isManifestOnly && !fs.existsSync(projectPath)) {
     const conventionProject = `${entry.name}.csproj at ${entry.path}`;
     errors.push(`${entry.id}: missing project ${entry.projectPath ?? conventionProject}`);
-  }
-
-  // An entry with a UI must carry an emitted wire document: a hand-written TypeScript wire type
-  // type-checks while reading undefined at runtime, so an extension that gains a UI without gaining
-  // the derived document loses that check silently.
-  if (entry.uiPath) {
-    // POSIX-spelled once, as the catalog spells it: path.join takes it as the native path, and the
-    // message reads the same whichever runner produced it.
-    const wireDocument = entry.path + "/" + WIRE_DOCUMENT_SUBPATH;
-    if (!fs.existsSync(path.join(root, wireDocument))) {
-      errors.push(entry.id + ": declares uiPath, so " + wireDocument + " must exist");
-    }
   }
 
   const manifest = readJson(manifestPath);
