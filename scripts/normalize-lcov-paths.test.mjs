@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import test from "node:test";
 
 import { normalizeLcov, readUiPaths } from "./normalize-lcov-paths.mjs";
@@ -60,18 +58,4 @@ test("only catalog entries declaring a frontend are collected", () => {
     }),
   );
   assert.deepEqual(uiPaths, ["a/ui", "c/ui"]);
-});
-
-test("the real catalog's declared frontends each hold a UI package", () => {
-  const root = path.resolve(import.meta.dirname, "..");
-  const uiPaths = readUiPaths(
-    fs.readFileSync(path.join(root, "extensions", "catalog.json"), "utf8"),
-  );
-  assert.ok(uiPaths.length > 0, "the catalog must declare at least one frontend");
-  for (const uiPath of uiPaths) {
-    assert.ok(
-      fs.existsSync(path.join(root, uiPath, "package.json")),
-      `${uiPath} is declared as a frontend but holds no package.json`,
-    );
-  }
 });

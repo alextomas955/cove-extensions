@@ -18,10 +18,10 @@ import {
   parseSemver,
   readCoveImageReference,
   readExtensionFloors,
-} from "../../../scripts/fetch-cove-assemblies.mjs";
+} from "../../../scripts/cove-versions.mjs";
 
 // For a spec that gates on a host capability by version.
-export { imageAtLeastVersion } from "../../../scripts/fetch-cove-assemblies.mjs";
+export { imageAtLeastVersion } from "../../../scripts/cove-versions.mjs";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
 // that yields a leading-slash form which resolves to a doubled drive prefix.

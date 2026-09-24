@@ -13,7 +13,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const realValidatorPath = path.join(here, "validate-extension-repo.mjs");
 
 // A fully-valid extension.json baseline (mirrors extensions/catalog.json's real Renamer entry
 // shape: id matching the catalog entry, semver version, entryDll, url, non-empty lowercase-kebab
@@ -74,7 +73,8 @@ function solutionXml(projectPaths) {
 }
 
 // Builds a temp fixture tree:
-//   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time)
+//   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time, with
+//                                                    the sibling modules it imports)
 //   <root>/extensions/catalog.json                (the catalog under test)
 //   <root>/Directory.Build.props                  (defaults to "" - declares no floor, so the
 //                                                    per-entry floor comparison no-ops)
@@ -93,7 +93,9 @@ function makeFixture({
 }) {
   const root = mkdtempSync(path.join(tmpdir(), "validate-fixture-"));
   mkdirSync(path.join(root, "scripts"), { recursive: true });
-  copyFileSync(realValidatorPath, path.join(root, "scripts", "validate-extension-repo.mjs"));
+  for (const file of ["validate-extension-repo.mjs", "cove-versions.mjs", "repo-files.mjs"]) {
+    copyFileSync(path.join(here, file), path.join(root, "scripts", file));
+  }
   mkdirSync(path.join(root, "extensions"), { recursive: true });
   writeFileSync(path.join(root, "extensions", "catalog.json"), JSON.stringify(catalog, null, 2));
   writeFileSync(path.join(root, "Directory.Build.props"), buildProps);
@@ -151,7 +153,6 @@ function maximalFixture() {
       }),
       "extensions/Foo/ui/package.json": { name: "foo-ui" },
       "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
-      "extensions/Foo/wire/openapi.json": { openapi: "3.1.1" },
       "extensions/Foo/registry.json": { versions: [{ version: "0.1.0", minCoveVersion: "1.1.0" }] },
     },
     filesByPath: {

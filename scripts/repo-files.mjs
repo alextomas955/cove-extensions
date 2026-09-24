@@ -1,6 +1,29 @@
-// The one validator for a catalog path field, shared rather than restated so every reader of
-// extensions/catalog.json agrees on what a path field is allowed to be.
+// Readers for the repository's own JSON and MSBuild files, and the one validator for a catalog path
+// field, shared so every script agrees on them.
+import fs from "node:fs";
 import path from "node:path";
+
+/** Parses a JSON file, tolerating the byte-order mark some Windows editors write. */
+export function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+}
+
+/**
+ * Reads the flat `<Name>value</Name>` property elements out of an MSBuild file's text.
+ *
+ * Later declarations win, and a `$(Other)` reference expands from what has already been read.
+ */
+export function parseMsBuildProperties(content) {
+  const props = {};
+  const pattern = /<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s[^>]*)?>([^<]*)<\/\1>/g;
+  for (const match of content.matchAll(pattern)) {
+    const [, name, rawValue] = match;
+    props[name] = rawValue
+      .trim()
+      .replace(/\$\(([^)]+)\)/g, (_, propertyName) => props[propertyName] ?? `$(${propertyName})`);
+  }
+  return props;
+}
 
 /**
  * Checks that a catalog path field is repo-relative, returning a reason or null.

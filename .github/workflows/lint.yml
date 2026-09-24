@@ -51,21 +51,7 @@ jobs:
       - name: Resolve the Cove ref from the declared floors
         id: floor
         working-directory: extensions
-        shell: bash
-        run: |
-          node --input-type=module -e '
-            import { readExtensionFloors, highestDeclaredFloor } from "./scripts/fetch-cove-assemblies.mjs";
-            const declared = readExtensionFloors();
-            const highest = highestDeclaredFloor(declared);
-            for (const { entry, floor, manifestPath } of declared) {
-              console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
-            }
-            const distinct = new Set(declared.map((d) => d.floor));
-            if (distinct.size > 1) {
-              console.error("::notice::" + distinct.size + " distinct floors are declared; formatting and analysing against the highest, " + highest.floor + ".");
-            }
-            console.log("ref=v" + highest.floor);
-          ' >> "$GITHUB_OUTPUT"
+        run: node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
       - name: Check out Cove at the declared floor
         uses: actions/checkout@v7
         with:
@@ -128,17 +114,7 @@ jobs:
       - name: Resolve the Cove ref from the declared floors
         id: floor
         working-directory: extensions
-        shell: bash
-        run: |
-          node --input-type=module -e '
-            import { readExtensionFloors, highestDeclaredFloor } from "./scripts/fetch-cove-assemblies.mjs";
-            const declared = readExtensionFloors();
-            const highest = highestDeclaredFloor(declared);
-            for (const { entry, floor, manifestPath } of declared) {
-              console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
-            }
-            console.log("ref=v" + highest.floor);
-          ' >> "$GITHUB_OUTPUT"
+        run: node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
       - name: Check out Cove at the declared floor
         uses: actions/checkout@v7
         with:
@@ -204,6 +180,43 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
           globs: ""
+
+  # ---- Every lucide-react icon an extension imports must exist in the module the host serves. The
+  # host resolves that import against its own generated shim, not the copy installed here, so a name
+  # only the local copy has typechecks and builds, then fails the whole bundle at load. The shim is
+  # generated inside a Cove checkout, so this job checks Cove out at the declared floor and generates
+  # it. COVE_REPO makes a missing shim a failure rather than a skip. ----
+  host-imports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.11.0"
+      - name: Resolve the Cove ref from the declared floors
+        id: floor
+        working-directory: extensions
+        run: node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
+      - name: Check out Cove at the declared floor
+        uses: actions/checkout@v7
+        with:
+          repository: yourcove/cove
+          ref: ${{ steps.floor.outputs.ref }}
+          fetch-depth: 1
+          path: cove
+      - name: Generate the host runtime shims
+        working-directory: cove/ui
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run generate:extension-runtime
+      - name: Check lucide-react imports against the host
+        working-directory: extensions
+        env:
+          COVE_REPO: ${{ github.workspace }}/cove
+        run: node scripts/check-host-imports.mjs
 
   # ---- Monorepo-wide ESLint from one root config. The type-aware UI rules need each extension's UI
   # deps installed to build the TypeScript program, hence the installs below before a single

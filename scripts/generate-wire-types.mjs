@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { readJson } from "./repo-files.mjs";
 
 const scriptRoot = path.resolve(import.meta.dirname, "..");
 
@@ -49,10 +50,6 @@ async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }
   });
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, astToString(ast));
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
 /**

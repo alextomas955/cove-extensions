@@ -62,14 +62,4 @@ function main() {
   }
 }
 
-// `import.meta.main`, matching assemble-package.mjs: the hand-rolled comparison against
-// process.argv[1] answers "no" when the script is reached through a junction, and this script would
-// then rewrite nothing while exiting 0, handing the scanner unresolvable paths.
-if (typeof import.meta.main !== "boolean") {
-  console.error(
-    `normalize-lcov-paths: this Node (${process.version}) does not implement import.meta.main, so this script cannot tell it was run rather than imported and would rewrite nothing while exiting 0. Node 22.18 or newer is required to run it.`,
-  );
-  process.exit(1);
-}
-
 if (import.meta.main) main();

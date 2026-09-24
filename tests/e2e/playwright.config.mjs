@@ -1,8 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { checkRelativePath } from "../../scripts/catalog-paths.mjs";
+import { checkRelativePath, readJson } from "../../scripts/repo-files.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
@@ -17,9 +16,7 @@ const repoRoot = join(__dirname, "..", "..");
 // This harness's own `tests/` directory is deliberately not a catalog entry. `template.spec.mjs`
 // there resolves extension paths self-relatively, so it addresses a real extension only once it has
 // been copied into one.
-const catalog = JSON.parse(
-  readFileSync(join(repoRoot, "extensions", "catalog.json"), "utf8").replace(/^\uFEFF/, ""),
-);
+const catalog = readJson(join(repoRoot, "extensions", "catalog.json"));
 const catalogEntries = Array.isArray(catalog.extensions) ? catalog.extensions : [];
 const e2eProjects = catalogEntries
   .filter((entry) => entry.e2ePath && entry.e2eProject)

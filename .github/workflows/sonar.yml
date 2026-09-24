@@ -79,17 +79,7 @@ jobs:
       - name: Resolve the declared host floor
         id: floor
         working-directory: extensions
-        shell: bash
-        run: |
-          node --input-type=module -e '
-            import { readExtensionFloors, highestDeclaredFloor } from "./scripts/fetch-cove-assemblies.mjs";
-            const declared = readExtensionFloors();
-            const highest = highestDeclaredFloor(declared);
-            for (const { entry, floor, manifestPath } of declared) {
-              console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
-            }
-            console.log("ref=v" + highest.floor);
-          ' >> "$GITHUB_OUTPUT"
+        run: node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
 
       - name: Check out Cove at the declared floor
         uses: actions/checkout@v7
