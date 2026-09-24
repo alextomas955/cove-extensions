@@ -282,17 +282,20 @@ test("a newest pre-release that sorts below the newest GA is not a leg, since th
   assert.equal(resolved.examined.roles, 2);
 });
 
+const AMD64 = `sha256:${"a".repeat(64)}`;
+const CONFIG = `sha256:${"c".repeat(64)}`;
+
 test("an image's source commit is read from its revision label, through an index to the linux/amd64 image", async () => {
   const revision = "f74f4dd2aa42389d0dc689122b2fd842aef62b15";
   const bodies = {
     "/v2/o/app/manifests/1.5.1-dev.3": {
       manifests: [
-        { digest: "sha256:arm", platform: { os: "linux", architecture: "arm64" } },
-        { digest: "sha256:amd", platform: { os: "linux", architecture: "amd64" } },
+        { digest: `sha256:${"b".repeat(64)}`, platform: { os: "linux", architecture: "arm64" } },
+        { digest: AMD64, platform: { os: "linux", architecture: "amd64" } },
       ],
     },
-    "/v2/o/app/manifests/sha256:amd": { config: { digest: "sha256:cfg" } },
-    "/v2/o/app/blobs/sha256:cfg": {
+    [`/v2/o/app/manifests/${encodeURIComponent(AMD64)}`]: { config: { digest: CONFIG } },
+    [`/v2/o/app/blobs/${encodeURIComponent(CONFIG)}`]: {
       config: { Labels: { "org.opencontainers.image.revision": revision } },
     },
   };
@@ -311,27 +314,26 @@ test("an image's source commit is read from its revision label, through an index
   assert.deepEqual(read, Object.keys(bodies));
 });
 
-test("an image with no revision label, or an index with no linux/amd64 image, is refused", async () => {
-  const single = async (labels) =>
+test("a malformed digest, a missing or partial revision label, or an index with no linux/amd64 image is refused", async () => {
+  const single = (configDigest, labels) =>
     readImageRevision(
       async (pathAndQuery) =>
         pathAndQuery.includes("/blobs/")
           ? { config: { Labels: labels } }
-          : { config: { digest: "sha256:cfg" } },
+          : { config: { digest: configDigest } },
       "o/app",
       "1.5.1-dev.3",
     );
+  const label = (value) => ({ "org.opencontainers.image.revision": value });
 
-  await assert.rejects(() => single({}), /carries no org\.opencontainers\.image\.revision commit/);
-  await assert.rejects(
-    () => single({ "org.opencontainers.image.revision": "main" }),
-    /read 'main'/,
-  );
+  await assert.rejects(() => single("sha256:../../x", label("f".repeat(40))), TypeError);
+  await assert.rejects(() => single(CONFIG, {}), /no org\.opencontainers\.image\.revision label/);
+  await assert.rejects(() => single(CONFIG, label("main")), /full commit hash/);
   await assert.rejects(
     () =>
       readImageRevision(
         async () => ({
-          manifests: [{ digest: "sha256:arm", platform: { os: "linux", architecture: "arm64" } }],
+          manifests: [{ digest: AMD64, platform: { os: "linux", architecture: "arm64" } }],
         }),
         "o/app",
         "1.5.1-dev.3",

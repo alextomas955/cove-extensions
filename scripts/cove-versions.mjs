@@ -407,34 +407,43 @@ const MANIFEST_ACCEPT = [
 ].join(", ");
 
 const REVISION_LABEL = "org.opencontainers.image.revision";
+const DIGEST = /^sha256:[0-9a-f]{64}$/;
+
+// A digest arrives in a registry response and goes into the next request's path, so it is checked and
+// encoded first. Error messages leave the value out because they reach the log.
+function digestSegment(digest, what) {
+  if (typeof digest !== "string" || !DIGEST.test(digest)) {
+    throw new TypeError(`${what} is not a sha256 digest.`);
+  }
+  return encodeURIComponent(digest);
+}
 
 /**
  * The Cove commit an image tag was built from, read from the image's OCI revision label.
  *
  * A dev pre-release is an image tag with no git tag of the same name, so `v<tag>` names nothing to
- * check out. `readJson` takes a registry path and returns the parsed body. Throws when the label is
- * absent or is not a full commit hash.
+ * check out. `readJson` takes a registry path and returns the parsed body. Throws when a digest or the
+ * label is not in its expected form.
  */
 export async function readImageRevision(readJson, repository, tag) {
-  let manifest = await readJson(`/v2/${repository}/manifests/${tag}`);
+  const image = `${repository}:${tag}`;
+  let manifest = await readJson(`/v2/${repository}/manifests/${encodeURIComponent(tag)}`);
   if (Array.isArray(manifest.manifests)) {
     const entry = manifest.manifests.find(
       (m) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
     );
     if (entry === undefined) {
-      throw new Error(`${repository}:${tag} is an image index with no linux/amd64 image.`);
+      throw new Error(`${image} is an image index with no linux/amd64 image.`);
     }
-    manifest = await readJson(`/v2/${repository}/manifests/${entry.digest}`);
+    const digest = digestSegment(entry.digest, `The linux/amd64 entry in ${image}'s index`);
+    manifest = await readJson(`/v2/${repository}/manifests/${digest}`);
   }
-  const configDigest = manifest.config?.digest;
-  if (typeof configDigest !== "string") {
-    throw new Error(`${repository}:${tag} has a manifest with no config digest.`);
-  }
+  const configDigest = digestSegment(manifest.config?.digest, `The config digest of ${image}`);
   const config = await readJson(`/v2/${repository}/blobs/${configDigest}`);
-  const revision = config.config?.Labels?.[REVISION_LABEL] ?? "";
-  if (!/^[0-9a-f]{40}$/.test(revision)) {
+  const revision = config.config?.Labels?.[REVISION_LABEL];
+  if (typeof revision !== "string" || !/^[0-9a-f]{40}$/.test(revision)) {
     throw new Error(
-      `${repository}:${tag} carries no ${REVISION_LABEL} commit (read '${revision}'), so its source cannot be checked out.`,
+      `${image} carries no ${REVISION_LABEL} label holding a full commit hash, so its source cannot be checked out.`,
     );
   }
   return revision;
@@ -540,7 +549,6 @@ async function sourceRef(version) {
     image.repository,
     version,
   );
-  console.error(`${image.registry}/${image.repository}:${version} was built from ${revision}`);
   process.stdout.write(`ref=${revision}\n`);
   return 0;
 }
