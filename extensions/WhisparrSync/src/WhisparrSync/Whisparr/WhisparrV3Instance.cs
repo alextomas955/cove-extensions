@@ -71,16 +71,16 @@ internal sealed class WhisparrV3Instance(
     private sealed record HeldSceneRow(string? StashId, string? ForeignId);
 
     public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
-        => GeneratedReadAsync(api => api.Api<V3Api.INotificationApi>().ListNotificationSchemaAsync(ct));
+        => GeneratedReadAsync(api => api.Api<V3Api.INotificationApi>().GetNotificationSchemaAsync(ct));
 
     public Task<WhisparrResponse> ListNotificationsAsync(CancellationToken ct)
-        => GeneratedReadAsync(api => api.Api<V3Api.INotificationApi>().ListNotificationAsync(ct));
+        => GeneratedReadAsync(api => api.Api<V3Api.INotificationApi>().GetNotificationAsync(ct));
 
     public Task<WhisparrResponse> ReadRootFoldersAsync(CancellationToken ct)
-        => GeneratedReadAsync(api => api.Api<V3Api.IRootFolderApi>().ListRootFolderAsync(ct));
+        => GeneratedReadAsync(api => api.Api<V3Api.IRootFolderApi>().GetRootfolderAsync(ct));
 
     public Task<WhisparrResponse> ReadQualityProfilesAsync(CancellationToken ct)
-        => GeneratedReadAsync(api => api.Api<V3Api.IQualityProfileApi>().ListQualityProfileAsync(ct));
+        => GeneratedReadAsync(api => api.Api<V3Api.IQualityProfileApi>().GetQualityprofileAsync(ct));
 
     public Task<WhisparrResponse> ReadHistoryAsync(int page, int pageSize, CancellationToken ct)
     {
@@ -125,12 +125,12 @@ internal sealed class WhisparrV3Instance(
 
     public Task<WhisparrResponse> ReadStudioAsync(string foreignId, CancellationToken ct)
         => GeneratedReadAsync(
-            api => api.Api<V3Api.IStudioApi>().GetStudioByStudioForeignIdAsync(Named(foreignId), ct));
+            api => api.Api<V3Api.IStudioApi>().GetStudioByIdAsync(Named(foreignId), ct));
 
     public Task<WhisparrResponse> AddMonitoredStudioAsync(
         string foreignId, MonitorScope scope, AddDefaults defaults, CancellationToken ct)
         => GeneratedActAsync(
-            api => api.Api<V3Api.IStudioApi>().CreateStudioAsync(
+            api => api.Api<V3Api.IStudioApi>().PostStudioAsync(
                 V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow), ct));
 
     public Task<WhisparrResponse> SetStudioMonitoredAsync(
@@ -181,11 +181,12 @@ internal sealed class WhisparrV3Instance(
 
         var listed = kind == WhisparrEntityKind.Studio
             ? await GeneratedReadAsync(
-                    api => api.Api<V3Api.IStudioApi>().ListStudioWorksAsync(Named(foreignId), ct))
+                    api => api.Api<V3Api.IStudioApi>()
+                        .GetStudioByStudioForeignIdWorksAsync(Named(foreignId), ct))
                 .ConfigureAwait(false)
             : await GeneratedReadAsync(
                     api => api.Api<V3Api.IPerformerApi>()
-                        .ListPerformerWorksAsync(Named(foreignId), ct))
+                        .GetPerformerByPerformerForeignIdWorksAsync(Named(foreignId), ct))
                 .ConfigureAwait(false);
 
         if (listed.StatusCode == 404)
@@ -222,10 +223,10 @@ internal sealed class WhisparrV3Instance(
         List<string> wanted = [.. foreignIds];
         var answered = kind == WhisparrEntityKind.Studio
             ? await GeneratedReadAsync(
-                    api => api.Api<V3Api.IStudioApi>().CreateStudioListAsync(wanted, ct))
+                    api => api.Api<V3Api.IStudioApi>().PostStudioListAsync(wanted, ct))
                 .ConfigureAwait(false)
             : await GeneratedReadAsync(
-                    api => api.Api<V3Api.IPerformerApi>().CreatePerformerListAsync(wanted, ct))
+                    api => api.Api<V3Api.IPerformerApi>().PostPerformerListAsync(wanted, ct))
                 .ConfigureAwait(false);
 
         return new WhisparrHeldCards(HeldIn(answered, foreignIds), WhisparrTransport.NothingUnanswered);
@@ -245,7 +246,7 @@ internal sealed class WhisparrV3Instance(
 
         List<string> wanted = [.. foreignIds];
         var answered = await GeneratedReadAsync(
-                api => api.Api<V3Api.IMovieApi>().CreateMovieListAsync(wanted, ct))
+                api => api.Api<V3Api.IMovieApi>().PostMovieListAsync(wanted, ct))
             .ConfigureAwait(false);
 
         return new WhisparrHeldCards(HeldIn(answered, foreignIds), WhisparrTransport.NothingUnanswered);
@@ -268,7 +269,7 @@ internal sealed class WhisparrV3Instance(
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(string foreignId, CancellationToken ct)
         => GeneratedActAsync(
-            api => api.Api<V3Api.IImportListExclusionApi>().CreateExclusionsAsync(
+            api => api.Api<V3Api.IImportListExclusionApi>().PostExclusionsAsync(
                 V3BodyProjector.SceneExclusion(Named(foreignId)), ct));
 
     public Task<WhisparrResponse> RemoveSceneExclusionAsync(int exclusionId, CancellationToken ct)
@@ -276,7 +277,7 @@ internal sealed class WhisparrV3Instance(
         ArgumentOutOfRangeException.ThrowIfLessThan(exclusionId, 1);
 
         return GeneratedActAsync(
-            api => api.Api<V3Api.IImportListExclusionApi>().DeleteExclusionsAsync(exclusionId, ct));
+            api => api.Api<V3Api.IImportListExclusionApi>().DeleteExclusionsByIdAsync(exclusionId, ct));
     }
 
     // Gates only what a later catalogue read adds, which is what this generation's date field
@@ -307,13 +308,12 @@ internal sealed class WhisparrV3Instance(
 
     public Task<WhisparrResponse> ReadPerformerAsync(string foreignId, CancellationToken ct)
         => GeneratedReadAsync(
-            api => api.Api<V3Api.IPerformerApi>()
-                .GetPerformerByPerformerForeignIdAsync(Named(foreignId), ct));
+            api => api.Api<V3Api.IPerformerApi>().GetPerformerByIdAsync(Named(foreignId), ct));
 
     public Task<WhisparrResponse> AddMonitoredPerformerAsync(
         string foreignId, AddDefaults defaults, CancellationToken ct)
         => GeneratedActAsync(
-            api => api.Api<V3Api.IPerformerApi>().CreatePerformerAsync(
+            api => api.Api<V3Api.IPerformerApi>().PostPerformerAsync(
                 V3BodyProjector.AddPerformer(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> SetPerformerMonitoredAsync(
@@ -325,7 +325,7 @@ internal sealed class WhisparrV3Instance(
     public Task<WhisparrResponse> AddSceneAsync(
         string foreignId, AddDefaults defaults, CancellationToken ct)
         => GeneratedActAsync(
-            api => api.Api<V3Api.IMovieApi>().CreateMovieAsync(
+            api => api.Api<V3Api.IMovieApi>().PostMovieAsync(
                 V3BodyProjector.AddScene(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> RefreshCatalogueAsync(
@@ -339,11 +339,9 @@ internal sealed class WhisparrV3Instance(
         => kind switch
         {
             WhisparrEntityKind.Studio => GeneratedReadAsync(
-                api => api.Api<V3Api.IStudioApi>()
-                    .GetStudioByStudioForeignIdAsync(Named(foreignId), ct)),
+                api => api.Api<V3Api.IStudioApi>().GetStudioByIdAsync(Named(foreignId), ct)),
             WhisparrEntityKind.Performer => GeneratedReadAsync(
-                api => api.Api<V3Api.IPerformerApi>()
-                    .GetPerformerByPerformerForeignIdAsync(Named(foreignId), ct)),
+                api => api.Api<V3Api.IPerformerApi>().GetPerformerByIdAsync(Named(foreignId), ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 
@@ -352,7 +350,7 @@ internal sealed class WhisparrV3Instance(
     // catalogue.
     public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(string remoteId, CancellationToken ct)
         => GeneratedReadAsync(
-            api => api.Api<V3Api.IMovieApi>().ListMovieAsync(
+            api => api.Api<V3Api.IMovieApi>().GetMovieAsync(
                 stashId: Named(remoteId), cancellationToken: ct));
 
     // Each row is reduced to one question, so what this holds is the caller's own set and never the
@@ -428,7 +426,7 @@ internal sealed class WhisparrV3Instance(
 
         List<string> wanted = [.. asked.Values];
         var answered = await GeneratedReadAsync(
-                api => api.Api<V3Api.IMovieApi>().CreateMovieListAsync(wanted, ct))
+                api => api.Api<V3Api.IMovieApi>().PostMovieListAsync(wanted, ct))
             .ConfigureAwait(false);
 
         // Raised rather than reduced to an empty set: a caller comparing its library against an
@@ -554,7 +552,7 @@ internal sealed class WhisparrV3Instance(
 
     public Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct)
         => GeneratedReadAsync(
-            api => api.Api<V3Api.IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));
+            api => api.Api<V3Api.IMediaManagementConfigApi>().GetConfigMediamanagementAsync(ct));
 
     // The instance is asked to include what it already holds, so a file the library holds and the
     // instance has not attached is still answered for.
@@ -568,7 +566,7 @@ internal sealed class WhisparrV3Instance(
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
 
         return GeneratedReadAsync(
-            api => api.Api<V3Api.IManualImportApi>().ListManualImportAsync(
+            api => api.Api<V3Api.IManualImportApi>().GetManualimportAsync(
                 folder: folder, filterExistingFiles: false, cancellationToken: ct),
             WhisparrTransport.LibraryReadTimeout);
     }
@@ -577,7 +575,7 @@ internal sealed class WhisparrV3Instance(
     // file and reads it, which on a large one runs past the ordinary budget.
     public Task<WhisparrResponse> ReadFileAsync(OwnedFilePlacement file, CancellationToken ct)
         => GeneratedReadAsync(
-            api => api.Api<V3Api.IManualImportApi>().CreateManualImportAsync(
+            api => api.Api<V3Api.IManualImportApi>().PostManualimportAsync(
                 V3BodyProjector.ReadOwnedFile(file), ct),
             WhisparrTransport.LibraryReadTimeout);
 
@@ -591,7 +589,7 @@ internal sealed class WhisparrV3Instance(
         var asDirectory = WhisparrTransport.WithTrailingSeparator(directory);
 
         return GeneratedReadAsync(
-            api => api.Api<V3Api.IFileSystemApi>().GetFileSystemAsync(
+            api => api.Api<V3Api.IFileSystemApi>().GetFilesystemAsync(
                 path: asDirectory,
                 includeFiles: true,
                 allowFoldersWithoutTrailingSlashes: true,
