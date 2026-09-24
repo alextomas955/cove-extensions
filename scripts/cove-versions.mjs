@@ -79,11 +79,11 @@ export function imageAtLeastVersion(image, floor) {
 
 /** Parses a strict semver tag, or returns null for anything that is not one. */
 export function parseSemver(tag) {
-  const [withoutBuild, build, ...extraBuild] = String(tag ?? "").split("+");
-  if (extraBuild.length > 0) return null;
-  if (build !== undefined && !build.split(".").every((id) => BUILD_IDENTIFIER.test(id))) {
-    return null;
-  }
+  const text = String(tag ?? "");
+  const plus = text.indexOf("+");
+  const withoutBuild = plus === -1 ? text : text.slice(0, plus);
+  const build = plus === -1 ? [] : text.slice(plus + 1).split(".");
+  if (!build.every((id) => BUILD_IDENTIFIER.test(id))) return null;
 
   // The first hyphen ends the core: a pre-release identifier may itself contain hyphens.
   const hyphen = withoutBuild.indexOf("-");
