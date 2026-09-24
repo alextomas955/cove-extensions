@@ -20,7 +20,8 @@ const STATUS_PATH = "/api/v3/system/status";
 
 // A host that resolves on the shared network, so Whisparr's own save-time connection test of the
 // registered address does not refuse it - a refusal would measure that rather than the edit.
-const EDITED_CALLBACK_HOST = "http://cove:5073";
+// Composed per test from the harness: see registration.spec.mjs for why the bare service name is
+// not a stack's own address.
 
 // A cold container serving the extension bundle for the first time is slow rather than broken and
 // raises no signal to wait on.
@@ -280,18 +281,17 @@ test("both generations are configured independently, and only a generation chang
   });
 
   await test.step("a callback address edit survives a reload", async () => {
+    const editedCallbackHost = isolatedHarness.internalBaseUrl;
     const before = await panel.callbackField.inputValue();
     expect(before, "the callback field never took the address the server built").toContain(
       "/callback",
     );
 
-    await panel.callbackField.fill(
-      `${EDITED_CALLBACK_HOST}/api/extensions/${EXTENSION_ID}/callback`,
-    );
+    await panel.callbackField.fill(`${editedCallbackHost}/api/extensions/${EXTENSION_ID}/callback`);
     await panel.registerButton.click();
     // The registration answers with the address as the server now builds it, so the field settling on
     // the edited host is the write having landed.
-    await expect(panel.callbackField).toHaveValue(new RegExp(`^${EDITED_CALLBACK_HOST}/`), {
+    await expect(panel.callbackField).toHaveValue(new RegExp(`^${editedCallbackHost}/`), {
       timeout: ATTEMPT_BUDGET_MS,
     });
 
@@ -299,7 +299,7 @@ test("both generations are configured independently, and only a generation chang
     await expect(
       reloaded.callbackField,
       "the edited callback host did not survive a fresh load",
-    ).toHaveValue(new RegExp(`^${EDITED_CALLBACK_HOST}/`), { timeout: ATTEMPT_BUDGET_MS });
+    ).toHaveValue(new RegExp(`^${editedCallbackHost}/`), { timeout: ATTEMPT_BUDGET_MS });
   });
 
   await test.step("a save that changes only the connection does not reload", async () => {
