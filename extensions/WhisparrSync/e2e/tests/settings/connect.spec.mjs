@@ -33,7 +33,7 @@ function draftedGenerationIn(page) {
 
 // The builds this extension's classifier pins were transcribed from. Hand-written here, so a moved
 // image fails loudly instead of the suite quietly agreeing with whatever answered.
-const PINNED_VERSIONS = { v3: "3.3.8.1097", v2: "2.2.0.231" };
+const PINNED_VERSIONS = { v3: "3.6.2.1727", v2: "2.2.0.231" };
 
 // A key of the right shape that no instance was seeded with.
 const WRONG_KEY = "0000000000000000000000000000dead";

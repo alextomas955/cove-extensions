@@ -12,7 +12,7 @@ const REPOSITORY = "ghcr.io/hotio/whisparr";
 // The release channel only. The same repository also carries develop- and nightly-channel builds,
 // which move under a reader.
 const TAGS = Object.freeze({
-  v3: "v3-3.3.8-release.1097",
+  v3: "v3-3.6.2-release.1727",
   v2: "v2-2.2.0-release.231",
 });
 
