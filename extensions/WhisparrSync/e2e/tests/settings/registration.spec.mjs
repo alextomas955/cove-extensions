@@ -30,7 +30,6 @@ const REGISTRATION_NAME = "Cove Whisparr Sync";
 // Both have to resolve. Whisparr tests a Webhook connection when it saves one and answers 500 when
 // the address does not resolve, so an unreachable second address would measure that refusal rather
 // than the move — which is what a first run of this spec did.
-const FIRST_HOST = "http://cove:5073";
 const COVE_PORT = 5073;
 
 test.describe.configure({ timeout: SPEC_BUDGET_MS });
@@ -74,6 +73,10 @@ for (const generation of ["v3", "v2"]) {
     }) => {
       // The fixture has already pointed the extension at this generation's instance.
       const { api, whisparr } = connected;
+      // This stack's own Cove, by the name only it answers to. The bare service name answers for
+      // every stack on the shared network at once, so a save tested against it reached whichever
+      // stack the daemon picked.
+      const firstHost = isolatedCove.internalBaseUrl;
       const secondHost = await secondCoveHost(isolatedCove);
 
       expect(
@@ -95,7 +98,7 @@ for (const generation of ["v3", "v2"]) {
 
       // ── First registration ─────────────────────────────────────────────────────────────────────
       const first = await api.post(REGISTER_PATH, {
-        callbackAddress: `${FIRST_HOST}/api/extensions/${EXTENSION_ID}/callback`,
+        callbackAddress: `${firstHost}/api/extensions/${EXTENSION_ID}/callback`,
       });
 
       // The status is never a subject on its own here. It is asserted together with what the extension
@@ -111,9 +114,7 @@ for (const generation of ["v3", "v2"]) {
         afterFirst,
         `${generation} does not hold exactly one notification named "${REGISTRATION_NAME}" after the first registration`,
       ).toHaveLength(1);
-      expect(addressOf(afterFirst[0])).toBe(
-        `${FIRST_HOST}/api/extensions/${EXTENSION_ID}/callback`,
-      );
+      expect(addressOf(afterFirst[0])).toBe(`${firstHost}/api/extensions/${EXTENSION_ID}/callback`);
 
       // The registered address carries no secret on either generation, because both can carry one off
       // the address — one in a custom header, the other as Basic auth.

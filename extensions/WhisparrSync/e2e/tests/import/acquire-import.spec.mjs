@@ -57,7 +57,6 @@ const COVE_ROOT = `${COVE_SHARED}/media`;
  * Not the mapped host port the test process uses: that is published on the host, and inside a
  * container `localhost` is the container itself.
  */
-const COVE_ALIAS = "cove";
 
 const DOWNLOAD_BUDGET_MS = 180_000;
 const IMPORT_BUDGET_MS = 300_000;
@@ -118,7 +117,7 @@ for (const generation of ["v3", "v2"]) {
         // from the request the browser made, and localhost inside the Whisparr container is
         // Whisparr.
         const registered = await api.post(extensionRoute("callback/register"), {
-          callbackAddress: `http://${COVE_ALIAS}:5073`,
+          callbackAddress: isolatedCove.internalBaseUrl,
         });
         expect(
           registered.json?.status,
