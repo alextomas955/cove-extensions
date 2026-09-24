@@ -111,9 +111,9 @@ computed, which it could not before.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 
-**Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->
+**Needs Cove 1.5.0.** An older host does not load Renamer at all - no Rename tab under Settings ->
 Extensions, no "Rename selected" on your lists - so stay on 0.4.0 until you have upgraded Cove. No
-feature below needs 1.4.1; the floor moved because 1.4.1 is the host release this version is built
+feature below needs 1.5.0; the floor moved because 1.5.0 is the host release this version is built
 and tested against. If you are on 1.3.1 and do not want to upgrade Cove, 0.4.0 keeps working.
 
 - **Renamer now renames text documents.** They join videos, images and audio: the same templates,
