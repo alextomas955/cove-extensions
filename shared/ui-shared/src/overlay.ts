@@ -90,30 +90,28 @@ export function useOverlayKeys(
       return Array.from(ref.current?.querySelectorAll<HTMLElement>(itemSelector) ?? []);
     }
 
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        if (optsRef.current.enabled === false) return;
-        if (nav === "menu") e.stopPropagation();
-        else e.preventDefault();
-        optsRef.current.onClose();
-        return;
-      }
-      if (nav === "menu") {
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          const list = menuItems();
-          if (list.length === 0) return;
-          const current = list.indexOf(document.activeElement as HTMLElement);
-          const next =
-            e.key === "ArrowDown"
-              ? (current + 1) % list.length
-              : (current - 1 + list.length) % list.length;
-          list[next]?.focus();
-        }
-        return;
-      }
-      // dialog: Tab is trapped within the panel (wrap first↔last over the focusable set).
-      if (e.key !== "Tab") return;
+    function closeOnEscape(e: KeyboardEvent) {
+      if (optsRef.current.enabled === false) return;
+      if (nav === "menu") e.stopPropagation();
+      else e.preventDefault();
+      optsRef.current.onClose();
+    }
+
+    function moveMenuFocus(e: KeyboardEvent) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const list = menuItems();
+      if (list.length === 0) return;
+      const current = list.indexOf(document.activeElement as HTMLElement);
+      const next =
+        e.key === "ArrowDown"
+          ? (current + 1) % list.length
+          : (current - 1 + list.length) % list.length;
+      list[next]?.focus();
+    }
+
+    // dialog: Tab is trapped within the panel (wrap first↔last over the focusable set).
+    function trapTab(e: KeyboardEvent) {
       const panel = ref.current;
       if (!panel) return;
       const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
@@ -128,6 +126,12 @@ export function useOverlayKeys(
         e.preventDefault();
         firstEl.focus();
       }
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeOnEscape(e);
+      else if (nav === "menu") moveMenuFocus(e);
+      else if (e.key === "Tab") trapTab(e);
     }
 
     function onPointerDown(e: PointerEvent) {

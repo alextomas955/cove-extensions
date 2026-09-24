@@ -41,7 +41,8 @@ export function Dialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60" onClick={requestCancel} aria-hidden="true" />
-      <div
+      {/* The overlay hook in ui-shared owns focus and Escape, so this is not a native <dialog>. */}
+      <div // NOSONAR
         ref={panelRef}
         role="dialog"
         aria-modal="true"

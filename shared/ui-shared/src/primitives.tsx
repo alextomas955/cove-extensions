@@ -153,10 +153,9 @@ export function FieldGroup({
 }) {
   const labelId = useId();
   return (
-    <div
-      className="block text-sm"
+    <fieldset
+      className="block min-w-0 text-sm"
       title={helper}
-      role="group"
       aria-labelledby={label ? labelId : undefined}
     >
       {label ? (
@@ -169,7 +168,7 @@ export function FieldGroup({
       ) : null}
       {children}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
-    </div>
+    </fieldset>
   );
 }
 
@@ -1616,7 +1615,9 @@ export function Spinner() {
 export function ProgressBar({ percent, label }: { percent?: number; label?: string }) {
   const determinate = percent !== undefined;
   return (
-    <div
+    // A native <progress> draws its fill through vendor pseudo-elements, which host utility classes
+    // cannot reach.
+    <div // NOSONAR
       role="progressbar"
       aria-label={label}
       aria-valuenow={determinate ? percent : undefined}

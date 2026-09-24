@@ -230,38 +230,8 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     failures.push("INVALID: version must be a non-empty string, found: " + JSON.stringify(version));
   }
 
-  // The declared set is the only source of what ships. An entry that declares nothing, or declares
-  // an empty array, is a hard failure rather than a run that copies nothing and exits 0 - there is
-  // no narrower field to fall back to and no set to infer.
-  const declared = entry.artifacts;
-  if (declared == null) {
-    failures.push(
-      "MISSING: catalog entry " +
-        entry.id +
-        " declares no artifacts array — the shipped file set must be declared.",
-    );
-    return done();
-  }
-  if (!Array.isArray(declared) || declared.length === 0) {
-    failures.push(
-      "INVALID: catalog entry " +
-        entry.id +
-        " declares an empty artifacts array — an assemble that copies nothing inspected nothing.",
-    );
-    return done();
-  }
-
-  const seen = new Set();
-  const names = [];
-  for (const name of declared) {
-    if (!checkArtifactName(name, failures)) continue;
-    if (seen.has(name)) {
-      failures.push("DUPLICATE: artifacts declares " + name + " more than once.");
-      continue;
-    }
-    seen.add(name);
-    names.push(name);
-  }
+  const names = readDeclaredNames(entry, failures);
+  if (names === null) return done();
 
   // Shape and declaration failures are returned before any source is read and before the package
   // directory is touched, so a malformed declaration cannot destroy an earlier good package.
@@ -285,72 +255,134 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // reads at install time must be the one under source control, stamped with this release.
   const manifestSource = entryManifestPath(absoluteRoot, entry);
   const manifestName = path.basename(manifestSource);
-
-  let sourceManifest = null;
-  if (fs.existsSync(manifestSource)) {
-    try {
-      sourceManifest = readJson(manifestSource);
-    } catch (error) {
-      failures.push(
-        "INVALID: source manifest " +
-          path.relative(absoluteRoot, manifestSource) +
-          " is not parseable json: " +
-          error.message,
-      );
-      return done();
-    }
-  } else {
-    failures.push(
-      "MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource),
-    );
-    return done();
-  }
+  const sourceManifest = readSourceManifest(absoluteRoot, manifestSource, failures);
+  if (sourceManifest === null) return done();
 
   checkDeclarationIsLoadable(sourceManifest, manifestName, names, failures);
 
-  const uiBundleDir = entry.uiPath ? path.join(absoluteRoot, entry.uiPath, "dist") : null;
+  const sources = {
+    absoluteRoot,
+    absolutePublishDir,
+    entry,
+    manifestName,
+    manifestSource,
+    sourceManifest,
+    uiBundleDir: entry.uiPath ? path.join(absoluteRoot, entry.uiPath, "dist") : null,
+  };
+  const staged = stageArtifacts(names, sources, version, failures);
+  checkStagedJson(staged, failures);
 
-  // Ordered source search. The first two rules are exact - a declared name that matches one of them
-  // is resolved from that root or not at all - and the remaining three are tried in order, so
-  // precedence between roots is stated rather than left to whichever happens to hold the file.
-  //
-  // The ui-bundle rule covers both bundle fields, because both are output of the same UI build and
-  // neither is ever produced by the dotnet publish. Matching only `jsBundle` sent a declared
-  // `cssBundle` down the publish/extension/repo-root search, where it cannot exist, so declaring one
-  // failed as missing however correctly it had been built.
-  // The roots a declared artifact may come from, in precedence order. The manifest and the UI
-  // bundle each resolve from exactly one place; everything else is searched.
-  function candidateSourcesFor(name) {
-    if (name === manifestName) {
-      return [{ source: manifestSource, root: "manifest" }];
-    }
-    if (uiBundleDir && (sourceManifest.jsBundle === name || sourceManifest.cssBundle === name)) {
-      return [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }];
-    }
-    return [
-      { source: path.join(absolutePublishDir, name), root: "publish" },
-      { source: path.join(absoluteRoot, entry.path, name), root: "extension" },
-      { source: path.join(absoluteRoot, name), root: "repo-root", repoLevelOnly: true },
-    ];
+  if (failures.length > 0) return done();
+
+  // Created only here, once everything that could refuse has passed, so a failed run leaves no empty
+  // directory behind for a caller to mistake for a package.
+  fs.mkdirSync(absolutePackageDir, { recursive: true });
+  writeStaged(staged, absolutePackageDir, absoluteRoot, failures, copied);
+
+  return done();
+}
+
+/** The declared artifact names, deduplicated, or null when the entry declares no usable set. */
+function readDeclaredNames(entry, failures) {
+  // The declared set is the only source of what ships. An entry that declares nothing, or declares
+  // an empty array, is a hard failure rather than a run that copies nothing and exits 0 - there is
+  // no narrower field to fall back to and no set to infer.
+  const declared = entry.artifacts;
+  if (declared == null) {
+    failures.push(
+      "MISSING: catalog entry " +
+        entry.id +
+        " declares no artifacts array — the shipped file set must be declared.",
+    );
+    return null;
+  }
+  if (!Array.isArray(declared) || declared.length === 0) {
+    failures.push(
+      "INVALID: catalog entry " +
+        entry.id +
+        " declares an empty artifacts array — an assemble that copies nothing inspected nothing.",
+    );
+    return null;
   }
 
-  function resolveArtifactSource(name) {
-    const searched = candidateSourcesFor(name);
-    for (const candidate of searched) {
-      // Skipped rather than dropped from `searched`: a root that was not offered is still a root the
-      // caller has to know was considered, so the missing message stays as wide as the search.
-      if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.has(name)) continue;
-      if (fs.existsSync(candidate.source)) return { ...candidate, searched };
+  const seen = new Set();
+  const names = [];
+  for (const name of declared) {
+    if (!checkArtifactName(name, failures)) continue;
+    if (seen.has(name)) {
+      failures.push("DUPLICATE: artifacts declares " + name + " more than once.");
+      continue;
     }
-    return { source: null, root: null, searched };
+    seen.add(name);
+    names.push(name);
   }
+  return names;
+}
 
+/** The parsed source manifest, or null after recording why it could not be read. */
+function readSourceManifest(absoluteRoot, manifestSource, failures) {
+  if (!fs.existsSync(manifestSource)) {
+    failures.push(
+      "MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource),
+    );
+    return null;
+  }
+  try {
+    return readJson(manifestSource);
+  } catch (error) {
+    failures.push(
+      "INVALID: source manifest " +
+        path.relative(absoluteRoot, manifestSource) +
+        " is not parseable json: " +
+        error.message,
+    );
+    return null;
+  }
+}
+
+// Ordered source search. The first two rules are exact - a declared name that matches one of them
+// is resolved from that root or not at all - and the remaining three are tried in order, so
+// precedence between roots is stated rather than left to whichever happens to hold the file.
+//
+// The ui-bundle rule covers both bundle fields, because both are output of the same UI build and
+// neither is ever produced by the dotnet publish. Matching only `jsBundle` sent a declared
+// `cssBundle` down the publish/extension/repo-root search, where it cannot exist, so declaring one
+// failed as missing however correctly it had been built.
+// The roots a declared artifact may come from, in precedence order. The manifest and the UI
+// bundle each resolve from exactly one place; everything else is searched.
+function candidateSourcesFor(name, sources) {
+  if (name === sources.manifestName) {
+    return [{ source: sources.manifestSource, root: "manifest" }];
+  }
+  const { sourceManifest, uiBundleDir } = sources;
+  if (uiBundleDir && (sourceManifest.jsBundle === name || sourceManifest.cssBundle === name)) {
+    return [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }];
+  }
+  return [
+    { source: path.join(sources.absolutePublishDir, name), root: "publish" },
+    { source: path.join(sources.absoluteRoot, sources.entry.path, name), root: "extension" },
+    { source: path.join(sources.absoluteRoot, name), root: "repo-root", repoLevelOnly: true },
+  ];
+}
+
+function resolveArtifactSource(name, sources) {
+  const searched = candidateSourcesFor(name, sources);
+  for (const candidate of searched) {
+    // Skipped rather than dropped from `searched`: a root that was not offered is still a root the
+    // caller has to know was considered, so the missing message stays as wide as the search.
+    if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.has(name)) continue;
+    if (fs.existsSync(candidate.source)) return { ...candidate, searched };
+  }
+  return { source: null, root: null, searched };
+}
+
+function stageArtifacts(names, sources, version, failures) {
   const staged = [];
   for (const name of names) {
-    const { source, root: sourceRoot, searched } = resolveArtifactSource(name);
+    const { source, root: sourceRoot, searched } = resolveArtifactSource(name, sources);
     if (source == null) {
       const roots = searched.map(
-        (candidate) => path.relative(absoluteRoot, candidate.source) || candidate.source,
+        (candidate) => path.relative(sources.absoluteRoot, candidate.source) || candidate.source,
       );
       failures.push(
         "MISSING: declared artifact " +
@@ -364,10 +396,15 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     // The version is assigned as given: no semver parse, no coercion, so a placeholder such as a
     // triple zero survives into the package exactly as the caller spelled it.
     const text =
-      name === manifestName ? JSON.stringify({ ...sourceManifest, version }, null, 2) + "\n" : null;
+      name === sources.manifestName
+        ? JSON.stringify({ ...sources.sourceManifest, version }, null, 2) + "\n"
+        : null;
     staged.push({ name, source, root: sourceRoot, text });
   }
+  return staged;
+}
 
+function checkStagedJson(staged, failures) {
   for (const item of staged) {
     if (!item.name.endsWith(".json")) continue;
     let text = item.text;
@@ -391,13 +428,9 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     }
     checkNoAbsolutePath(item.name, text, failures);
   }
+}
 
-  if (failures.length > 0) return done();
-
-  // Created only here, once everything that could refuse has passed, so a failed run leaves no empty
-  // directory behind for a caller to mistake for a package.
-  fs.mkdirSync(absolutePackageDir, { recursive: true });
-
+function writeStaged(staged, absolutePackageDir, absoluteRoot, failures, copied) {
   for (const item of staged) {
     const destination = path.join(absolutePackageDir, item.name);
     try {
@@ -424,8 +457,6 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
       root: item.root,
     });
   }
-
-  return done();
 }
 
 const REQUIRED_FLAGS = ["--publish-dir", "--package-dir", "--extension", "--version"];
