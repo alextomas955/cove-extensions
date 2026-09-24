@@ -1,8 +1,8 @@
 // Produces the build output the E2E harness installs, for every extension whose catalog entry
 // declares an e2e suite. assemble-package.mjs consumes that output and refuses a missing one.
 //
-// The only other producers are the `dotnet publish` steps in build.yml, which a local checkout never
-// runs, so without this a fresh clone cannot run the harness. It is wired as tests/e2e's `pretest`.
+// CI downloads the build job's output instead, so without this a fresh clone cannot run the harness.
+// It is wired as tests/e2e's `pretest`.
 //
 // No extension is named below. The selection predicate is the one playwright.config.mjs derives its
 // projects from, so an extension that gains an e2e suite gains its publish step with no edit here.
@@ -79,10 +79,9 @@ function publishEntry(entry, label) {
   // manifest is enough to redden a spec that pins what an extension ships.
   fs.rmSync(publishDir, { recursive: true, force: true });
 
-  // Mirrors the e2e job's own publish step in .github/workflows/build.yml, flags included. CoveSourceMode
-  // is pinned to `none` there so the extension compiles against the published Cove packages users
-  // receive; without the pin a developer with a local Cove checkout would stage a differently-built
-  // assembly than CI does.
+  // CoveSourceMode is pinned to `none`, as in ci.yml's build job, so the extension compiles against
+  // the published Cove packages users receive; without the pin a developer with a local Cove checkout
+  // would stage a differently-built assembly than CI does.
   const publishFailure = run(
     "dotnet",
     [

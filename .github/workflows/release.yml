@@ -1,0 +1,41 @@
+# Releases one extension when a tag <tagPrefix>v<semver> is pushed, for example renamer/v1.0.0.
+#
+# The checks are ci.yml itself, called on the tag, so a release clears exactly the set a merge does.
+# ci.yml validates the tag against the catalog, the manifest and the registry row, builds only the
+# tagged extension, and uploads its zip as a `package-` artifact.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "*/v*"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # `pattern` is an allowlist over artifact names and a security boundary. Without it every artifact
+      # in the run is a candidate for `files` below, including the Playwright report the advisory
+      # pre-release leg uploads after booting an unreleased upstream image.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: "*.zip"
+          fail_on_unmatched_files: true
+          generate_release_notes: true

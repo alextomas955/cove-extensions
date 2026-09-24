@@ -334,7 +334,7 @@ test("an unrecognised argument is refused with the usage line rather than ignore
 });
 
 test("the offline modes print exactly what the workflows read off stdout", () => {
-  // lint.yml and sonar.yml append --cove-ref's stdout to $GITHUB_OUTPUT, and build.yml parses
+  // the checkout-cove action appends --cove-ref's stdout to $GITHUB_OUTPUT, and ci.yml parses
   // --floors-only's stdout as JSON, so anything else on stdout would corrupt the step's output.
   const script = path.join(import.meta.dirname, "cove-versions.mjs");
   const run = (flag) => spawnSync(process.execPath, [script, flag], { encoding: "utf8" });

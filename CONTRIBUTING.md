@@ -63,9 +63,7 @@ extend an existing one), you work against the same contract:
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
 release it. Read the field set off `extensions/catalog.json` itself and off
 `scripts/validate-extension-repo.mjs`, which is what enforces it - an enumeration copied into this file
-goes stale silently, and one here already had. Some fields do more than name a location: one of them
-marks an entry as manifest-only, and `.github/workflows/build.yml` then skips assembling, packaging and
-releasing it. Every path you declare must exist: the validator fails the build on one that does not,
+goes stale silently, and one here already had. Every path you declare must exist: the validator fails the build on one that does not,
 rather than letting the typo surface later as an `npm ci` in a missing directory partway through a
 matrix leg. Adding an extension's build and release capability is a catalog edit, not a workflow-logic
 change.

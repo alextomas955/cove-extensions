@@ -120,7 +120,7 @@ meets:
 `Directory.Build.targets` adds the Sonar C# analyzer to every project, unconditionally on how Cove is
 located. Two things are worth knowing before you read a green result as a clean tree. The pre-commit
 hook runs per file, so it reports on the files you touched and not on their neighbours. And the CI
-legs do not all build the same way: the analyzer gate (`csharp-format` in `lint.yml`) builds the whole
+legs do not all build the same way: the analyzer gate (`csharp-format` in `ci.yml`) builds the whole
 solution in `source` mode against a checked-out Cove, so it sees what a local source build sees. The
 Windows leg checks Cove out and builds in `source` mode too. The packaging leg builds in `none` mode,
 which is what proves the shipped assembly needs no checkout.
@@ -311,7 +311,7 @@ runner is also silently absent whenever npm withholds its install script, in whi
 passes with no hook having run and git reports nothing. If you need a hook's guarantee on a
 particular commit, run its checks by hand.
 
-That is why the gate tools above are wired into `.github/workflows/lint.yml` as well, and why a check
+That is why the gate tools above are wired into `.github/workflows/ci.yml` as well, and why a check
 you need enforced belongs in a workflow rather than only here.
 
 One hook entry cannot be a gate anywhere: the host-import check reads the Cove host's own generated

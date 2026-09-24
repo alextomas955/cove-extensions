@@ -16,11 +16,11 @@ a tag of the form `<tagPrefix>v<semver>` - for example `renamer/v1.0.0`.
 
 ## What CI does: a catalog-driven validate → build → release matrix
 
-`.github/workflows/build.yml` reads `extensions/catalog.json` to compute its build matrix:
+`.github/workflows/release.yml` runs on a release tag. It calls `.github/workflows/ci.yml`, the same
+workflow every pull request runs, which reads `extensions/catalog.json` to compute its build matrix:
 
-- **validate** - on every pull request, on a tag push, and on the daily scheduled run, confirms the
-  catalog is well-formed. It does not run on a direct branch push: `build.yml` has no branch-push
-  trigger. On a tag push it
+- **validate** - on every pull request, every push to `main`, the daily scheduled run and a tag push,
+  confirms the catalog is well-formed. On a tag push it
   additionally confirms the tag matches exactly one catalog entry's `tagPrefix` with a valid semver
   suffix, that the entry's `extension.json` declares exactly the tag's version, and that the
   extension's registry manifest - when it has one - already carries that version as its **first**
@@ -42,8 +42,8 @@ a tag of the form `<tagPrefix>v<semver>` - for example `renamer/v1.0.0`.
     declared file the build did not produce fails the job before anything is zipped, and the step
     prints every file it copied and a count. Every shipped `.json` is also refused if it carries an
     absolute path.
-- **release** - triggers only on a tag push, downloads every build job's artifact, and attaches
-  the matching `.zip` to a GitHub release for that tag.
+- **release** - the job in `release.yml` that runs after `ci.yml` passes. It downloads only the
+  artifacts named `package-*` and attaches the `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
 `com.alextomas955.renamer`, and cutting `renamer/v<semver>` builds, assembles, and packages

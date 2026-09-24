@@ -1,7 +1,7 @@
 # SonarQube Cloud analysis with imported test coverage.
 #
-# Separate from build.yml on purpose: this needs a token, and a token is what GitHub withholds from a
-# pull request opened from a fork or by Dependabot. Run inside build.yml it would either fail those
+# Separate from ci.yml on purpose: this needs a token, and a token is what GitHub withholds from a
+# pull request opened from a fork or by Dependabot. Run inside ci.yml it would either fail those
 # pull requests or have to be excused from the required-check aggregate; run here it simply does not
 # start, and no merge waits on it.
 #
@@ -31,9 +31,6 @@ permissions:
 concurrency:
   group: sonar-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  DOTNET_VERSION: "10.0.x"
 
 jobs:
   analyze:
@@ -69,29 +66,12 @@ jobs:
           fetch-depth: 0
           path: extensions
 
-      # The C# suite compiles against Cove's own source, so this leg needs a checkout of it, at the
-      # floor each extension declares. Same resolution lint.yml uses, and for the same reason: a
-      # missing checkout would select the cove-absent branch and analyse a smaller set successfully.
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24.11.0"
-
-      - name: Resolve the declared host floor
-        id: floor
-        working-directory: extensions
-        run: node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
-
-      - name: Check out Cove at the declared floor
-        uses: actions/checkout@v7
-        with:
-          repository: yourcove/cove
-          ref: ${{ steps.floor.outputs.ref }}
-          fetch-depth: 1
-          path: cove
+      # The C# suite compiles against Cove's own source, at the highest floor the extensions declare.
+      - uses: ./extensions/.github/actions/checkout-cove
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: extensions/global.json
 
       - uses: actions/setup-java@v6
         with:
@@ -101,41 +81,22 @@ jobs:
       - name: Install the scanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      # The subjects come from extensions/catalog.json, so an extension reaches this job by being in
-      # the catalog rather than by an edit here. Hardcoding one extension's paths would leave a new
-      # frontend's coverage report ungenerated, which normalize-lcov-paths.mjs refuses by design, and
-      # a new backend's C# analysed with no coverage behind it.
+      # The subjects come from extensions/catalog.json, so an extension reaches this job by being in the
+      # catalog. Each C# suite writes its own coverage report: one shared name would leave only the last
+      # run measured.
       - name: Resolve the catalog's coverage subjects
         id: subjects
         working-directory: extensions
         shell: bash
         run: |
-          # The lists go to files and only the comma-joined report paths to step outputs: a step
-          # output holding a newline needs delimiter escaping that a plain `key=value` line does not
-          # provide, and the silent result is one run over a single path named "a%0Ab".
-          node -e '
-            const fs = require("fs");
-            const path = require("node:path");
-            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
-            const uiPaths = catalog.extensions.filter((e) => e.uiPath).map((e) => e.uiPath);
-            const testProjects = catalog.extensions.filter((e) => e.testProjectPath).map((e) => e.testProjectPath);
-            const tmp = process.env.RUNNER_TEMP;
-            // Trailing newline on every line. The shell read builtin returns non-zero on a final
-            // line without one, so a list written unterminated makes the reading loop skip its last
-            // entry, and a one-entry list is skipped in full while the step still exits 0.
-            const lines = (xs) => xs.map((x) => x + "\n").join("");
-            fs.writeFileSync(path.join(tmp, "ui-paths.txt"), lines(uiPaths));
-            fs.writeFileSync(path.join(tmp, "test-projects.txt"), lines(testProjects));
-            // Each suite writes its own report; one shared name would leave only the last run measured.
-            const cs = testProjects.map((_, i) => "TestResults/coverage-" + i + ".xml");
-            const lcov = uiPaths.map((p) => p + "/coverage/lcov.info");
-            fs.appendFileSync(
-              process.env.GITHUB_OUTPUT,
-              "lcovPaths=" + lcov.join(",") + "\ncsPaths=" + cs.join(",") + "\n",
-            );
-            console.error("frontends: " + (uiPaths.join(", ") || "none"));
-            console.error("test projects: " + (testProjects.join(", ") || "none"));
-          '
+          node scripts/ci-catalog.mjs list uiPath > "$RUNNER_TEMP/ui-paths.txt"
+          node scripts/ci-catalog.mjs list testProjectPath > "$RUNNER_TEMP/test-projects.txt"
+          lcov=$(sed 's|$|/coverage/lcov.info|' "$RUNNER_TEMP/ui-paths.txt" | paste -sd, -)
+          cs=$(awk '{ print "TestResults/coverage-" NR-1 ".xml" }' "$RUNNER_TEMP/test-projects.txt" | paste -sd, -)
+          echo "lcovPaths=$lcov" >> "$GITHUB_OUTPUT"
+          echo "csPaths=$cs" >> "$GITHUB_OUTPUT"
+          echo "frontends: $lcov"
+          echo "test reports: $cs"
 
       - name: Install root tooling
         working-directory: extensions

@@ -202,12 +202,13 @@ the shared one - see `extension-lifecycle.spec.mjs` for the pattern.
 Locally: `npm test` (runs every project, 4 parallel workers) or `npm test -- --project=<name>` for
 one extension - see Quick start and "One Playwright install, many extensions" above.
 
-CI: the `.github/workflows/build.yml` `e2e` job runs `npm test -- --project=<name>` for each
-catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built publish
-output (not a downloaded zip), which the harness assembles as above. It runs that command once per
+CI: the `.github/workflows/ci.yml` `e2e` job runs `playwright test --project=<name>` for each
+catalog entry that declares an `e2ePath`/`e2eProject`, against the publish output the `build` job
+produced, which the harness assembles as above. It skips `npm test` because the `pretest` hook would
+publish the extension again. It runs that command once per
 Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` - so which Cove a
 run boots is CI's choice, and locally it is the declared floor. One axis leg runs a `@smoke`
-selection rather than the whole suite; `build.yml` states which and why, and that file is the place
+selection rather than the whole suite; `ci.yml` states which and why, and that file is the place
 to read it rather than here. There is no CI-only fork of the harness itself; the same
 `docker-compose.yml`, install helpers, and fixtures run in both places.
 

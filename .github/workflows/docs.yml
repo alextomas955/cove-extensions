@@ -2,7 +2,7 @@
 # commit that built it lands on main.
 #
 # ONE workflow, two paths: a pull request BUILDS, so a docs dependency bump is proven before merge;
-# a push to main builds AND publishes. Separate from build.yml because the site has its own
+# a push to main builds AND publishes. Separate from ci.yml because the site has its own
 # toolchain, and built with `npm --prefix website ...`.
 #
 # A pull request cannot publish, structurally rather than by convention: the workflow-level grant is
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.11.0"
+          node-version-file: package.json
           cache: "npm"
           cache-dependency-path: website/package-lock.json
 

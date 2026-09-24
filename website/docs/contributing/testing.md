@@ -180,7 +180,7 @@ Two CI legs run the C# suite, and they differ by environment rather than by whic
 
 - The **`test-cove-present` job** shallow-clones Cove at each version on the workflow's version axis
   and runs the whole suite against each one. So the suite runs against every supported Cove, not once.
-- The **`windows-build-test` job** in `lint.yml` does the same on Windows, at the highest floor the
+- The **`windows-build-test` job** does the same on Windows, at the highest floor the
   extensions declare. It is the only leg that executes the Windows-gated cases.
 
 Two more legs bear on the C# tier without running its tests.
@@ -191,13 +191,13 @@ Two more legs bear on the C# tier without running its tests.
 - The **`csharp-format` job** checks Cove out at the declared floor and builds the whole solution in
   `source` mode with warnings as errors, so the test project sits inside the format and analyzer gates.
 
-The **`e2e` job** installs the assembled package into a running released Cove container. It is the only
+The **`e2e` job** installs the build job's package into a running released Cove container. It is the only
 leg that would notice a package the host refuses to load, and it is the safety gate. The end-to-end
 tier cannot run on Windows at all: GitHub-hosted Windows runners fix Docker to Windows containers and
 Cove ships no Windows image.
 
-`build.yml` aggregates its own legs into one job that asserts each result, and that aggregate is what
-branch protection is meant to require. Two qualifications:
+`ci.yml` aggregates every job into one `required-checks` job that asserts each result, and that
+aggregate is what branch protection is meant to require. Two qualifications:
 
 - A green aggregate proves the containerized install ran only for a catalog entry that declares an
   end-to-end suite. For an entry declaring none, that job skips every step and still reports success.

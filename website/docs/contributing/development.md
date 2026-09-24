@@ -65,7 +65,7 @@ Two of the checks inside `verify` are worth knowing separately:
 - `check-host-imports` resolves each host import-map external against the module the host actually
   serves, read out of a Cove checkout. A name can typecheck, build, and pass every other check while
   the shipped bundle fails to load in the browser. With no `../cove` sibling it prints a skip and
-  exits 0. The `host-imports` job in `lint.yml` is the gate: it checks Cove out, generates the host's
+  exits 0. The `host-imports` job in `ci.yml` is the gate: it checks Cove out, generates the host's
   shim, and fails on a missing name.
 
 ## Regenerate the wire types after a handler change
@@ -172,7 +172,7 @@ both of which have bitten here:
 - A folder path passed to `--include` or `--exclude` must end in a path separator. Without one it
   matches nothing and exits 0, so a scoping mistake does not fail - it silently passes.
 
-The C# job in `.github/workflows/lint.yml` runs that same script, so your local run and CI check the
+The C# job in `.github/workflows/ci.yml` runs that same script, so your local run and CI check the
 same subject set and both print the same partial-coverage disclosure. The depth can still differ: CI
 checks Cove out, and without a local checkout the test project gets a whitespace-only check on your
 machine. [Known traps](#known-traps) has the symptom and how to get the coverage back.
@@ -213,18 +213,17 @@ ungated.
 
 **Only a check a CI workflow runs can block a merge.** A local hook is advice a contributor can skip,
 so a gate you need enforced belongs in a workflow. Every gate in the table above runs in
-`.github/workflows/lint.yml` or `.github/workflows/build.yml`, so every one of them can fail a pull
-request.
+`.github/workflows/ci.yml`, so every one of them can fail a pull request.
 
 Three qualifications:
 
 - The Host imports row needs a Cove checkout with its runtime shims generated. Run
   `npm run generate:extension-runtime` in the checkout's `ui/` directory once. The copy inside a UI's
-  `verify` skips in CI, and the `host-imports` job in `lint.yml` is what gates it.
-- `build.yml` aggregates its own validate, build, test, and end-to-end legs into a single status
-  check, so that one status stands for the whole chain. What a green aggregate does and does not prove
-  is on [Monorepo architecture](./architecture). The jobs in `lint.yml` report separately, with no
-  `needs:` link into that chain.
+  `verify` skips in CI, and the `host-imports` job in `ci.yml` is what gates it.
+- `ci.yml` ends in one `required-checks` job that needs every other job and fails unless each one
+  succeeded, so that one status stands for the whole workflow. A new job gates merges once it is in
+  that job's `needs`. What a green aggregate does and does not prove is on
+  [Monorepo architecture](./architecture).
 - Which status checks branch protection actually requires is a repository setting rather than a file.
   Read it on the settings for `main`; do not infer it from this page.
 

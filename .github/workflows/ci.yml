@@ -1,0 +1,522 @@
+# Every check a change has to pass, in one workflow, so one aggregate job can gate them all.
+#
+# A pull request and a push to main run the same jobs against the same Cove versions, so nothing
+# reaches main that its pull request did not already check. The nightly schedule adds the newest
+# Cove releases to the version axis. release.yml calls this workflow on a release tag, so a release
+# clears exactly the checks a merge does.
+#
+# Every catalog- or version-derived value reaches a shell body through the step's environment, never
+# spliced into the body text: extensions/catalog.json is editable by a pull request from a fork, and a
+# value in the body is code the shell runs.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # 06:00 UTC, before a working session. The upstream images move too, so a red that recurs at this
+  # hour and passes on re-run is an upstream rebuild window, not this repository.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# An explicit bash shell runs with -eo pipefail; the implicit default omits pipefail.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      # Separate from `matrix` so the version axis multiplies only the jobs that run against a host.
+      coveMatrix: ${{ steps.coveMatrix.outputs.coveMatrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+
+      - name: Validate extension catalog
+        run: node scripts/validate-extension-repo.mjs
+
+      - name: Test repo tooling
+        run: node --test scripts/*.test.mjs
+
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/ci-catalog.mjs release-tag "$GITHUB_REF"
+
+      - name: Compute build matrix
+        id: matrix
+        run: |
+          matrix=$(node scripts/ci-catalog.mjs matrix "$GITHUB_REF")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+      # A pull request and a push to main test each extension's declared floor alone, so a re-run of
+      # the same commit examines the same hosts. The schedule and a release tag also resolve the newest
+      # GA and pre-release from the registry.
+      - name: Resolve the Cove version axis
+        id: coveMatrix
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_REF" == refs/tags/* ]]; then
+            node scripts/cove-versions.mjs --report > "$RUNNER_TEMP/cove-legs.json"
+          else
+            node scripts/cove-versions.mjs --floors-only > "$RUNNER_TEMP/cove-legs.json"
+          fi
+          legs=$(node scripts/ci-catalog.mjs legs "$GITHUB_REF" "$RUNNER_TEMP/cove-legs.json")
+          echo "coveMatrix=$legs" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    env:
+      EXTENSION_ID: ${{ matrix.extension.id }}
+      EXTENSION_NAME: ${{ matrix.extension.name }}
+      PROJECT_PATH: ${{ matrix.extension.projectPath }}
+    steps:
+      - name: Derive version
+        id: check
+        run: |
+          prefix="refs/tags/${TAG_PREFIX}v"
+          if [[ "${GITHUB_REF}" == "${prefix}"* ]]; then
+            echo "version=${GITHUB_REF#"${prefix}"}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TAG_PREFIX: ${{ matrix.extension.tagPrefix }}
+
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      # Unconditional: the package assembler below is a Node script whatever the extension ships.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+
+      # CoveSourceMode=none compiles against the published Cove packages users receive. This job runs
+      # no tests: the suite needs Cove's source, which test-cove-present supplies.
+      - name: Build
+        run: |
+          dotnet restore "$PROJECT_PATH" -p:CoveSourceMode=none
+          dotnet build "$PROJECT_PATH" -c Release --no-restore -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+
+      # Into a throwaway directory: the package receives only what the assemble step copies, so nothing
+      # the build emits alongside the shipped files reaches a release undeclared.
+      - name: Publish
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+
+      # No package here needs a lifecycle script on Linux: the only one in the UI lockfile is the
+      # macOS-only fsevents, and the root ones are git hooks or native speed-ups with a JS fallback.
+      - name: Install frontend deps
+        if: matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm ci --ignore-scripts
+
+      - name: Stamp source package.json version
+        if: matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm version "$EXTENSION_VERSION" --no-git-tag-version --allow-same-version
+        env:
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+
+      # openapi-typescript's dependency closure declares no install hooks, so --ignore-scripts is safe.
+      - name: Install root tooling (wire-type generator)
+        if: matrix.extension.uiPath != ''
+        run: npm ci --no-workspaces --ignore-scripts
+
+      - name: Generate wire types
+        if: matrix.extension.uiPath != ''
+        run: node scripts/generate-wire-types.mjs --extension "$EXTENSION_ID"
+
+      - name: Verify frontend
+        if: matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run verify
+
+      - name: Build frontend bundle
+        if: matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run build
+
+      # Every pull request rehearses the release: the same script assembles the same declared set a
+      # tag push ships.
+      - name: Assemble package
+        run: node scripts/assemble-package.mjs --publish-dir "artifacts/publish/$EXTENSION_NAME" --package-dir "artifacts/$EXTENSION_NAME" --extension "$EXTENSION_ID" --version "$EXTENSION_VERSION"
+        env:
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+
+      # The e2e job installs this exact output rather than building its own, so the package it tests is
+      # the package a release ships.
+      - name: Upload build output for e2e
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.extension.id }}
+          path: |
+            artifacts/publish/${{ matrix.extension.name }}/
+            ${{ matrix.extension.uiPath }}/dist/
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Package
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd "artifacts/$EXTENSION_NAME"
+          zip -r "../../${EXTENSION_ID}-${EXTENSION_VERSION}.zip" .
+        env:
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+
+      # The `package-` prefix is what release.yml downloads by, so only an artifact named this way can
+      # reach a published release.
+      - name: Upload release package
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
+          path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
+
+  # Installs the build job's package into a containerized Cove through tests/e2e's harness and runs the
+  # extension's Playwright suite. An entry declaring no e2ePath/e2eProject skips every step.
+  e2e:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # A regression in an unreleased Cove is not this change's defect, so the pre-release leg reports
+    # rather than blocks.
+    continue-on-error: ${{ matrix.cove.advisory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check for an e2e suite
+        id: check
+        run: |
+          if [[ -n "$E2E_PATH" && -d "$E2E_PATH" && -n "$E2E_PROJECT" ]]; then
+            echo "has_suite=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_suite=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no e2e suite, so this leg runs nothing."
+          fi
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          E2E_PATH: ${{ matrix.extension.e2ePath }}
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+
+      # Chromium aborts in-flight requests when a host IP address appears, which drops the app's script
+      # chunks. `default` applies to interfaces created after it is set, so each new container veth gets
+      # no IPv6 address. The harness puts every stack on one shared network for the IPv4 side
+      # (tests/e2e/lib/global-setup.mjs). The values are printed so a refused write is visible.
+      - name: Keep new container interfaces from disturbing the browser's network
+        if: steps.check.outputs.has_suite == 'true'
+        run: |
+          echo "before: $(sysctl -n net.ipv6.conf.default.disable_ipv6 2>&1)"
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+          echo "after:  $(sysctl -n net.ipv6.conf.default.disable_ipv6 2>&1)"
+
+      # Lands where the harness looks: <extension>/artifacts/publish and <uiPath>/dist.
+      - name: Download the build output
+        if: steps.check.outputs.has_suite == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: build-${{ matrix.extension.id }}
+          path: ${{ runner.temp }}/build
+
+      - name: Place the build output for the harness
+        if: steps.check.outputs.has_suite == 'true'
+        run: |
+          mkdir -p "$EXTENSION_PATH/artifacts"
+          mv "$RUNNER_TEMP/build/artifacts/publish/$EXTENSION_NAME" "$EXTENSION_PATH/artifacts/publish"
+          if [[ -n "$UI_PATH" ]]; then
+            mv "$RUNNER_TEMP/build/$UI_PATH/dist" "$UI_PATH/dist"
+          fi
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_PATH: ${{ matrix.extension.path }}
+          UI_PATH: ${{ matrix.extension.uiPath }}
+
+      - uses: actions/setup-node@v7
+        if: steps.check.outputs.has_suite == 'true'
+        with:
+          node-version-file: package.json
+
+      # At the repo root, so the workspace links and the single hoisted @playwright/test exist. The
+      # browser comes from the harness's own script: `npx playwright` silently fetches an unpinned copy
+      # when the local one is missing.
+      - name: Install harness dependencies
+        if: steps.check.outputs.has_suite == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npm run install:browsers --workspace @cove-extensions/e2e
+
+      # `npm exec --no` rather than `npm test`: the test script's pretest publishes the extension again,
+      # which would replace the build job's output with a local build. `--no` refuses to download a
+      # Playwright the lockfile did not install.
+      #
+      # A leg whose role is exactly newest-ga runs the @smoke selection: the floor leg already ran every
+      # spec. A merged `floor+newest-ga` role fails the match and runs everything, so a misread role name
+      # only ever adds coverage. Playwright exits non-zero when --grep matches nothing.
+      - name: Run E2E suite
+        if: steps.check.outputs.has_suite == 'true'
+        working-directory: tests/e2e
+        run: |
+          if [[ "$COVE_ROLE" == "newest-ga" ]]; then
+            npm exec --no -- playwright test --project="$E2E_PROJECT" --grep @smoke
+          else
+            npm exec --no -- playwright test --project="$E2E_PROJECT"
+          fi
+        env:
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
+
+      # always(): a retry-rescued flake leaves the job green, and its error context is the only record
+      # of it. Playwright writes one error-context.md per failed attempt.
+      - name: Dump E2E failure context
+        if: always() && steps.check.outputs.has_suite == 'true'
+        working-directory: tests/e2e
+        run: |
+          contexts=$(find test-results -name "error-context.md" 2>/dev/null | sort)
+          if [[ -z "$contexts" ]]; then
+            echo "No failed attempts: no error-context.md written."
+            exit 0
+          fi
+          echo "::warning::$(echo "$contexts" | wc -l) failed attempt(s) recorded; a green job here means retries rescued them."
+          while IFS= read -r f; do
+            echo "::group::$f"
+            cat "$f"
+            echo "::endgroup::"
+          done <<< "$contexts"
+
+      - name: Upload Playwright report
+        if: always() && steps.check.outputs.has_suite == 'true' && hashFiles('tests/e2e/test-results/**/error-context.md') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.extension.id }}-e2e-report-${{ matrix.cove.tag }}
+          path: tests/e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: error
+
+  # The C# suite against Cove's own source, once per version on the axis. The mode is declared with
+  # -p:CoveSourceMode=source: inferred from whether a checkout landed, a failed clone would build the
+  # cove-absent branch and report a smaller run as a pass.
+  test-cove-present:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    continue-on-error: ${{ matrix.cove.advisory }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+
+      - name: Check for a test project
+        id: check
+        run: |
+          if [[ -z "$TEST_PROJECT_PATH" ]]; then
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no testProjectPath, so this leg runs nothing."
+          else
+            echo "has_tier=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+
+      - name: Check out Cove at the version under test
+        if: steps.check.outputs.has_tier == 'true'
+        uses: ./extensions/.github/actions/checkout-cove
+        with:
+          version: ${{ matrix.cove.tag }}
+
+      - uses: actions/setup-dotnet@v6
+        if: steps.check.outputs.has_tier == 'true'
+        with:
+          global-json-file: extensions/global.json
+
+      # The testing platform exits 8 on zero tests, so a run that executed nothing fails.
+      - name: Test
+        if: steps.check.outputs.has_tier == 'true'
+        working-directory: extensions
+        run: dotnet test --project "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
+        env:
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+
+  # The same suite on Windows at the highest declared floor, which is what puts the path and
+  # filesystem cases on Windows. No E2E here: hosted Windows runners run Windows containers only, so
+  # the Cove and Postgres images cannot start.
+  windows-build-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: ./extensions/.github/actions/checkout-cove
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: extensions/global.json
+      - name: Test
+        working-directory: extensions
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+        run: |
+          mapfile -t tests < <(node scripts/ci-catalog.mjs list testProjectPath)
+          for test in "${tests[@]}"; do
+            echo "::group::dotnet test $test"
+            dotnet test --project "$test" -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
+            echo "::endgroup::"
+          done
+
+  # dotnet format and the analyzer build over the whole solution, which holds a test project that needs
+  # Cove's source.
+  csharp-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: ./extensions/.github/actions/checkout-cove
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: extensions/global.json
+      # Same invocation as `npm run format:cs:check`. dotnet format takes no -p:, so the mode travels as
+      # COVE_SOURCE_MODE, and --exclude keeps it out of Cove's own source.
+      - name: dotnet format (verify)
+        working-directory: extensions
+        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
+        env:
+          COVE_SOURCE_MODE: source
+          COVE_REPO: ${{ github.workspace }}/cove
+      # TreatWarningsAsErrors is on in Directory.Build.props, so any analyzer warning fails this.
+      - name: Build with analyzers
+        working-directory: extensions
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+
+  # The file list lives in .markdownlint-cli2.jsonc only. The action's `globs` default is non-empty and
+  # the tool appends config globs to it, so an empty value is what leaves the config as the one source.
+  markdown-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        with:
+          globs: ""
+
+  # Prettier, ESLint, syncpack, knip and jscpd from the repo root. The type-aware rules need each UI's
+  # dependencies and generated wire types to build the TypeScript program.
+  js-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Install root lint tooling
+        run: npm ci --no-workspaces --ignore-scripts
+      - name: Prettier (whole monorepo)
+        run: npm run format:check
+      - name: Install each extension's UI deps
+        run: |
+          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::npm ci $ui"
+            (cd "$ui" && npm ci --ignore-scripts)
+            echo "::endgroup::"
+          done
+      - name: Generate wire types
+        run: node scripts/generate-wire-types.mjs
+      - name: ESLint (whole monorepo)
+        run: npm run lint
+      - name: syncpack (dependency-version drift)
+        run: npm run syncpack
+      # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test from a workspace.
+      - name: Install workspaces
+        run: npm ci --ignore-scripts
+      - name: knip (dead files, exports and dependencies)
+        run: npm run knip
+      - name: jscpd (copy-paste)
+        run: npm run jscpd
+
+  # Every lucide-react icon an extension imports must exist in the module the host serves: a name only
+  # the local copy has typechecks and builds, then fails the whole bundle at load. The shim is generated
+  # inside a Cove checkout. COVE_REPO makes a missing shim a failure rather than a skip.
+  host-imports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: ./extensions/.github/actions/checkout-cove
+      - name: Generate the host runtime shims
+        working-directory: cove/ui
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run generate:extension-runtime
+      - name: Check lucide-react imports against the host
+        working-directory: extensions
+        env:
+          COVE_REPO: ${{ github.workspace }}/cove
+        run: node scripts/check-host-imports.mjs
+
+  # The one status check branch protection needs. Every job above is in `needs`, and every result is
+  # asserted, so a job gates merges by being listed here. An advisory leg that fails still reports
+  # success to this job through its continue-on-error.
+  required-checks:
+    needs:
+      [
+        validate,
+        build,
+        e2e,
+        test-cove-present,
+        windows-build-test,
+        csharp-format,
+        markdown-lint,
+        js-lint,
+        host-imports,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Assert every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null || {
+            echo "::error::A required job failed, was cancelled or was skipped."
+            exit 1
+          }

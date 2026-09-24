@@ -22,12 +22,13 @@ path exists, that every C# project the catalog implies is in `CoveExtensions.sln
 analyzer gates take their subject list from that solution, so a project missing from it is silently
 never compiled), and that the floor an extension advertises agrees with its registry manifest.
 
-The worked example is release capability. No job logic in `.github/workflows/build.yml` names an
+The worked example is release capability. No job logic in `.github/workflows/ci.yml` names an
 extension; every value it acts on comes from the catalog matrix.
 Its `validate` job reads the catalog and publishes the build matrix as a job output; `build` and the
 end-to-end job consume that output. So a new entry starts building on every pull request the moment it
-exists, and a release for it is cut by pushing a tag matching its own `tagPrefix` - the validate job
-refuses a tag that matches no entry or more than one. No workflow logic changes.
+exists, and a release for it is cut by pushing a tag matching its own `tagPrefix`. `release.yml` runs
+`ci.yml` on that tag, and the validate job refuses a tag that matches no entry or more than one. No
+workflow logic changes.
 
 Optional catalog fields switch whole groups of steps on. An entry that declares a UI path gets the
 frontend steps; an entry that declares an end-to-end path and project gets the containerized job; an
