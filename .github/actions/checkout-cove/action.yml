@@ -6,7 +6,9 @@ name: Check out Cove
 description: Check Cove out at a release version, or at the highest floor the extensions declare.
 inputs:
   version:
-    description: A Cove release version such as 1.4.1. Empty means the highest declared floor.
+    description: >-
+      A Cove version such as 1.5.0 or 1.5.1-dev.3. A pre-release is checked out at the commit its image
+      was built from. Empty means the highest declared floor.
     default: ""
 runs:
   using: composite
@@ -23,7 +25,7 @@ runs:
         VERSION: ${{ inputs.version }}
       run: |
         if [[ -n "$VERSION" ]]; then
-          echo "ref=v$VERSION" >> "$GITHUB_OUTPUT"
+          node scripts/cove-versions.mjs --source-ref "$VERSION" >> "$GITHUB_OUTPUT"
         else
           node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
         fi

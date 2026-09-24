@@ -18,6 +18,7 @@ import {
   main,
   parseSemver,
   readCoveImageReference,
+  readImageRevision,
   readExtensionFloors,
   resolveCoveLegs,
   splitImageReference,
@@ -271,6 +272,76 @@ test("a floor above every published GA omits the newest-ga role rather than reso
   );
 });
 
+test("a newest pre-release that sorts below the newest GA is not a leg, since that release superseded it", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.5.0",
+    tags: ["1.4.1", "1.4.2-dev.188", "1.5.0"],
+  });
+
+  assert.deepEqual(resolved.legs, [{ tag: "1.5.0", role: "floor+newest-ga", advisory: false }]);
+  assert.equal(resolved.examined.roles, 2);
+});
+
+const AMD64 = `sha256:${"a".repeat(64)}`;
+const CONFIG = `sha256:${"c".repeat(64)}`;
+
+test("an image's source commit is read from its revision label, through an index to the linux/amd64 image", async () => {
+  const revision = "f74f4dd2aa42389d0dc689122b2fd842aef62b15";
+  const bodies = {
+    "/v2/o/app/manifests/1.5.1-dev.3": {
+      manifests: [
+        { digest: `sha256:${"b".repeat(64)}`, platform: { os: "linux", architecture: "arm64" } },
+        { digest: AMD64, platform: { os: "linux", architecture: "amd64" } },
+      ],
+    },
+    [`/v2/o/app/manifests/${encodeURIComponent(AMD64)}`]: { config: { digest: CONFIG } },
+    [`/v2/o/app/blobs/${encodeURIComponent(CONFIG)}`]: {
+      config: { Labels: { "org.opencontainers.image.revision": revision } },
+    },
+  };
+
+  const read = [];
+  const found = await readImageRevision(
+    async (pathAndQuery) => {
+      read.push(pathAndQuery);
+      return bodies[pathAndQuery];
+    },
+    "o/app",
+    "1.5.1-dev.3",
+  );
+
+  assert.equal(found, revision);
+  assert.deepEqual(read, Object.keys(bodies));
+});
+
+test("a malformed digest, a missing or partial revision label, or an index with no linux/amd64 image is refused", async () => {
+  const single = (configDigest, labels) =>
+    readImageRevision(
+      async (pathAndQuery) =>
+        pathAndQuery.includes("/blobs/")
+          ? { config: { Labels: labels } }
+          : { config: { digest: configDigest } },
+      "o/app",
+      "1.5.1-dev.3",
+    );
+  const label = (value) => ({ "org.opencontainers.image.revision": value });
+
+  await assert.rejects(() => single("sha256:../../x", label("f".repeat(40))), TypeError);
+  await assert.rejects(() => single(CONFIG, {}), /no org\.opencontainers\.image\.revision label/);
+  await assert.rejects(() => single(CONFIG, label("main")), /full commit hash/);
+  await assert.rejects(
+    () =>
+      readImageRevision(
+        async () => ({
+          manifests: [{ digest: AMD64, platform: { os: "linux", architecture: "arm64" } }],
+        }),
+        "o/app",
+        "1.5.1-dev.3",
+      ),
+    /no linux\/amd64 image/,
+  );
+});
+
 test("the tag reader follows Link: rel=next across pages and reports how many it read", async () => {
   const pages = {
     "/v2/x/tags/list": {
@@ -343,6 +414,12 @@ test("the offline modes print exactly what the workflows read off stdout", () =>
   const ref = run("--cove-ref");
   assert.equal(ref.status, 0, ref.stderr);
   assert.equal(ref.stdout, `ref=v${highestDeclaredFloor(declared).floor}\n`);
+
+  const release = spawnSync(process.execPath, [script, "--source-ref", "1.5.0"], {
+    encoding: "utf8",
+  });
+  assert.equal(release.status, 0, release.stderr);
+  assert.equal(release.stdout, "ref=v1.5.0\n", "a release reads no registry and is its v-tag");
 
   const floors = run("--floors-only");
   assert.equal(floors.status, 0, floors.stderr);
