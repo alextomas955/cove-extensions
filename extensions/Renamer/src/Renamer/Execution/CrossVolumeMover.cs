@@ -53,37 +53,44 @@ public sealed class CrossVolumeMover
         {
             foreach (var sc in sidecars)
             {
-                if (System.IO.File.Exists(sc.To))
-                {
-                    // Skip-not-clobber: leave the pre-existing target untouched, warn.
-                    warnings.Add($"sidecar target exists, skipped: {sc.To}");
-                    continue;
-                }
-
-                var scResult = await CopyVerifyPromoteDeleteAsync(sc.From, sc.To, ct).ConfigureAwait(false);
-                if (scResult.Ok)
-                {
-                    if (scResult.Warning is null)
-                    {
-                        moved.Add(sc);
-                    }
-                    else
-                    {
-                        // Its source is still in place, so there is nothing for a rollback to put back:
-                        // a copy-back would find the slot occupied and leave the promoted copy standing,
-                        // reporting an incomplete restore for one that needed no work.
-                        warnings.Add(scResult.Warning);
-                    }
-                }
-                else
-                {
-                    // A locked, racing or unverifiable sidecar is not fatal once the primary has moved.
-                    warnings.Add($"sidecar move failed ({scResult.Outcome}), skipped: {sc.From} -> {sc.To}: {scResult.Reason}");
-                }
+                await MoveSidecarAsync(sc, moved, warnings, ct).ConfigureAwait(false);
             }
         }
 
         return new MoveResult(true, MoveOutcome.Moved, moved, warnings, null);
+    }
+
+    // Adds the sidecar to moved only when it moved and its source is gone; every other result becomes a
+    // warning.
+    private async Task MoveSidecarAsync(
+        SidecarMove sc, List<SidecarMove> moved, List<string> warnings, CancellationToken ct)
+    {
+        if (System.IO.File.Exists(sc.To))
+        {
+            // Skip-not-clobber: leave the pre-existing target untouched, warn.
+            warnings.Add($"sidecar target exists, skipped: {sc.To}");
+            return;
+        }
+
+        var scResult = await CopyVerifyPromoteDeleteAsync(sc.From, sc.To, ct).ConfigureAwait(false);
+        if (!scResult.Ok)
+        {
+            // A locked, racing or unverifiable sidecar is not fatal once the primary has moved.
+            warnings.Add($"sidecar move failed ({scResult.Outcome}), skipped: {sc.From} -> {sc.To}: {scResult.Reason}");
+            return;
+        }
+
+        if (scResult.Warning is null)
+        {
+            moved.Add(sc);
+        }
+        else
+        {
+            // Its source is still in place, so there is nothing for a rollback to put back: a copy-back
+            // would find the slot occupied and leave the promoted copy standing, reporting an incomplete
+            // restore for one that needed no work.
+            warnings.Add(scResult.Warning);
+        }
     }
 
     // Reverses a successful MoveAsync, for instance when a database save threw after the move.
