@@ -3,7 +3,7 @@
 // preview text, then a native alert() confirming the job was queued; "Undo last rename" opens an
 // in-app (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
 // `@smoke` marks the six tests spanning install -> enable -> rename -> undo, one per contract in the
-// cheapest file that carries it. `build.yml` selects them with `--grep @smoke` on a leg whose role is
+// cheapest file that carries it. `ci.yml` selects them with `--grep @smoke` on a leg whose role is
 // newest-GA and nothing else, and states there why that leg asks only this much. It is a selection,
 // never a tier: every one of these runs in the full suite too.
 import { test, expect, seedVideo, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";

@@ -1,0 +1,42 @@
+# Checks Cove's source out at ./cove, beside this repository, which the caller has checked out at
+# ./extensions. Siblings, never nested: Cove carries no Directory.Packages.props, so a clone inside this
+# repository inherits its central package management and every versioned PackageReference in Cove
+# fails NU1008.
+name: Check out Cove
+description: Check Cove out at a release version, or at the highest floor the extensions declare.
+inputs:
+  version:
+    description: A Cove release version such as 1.4.1. Empty means the highest declared floor.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: extensions/package.json
+
+    - name: Resolve the Cove ref
+      id: ref
+      shell: bash
+      working-directory: extensions
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [[ -n "$VERSION" ]]; then
+          echo "ref=v$VERSION" >> "$GITHUB_OUTPUT"
+        else
+          node scripts/cove-versions.mjs --cove-ref >> "$GITHUB_OUTPUT"
+        fi
+
+    - uses: actions/checkout@v7
+      with:
+        repository: yourcove/cove
+        ref: ${{ steps.ref.outputs.ref }}
+        fetch-depth: 1
+        path: cove
+
+    - name: Name the Cove under test
+      shell: bash
+      env:
+        REF: ${{ steps.ref.outputs.ref }}
+      run: echo "::notice::Cove under test is $REF at $(git -C cove rev-parse HEAD)"

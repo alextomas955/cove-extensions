@@ -1,7 +1,7 @@
 # One pre-commit gate spanning the mixed C# + TypeScript repo.
 #
 # ESLint is one repo-root config (eslint.config.mjs) covering every extension's UI and all
-# .mjs/.cjs scripts. The same type-aware gate runs here and in CI (lint.yml's js-lint job), since
+# .mjs/.cjs scripts. The same type-aware gate runs here and in CI (ci.yml's js-lint job), since
 # the vendored @cove/extension-sdk is committed and installs offline in both.
 #
 # Format and lint staged files only; no build and no test run on commit.
@@ -27,7 +27,7 @@ pre-commit:
     # serves, not the one in node_modules. Those differ: a name can typecheck, build and pass every
     # other check while the shipped bundle fails to load in the browser and every surface renders
     # "Extension component not found". It reads the host's generated shim, so it skips with a notice
-    # when no ../cove sibling is present. lint.yml's host-imports job is the gate.
+    # when no ../cove sibling is present. ci.yml's host-imports job is the gate.
     check-host-imports:
       glob: "*.{ts,tsx}"
       run: node scripts/check-host-imports.mjs

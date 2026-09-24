@@ -23,14 +23,14 @@ function validManifest(id, overrides = {}) {
     version: "0.1.0",
     url: "https://example.invalid/" + id,
     categories: ["utility"],
-    kind: "bundle",
+    entryDll: "Fixture.dll",
     ...overrides,
   };
 }
 
 // A valid baseline mirroring the real Renamer entry; the drift check at the end of this file
-// asserts that mirror against the real one. manifestOnly:true skips the projectPath existence
-// check, so a case needs no .csproj fixture. Callers override one field to create one malformation.
+// asserts that mirror against the real one. makeFixture plants its project and solution unless a case
+// opts out. Callers override one field to create one malformation.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -38,7 +38,7 @@ function validEntry(id, dirName, overrides = {}) {
     path: "extensions/" + dirName,
     tagPrefix: dirName.toLowerCase() + "/",
     manifestPath: "extensions/" + dirName + "/extension.json",
-    manifestOnly: true,
+    projectPath: "extensions/" + dirName + "/" + dirName + ".csproj",
     ...overrides,
   };
 }
@@ -78,8 +78,10 @@ function solutionXml(projectPaths) {
 //   <root>/extensions/catalog.json                (the catalog under test)
 //   <root>/Directory.Build.props                  (defaults to "" - declares no floor, so the
 //                                                    per-entry floor comparison no-ops)
-//   <root>/CoveExtensions.slnx                    (only when `solution` is supplied - omitting it
-//                                                    is how a case expresses an absent solution)
+//   <root>/CoveExtensions.slnx                    (`solution` when supplied, otherwise one listing
+//                                                    every planted project; null leaves it absent)
+//   <root>/<projectPath> for each entry, unless `plantProjects` is false (a case about a missing
+//   project or a solution gap plants its own)
 //   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
 //   on disk for each catalog entry that must not short-circuit on path-existence)
 //   <root>/<relPath> for each [relPath, text] in filesByPath (raw bytes - a .csproj fixture is not
@@ -90,6 +92,7 @@ function makeFixture({
   extensionJsonByPath = {},
   filesByPath = {},
   solution,
+  plantProjects = true,
 }) {
   const root = mkdtempSync(path.join(tmpdir(), "validate-fixture-"));
   mkdirSync(path.join(root, "scripts"), { recursive: true });
@@ -99,10 +102,20 @@ function makeFixture({
   mkdirSync(path.join(root, "extensions"), { recursive: true });
   writeFileSync(path.join(root, "extensions", "catalog.json"), JSON.stringify(catalog, null, 2));
   writeFileSync(path.join(root, "Directory.Build.props"), buildProps);
-  if (solution !== undefined) {
+  const planted = plantProjects
+    ? catalog.extensions.flatMap((entry) =>
+        [entry.projectPath, entry.testProjectPath].filter(Boolean),
+      )
+    : [];
+  for (const relPath of planted) {
+    mkdirSync(path.dirname(path.join(root, relPath)), { recursive: true });
+    writeFileSync(path.join(root, relPath), "<Project />\n");
+  }
+  const solutionContent = solution === undefined ? planted : solution;
+  if (solutionContent !== null) {
     writeFileSync(
       path.join(root, "CoveExtensions.slnx"),
-      typeof solution === "string" ? solution : solutionXml(solution),
+      typeof solutionContent === "string" ? solutionContent : solutionXml(solutionContent),
     );
   }
   for (const [relPath, manifest] of Object.entries(extensionJsonByPath)) {
@@ -135,7 +148,6 @@ function runValidator(fixtureRoot) {
 function maximalFixture() {
   const entry = validEntry("com.example.foo", "Foo", {
     name: "Foo",
-    manifestOnly: false,
     projectPath: "extensions/Foo/Foo.csproj",
     testProjectPath: "extensions/Foo/Foo.Tests.csproj",
     uiPath: "extensions/Foo/ui",
@@ -194,7 +206,7 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
     assert.equal(
       stdout.trim(),
       "Validated 1 extension catalog entries: 0 minCoveVersion floor comparison(s), " +
-        "0 declared catalog path(s), 0 CoveExtensions.slnx membership(s), " +
+        "0 declared catalog path(s), 1 CoveExtensions.slnx membership(s), " +
         "0 registry row(s) compared across " +
         "0 declared registry manifest(s).",
     );
@@ -238,6 +250,8 @@ test("an entry whose path does not exist fails, and reports no counts at all", (
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("1.1.0"),
+    // A planted project would create the directory whose absence is under test.
+    plantProjects: false,
   });
   try {
     const { status, stdout, stderr } = runValidator(root);
@@ -283,17 +297,14 @@ test("missing required field (id) produces a non-zero exit and the expected erro
 });
 
 test("nonexistent projectPath produces a non-zero exit and the expected error", () => {
-  // The projectPath check is guarded by `!isManifestOnly`, so this case overrides the
-  // validEntry() baseline's manifestOnly:true and supplies a manifest with kind="module" plus a
-  // real entryDll, so no other error fires alongside the one under test. manifestPath stays valid
-  // so the check reaches the project-path branch instead of short-circuiting on an earlier
-  // `continue`.
+  // manifestPath stays valid so the check reaches the project-path branch instead of
+  // short-circuiting on an earlier `continue`.
   const entry = validEntry("com.example.foo", "Foo", {
-    manifestOnly: false,
     projectPath: "extensions/Foo/DoesNotExist.csproj",
   });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
+    plantProjects: false,
     // The solution declares the very path under test, so the membership check has nothing to say
     // here and the promise above - that only one error fires - survives.
     solution: ["extensions/Foo/DoesNotExist.csproj"],
@@ -419,7 +430,7 @@ test("a manifest id disagreeing with its catalog entry fails, naming both ids", 
 });
 
 test("a declared catalog path that does not exist fails, naming the field", () => {
-  // uiPath/testProjectPath/e2ePath/e2eNodeTestsPath are consumed by the CI build matrix but by none
+  // uiPath/testProjectPath/e2ePath are consumed by the CI build matrix but by none
   // of the convention-derived checks, so without this a typo in one surfaces only inside a matrix
   // leg: an `npm ci` in a directory that is not there, or a dotnet restore several steps in. The
   // error must name the field, because the path value alone does not say which CI step will break.
@@ -442,31 +453,8 @@ test("a declared catalog path that does not exist fails, naming the field", () =
   }
 });
 
-test("a manifestOnly entry that declares a uiPath fails, naming both fields", () => {
-  // Each field is individually well-formed - uiPath's own existence check passes - so nothing else in
-  // the catalog can call the pairing a defect. What makes it one is that several build steps read
-  // uiPath and would generate, verify and bundle a frontend for an entry that ships no assembly.
-  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-      // Planted so the matrixPathFields existence check is silent - without it this case passes on
-      // "uiPath does not exist", which proves nothing about the pairing.
-      "extensions/Foo/ui/package.json": { name: "foo-ui" },
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /com\.example\.foo: declares both manifestOnly and uiPath/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 // A C#-bearing entry, complete enough that only the membership check can speak: the project files
-// exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
+// exist, so the existence checks are silent, and the manifest is valid.
 // `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
 // separates the declared-but-missing check from the solution-membership one: both report on the
 // same field, and a case that plants nothing cannot say which of the two spoke.
@@ -479,8 +467,7 @@ function csharpFixture({
 }) {
   const entry = validEntry("com.example.foo", "Foo", {
     name,
-    manifestOnly: false,
-    ...(projectPath === undefined ? {} : { projectPath }),
+    projectPath,
     ...(testProjectPath === undefined ? {} : { testProjectPath }),
   });
   const filesByPath = {};
@@ -491,6 +478,7 @@ function csharpFixture({
   return makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
     solution,
+    plantProjects: false,
     filesByPath,
     extensionJsonByPath: {
       "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
@@ -519,7 +507,7 @@ test("a projectPath absent from the solution fails, naming the entry, the field,
   }
 });
 
-test("a non-manifestOnly entry declaring no projectPath has its convention-derived path checked", () => {
+test("an entry declaring no projectPath has its convention-derived path checked", () => {
   // The upstream convention path is a real entry shape, not a legacy one, so an entry that omits
   // projectPath still compiles something and can still be missing from the solution. The error says
   // the path was derived, or a reader greps the catalog for it and finds nothing.
@@ -704,19 +692,12 @@ test("two versions[] rows carrying the same version fail, naming the duplicated 
 // while exercising a shape that no longer exists.
 //
 // This does not re-run the validator against the real repo; CI already does that
-// (.github/workflows/build.yml, the required `validate` job), and a second copy of an existing gate
+// (.github/workflows/ci.yml, the required `validate` job), and a second copy of an existing gate
 // would rot rather than protect. What CI cannot say is whether these fixtures still describe what it
 // validates. That is the gap here.
 //
 // Catalog-driven, so a second extension needs no edit: every entry is checked, and an empty catalog
 // is a hard failure rather than a vacuous pass.
-
-// Fields the fixtures add deliberately, which are absent from the real shape by design. `manifestOnly`
-// makes the validator skip the projectPath existence check so a case needs no .csproj on disk, and
-// `kind` is what it pairs with. Both are documented at their baseline above. Anything else appearing
-// here means a fixture is modelling a field reality does not have.
-const FIXTURE_ONLY_ENTRY_FIELDS = new Set(["manifestOnly"]);
-const FIXTURE_ONLY_MANIFEST_FIELDS = new Set(["kind"]);
 
 test("the hand-mirrored fixture baselines still describe the real catalog and manifest shape", () => {
   const repoRoot = path.join(here, "..");
@@ -730,12 +711,8 @@ test("the hand-mirrored fixture baselines still describe the real catalog and ma
     "extensions/catalog.json declares no extensions — this check inspected nothing, which is a failure, not a pass",
   );
 
-  const baselineEntryFields = Object.keys(validEntry("com.example.foo", "Foo")).filter(
-    (field) => !FIXTURE_ONLY_ENTRY_FIELDS.has(field),
-  );
-  const baselineManifestFields = Object.keys(validManifest("com.example.foo")).filter(
-    (field) => !FIXTURE_ONLY_MANIFEST_FIELDS.has(field),
-  );
+  const baselineEntryFields = Object.keys(validEntry("com.example.foo", "Foo"));
+  const baselineManifestFields = Object.keys(validManifest("com.example.foo"));
 
   for (const entry of entries) {
     for (const field of baselineEntryFields) {

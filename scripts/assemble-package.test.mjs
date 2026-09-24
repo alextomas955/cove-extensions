@@ -112,7 +112,7 @@ function assemble({ root, publishDir, packageDir }, overrides = {}) {
 
 // Restages the fake build output under the CI layout - artifacts/publish/<Name> at the repo root
 // rather than under the extension - because the descendant bypass below is only reachable with a
-// publish directory that sits outside extensions/, which is exactly the shape build.yml passes.
+// publish directory that sits outside extensions/, which is exactly the shape ci.yml passes.
 function ciShapedPublish(fixture) {
   const publishDir = path.join(fixture.root, "artifacts", "publish", NAME);
   fs.mkdirSync(publishDir, { recursive: true });

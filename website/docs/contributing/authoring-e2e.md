@@ -103,7 +103,8 @@ which publishes every extension whose catalog entry declares an e2e suite. Runni
 test` directly skips that hook, so the suite installs whatever publish output is already on disk.
 
 CI runs the same harness against every catalog entry that declares `e2ePath`/`e2eProject` - see
-`.github/workflows/build.yml`'s `e2e` job. There is no CI-only fork of the harness. The command is not
+`.github/workflows/ci.yml`'s `e2e` job. There is no CI-only fork of the harness. CI installs the build
+job's output instead of letting the `pretest` hook publish again, so it runs Playwright directly. The command is not
 byte-identical across legs, though: that job is a matrix over Cove images, and the leg pinned to the
 newest released host runs only the `@smoke`-tagged subset, while the other leg runs the suite
 unfiltered. So a spec left untagged is exercised on one leg, not both.

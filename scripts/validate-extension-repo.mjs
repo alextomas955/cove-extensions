@@ -28,6 +28,9 @@
 // versions[] row matching the version extension.json declares. A registry row describes an immutable
 // published zip, so its floor is that zip's, not the source tree's; releasing.md forbids editing a
 // published row.
+//
+// 7. Drops upstream's manifest-only entries (`manifestOnly`, `kind` bundle or scraper-pack). Every
+// entry here ships an assembly, so every entry must declare entryDll and a project CI can build.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -158,19 +161,13 @@ if (entries.length === 0) errors.push("extensions/catalog.json has no extensions
 // stated in the report line rather than left to look like a pass.
 let floorComparisons = 0;
 
-// The catalog's optional path fields, as consumed by .github/workflows/build.yml or by this validator
+// The catalog's optional path fields, as consumed by .github/workflows/ci.yml or by this validator
 // - every `matrix.extension.*` value there that names a location on disk and is not already covered by
 // a check above (path, manifestPath and projectPath are), plus registryManifestPath, which this file
 // reads for the floor comparison below. e2eProject is excluded deliberately: it is a Playwright project
 // name, not a path. Each of these is optional to declare, so an entry declaring none is valid and only a
 // declared one is required to exist.
-const matrixPathFields = [
-  "testProjectPath",
-  "uiPath",
-  "e2ePath",
-  "e2eNodeTestsPath",
-  "registryManifestPath",
-];
+const matrixPathFields = ["testProjectPath", "uiPath", "e2ePath", "registryManifestPath"];
 let declaredPathChecks = 0;
 
 // Counts every entry that declared a registry manifest, incremented before the file is read, and every
@@ -206,14 +203,13 @@ for (const entry of entries) {
   // Fork adaptation #1: prefer the catalog entry's explicit manifestPath/projectPath when present
   // (Renamer's real layout nests both one level deeper under src/Renamer/), falling back to the
   // upstream's {path}/extension.json and {path}/{name}.csproj convention when the entry omits
-  // them, so a flat-convention or manifestOnly entry added later still validates unchanged.
+  // them, so a flat-convention entry added later still validates unchanged.
   const manifestPath = entry.manifestPath
     ? path.join(root, entry.manifestPath)
     : path.join(extensionDir, "extension.json");
   const projectPath = entry.projectPath
     ? path.join(root, entry.projectPath)
     : path.join(extensionDir, `${entry.name}.csproj`);
-  const isManifestOnly = entry.manifestOnly === true;
 
   // Deliberately ahead of the short-circuits below: a mis-pointed CI path is worth reporting even
   // on an entry whose missing directory or manifest would otherwise `continue` straight past it.
@@ -225,26 +221,12 @@ for (const entry of entries) {
     }
   }
 
-  // A manifestOnly entry declares that it ships no built assembly, while uiPath tells the CI build
-  // several times over to install, generate, type-check and bundle a frontend - for an entry with
-  // nothing to load it. The pairing is incoherent in one direction only: a UI on an assembly-bearing
-  // entry is ordinary. Refusing it here, where it is a pure catalog fact, is what keeps those build
-  // conditions from each needing their own copy of this guard. Placed with the entry-level checks
-  // rather than beside the manifest-reading manifestOnly refusals below, because the short-circuits
-  // at the end of this block `continue` past those for an entry whose directory or manifest is
-  // missing - which is exactly the malformed entry most likely to carry this defect.
-  if (isManifestOnly && entry.uiPath) {
-    errors.push(
-      `${entry.id}: declares both manifestOnly and uiPath, so CI would build and bundle a frontend for an entry that ships no assembly to load it`,
-    );
-  }
-
   // Same reasoning as the loop above: an entry that short-circuits below still declares projects the
   // C# gates would have to compile, and a solution gap is worth reporting alongside whatever else is
   // wrong with the entry.
   if (entry.projectPath) {
     impliedProjects.push({ id: entry.id, field: "projectPath", value: entry.projectPath });
-  } else if (!isManifestOnly && entry.path && entry.name) {
+  } else if (entry.path && entry.name) {
     impliedProjects.push({
       id: entry.id,
       field: "projectPath (by convention)",
@@ -263,7 +245,7 @@ for (const entry of entries) {
     errors.push(`${entry.id}: missing extension.json at ${entry.manifestPath ?? entry.path}`);
     continue;
   }
-  if (!isManifestOnly && !fs.existsSync(projectPath)) {
+  if (!fs.existsSync(projectPath)) {
     const conventionProject = `${entry.name}.csproj at ${entry.path}`;
     errors.push(`${entry.id}: missing project ${entry.projectPath ?? conventionProject}`);
   }
@@ -282,7 +264,7 @@ for (const entry of entries) {
     floorComparisons++;
   }
 
-  // Fork deviation #7. Reads the `manifest` object bound above rather than parsing it a second time,
+  // Fork deviation #6. Reads the `manifest` object bound above rather than parsing it a second time,
   // and compares only the row describing the version that object currently declares.
   if (entry.registryManifestPath) {
     registrySubjects++;
@@ -331,13 +313,7 @@ for (const entry of entries) {
       }
     }
   }
-  if (!isManifestOnly && !manifest.entryDll)
-    errors.push(`${entry.id}: extension.json missing entryDll`);
-  if (isManifestOnly && manifest.entryDll)
-    errors.push(`${entry.id}: manifestOnly entry must not declare entryDll`);
-  if (isManifestOnly && !["bundle", "scraper-pack"].includes(manifest.kind)) {
-    errors.push(`${entry.id}: manifestOnly entries must use kind=bundle or kind=scraper-pack`);
-  }
+  if (!manifest.entryDll) errors.push(`${entry.id}: extension.json missing entryDll`);
   if (!manifest.url) errors.push(`${entry.id}: extension.json missing url`);
   if (!Array.isArray(manifest.categories) || manifest.categories.length === 0) {
     errors.push(`${entry.id}: extension.json missing categories`);

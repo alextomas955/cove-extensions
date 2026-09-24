@@ -5,8 +5,8 @@
 # restore from nuget.org. The `source` mode is deliberately NOT used here — it needs a Cove
 # checkout the runner does not have.
 #
-# The C# leg builds every catalog extension's project (skipping manifestOnly entries), reading the
-# project paths from extensions/catalog.json, so CodeQL's manual build traces each extension's
+# The C# leg builds every catalog extension's project, reading the project paths from
+# extensions/catalog.json, so CodeQL's manual build traces each extension's
 # compilation. Adding an extension is a catalog edit — no change here.
 
 name: CodeQL
@@ -28,6 +28,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -58,7 +62,15 @@ jobs:
         if: matrix.language == 'csharp'
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: global.json
+
+      # The project list below comes from a Node script, which needs the pinned Node rather than the
+      # runner's default.
+      - name: Setup Node
+        if: matrix.language == 'csharp'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -66,20 +78,11 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      # NuGet build path — works on a bare runner with no Cove checkout. Iterates the catalog's
-      # projectPaths so every extension's compilation is traced.
       - name: Build C#
         if: matrix.language == 'csharp'
         shell: bash
         run: |
-          mapfile -t projects < <(node -e '
-            const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
-            for (const entry of catalog.extensions) {
-              if (entry.manifestOnly === true) continue;
-              if (entry.projectPath) console.log(entry.projectPath);
-            }
-          ')
+          mapfile -t projects < <(node scripts/ci-catalog.mjs list projectPath)
           for project in "${projects[@]}"; do
             echo "::group::dotnet build $project"
             dotnet build "$project" -c Release -p:CoveSourceMode=none

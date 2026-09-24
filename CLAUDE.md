@@ -55,8 +55,9 @@ npm test                                           # tests for scripts/
 
 ## Registry and CI
 
-- `extensions/catalog.json` is the registry. CI (`.github/workflows/build.yml`) builds every entry
-  on every PR. Pushing a tag `<tagPrefix>v<semver>`, for example `renamer/v1.0.0`, releases that one
+- `extensions/catalog.json` is the registry. CI (`.github/workflows/ci.yml`) builds every entry
+  on every PR and every push to `main`. Its `required-checks` job gates on every other job, so a new
+  job must be added to that job's `needs`. Pushing a tag `<tagPrefix>v<semver>`, for example `renamer/v1.0.0`, releases that one
   extension. Adding an extension's release is a catalog edit, not a workflow change.
 - Read the catalog's field set from the file and from `scripts/validate-extension-repo.mjs`. Do not
   copy the field list into prose. A copy goes stale.

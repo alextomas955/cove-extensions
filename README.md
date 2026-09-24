@@ -1,6 +1,6 @@
 # Cove Extensions Monorepo
 
-[![Build and Release Extensions](https://github.com/alextomas955/cove-extensions/actions/workflows/build.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/build.yml)
+[![CI](https://github.com/alextomas955/cove-extensions/actions/workflows/ci.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
