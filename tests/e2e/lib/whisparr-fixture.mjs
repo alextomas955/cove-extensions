@@ -9,6 +9,8 @@
 //
 // Built on Testcontainers like the harness itself, so its Ryuk sidecar reaps whatever this starts
 // even when the test process is killed rather than exiting.
+import { randomUUID } from "node:crypto";
+
 import { GenericContainer, Wait } from "testcontainers";
 import { createApiClient } from "./apiClient.mjs";
 import { APP_USER, whisparrImage } from "./whisparr-images.mjs";
@@ -56,7 +58,11 @@ export const WHISPARR_DATA_MOUNT = "/data";
 export { APP_USER as WHISPARR_APP_USER } from "./whisparr-images.mjs";
 export { SEEDED_EPISODE_TVDB_ID } from "./whisparr-seed.mjs";
 
-const aliasFor = (generation) => `whisparr-${generation}`;
+// One name per instance, not one per generation. The alias is scoped to the network, but every
+// harness shares that network, so a generation-wide name answered for every instance on it at once:
+// Cove dialling `whisparr-v3` reached whichever the daemon picked rather than the one its own test
+// started, and the gesture landed on another worker's instance.
+const aliasFor = (generation) => `whisparr-${generation}-${randomUUID().slice(0, 8)}`;
 
 /**
  * Starts one Whisparr container per requested generation on `network`, each pre-seeded with
@@ -143,7 +149,7 @@ export async function startWhisparr({
   const instances = Object.fromEntries(
     generations.map((generation, index) => [
       generation,
-      instanceHandle(outcomes[index].value, generation, apiKey),
+      instanceHandle(outcomes[index].value.container, outcomes[index].value.alias, apiKey),
     ]),
   );
 
@@ -340,7 +346,7 @@ export function libraryRootsContaining(path, roots) {
   });
 }
 
-function instanceHandle(container, generation, apiKey) {
+function instanceHandle(container, alias, apiKey) {
   return {
     get baseUrl() {
       return `http://${container.getHost()}:${container.getMappedPort(WHISPARR_PORT)}`;
@@ -351,13 +357,13 @@ function instanceHandle(container, generation, apiKey) {
      * no route to it. Anything a test asks Cove to call has to use this one.
      */
     get internalBaseUrl() {
-      return `http://${aliasFor(generation)}:${WHISPARR_PORT}`;
+      return `http://${alias}:${WHISPARR_PORT}`;
     },
     /** The raw Testcontainers StartedGenericContainer, for helpers needing exec/copy directly. */
     get container() {
       return container;
     },
-    alias: aliasFor(generation),
+    alias,
     apiKey,
     /** What `seedHistory` last observed on this instance; undefined until something seeds it. */
     history: undefined,
@@ -378,6 +384,10 @@ async function startGeneration(
   // wait timeout then names the wrong cause entirely.
   const logChunks = [];
 
+  // Composed once and reused: the container is reached by this name for the rest of its life, and a
+  // second call would mint a second name that nothing answers to.
+  const alias = aliasFor(generation);
+
   let builder = withApiKeySeed(
     new GenericContainer(image),
     generation,
@@ -388,7 +398,7 @@ async function startGeneration(
     .withNetworkMode(network)
     // An alias is scoped to the network; a container NAME is daemon-global and would collide the
     // moment two harnesses run at once.
-    .withNetworkAliases(aliasFor(generation))
+    .withNetworkAliases(alias)
     // The container port only, so Testcontainers publishes it on an ephemeral host port of its own
     // choosing. A fixed one would compete with whatever else this machine is already serving.
     .withExposedPorts(WHISPARR_PORT)
@@ -416,7 +426,7 @@ async function startGeneration(
   }
 
   try {
-    return await builder.start();
+    return { container: await builder.start(), alias };
   } catch (cause) {
     throw new Error(
       [
