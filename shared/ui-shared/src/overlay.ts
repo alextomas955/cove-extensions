@@ -3,9 +3,13 @@
  * keyboard + outside-click hook, and an imperative mounter for overlays opened from a bulk-action
  * handler that owns no React tree.
  *
- * Deliberately hand-rolled (not Radix, not a native `<dialog>` `showModal()`): the two nav modes
- * below keep semantics that differ for real reasons, and a library would either flatten them or pull
- * in a second focus manager. See each mode's inline note.
+ * Not a library: the two nav modes below keep semantics that differ for real reasons, and a library
+ * would either flatten them or pull in a second focus manager. See each mode's inline note.
+ *
+ * Not a native `<dialog>` either. `showModal()` makes the rest of the host page inert and draws the
+ * dialog above the host's own portalled overlays, such as its toasts. It also turns Escape into a
+ * browser close request, which a page cannot always block, so `enabled: false` would not reliably
+ * hold a dialog open.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactElement, RefObject } from "react";

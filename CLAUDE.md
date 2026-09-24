@@ -139,10 +139,10 @@ Libraries reach millions of files. Nothing may grow with the library.
 ## UI conventions
 
 - Named exports only. The one default export is `defineExtension` in `index.ts`.
-- Data access goes through a `use*` hook beside its `*Store.ts`, never a raw request in
-  `useEffect`.
-- Overlays use the focus and keyboard hook in `shared/ui-shared`, which has a menu mode and a
-  dialog mode. No overlay library and no native `<dialog>`.
+- Data access goes through a `use*` hook beside its `*Store.ts`, never a raw request in `useEffect`.
+- Overlays use the menu or dialog mode of the focus and keyboard hook in `shared/ui-shared`. No
+  overlay library. No native `<dialog>`: `showModal()` makes the host page inert, covers the host's
+  own overlays, and can let a repeated Escape close it while the page is blocking a close.
 - Host Tailwind token classes only. No `dangerouslySetInnerHTML`.
 
 ## Wire contract
