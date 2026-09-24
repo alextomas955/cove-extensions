@@ -126,10 +126,12 @@ jobs:
         env:
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
+      # No package here needs a lifecycle script on Linux: the only one in the UI lockfile is the
+      # macOS-only fsevents, and the root ones are git hooks or native speed-ups with a JS fallback.
       - name: Install frontend deps
         if: matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Stamp source package.json version
         if: matrix.extension.uiPath != ''
@@ -265,7 +267,7 @@ jobs:
       - name: Install harness dependencies
         if: steps.check.outputs.has_suite == 'true'
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run install:browsers --workspace @cove-extensions/e2e
 
       # `npm exec --no` rather than `npm test`: the test script's pretest publishes the extension again,
@@ -441,7 +443,7 @@ jobs:
         with:
           node-version-file: package.json
       - name: Install root lint tooling
-        run: npm ci --no-workspaces
+        run: npm ci --no-workspaces --ignore-scripts
       - name: Prettier (whole monorepo)
         run: npm run format:check
       - name: Install each extension's UI deps
@@ -449,7 +451,7 @@ jobs:
           mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
           for ui in "${uiPaths[@]}"; do
             echo "::group::npm ci $ui"
-            (cd "$ui" && npm ci)
+            (cd "$ui" && npm ci --ignore-scripts)
             echo "::endgroup::"
           done
       - name: Generate wire types
@@ -460,7 +462,7 @@ jobs:
         run: npm run syncpack
       # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test from a workspace.
       - name: Install workspaces
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: knip (dead files, exports and dependencies)
         run: npm run knip
       - name: jscpd (copy-paste)
