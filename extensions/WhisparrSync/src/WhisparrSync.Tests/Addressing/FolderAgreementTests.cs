@@ -137,6 +137,15 @@ public sealed class FolderAgreementTests
         => Assert.Equal(
             "/data/Blue Harbor", FolderAgreement.Address("G:\\Downloads\\P\\Blue Harbor", CoveRoot, "/data"));
 
+    // The library root itself holds files in plenty of libraries, and it addresses to the instance
+    // root: the tail below it is empty rather than absent.
+    [Theory]
+    [InlineData(@"G:\Downloads\P")]
+    [InlineData("G:/Downloads/P")]
+    [InlineData("G:/Downloads/P/")]
+    public void TheAgreedRootItselfIsAddressedAsTheInstanceRoot(string folder)
+        => Assert.Equal("/data", FolderAgreement.Address(folder, CoveRoot, "/data"));
+
     [Fact]
     public void AFolderOutsideTheAgreedRootIsAddressedByNothing()
         => Assert.Null(FolderAgreement.Address("H:/Elsewhere/Blue Harbor", CoveRoot, "/data"));

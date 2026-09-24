@@ -6,6 +6,7 @@ using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
@@ -15,11 +16,17 @@ public sealed record ReflectOwnedBatch(WhisparrEntityKind? Kind, int CoveId);
 
 // Resolved when the run starts, not when it was enqueued. The hard-link setting decides whether a
 // matched file is linked or copied in full, and it is the instance's to change at any time.
+// Identify pairs the files of one folder with the instance ids the run registered for them, by file
+// name. Null for a run that attaches whatever the instance matched, which is every run but the
+// library one.
 internal sealed record ReflectOwnedAiming(
     WhisparrGeneration Generation,
     Func<string, CancellationToken, Task<AddressedFolder>> Address,
     Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
-    Func<JsonArray, CancellationToken, Task<bool>> Attach);
+    Func<JsonArray, CancellationToken, Task<bool>> Attach,
+    Func<string, IReadOnlyDictionary<string, RegisteredScene>, CancellationToken,
+        Task<IReadOnlyDictionary<string, RegisteredScene>>>? Identify = null,
+    Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadFile = null);
 
 // A null Through with a Skipped reason means the instance's linking setting stopped the run. A null
 // Through with no reason reports as a completed run that attached nothing.
@@ -144,6 +151,82 @@ public static class ReflectOwnedJob
             ct).ConfigureAwait(false);
     }
 
+    // One folder, for the library run that registers and links as it walks. The declared roots are
+    // read by the caller once for the whole walk rather than once per folder.
+    // One folder, for the library run that registers and links as it walks. The files are the ones
+    // the library owns there, so the cost follows what the reader holds rather than the size of the
+    // directory, and the instance is never asked to walk a folder it would take minutes to answer
+    // about.
+    internal static async Task<ReflectOwnedRun> LinkOneFolderAsync(
+        ReflectOwnedAiming aimed,
+        IReadOnlyList<string> instanceRoots,
+        string folder,
+        IReadOnlyDictionary<string, RegisteredScene> registered,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(aimed);
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+        ArgumentNullException.ThrowIfNull(registered);
+
+        if (aimed.Identify is null || aimed.ReadFile is null || registered.Count == 0)
+        {
+            return Untaken;
+        }
+
+        var addressed = await aimed.Address(folder, ct).ConfigureAwait(false);
+        if (addressed.InstancePath is not { } onInstance)
+        {
+            return new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed,
+                0,
+                0,
+                FoldersNotAddressed: 1,
+                AddressRefusals: addressed.Refusal is { } refusal
+                    ? [new FolderAddressRefusal(addressed.CoveRoot, refusal, addressed.Tried)]
+                    : null);
+        }
+
+        var identified = await aimed.Identify(folder, registered, ct).ConfigureAwait(false);
+
+        var filesAttached = 0;
+        var leftUnderAnotherRoot = 0;
+        var anyAttached = false;
+        var anyRefused = false;
+
+        // Each batch is sent as it is composed. The whole folder held back until the last file was
+        // read would show nothing for as long as the reads took and lose all of it on a stop.
+        await foreach (var planned in ReflectOwnedPlanner
+            .ComposedFilesAsync(onInstance, identified, instanceRoots, aimed.ReadFile, ct)
+            .ConfigureAwait(false))
+        {
+            leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
+            if (planned.Entries is not { } files)
+            {
+                continue;
+            }
+
+            if (await aimed.Attach(files, ct).ConfigureAwait(false))
+            {
+                anyAttached = true;
+                filesAttached += files.Count;
+            }
+            else
+            {
+                anyRefused = true;
+            }
+        }
+
+        return new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed,
+            anyAttached ? 1 : 0,
+            anyAttached || !anyRefused ? 0 : 1,
+            AddressedRoots: [addressed.CoveRoot],
+            EntriesLeftUnderAnotherRoot: leftUnderAnotherRoot,
+            FilesAttached: filesAttached);
+    }
+
+
     // Counts, never a list of folders: the line must not grow with the entity, and it would put
     // filesystem paths in a durable place nothing needs them in.
     internal static string SummaryOf(ReflectOwnedRun run)
@@ -152,7 +235,7 @@ public static class ReflectOwnedJob
 
         return LineFor(
             run.Skipped,
-            run.FoldersAttached,
+            run.FilesAttached,
             run.FoldersRefused,
             run.AddressRefusals,
             run.EntriesLeftUnderAnotherRoot,
@@ -166,8 +249,8 @@ public static class ReflectOwnedJob
     // read as a clean pass over every folder.
     internal static string LineFor(
         ReflectOwnedSkipReason? skipped,
-        int attached,
-        int refused,
+        int filesAttached,
+        int foldersRefused,
         IReadOnlyList<FolderAddressRefusal>? unaddressed,
         int leftUnderAnotherRoot,
         bool cancelled,
@@ -183,7 +266,8 @@ public static class ReflectOwnedJob
             return NoRootToCompareSentence;
         }
 
-        var reasons = string.Join(' ', (unaddressed ?? []).Select(SentenceFor));
+        var reasons = string.Join(
+            ' ', (unaddressed ?? []).Select(refusal => SentenceFor(refusal, filesAttached > 0)));
         if (leftUnderAnotherRoot > 0)
         {
             reasons = reasons.Length == 0
@@ -191,14 +275,15 @@ public static class ReflectOwnedJob
                 : reasons + " " + LeftUnderAnotherRootSentence;
         }
 
-        if (attached == 0 && refused == 0 && reasons.Length > 0)
+        if (filesAttached == 0 && foldersRefused == 0 && reasons.Length > 0)
         {
             return cancelled ? reasons + " The run was then stopped." : reasons;
         }
 
         var ending = cancelled ? ", then stopped" : string.Empty;
         var counts = string.Create(
-            CultureInfo.InvariantCulture, $"{attached} linked, {refused} refused{ending}.");
+            CultureInfo.InvariantCulture,
+            $"{filesAttached:N0} linked, {foldersRefused:N0} refused{ending}.");
 
         return reasons.Length == 0 ? counts : counts + " " + reasons;
     }
@@ -218,13 +303,22 @@ public static class ReflectOwnedJob
 
     // One library root, named once, with at most one path tried under it. The roots are few and
     // operator-created; the folders under them grow with the library.
-    internal static string SentenceFor(FolderAddressRefusal refusal)
+    //
+    // A refusal naming no root speaks for the whole run only where the run linked nothing. Beside a
+    // non-zero count it has to be scoped to the folders it covers, or it contradicts the figure in
+    // front of it: a library run links most of its folders and still carries one of these for every
+    // root it could not address.
+    internal static string SentenceFor(FolderAddressRefusal refusal, bool anythingLinked)
     {
         ArgumentNullException.ThrowIfNull(refusal);
 
-        var opening = string.IsNullOrWhiteSpace(refusal.CoveRoot)
-            ? "Nothing could be linked"
-            : "Nothing under " + refusal.CoveRoot + " could be linked";
+        if (!string.IsNullOrWhiteSpace(refusal.CoveRoot))
+        {
+            return "Nothing under " + refusal.CoveRoot + " could be linked: "
+                + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
+        }
+
+        var opening = anythingLinked ? "Some folders were not linked" : "Nothing could be linked";
 
         return opening + ": "
             + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
@@ -259,7 +353,7 @@ public static class ReflectOwnedJob
 
     // Stands for a run that reached no folder for any reason. A reason a reader can act on rides on
     // the record rather than on this instance.
-    private static ReflectOwnedRun Untaken { get; } =
+    internal static ReflectOwnedRun Untaken { get; } =
         new(ReflectOwnedRunOutcome.Completed, 0, 0);
 
     private static string? Read(IReadOnlyDictionary<string, string> parameters, string key)

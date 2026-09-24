@@ -28,6 +28,16 @@ public sealed class SyncLibraryRouteTests
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
+    private const string LibraryFolder = "/library/one";
+
+    private const string FirstFolder = "/library/one";
+
+    private const string SecondFolder = "/library/two";
+
+    private const string LinksIntoPlace = """{"copyUsingHardlinks":true}""";
+
+    private const string CopiesInstead = """{"copyUsingHardlinks":false}""";
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // The one non-exclusive enqueue in this extension. A library-wide run enqueued exclusive holds
@@ -193,12 +203,99 @@ public sealed class SyncLibraryRouteTests
             $$"""[{"id":{{HeldSceneId}},"foreignId":"{{SecondScene}}","monitored":false}]""");
 
     // A host whose instance takes every scene it is offered.
+    // Registering a scene and linking its file are one gesture on this generation: a run that
+    // registered and stopped leaves every entry reading as missing while the reader owns the file.
+    [Fact]
+    public async Task TheRunLinksTheFilesItOwnsOnceItHasRegisteredThem()
+    {
+        await using var host = await LinkingHost();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var videoId = await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        await host.SeedSceneFileAsync(videoId, LibraryFolder);
+
+        await RunAsync(host);
+        await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
+
+        // The file the library owns is read, and the entry goes out addressed to the scene the run
+        // registered rather than to anything the instance matched.
+        Assert.Contains(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrOwnedFileReading.ReadFileAsync));
+        Assert.Contains(
+            host.Client.Acting,
+            call => call.Verb == nameof(RecordingWhisparrCore.AttachOwnedFilesAsync));
+    }
+
+    // The setting is the instance's, and with it off a matched file would be copied in full rather
+    // than linked. The registering half still runs.
+    [Fact]
+    public async Task WithTheHardLinkSettingOffNothingIsLinkedAndTheScenesAreStillRegistered()
+    {
+        await using var host = await LinkingHost(CopiesInstead);
+        var studioId = await host.SeedStudioAsync(null, null);
+        var videoId = await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        await host.SeedSceneFileAsync(videoId, LibraryFolder);
+
+        await RunAsync(host);
+        await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
+
+        Assert.Equal(
+            [FirstScene],
+            host.Client.Acting
+                .Where(call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync))
+                .Select(call => call.ForeignId));
+        Assert.DoesNotContain(
+            host.Client.Acting,
+            call => call.Verb == nameof(RecordingWhisparrCore.AttachOwnedFilesAsync));
+    }
+
+    // The linking follows the walk out of each folder rather than the whole registration pass, so
+    // a run stopped part way has linked the folders it already left.
+    [Fact]
+    public async Task EachFolderIsLinkedAsTheWalkLeavesItRatherThanAfterEveryScene()
+    {
+        await using var host = await LinkingHost();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var first = await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, FirstScene);
+        var second = await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, SecondScene);
+        await host.SeedSceneFileAsync(first, FirstFolder);
+        await host.SeedSceneFileAsync(second, SecondFolder);
+
+        await RunAsync(host);
+        await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
+
+        // One attach per folder the walk left: a folder attached twice would be one it re-entered,
+        // and a folder missing would be one it left without linking.
+        Assert.Equal(
+            2,
+            host.Client.Acting.Count(
+                call => call.Verb == nameof(RecordingWhisparrCore.AttachOwnedFilesAsync)));
+    }
+
     private static async Task<MonitorHost> HoldingHost()
     {
         var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(
-            nameof(IWhisparrMissingSceneActing.AddSceneAsync),
-            MonitorHost.Json(201, ProbeFixtures.Read(AcceptedFixture)));
+        host.Client
+            .Answering(
+                nameof(IWhisparrMissingSceneActing.AddSceneAsync),
+                MonitorHost.Json(201, ProbeFixtures.Read(AcceptedFixture)))
+            .AnsweringThatLinkingWouldCopy();
+        return host;
+    }
+
+    private static async Task<MonitorHost> LinkingHost(string setting = LinksIntoPlace)
+    {
+        var host = await MonitorHost.CreateAsync();
+        host.Client
+            .Answering(
+                nameof(IWhisparrMissingSceneActing.AddSceneAsync),
+                MonitorHost.Json(201, ProbeFixtures.Read(AcceptedFixture)))
+            .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
+                MonitorHost.Json(200, setting))
+            .Answering(
+                nameof(RecordingWhisparrCore.AttachOwnedFilesAsync),
+                MonitorHost.Json(200, "{}"));
         return host;
     }
 

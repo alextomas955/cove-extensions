@@ -29,6 +29,16 @@ internal sealed class V2PayloadReader : IWhisparrPayloadReading
 
     // Transcribed from the interface bundle this generation's build ships: a series, and the
     // episodes matched inside it.
+    // A scene is an episode under a site here, which one id does not name: an entry needs the site
+    // and the episode rows the instance matched. Answering null leaves this generation reading the
+    // instance's own match, which is what it did before an identity could be supplied at all.
+    public JsonObject? IdentifiedEntry(JsonObject entry, int entityId)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        _ = entityId;
+        return null;
+    }
+
     public JsonObject? MatchedEntry(JsonObject row, JsonObject entry)
     {
         ArgumentNullException.ThrowIfNull(row);

@@ -121,8 +121,16 @@ public static class FolderAgreement
     /// </summary>
     public static string? Address(string folder, string coveRoot, string instanceRoot)
     {
-        var tail = PathCandidateGuard.TailBelow(folder, coveRoot);
-        return tail is null ? null : PathCandidateGuard.CandidateUnder(instanceRoot, tail);
+        if (!PathCandidateGuard.IsAtOrBelow(folder, coveRoot))
+        {
+            return null;
+        }
+
+        // The folder is the root itself, which a library uses for files as readily as any folder
+        // under it. Its tail is empty rather than absent, and it addresses to the instance root.
+        return PathCandidateGuard.TailBelow(folder, coveRoot) is { } tail
+            ? PathCandidateGuard.CandidateUnder(instanceRoot, tail)
+            : PathCandidateGuard.Normalize(instanceRoot).TrimEnd('/');
     }
 
     // A candidate was formed as a declared root followed by this tail, so what remains is that

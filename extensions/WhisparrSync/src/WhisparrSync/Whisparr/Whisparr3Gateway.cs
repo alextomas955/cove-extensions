@@ -57,6 +57,7 @@ internal sealed class Whisparr3Gateway : IDisposable
                 .ConfigurePrimaryHttpMessageHandler(handler)
                 .AddHttpMessageHandler(static () =>
                     new BoundedResponseHandler(WhisparrTransport.MaxResponseBytes))
+                .ConfigureHttpClient(client => client.Timeout = target.Budget)
                 .ConfigureHttpClient(settings),
         });
 
@@ -64,9 +65,17 @@ internal sealed class Whisparr3Gateway : IDisposable
     }
 }
 
-// The pair is the registry cache key by value: a key edited against the same address is a different
-// registration.
-internal readonly record struct Whisparr3Target(Uri BaseAddress, string ApiKey);
+// The whole record is the registry cache key by value. The key is part of it because a key edited
+// against the same address is a different registration. The budget is part of it because
+// HttpClient.Timeout cannot change once a client has been used, so a second budget against the same
+// address needs a registration of its own.
+internal readonly record struct Whisparr3Target(Uri BaseAddress, string ApiKey, TimeSpan Budget)
+{
+    public Whisparr3Target(Uri baseAddress, string apiKey)
+        : this(baseAddress, apiKey, WhisparrTransport.RequestTimeout)
+    {
+    }
+}
 
 // Bound to one instance rather than taking it per call, so a call site cannot name one instance for
 // the read and another for the write that follows it. Held open for as long as the request it serves

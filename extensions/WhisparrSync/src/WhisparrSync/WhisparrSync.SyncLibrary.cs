@@ -369,6 +369,11 @@ public sealed partial class WhisparrSync
 
             aimedAt = target.Binding.Generation;
 
+            // Which library roots this instance can reach, worked out once per run. Asked through
+            // the root overload: a root is not a folder beneath itself, so the folder overload
+            // answers that every one of them sits under no root and the ranking collapses.
+            var ranked = await RankedRootsAsync(target, services, runCt).ConfigureAwait(false);
+
             return SyncPassFor(target) switch
             {
                 // This pass offers scenes and nothing else: the generation that keeps them creates
@@ -381,9 +386,14 @@ public sealed partial class WhisparrSync
                         ? new SyncLibraryAiming(
                             target.Binding.Generation,
                             SyncRegisters.Scenes,
-                            (identity, sceneCt) => OfferSceneAsync(register, identity, sceneCt),
+                            (identity, rootFolderPath, sceneCt) =>
+                                OfferSceneAsync(register, identity, rootFolderPath, sceneCt),
                             RegisterSite: null,
-                            MonitorFor(batch, target))
+                            MonitorFor(batch, target),
+                            Link: await LinkOwnedAimAsync(target, services, runCt)
+                                .ConfigureAwait(false),
+                            RootOrder: ranked.Order,
+                            OutOfReach: ranked.OutOfReach)
                         : null,
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
@@ -408,10 +418,12 @@ public sealed partial class WhisparrSync
 
     // The add's own refusal is what tells a scene the instance already holds from one it declines.
     private static async Task<SyncRegistration> OfferSceneAsync(
-        Func<string, CancellationToken, Task<WhisparrResponse?>> register,
+        Func<string, string?, CancellationToken, Task<WhisparrResponse?>> register,
         string identity,
+        string? rootFolderPath,
         CancellationToken ct)
-        => SyncRegistration.Offered(await register(identity, ct).ConfigureAwait(false));
+        => SyncRegistration.Offered(
+            await register(identity, rootFolderPath, ct).ConfigureAwait(false));
 
     // The presence-only add, so nothing this run registers is monitored or searched for.
     private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
@@ -539,6 +551,94 @@ public sealed partial class WhisparrSync
 
     // A generation this product cannot ask refuses the root rather than composing one: a root
     // nobody checked reads back as a clean pass over an entry holding nothing.
+    // The roots the instance can reach, then the ones it cannot. One probe per library root: a root
+    // it cannot reach refuses every folder under it for the same reason, so asking about each folder
+    // costs a request apiece and answers what the root already said.
+    private static async Task<(IReadOnlyList<string> Order, IReadOnlyList<string> OutOfReach)>
+        RankedRootsAsync(MonitoringTarget target, IServiceProvider services, CancellationToken ct)
+    {
+        var agreed = AgreedRootThrough(target, services.GetRequiredService<IFolderAddressPort>());
+        var reachable = new List<string>();
+        var outOfReach = new List<string>();
+
+        foreach (var root in services.GetRequiredService<ICoveLibraryPort>().LibraryRoots)
+        {
+            var addressed = await agreed(root, ct).ConfigureAwait(false);
+            (addressed.InstancePath is null ? outOfReach : reachable).Add(root);
+        }
+
+        return ([.. reachable, .. outOfReach], outOfReach);
+    }
+
+    // The instance's own reading of a file, which is where the quality and the languages an import
+    // carries come from. Null where the generation reads no file, which leaves the run composing
+    // nothing and linking nothing.
+    private Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadingFilesOn(
+        MonitoringTarget target)
+        => target.Reads is IWhisparrOwnedFileReading reading
+            ? (file, ct) => ContainedAsync(
+                () => reading.ReadFileAsync(file, ct), target, _log, ct)
+            : null;
+
+    // Pairs the files of one folder with the instance ids the run registered, by file name. The
+    // instance reads a studio and a date out of a file name to decide which scene a file is; a
+    // library whose names it cannot parse gets nothing attached however certainly the library knows.
+    // This hands it the answer instead.
+    //
+    // One read per folder, holding one row per identified file in that folder and nothing beyond it.
+    private static Func<string, IReadOnlyDictionary<string, RegisteredScene>, CancellationToken,
+        Task<IReadOnlyDictionary<string, RegisteredScene>>> IdentifyingFilesIn(
+            IServiceProvider services, WhisparrGeneration generation)
+    {
+        var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+
+        return async (folder, registered, ct) =>
+        {
+            if (registered.Count == 0)
+            {
+                return registered;
+            }
+
+            var byName = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+            await foreach (var carried in identities
+                .FileIdentitiesIn(folder, generation, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                if (registered.TryGetValue(carried.RemoteId, out var scene))
+                {
+                    byName[carried.FileName] = scene;
+                }
+            }
+
+            return byName;
+        };
+    }
+
+    // Null where the connected generation registers no reflect-owned role at all. That is a
+    // generation gap rather than a refusal, and naming the hard-link setting for it would point a
+    // reader at a value nobody read.
+    private async Task<ReflectOwnedAim?> LinkOwnedAimAsync(
+        MonitoringTarget target, IServiceProvider services, CancellationToken ct)
+    {
+        if (ReflectOwnedActingOn(target) is not { } acting)
+        {
+            return null;
+        }
+
+        var decision = await ReflectOwnedDecisionAsync(target, acting, ct).ConfigureAwait(false);
+
+        return decision.Act
+            ? new ReflectOwnedAim(
+                AimedAt(target, acting, services.GetRequiredService<IFolderAddressPort>()) with
+                {
+                    Identify = IdentifyingFilesIn(services, target.Binding.Generation),
+                    ReadFile = ReadingFilesOn(target),
+                },
+                null)
+            : new ReflectOwnedAim(null, decision.Reason);
+    }
+
     private static Func<string, CancellationToken, Task<AddressedFolder>> AgreedRootThrough(
         MonitoringTarget target, IFolderAddressPort addressing)
     {

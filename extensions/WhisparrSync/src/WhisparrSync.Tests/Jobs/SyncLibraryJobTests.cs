@@ -164,7 +164,7 @@ public sealed class SyncLibraryJobTests
                 new SyncLibraryAiming(
                     WhisparrGeneration.V3,
                     SyncRegisters.Scenes,
-                    (identity, ct) => Offered(register, identity, ct),
+                    (identity, _, ct) => Offered(register, identity, ct),
                     RegisterSite: null,
                     Monitor: null)),
             progress,

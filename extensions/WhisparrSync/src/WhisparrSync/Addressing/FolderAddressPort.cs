@@ -278,7 +278,7 @@ internal sealed class FolderAddressPort(
     // candidate then names a path neither system has.
     private string? RootContaining(string folder)
         => library.LibraryRoots
-            .Where(root => PathCandidateGuard.TailBelow(folder, root) is not null)
+            .Where(root => PathCandidateGuard.IsAtOrBelow(folder, root))
             .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
             .FirstOrDefault();
 }

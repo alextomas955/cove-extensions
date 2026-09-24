@@ -165,8 +165,9 @@ public sealed partial class WhisparrSync
         var adds = target.Reads is IWhisparrMissingSceneActing;
 
         return batch.Verb == MissingBulkVerb.Monitor && adds
-            ? await ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt)
-                .ConfigureAwait(false)
+            ? Offering(
+                await ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt)
+                    .ConfigureAwait(false))
             : await ComposeSceneFlipAsync(
                 batch.Kind, batch.CoveId, batch.Verb, target, services, runCt)
                 .ConfigureAwait(false);
@@ -230,10 +231,24 @@ public sealed partial class WhisparrSync
             : Task.FromResult<WhisparrResponse?>(null);
     }
 
+    // A caller with one root for the whole run offers every scene against it.
+    private static Func<string, CancellationToken, Task<WhisparrResponse?>>? Offering(
+        Func<string, string?, CancellationToken, Task<WhisparrResponse?>>? add)
+        => add is null ? null : (providerSceneId, ct) => add(providerSceneId, null, ct);
+
     // Null where the run must not act at all. Nothing composed here grabs: the add is the
     // non-grabbing one and the flip writes a flag, so no run built from this can make an instance
     // download by itself.
     private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
+        OfferingSceneAddAsync(
+            WhisparrEntityKind? owningKind,
+            int owningId,
+            IServiceProvider services,
+            CancellationToken runCt)
+        => Offering(
+            await ComposeSceneAddAsync(owningKind, owningId, services, runCt).ConfigureAwait(false));
+
+    private async Task<Func<string, string?, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneAddAsync(
             WhisparrEntityKind? owningKind,
             int owningId,
@@ -290,9 +305,14 @@ public sealed partial class WhisparrSync
             composeWith = perEntity;
         }
 
-        return (providerSceneId, markCt) => ContainedAsync(
+        // The root travels per call rather than being fixed for the run: a library spread over
+        // several volumes needs each scene registered on the one holding its own files, because a
+        // hard link cannot cross a filesystem and the import copies the bytes instead.
+        return (providerSceneId, rootFolderPath, markCt) => ContainedAsync(
             () => acting.AddSceneAsync(
-                providerSceneId, composeWith, markCt),
+                providerSceneId,
+                rootFolderPath is null ? composeWith : composeWith with { RootFolderPath = rootFolderPath },
+                markCt),
             target,
             _log,
             markCt);

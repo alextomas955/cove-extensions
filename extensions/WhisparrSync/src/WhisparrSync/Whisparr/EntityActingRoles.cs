@@ -244,12 +244,31 @@ public interface IWhisparrInstanceFilesystemReading
     Task<WhisparrResponse> ReadInstanceFolderAsync(string directory, CancellationToken ct);
 }
 
+/// <summary>One file a reading is asked about: where it is, and the entry it belongs to.</summary>
+public readonly record struct OwnedFilePlacement(string Path, int EntityId);
+
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second
 /// copy while its own hard-link setting is on. With that setting off every mode duplicates the data,
 /// so a caller reads the setting first and skips with the reason stated rather than copying.
 /// </remarks>
+public interface IWhisparrOwnedFileReading
+{
+    /// <summary>What the instance reads out of the file at <paramref name="file"/>.</summary>
+    /// <remarks>
+    /// The quality and the languages an import must carry come from here rather than from anything
+    /// composed locally. The instance reads them off the whole path with the parser it uses on its
+    /// own imports, so a library named in any scheme is read the way that instance reads names.
+    /// <para>
+    /// One file per call. The instance opens each file it is asked about and reads it, and a request
+    /// covering several costs the sum of them, so one slow file would carry the rest of the request
+    /// past the budget and lose their readings with it.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> ReadFileAsync(OwnedFilePlacement file, CancellationToken ct);
+}
+
 public interface IWhisparrReflectOwnedActing
 {
     /// <summary>Reads whether the instance links a file into place rather than copying it.</summary>
