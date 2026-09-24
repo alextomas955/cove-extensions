@@ -52,7 +52,7 @@ export const SECRET_QUERY_PARAMETER = "s";
  */
 export const USER_AGENT = {
   v2: "Whisparr/2.2.0.231 (alpine 3.23.5)",
-  v3: "Whisparr/3.3.8.1097 (alpine 3.23.5)",
+  v3: "Whisparr/3.6.2.1727 (alpine 3.23.6)",
 };
 
 /**
