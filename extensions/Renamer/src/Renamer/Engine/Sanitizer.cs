@@ -28,36 +28,7 @@ public static class Sanitizer
         var sb = new StringBuilder(s.Length);
         foreach (var ch in s)
         {
-            // A removed char goes before the illegal and space checks, so a char that is both in the
-            // remove set and illegal disappears rather than becoming IllegalReplacement.
-            if (o.RemoveCharacters.Length > 0 && o.RemoveCharacters.Contains(ch))
-            {
-                continue;
-            }
-
-            if (char.IsControl(ch))
-            {
-                continue;
-            }
-
-            if (Array.IndexOf(Illegal, ch) >= 0)
-            {
-                if (o.IllegalReplacement is { Length: > 0 } r)
-                {
-                    sb.Append(r);
-                }
-
-                // An empty IllegalReplacement strips the char.
-                continue;
-            }
-
-            if (ch == ' ' && o.SpaceReplacement is { Length: > 0 } sr)
-            {
-                sb.Append(sr);
-                continue;
-            }
-
-            sb.Append(ch);
+            AppendCleanChar(sb, ch, o);
         }
 
         var collapsed = CollapseRuns(sb.ToString(), o);
@@ -72,6 +43,40 @@ public static class Sanitizer
         }
 
         return trimmed;
+    }
+
+    private static void AppendCleanChar(StringBuilder sb, char ch, RenamerOptions o)
+    {
+        // A removed char goes before the illegal and space checks, so a char that is both in the
+        // remove set and illegal disappears rather than becoming IllegalReplacement.
+        if (o.RemoveCharacters.Length > 0 && o.RemoveCharacters.Contains(ch))
+        {
+            return;
+        }
+
+        if (char.IsControl(ch))
+        {
+            return;
+        }
+
+        if (Array.IndexOf(Illegal, ch) >= 0)
+        {
+            if (o.IllegalReplacement is { Length: > 0 } r)
+            {
+                sb.Append(r);
+            }
+
+            // An empty IllegalReplacement strips the char.
+            return;
+        }
+
+        if (ch == ' ' && o.SpaceReplacement is { Length: > 0 } sr)
+        {
+            sb.Append(sr);
+            return;
+        }
+
+        sb.Append(ch);
     }
 
     private static bool IsReservedDeviceName(string segment)

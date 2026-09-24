@@ -71,7 +71,33 @@ public sealed partial class Renamer
         // would restore is authorized here, before the replayer exists, so a refusal has moved nothing.
         // One denied entity refuses the whole undo: restoring the rest leaves one user action half
         // reversed. The refusal names nothing, so it discloses no id.
-        var authorizing = batch;
+        if (!await AuthorizeOperationEntitiesAsync(journal, operationId, batch.Value, principal, authz, ct))
+        {
+            return new ForbiddenCode();
+        }
+
+        // Undo restores the paths the journal recorded and renders no name, so it loads no options.
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus);
+
+        // One accumulator for the whole operation: a per-batch one would report the last kind's
+        // outcome as the run's. Pages fold into totals plus a bounded sample, because retaining every
+        // page's entries rebuilds the library-sized value the paged read exists to avoid. The host log
+        // receives the full detail per page.
+        var accumulated = new UndoRunAccumulator();
+
+        await ReplayOperationAsync(journal, replayer, operationId, batch.Value, accumulated, ct);
+
+        var result = accumulated.ToResult();
+        LogUndoDone(operationId, result.Undone, result.SkippedCount, result.FailedCount);
+
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<bool> AuthorizeOperationEntitiesAsync(
+        CoveRevertJournal journal, string operationId, RevertBatchSummary first,
+        ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
+    {
+        RevertBatchSummary? authorizing = first;
         while (authorizing is not null)
         {
             var current = authorizing.Value;
@@ -94,29 +120,28 @@ public sealed partial class Renamer
                     authz, principal.Current, current.Kind, entityWritePermission, pageIds, ct);
                 if (allowed.Count != pageIds.Count)
                 {
-                    return new ForbiddenCode();
+                    return false;
                 }
 
                 page = await journal.ReadBatchPageAsync(
                     current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
             }
 
-            // Its own cursor, so the replay below still starts at the batch already read.
+            // Its own cursor, so the replay still starts at the batch already read.
             authorizing = await journal.ReadNextBatchAsync(
                 operationId, current.WrittenAtUtcTicks, current.RunId, ct);
         }
 
-        // Undo restores the paths the journal recorded and renders no name, so it loads no options.
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus);
+        return true;
+    }
 
-        // One accumulator for the whole operation: a per-batch one would report the last kind's
-        // outcome as the run's. Pages fold into totals plus a bounded sample, because retaining every
-        // page's entries rebuilds the library-sized value the paged read exists to avoid. The host log
-        // receives the full detail per page.
-        var accumulated = new UndoRunAccumulator();
-
+    private async Task ReplayOperationAsync(
+        CoveRevertJournal journal, UndoReplayer replayer, string operationId, RevertBatchSummary first,
+        UndoRunAccumulator accumulated, CancellationToken ct)
+    {
         // Newest batch of the operation first, then strictly older ones. A batch whose rows all failed
         // for a clearable reason still holds them, so the cursor moves the loop on, not their absence.
+        RevertBatchSummary? batch = first;
         while (batch is not null)
         {
             var current = batch.Value;
@@ -161,11 +186,6 @@ public sealed partial class Renamer
             batch = await journal.ReadNextBatchAsync(
                 operationId, current.WrittenAtUtcTicks, current.RunId, ct);
         }
-
-        var result = accumulated.ToResult();
-        LogUndoDone(operationId, result.Undone, result.SkippedCount, result.FailedCount);
-
-        return TypedResults.Ok(result);
     }
 
     // Writes no closing summary line: an undo replays as many pages as the batch has, and a "done"
