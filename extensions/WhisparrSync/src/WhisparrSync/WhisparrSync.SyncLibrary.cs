@@ -463,6 +463,8 @@ public sealed partial class WhisparrSync
             var composed = await EntityAddDefaults.ComposeAsync(
                 composeWith,
                 library.LibraryRoots,
+                target.Binding.Generation,
+                site.RemoteId,
                 (coveRoot, countCt) => files.FilesUnderAsync(
                     WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
                 agreedRoot,
