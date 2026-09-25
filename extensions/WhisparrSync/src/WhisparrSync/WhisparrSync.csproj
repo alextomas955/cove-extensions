@@ -12,6 +12,16 @@
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
 
+  <!--
+    The linking seam calls the platform for a hard link and a file identity, neither of which the
+    runtime exposes. The source-generated interop stubs marshal through pointers, so the generator
+    refuses to emit without this (SYSLIB1062). Nothing else in this project is unsafe, and the
+    generated stubs are the only place a pointer appears.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
