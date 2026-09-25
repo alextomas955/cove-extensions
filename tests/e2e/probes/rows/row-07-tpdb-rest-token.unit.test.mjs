@@ -1,5 +1,5 @@
-// Drives the row's three skip branches — no install, an install naming another provider, and an
-// entry carrying no key — against a temporary data root, so the branches a machine with the
+// Drives the row's three skip branches - no install, an install naming another provider, and an
+// entry carrying no key - against a temporary data root, so the branches a machine with the
 // credential never takes are exercised anyway.
 //
 // The row returns before its first outbound call on every one of them, so nothing here reaches the
@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { buildRecord, redactRecord } from "../lib/record.mjs";
 import { row } from "./row-07-tpdb-rest-token.mjs";
 
-// A drive-letter path, a UNC path, or a rooted POSIX path — the three shapes a data root arrives in.
+// A drive-letter path, a UNC path, or a rooted POSIX path - the three shapes a data root arrives in.
 const ABSOLUTE_PATH = /[A-Za-z]:[\\/]|\\\\[A-Za-z]|(?:^|[\s"'(])\/[\w.]/;
 
 /** A data root holding `document`, or holding nothing at all when none is given. */

@@ -1,8 +1,8 @@
 // Settles whether the pinned v3 build serves a scene by its own id, which is the call a consumer
 // makes once it holds an id and nothing else.
 //
-// A scene is addressed as a MOVIE carrying `itemType: "scene"` — this generation publishes no
-// `scene` area at all — so the route under test is the movie one.
+// A scene is addressed as a MOVIE carrying `itemType: "scene"` - this generation publishes no
+// `scene` area at all - so the route under test is the movie one.
 //
 // v3 answers an unmatched path with its single-page frontend rather than a miss, so a JSON body
 // whose `id` is the one that was asked for is the weakest assertion that means anything here. The

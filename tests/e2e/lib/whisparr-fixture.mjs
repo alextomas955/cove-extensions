@@ -18,7 +18,7 @@ import { buildConfigXml, seedEntity, seedHistory, seedScenes } from "./whisparr-
 
 const WHISPARR_PORT = 6969;
 
-// Both generations serve this under `/api/v3` — v2's Sonarr-lineage API carries the same prefix — so
+// Both generations serve this under `/api/v3` - v2's Sonarr-lineage API carries the same prefix - so
 // the path does not tell the two apart. The version in its body does.
 const STATUS_PATH = "/api/v3/system/status";
 const ROOT_FOLDER_PATH = "/api/v3/rootfolder";
@@ -68,7 +68,7 @@ const aliasFor = (generation) => `whisparr-${generation}-${randomUUID().slice(0,
  * Starts one Whisparr container per requested generation on `network`, each pre-seeded with
  * `apiKey`, and returns a handle addressing them.
  *
- * `network` is one of the started Cove container's own networks — read off it
+ * `network` is one of the started Cove container's own networks - read off it
  * (`harness.container.getNetworkNames()[0]`) rather than named, which is what keeps this independent
  * of which Cove image the run booted.
  *
@@ -78,25 +78,25 @@ const aliasFor = (generation) => `whisparr-${generation}-${randomUUID().slice(0,
  * nor the cause.
  *
  * `seedHistory` asks for instances that already have an import past, which is what makes a claim
- * about a FIRST synchronisation pass falsifiable — against an empty instance, "it imported nothing"
+ * about a FIRST synchronisation pass falsifiable - against an empty instance, "it imported nothing"
  * and "it did nothing" are the same observation.
  *
- * `rootFolder` — one path for every generation, or a per-generation map — declares the library root
+ * `rootFolder` - one path for every generation, or a per-generation map - declares the library root
  * each instance reports, and a consumer reads that list back off the instance rather than off a
  * delivery: neither generation's import event names a root folder at all.
  *
  * Resolving what an instance reports to what Cove holds is NOT a question about strings alone. A
  * candidate path is accepted only when the file is really present there, so every variant this
- * option expresses needs a real file inside a Cove library root — placed with `seed-media.mjs`'s
+ * option expresses needs a real file inside a Cove library root - placed with `seed-media.mjs`'s
  * `placeVideoUnregistered`, which needs no shared filesystem because it copies into Cove's own
  * container. What the root spellings decide is which candidates get formed; what is on disk decides
  * which of them is imported:
  *
- * - the same file under two names — the instance reports a root Cove does not have, and the file
+ * - the same file under two names - the instance reports a root Cove does not have, and the file
  *   sits at the matching tail under a root Cove does. One candidate is present, and it imports.
- * - a file at no Cove root — nothing is present at any candidate, and the delivery is refused as
+ * - a file at no Cove root - nothing is present at any candidate, and the delivery is refused as
  *   not found.
- * - a file under two Cove roots — the same tail is present under each, and the delivery is refused
+ * - a file under two Cove roots - the same tail is present under each, and the delivery is refused
  *   as ambiguous. `addCoveLibraryRoot` in seed-media.mjs declares the second root that needs.
  *
  * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number,
@@ -165,7 +165,7 @@ export async function startWhisparr({
     apiFor(generation) {
       if (!Object.hasOwn(instances, generation)) {
         throw new Error(
-          `startWhisparr: apiFor("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+          `startWhisparr: apiFor("${generation}") - this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
       const instance = instances[generation];
@@ -176,12 +176,12 @@ export async function startWhisparr({
 
     /**
      * Gives one generation an import past, and records what the instance itself rendered for each
-     * event type it now holds — also reachable afterwards as `handle[generation].history`.
+     * event type it now holds - also reachable afterwards as `handle[generation].history`.
      */
     async seedHistory(generation, options = {}) {
       if (!Object.hasOwn(instances, generation)) {
         throw new Error(
-          `startWhisparr: seedHistory("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+          `startWhisparr: seedHistory("${generation}") - this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
       const instance = instances[generation];
@@ -203,7 +203,7 @@ export async function startWhisparr({
     async seedEntity(generation, options = {}) {
       if (!Object.hasOwn(instances, generation)) {
         throw new Error(
-          `startWhisparr: seedEntity("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+          `startWhisparr: seedEntity("${generation}") - this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
       const instance = instances[generation];
@@ -220,7 +220,7 @@ export async function startWhisparr({
     async seedScenes(generation, options = {}) {
       if (!Object.hasOwn(instances, generation)) {
         throw new Error(
-          `startWhisparr: seedScenes("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+          `startWhisparr: seedScenes("${generation}") - this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
       const instance = instances[generation];
@@ -448,7 +448,7 @@ function tailOf(logChunks) {
 
 // The two generations take the key by different mechanisms. v3 reads it from configuration and
 // writes no key element to its config file at all; v2 ignores every environment spelling and has to
-// be handed a config file before it starts. They stay separate on purpose — the environment route
+// be handed a config file before it starts. They stay separate on purpose - the environment route
 // needs no copy, no file mode and no ordering, so unifying on the file route would buy symmetry and
 // pay for it in failure surface.
 function withApiKeySeed(builder, generation, apiKey, metadataUrl, logLevel) {
@@ -462,7 +462,7 @@ function withApiKeySeed(builder, generation, apiKey, metadataUrl, logLevel) {
         target: "/config/config.xml",
         // The mode is the load-bearing field. Without it the file arrives root-owned, the image's
         // init does not chown a file it did not create, and the app exits on its first config write
-        // — while the supervisor keeps the container up and the API answers nothing at all.
+        // - while the supervisor keeps the container up and the API answers nothing at all.
         mode: 0o666,
       },
     ]);

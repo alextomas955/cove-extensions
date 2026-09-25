@@ -113,7 +113,7 @@ async function expectControlLeftOfEdit(page, where) {
   await expect(
     control,
     `${where}: the host rendered no control for this extension's action-row slot within ${CONTROL_BUDGET_MS}ms. ` +
-      "Either the released host image carries no such slot, or the manifest's componentName does not resolve to a key in this bundle's component map — which renders nothing and reports nothing.",
+      "Either the released host image carries no such slot, or the manifest's componentName does not resolve to a key in this bundle's component map - which renders nothing and reports nothing.",
   ).toBeVisible({ timeout: CONTROL_BUDGET_MS });
 
   const edit = hostEditButton(page);

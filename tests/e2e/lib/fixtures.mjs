@@ -19,7 +19,7 @@ export { createApiClient };
  * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
  * reported against a host the test never drove.
  *
- * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes,
+ * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes -
  * including one an extension reads for itself. An extension passes its own through a wrapper of its
  * own, so the value is decided once rather than at each fixture that names it.
  */

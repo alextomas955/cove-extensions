@@ -143,4 +143,4 @@ volumes:
   # have to be a conditional service, and an empty volume costs nothing.
   shared:
     external: true
-    name: ${COVE_E2E_SHARED_VOLUME:?created by tests/e2e/lib/harness.mjs — this compose file creates no volume of its own, so a bare docker compose invocation must name one}
+    name: ${COVE_E2E_SHARED_VOLUME:?created by tests/e2e/lib/harness.mjs - this compose file creates no volume of its own, so a bare docker compose invocation must name one}

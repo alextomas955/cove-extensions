@@ -1,7 +1,7 @@
 // What each Whisparr generation actually sends when it calls out, taken from a delivery it really
 // made rather than from a schema.
 //
-// Saving a Webhook connection is what fires the delivery, so no event has to be provoked — but only
+// Saving a Webhook connection is what fires the delivery, so no event has to be provoked - but only
 // while the connection is ENABLED, and a connection is enabled by its trigger flags. Saving one with
 // every flag off answers the same 201 and sends nothing at all, which is the failure this row would
 // otherwise report as a generation that no longer calls out.
