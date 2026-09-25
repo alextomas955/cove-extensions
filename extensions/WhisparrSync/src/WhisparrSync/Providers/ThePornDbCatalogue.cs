@@ -14,17 +14,7 @@ namespace WhisparrSync.Providers;
 // with the requested page size as its count and a null scene list, so a caller reading it would
 // state a page size as a catalogue's size and never see an error. Every request is a GET on one of
 // the routes named here, and no member takes a path, verb or query key from a caller.
-internal sealed class ThePornDbCatalogue
-    : IProviderCatalogue,
-        ISortsByDate,
-        ISortsByDuration,
-        IFiltersByYear,
-        IListsTagFacet,
-        ISearchesTitles,
-        ILooksUpByName,
-        IResolvesNumericSceneId,
-        IResolvesNumericSiteId,
-        IReadsSceneCover
+internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
 {
     internal const string ProviderName = "ThePornDB";
 
@@ -85,7 +75,6 @@ internal sealed class ThePornDbCatalogue
         _options = options;
         _pacer = pacer;
         _log = log;
-        Capabilities = ProviderCapabilities.ForThePornDb(this);
     }
 
     // The provider's own vocabulary, which carries the direction inside each value and declares no
@@ -100,7 +89,8 @@ internal sealed class ThePornDbCatalogue
 
     public string DefaultSort => NewestFirst;
 
-    public ProviderCapabilitySet Capabilities { get; }
+    // Explicit, so the constant above keeps the name a caller reads it by.
+    string IProviderCatalogue.ProviderName => ProviderName;
 
     // The identifier this product carries is the one the site's own scene path takes. Whisparr
     // composes the same path from the same uuid, so the shape is read off a client the provider

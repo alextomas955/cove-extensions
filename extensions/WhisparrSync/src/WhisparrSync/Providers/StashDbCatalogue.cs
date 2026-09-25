@@ -12,16 +12,7 @@ namespace WhisparrSync.Providers;
 // Every request is one POST to the configured endpoint, and no member takes a path, verb or query
 // string from a caller. StashDB answers an authentication failure with 200 and an `errors` member,
 // so a status alone does not say whether a body carries a catalogue.
-internal sealed class StashDbCatalogue
-    : IProviderCatalogue,
-        ISortsByTitle,
-        ISortsByDate,
-        ISortsByDuration,
-        IListsPerformerFacet,
-        IListsTagFacet,
-        IListsSubStudioFacet,
-        ISearchesTitles,
-        ILooksUpByName
+internal sealed class StashDbCatalogue : IProviderCatalogue
 {
     private readonly HttpClient _http;
     private readonly ProviderEndpointPort _endpoints;
@@ -41,7 +32,6 @@ internal sealed class StashDbCatalogue
         _options = options;
         _pacer = pacer;
         _log = log;
-        Capabilities = ProviderCapabilities.ForStashDb(this);
     }
 
     // Not the bearer scheme. A bearer header is accepted, answered with 200 and refused inside the
@@ -149,7 +139,8 @@ internal sealed class StashDbCatalogue
 
     public string DefaultSort => NewestFirst;
 
-    public ProviderCapabilitySet Capabilities { get; }
+    // Explicit, so the constant above keeps the name a caller reads it by.
+    string IProviderCatalogue.ProviderName => ProviderName;
 
     // The site address, not the GraphQL one the catalogue is read from.
     public string? SceneAddress(string providerSceneId)
@@ -208,9 +199,8 @@ internal sealed class StashDbCatalogue
             : Count(result);
     }
 
-    // StashDB names a scene by its uuid and by nothing else, so there is no number to resolve to
-    // and no request is sent. This type implements neither IResolvesNumericSceneId nor
-    // IResolvesNumericSiteId, so a caller asking by role is refused before reaching these answers.
+    // StashDB names a scene and a site by uuid and by nothing else, so there is no number to
+    // resolve to and no request is sent.
     public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
         => Task.FromResult<int?>(null);
 

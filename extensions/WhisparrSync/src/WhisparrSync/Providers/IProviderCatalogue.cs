@@ -191,12 +191,8 @@ public interface IProviderCatalogue
     /// <remarks>One of <see cref="Sorts"/>, stated by the provider rather than assumed.</remarks>
     string DefaultSort { get; }
 
-    /// <summary>What this provider can honour.</summary>
-    /// <remarks>
-    /// A capability the provider lacks holds no role, so a sort option, a facet or a year filter it
-    /// cannot honour is an absent registration rather than a value a caller has to test for.
-    /// </remarks>
-    ProviderCapabilitySet Capabilities { get; }
+    /// <summary>What this provider is called, for a reader being told where a page came from.</summary>
+    string ProviderName { get; }
 
     /// <summary>
     /// Where this provider shows the scene <paramref name="providerSceneId"/> names, or null where
@@ -244,9 +240,8 @@ public interface IProviderCatalogue
     /// </summary>
     /// <remarks>
     /// One read per site, nothing held between calls: a cache here would answer for a source the
-    /// host was reconfigured away from. A provider that issues no number of its own implements no
-    /// <see cref="IResolvesNumericSiteId"/>, so a caller obtains that role first and the resolution
-    /// is refused there rather than answered here as a site the provider names none for.
+    /// host was reconfigured away from. A provider that issues no number of its own answers
+    /// <c>ProviderSiteNumber.None</c> without sending anything.
     /// </remarks>
     Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(string providerSiteId, CancellationToken ct);
 
