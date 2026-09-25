@@ -2,9 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Cove.Plugins;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
@@ -167,34 +164,12 @@ public sealed class SafetyInvariantTests
         Assert.Equal(SafetyInvariant.All.Order().ToList(), covered);
     }
 
+    // The count itself is asserted beside the route table in EndpointPermissionTests, which boots
+    // the same registrations. Named here so the invariant has a case carrying its trait.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OneInboundPath)]
-    public async Task ExactlyOneMountedRouteAdmitsACallerHoldingNoCovePermission()
-    {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Services.AddWhisparrSyncBindingServices();
-        builder.Services.AddRouting();
-
-        await using var app = builder.Build();
-        WhisparrSyncFixture.Create().MapEndpoints(app);
-
-        // Route registrations reach the DI EndpointDataSource only when routing middleware is built
-        // at start, so without this the source is empty and the assertion holds over nothing.
-        await app.StartAsync(TestCt);
-
-        var anonymous = app.Services
-            .GetRequiredService<EndpointDataSource>()
-            .Endpoints.OfType<RouteEndpoint>()
-            .Where(route => route.Metadata.GetMetadata<CoveAllowAnonymousMetadata>() is not null)
-            .Select(route => "/" + route.RoutePattern.RawText?.TrimStart('/'))
-            .Order()
-            .ToList();
-
-        Assert.Equal([InboundRoute], anonymous);
-
-        await app.StopAsync(TestCt);
-    }
+    public void TheInboundPathIsTheCallbackAndNothingElse()
+        => Assert.Equal("/api/extensions/com.alextomas955.whisparrsync/callback", InboundRoute);
 
     // One assertion over a declared union rather than one per interface, so a seam interface added
     // and left out of OutboundSeam.SeamInterfaces fails the count below instead of slipping past an

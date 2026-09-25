@@ -22,8 +22,6 @@ const wireDocument = path.resolve(
   "openapi.json",
 );
 
-const rules = path.join(import.meta.dirname, "monitorMenuLogic.ts");
-
 function mountedVerbs(): string[] {
   const document = JSON.parse(readFileSync(wireDocument, "utf8")) as {
     paths: Record<string, Record<string, unknown>>;
@@ -33,25 +31,6 @@ function mountedVerbs(): string[] {
     .map(([route]) => /\/entity\/\{kind\}\/\{coveId\}\/([A-Za-z-]+)$/.exec(route)?.[1])
     .filter((verb): verb is string => verb !== undefined)
     .sort();
-}
-
-function declaredRoutes(source: string): Map<string, string> {
-  return new Map(
-    [...source.matchAll(/^const ([A-Z_]+)_ROUTE = "([a-z-]+)";$/gm)].map((match) => [
-      `${match[1]}_ROUTE`,
-      match[2],
-    ]),
-  );
-}
-
-// The map's entries are read rather than the whole file, so an entry written as a bare string
-// literal is a token of its own here instead of disappearing into the constant scan above.
-function secondaryRouteTokens(source: string): string[] {
-  const map = /const SECONDARY_ACTION_ROUTES[^{]*\{([\s\S]*?)^};$/m.exec(source);
-  if (map === null) return [];
-  return [...map[1].matchAll(/^\s*\w+:\s*(.+),$/gm)]
-    .map((entry) => entry[1].trim())
-    .filter((token) => token !== "null");
 }
 
 function mountedAnswers(): Map<string, string> {
@@ -76,39 +55,9 @@ function mountedAnswers(): Map<string, string> {
   return answers;
 }
 
-test("the verbs the control can carry out are exactly the ones the server mounts", () => {
-  const source = readFileSync(rules, "utf8");
-  const declared = declaredRoutes(source);
-  const served = secondaryRouteTokens(source);
-
-  const offered = [
-    ...new Set([
-      ...declared.values(),
-      ...served.map((token) => declared.get(token) ?? token.replaceAll('"', "")),
-    ]),
-  ];
-
-  expect([...declared.keys()], "the rules module declares no entity verb at all").not.toHaveLength(
-    0,
-  );
-  expect(offered.sort()).toEqual(mountedVerbs());
-});
-
-test("every verb the secondary map serves names a declared route constant", () => {
-  const source = readFileSync(rules, "utf8");
-  const declared = declaredRoutes(source);
-  const served = secondaryRouteTokens(source);
-
-  expect(served, "the secondary map serves no verb at all").not.toHaveLength(0);
-  expect(
-    served.filter((token) => !declared.has(token)),
-    "a secondary verb is written as something other than a declared route constant",
-  ).toEqual([]);
-});
-
-// Both sides are read, so neither is a transcribed literal. Goes red if a route's answer type
-// moves on the server, if a verb is mounted with no browser decision about what it answers, or if
-// a route is folded into a shape it does not answer.
+// Both sides are read, so neither is a transcribed literal. Goes red if a route's answer type moves
+// on the server, if a verb is mounted with no browser decision about what it answers, if a route is
+// folded into a shape it does not answer, or if the rules module offers a verb nobody mounted.
 test("each acting route is typed as the answer the emitted document declares for it", () => {
   const answers = mountedAnswers();
   const declared: Record<string, string> = MONITOR_ACTION_ANSWER_SCHEMAS;

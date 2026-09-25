@@ -30,6 +30,17 @@ public interface ILibrarySceneIdentityPort
     IAsyncEnumerable<string> SceneIdentities(WhisparrGeneration generation, CancellationToken ct);
 
     /// <summary>
+    /// The identifier each file directly in <paramref name="coveFolder"/> carries, by file name.
+    /// </summary>
+    /// <remarks>
+    /// One row per identified file in that one folder, so nothing here grows with the library. The
+    /// name rather than the whole path, because a caller pairs these against a listing the instance
+    /// answered for the same folder under its own spelling of it.
+    /// </remarks>
+    IAsyncEnumerable<LibraryFileIdentity> FileIdentitiesIn(
+        string coveFolder, WhisparrGeneration generation, CancellationToken ct);
+
+    /// <summary>
     /// The same identifiers, each carried under one folder the library holds its files in, with
     /// every folder the library holds appearing whether or not an identifier was placed under it.
     /// </summary>
@@ -57,17 +68,6 @@ public interface ILibrarySceneIdentityPort
     /// next run, once the entry exists.
     /// </para>
     /// </remarks>
-    /// <summary>
-    /// The identifier each file directly in <paramref name="coveFolder"/> carries, by file name.
-    /// </summary>
-    /// <remarks>
-    /// One row per identified file in that one folder, so nothing here grows with the library. The
-    /// name rather than the whole path, because a caller pairs these against a listing the instance
-    /// answered for the same folder under its own spelling of it.
-    /// </remarks>
-    IAsyncEnumerable<LibraryFileIdentity> FileIdentitiesIn(
-        string coveFolder, WhisparrGeneration generation, CancellationToken ct);
-
     IAsyncEnumerable<LibrarySceneInFolder> SceneIdentitiesByFolder(
         WhisparrGeneration generation, IReadOnlyList<string> rootOrder, CancellationToken ct);
 

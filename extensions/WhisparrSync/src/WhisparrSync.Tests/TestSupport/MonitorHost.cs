@@ -6,6 +6,7 @@ using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -95,6 +96,18 @@ internal sealed class MonitorHost : IAsyncDisposable
     public RecordingJobService Jobs { get; } = new();
 
     public HttpClient Http { get; private set; } = null!;
+
+    // The routes the extension mounted on this host, so a case driving every one of them reads the
+    // real table rather than a list beside it.
+    public IReadOnlyList<(string Method, string Pattern)> MountedRoutes =>
+    [
+        .. _app.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .SelectMany(route =>
+                (route.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? [])
+                    .Select(method => (method, "/" + route.RoutePattern.RawText?.TrimStart('/')))),
+    ];
 
     // Every job type is prefixed with this id.
     public string ExtensionId { get; private set; } = null!;
@@ -261,6 +274,17 @@ internal sealed class MonitorHost : IAsyncDisposable
                 new OwnedScenePort(host._db),
                 new InstanceCatalogueCache(TimeProvider.System)));
 
+        // Minimal-API binding resolves a handler's services before the handler runs, so a route a
+        // case drives for its gate alone still needs one.
+        builder.Services.AddSingleton<IConnectionTestRunner>(new RecordingConnectionTestRunner());
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<ICallbackSecretPort>(new MintedSecretPort());
+        builder.Services.AddSingleton<IHostLockdownPort>(new NoLockdown());
+        builder.Services.AddSingleton<IWhisparrNotificationPort>(
+            new DeliveringNotificationPort(
+                options, host._writeGate, CallbackSecretPosition.OutOfBand));
+        builder.Services.AddSingleton(new RegistrationGate());
+
         // The bundles the route lambdas take. Built from the same instances registered above, so a
         // case that seeds one reaches it through either shape.
         builder.Services.AddSingleton(
@@ -274,6 +298,18 @@ internal sealed class MonitorHost : IAsyncDisposable
                 services.GetRequiredService<IJobService>(),
                 services.GetRequiredService<IServiceScopeFactory>()));
         builder.Services.AddSingleton(new OptionsWriting(options, host._writeGate));
+        builder.Services.AddSingleton(
+            services => new CallbackAddressing(
+                options,
+                services.GetRequiredService<ICallbackSecretPort>(),
+                services.GetRequiredService<IHostLockdownPort>(),
+                services.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton(
+            services => new CallbackRegistering(
+                host._writeGate,
+                credentials,
+                services.GetRequiredService<IWhisparrNotificationPort>(),
+                services.GetRequiredService<RegistrationGate>()));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();
@@ -725,6 +761,13 @@ internal sealed class MonitorHost : IAsyncDisposable
         _db.Add(file);
         await _db.SaveChangesAsync(TestCt);
         return file.Path;
+    }
+
+    // A host that would lock nothing down, so a callback route a case drives for its gate alone
+    // reaches the gate rather than the reading in front of it.
+    private sealed class NoLockdown : IHostLockdownPort
+    {
+        public Task<bool> WouldLockDownAsync(CancellationToken ct) => Task.FromResult(false);
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
