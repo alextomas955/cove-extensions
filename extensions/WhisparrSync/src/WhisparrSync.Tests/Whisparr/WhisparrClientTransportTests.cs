@@ -14,15 +14,15 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Whisparr;
 
 // A connection failure reading as unreachable can only be settled against a real socket, so the
-// cases below open one against a port nothing listens on and a name that cannot resolve.
-// The client is built with the settings it ships with, so the timeout, the redirect cap and the
-// certificate policy under test are the ones a user gets. The composed request, the retry decision
-// and the returned content type are read off a stub handler instead, because a real socket answers
-// with nothing that says what was sent.
-// The bound on how much of one answer is read holds however the client was constructed, so the
-// cases that drive it build their own HttpClient over a stub and none calls Configure. The bound on
-// how long one attempt may take is the client's own timeout, so the case driving it sets a short
-// one rather than waiting out the shipped number.
+// cases below open one against a port nothing listens on and a name that cannot resolve. The client
+// is built with the settings it ships with, so the timeout, the redirect cap and the certificate
+// policy under test are the ones a user gets. The composed request, the retry decision and the
+// returned content type are read off a stub handler instead, because a real socket answers with
+// nothing that says what was sent.
+//
+// The read bound holds however the client was constructed, so the cases driving it build their own
+// HttpClient and none calls Configure. The attempt bound is the client's own timeout, so that case
+// sets a short one rather than waiting out the shipped number.
 public sealed class WhisparrClientTransportTests
 {
     // Synthetic and authorises nothing: no instance is reached at either address below.
@@ -423,11 +423,9 @@ public sealed class WhisparrClientTransportTests
     }
 
     // A real socket rather than a message handler, because these cases measure the type the
-    // framework itself raises out of a response stream. A handler can only raise the type it was
-    // written to raise.
-    // The connection count is the read class's attempt count, not one: a failure the client
-    // re-issues after reaches a stopped listener on its second attempt, and a refused connection
-    // raises a different type from the one under test.
+    // framework itself raises out of a response stream; a handler can only raise the type it was
+    // written to raise. The connection count is the read class's attempt count, not one: a failure
+    // the client re-issues after reaches a stopped listener on its second attempt.
     private static (int Port, Task Served) Serving(
         string head, Func<NetworkStream, Task> then, int connections)
     {

@@ -5,9 +5,8 @@ using WhisparrSync.Library;
 namespace WhisparrSync.Tests.TestSupport;
 
 // Enumerable more than once on purpose: a run walks a stream to count and again to offer, and a
-// source that answered nothing the second time would report a library it never touched.
-// A count this stub was not given throws rather than answering zero, so a run that reaches a member
-// it has no business reaching fails instead of passing.
+// source answering nothing the second time would report a library it never touched. A count this
+// stub was not given throws rather than answering zero.
 internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
 {
     private readonly IReadOnlyList<string> _scenes;

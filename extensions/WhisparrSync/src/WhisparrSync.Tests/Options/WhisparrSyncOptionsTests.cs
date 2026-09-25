@@ -277,15 +277,11 @@ public sealed class WhisparrSyncOptionsTests
     }
 
     // Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
-    // a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing the
-    // scope again does not undo it.
-    //
-    // A word the enum does not declare fails the bind, which the store reports so that nothing saves
-    // over the stored configuration, and every layer above reads the defaults. The default is the
-    // narrower scope.
-    //
-    // Spellings only. The shared enum converter accepts a JSON number and admits an undefined value,
-    // which is true of every enum this product stores and is not this member's to fix.
+    // a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing
+    // again does not undo it. So a word the enum does not declare fails the bind, which the store
+    // reports so that nothing saves over the stored configuration. The default is the narrower
+    // scope. Spellings only: the shared enum converter accepts a JSON number and admits an
+    // undefined value, which is true of every enum this product stores.
     [Theory]
     [InlineData("\"somethingElse\"")]
     [InlineData("\"\"")]
@@ -503,10 +499,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Null(neverRead.RecordedVersion);
     }
 
-    // The ceiling is applied on the read, so a value that never passed through a save is still
-    // shortened. Cove's bulk data route writes this blob whole, so an over-long value can arrive
-    // without this product having written it. Written as a literal, because the model cannot hold
-    // the value the load path is asked to bind.
+    // The ceiling is applied on the read, as the earlier case records. Written as a literal,
+    // because the model cannot hold the value the load path is asked to bind.
     [Fact]
     public async Task AnOverLongStoredVersionLoadsShortened()
     {

@@ -11,16 +11,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-// The whole studio monitor path, driven through the mapped route rather than through a handler
-// method. Every case runs against the double that records the arguments of every outbound
-// request, and each emptiness assertion is paired with a send through the same double.
-// The route is driven over a test server, so the route pattern, the kind parse, the body binding
-// and the declared gate are the shipped ones. A test calling the handler method directly would
-// agree with a route mounted at the wrong pattern or reachable by a caller the declaration
-// excludes.
-// What the instance received is read off a stub message handler under a real client, not off the
-// recording double: the double stands in above the point the body is composed, so a body
-// assertion taken there would be an assertion about the test.
+// The whole studio monitor path, driven through the mapped route so the route pattern, the kind
+// parse, the body binding and the declared gate are the shipped ones. Every case runs against the
+// double that records every outbound request's arguments, and each emptiness assertion is paired
+// with a send through the same double. What the instance received is read off a stub message
+// handler under a real client, because the double stands in above the point the body is composed.
 public sealed class MonitorPathTests
 {
     // A stored identifier of the shape v2's source mints.
@@ -187,11 +182,10 @@ public sealed class MonitorPathTests
         Assert.Equal(carriesTheDateGate, body.ContainsKey("afterDate"));
     }
 
-    // Every other site that answers the not-held kind reads before anything is sent, so its
-    // sentence says there was nothing to act on. Here the add left and was accepted, so that
-    // sentence would tell a reader nothing happened when the entity may now exist. This refusal is
-    // reachable only after a write, and it is driven through the mounted route because the
-    // function that chooses it is private to the API.
+    // Every other site answering the not-held kind reads before anything is sent, so its sentence
+    // says there was nothing to act on. Here the add left and was accepted, so that sentence would
+    // tell a reader nothing happened when the entity may now exist. Driven through the mounted
+    // route because the function that chooses the refusal is private to the API.
     [Fact]
     public async Task AnAcceptedAddWhoseReadBackFindsNothingSaysTheChangeWasNotReported()
     {
@@ -249,12 +243,10 @@ public sealed class MonitorPathTests
         Assert.Empty(read.Body);
     }
 
-    // The answer is generated here rather than captured, because it is an input for a size
-    // property and not a response any instance sent. Every file in the fixtures directory is
-    // verbatim.
-    // Driven through the transport double rather than through the role seam, so the two-request
-    // assembly itself is what runs. A double standing in at the seam answers the assembled reading
-    // and never assembles one.
+    // The answer is generated rather than captured, because it is an input for a size property and
+    // not a response any instance sent; every file in the fixtures directory is verbatim. Driven
+    // through the transport double rather than the role seam, so the two-request assembly itself
+    // runs: a double at the seam answers the assembled reading and never assembles one.
     [Fact]
     public async Task V2HeldReadCarriesOneSiteOnwardHoweverMuchTheInstanceAnswered()
     {

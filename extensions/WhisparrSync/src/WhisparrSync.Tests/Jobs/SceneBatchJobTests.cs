@@ -142,9 +142,9 @@ public sealed class SceneBatchJobTests
     }
 
     // A background run carries no principal of its own, and Cove's per-principal query filters
-    // answer an anonymous reader with zero rows and no error, which on this path would report every
-    // scene as carrying no identity. The principal is read inside the run's own body, the only
-    // place the elevation can be observed.
+    // answer an anonymous reader with zero rows and no error, which here would report every scene
+    // as carrying no identity. The principal is read inside the run's own body, the only place the
+    // elevation can be observed.
     [Fact]
     public async Task TheRunElevatesOneScopeForTheWholeRunToSystem()
     {
