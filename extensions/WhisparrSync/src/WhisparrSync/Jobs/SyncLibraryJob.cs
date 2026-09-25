@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
@@ -19,17 +21,37 @@ public sealed record SyncLibraryBatch(bool AlsoMonitor);
 // Link carries the same aim an entity's own reflect-owned run is given, or the reason the instance
 // refused one. A null Link means no reflect-owned role was obtained at all, which is a generation
 // gap rather than a refusal and states nothing to a reader.
+// The scene pass's tree: the step that builds one entity's folder, the library roots a tree can sit
+// at the top of, and the entity's own files under one of them. Null where the pass builds no tree,
+// which leaves every scene registered the way it was before this product built folders.
+internal sealed record TreeAiming(
+    IReadOnlyList<string> CoveRoots,
+    TreeReconcileStep Build,
+    ITreeLinkPort Links,
+    Func<string, string, CancellationToken, IAsyncEnumerable<string>> FilesOfScene);
+
+/// <summary>One entity's folder in the tree, as both systems spell it.</summary>
+internal sealed record AddressedTree(string CoveRoot, string EntityFolder, string OnInstance);
+
+// A null Addressed is a scene registered the way it was before this product built folders. The
+// placement still carries a root, so nothing about that path changes.
+internal sealed record SceneInTree(EntityPlacement Placement, AddressedTree? Addressed)
+{
+    internal static SceneInTree Nowhere { get; } = new(EntityPlacement.Nowhere, null);
+}
+
 internal sealed record SyncLibraryAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
-    Func<string, string?, CancellationToken, Task<SyncRegistration>>? RegisterScene,
+    Func<string, EntityPlacement, CancellationToken, Task<SyncRegistration>>? RegisterScene,
     Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>? RegisterSite,
     Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? Monitor,
     Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
         MonitorSiteScenes = null,
     ReflectOwnedAim? Link = null,
     IReadOnlyList<string>? RootOrder = null,
-    IReadOnlyList<string>? OutOfReach = null);
+    IReadOnlyList<string>? OutOfReach = null,
+    TreeAiming? Tree = null);
 
 /// <summary>
 /// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
@@ -139,12 +161,12 @@ public static class SyncLibraryJob
         var outOfReach = aimed.OutOfReach ?? [];
 
         return instanceRoots is null
-            ? new FolderLinking(aim, [], outOfReach, acts: false)
+            ? new FolderLinking(aim, [], outOfReach, acts: false, aimed.Tree)
             {
                 Total = new ReflectOwnedRun(
                     ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true),
             }
-            : new FolderLinking(aim, instanceRoots, outOfReach, acts: true);
+            : new FolderLinking(aim, instanceRoots, outOfReach, acts: true, aimed.Tree);
     }
 
     // Carries the total across a walk rather than one per folder, so the run states one line
@@ -155,7 +177,8 @@ public static class SyncLibraryJob
         ReflectOwnedAiming aim,
         IReadOnlyList<string> instanceRoots,
         IReadOnlyList<string> outOfReach,
-        bool acts)
+        bool acts,
+        TreeAiming? tree)
     {
         private readonly Dictionary<string, RegisteredScene> _registeredHere =
             new(StringComparer.Ordinal);
@@ -175,21 +198,118 @@ public static class SyncLibraryJob
             }
         }
 
-        // The declared root on the same filesystem as this folder, or null where none is. Addressed
-        // through the same held reading every folder under that root uses, so it costs no request
-        // beyond the first folder under each.
-        internal async Task<string?> RootReachingAsync(string folder, CancellationToken ct)
+        // Where one scene is to be registered: its own folder in the tree, or the declared root
+        // reaching its library folder where no folder could be built. The instance refuses a second
+        // entity at a folder another already holds, so a scene sharing its library folder registers
+        // only through the first of these.
+        //
+        // The folder is built before the scene is registered at it, because an entry written to a
+        // path nothing holds is an entry the instance reports a file for that is not there.
+        internal async Task<SceneInTree> PlaceAsync(
+            string? folder, string remoteId, CancellationToken ct)
         {
-            if (!acts)
+            if (!acts || folder is null)
+            {
+                return SceneInTree.Nowhere;
+            }
+
+            if (await InTreeAsync(folder, remoteId, ct).ConfigureAwait(false) is { } placed)
+            {
+                return placed;
+            }
+
+            return new SceneInTree(
+                new EntityPlacement(await RootReachingAsync(folder, ct).ConfigureAwait(false), null),
+                null);
+        }
+
+        // Null where the pass builds no tree, where the folder sits under no library root, where
+        // the build produced no folder, or where the instance cannot be told which path that folder
+        // is. Each leaves the caller registering the way it did before, rather than at a path one
+        // of the two systems does not hold.
+        private async Task<SceneInTree?> InTreeAsync(
+            string folder, string remoteId, CancellationToken ct)
+        {
+            if (tree is null || RootHolding(folder, tree.CoveRoots) is not { } coveRoot)
             {
                 return null;
             }
 
+            var built = await tree.Build.BuildAsync(
+                coveRoot,
+                aim.Generation,
+                remoteId,
+                tree.FilesOfScene(remoteId, coveRoot, ct),
+                ct).ConfigureAwait(false);
+
+            if (built.EntityFolder is not { } entityFolder)
+            {
+                return null;
+            }
+
+            var addressed = await aim.Address(entityFolder, ct).ConfigureAwait(false);
+
+            return addressed.InstancePath is { } onInstance
+                && AddDefaultsProjector.RootReachingFrom(onInstance, instanceRoots) is { } root
+                    ? new SceneInTree(
+                        new EntityPlacement(root, onInstance),
+                        new AddressedTree(addressed.CoveRoot, entityFolder, onInstance))
+                    : null;
+        }
+
+        // The declared root on the same filesystem as this folder, or null where none is. Addressed
+        // through the same held reading every folder under that root uses, so it costs no request
+        // beyond the first folder under each.
+        private async Task<string?> RootReachingAsync(string folder, CancellationToken ct)
+        {
             var addressed = await aim.Address(folder, ct).ConfigureAwait(false);
             return addressed.InstancePath is { } onInstance
                 ? AddDefaultsProjector.RootReachingFrom(onInstance, instanceRoots)
                 : null;
         }
+
+        // The entity's own folder holds links to that entity's files and to nothing else, so every
+        // name in it attaches to the one entry the instance just answered with. The names are read
+        // from the folder rather than carried out of the build: the build holds nothing per file,
+        // and this folder's contents are one entity's, not the library's.
+        internal async Task AttachInTreeAsync(
+            AddressedTree addressed, SyncRegistration answered, CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(addressed);
+            ArgumentNullException.ThrowIfNull(answered);
+
+            if (aim.ReadFile is null
+                || MonitoringProjector.EntityIdIn(answered.Answer?.Body) is not { } entityId)
+            {
+                return;
+            }
+
+            var scene = new RegisteredScene(entityId, addressed.OnInstance);
+            var identified = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+            foreach (var name in TreeLinks().NamesIn(addressed.EntityFolder))
+            {
+                identified[name] = scene;
+            }
+
+            Total = Total.Plus(
+                await ReflectOwnedJob.AttachAsync(
+                    aim, instanceRoots, addressed.CoveRoot, addressed.OnInstance, identified, ct)
+                    .ConfigureAwait(false));
+        }
+
+        private ITreeLinkPort TreeLinks()
+            => tree?.Links
+                ?? throw new InvalidOperationException(
+                    "A folder in the tree was attached on a run that builds no tree.");
+
+        // The most specific containing root. Roots nest, and a shallower one would answer for a
+        // folder its own child root holds, putting the entity's tree on a drive its files are not
+        // on, where no link can reach them.
+        private static string? RootHolding(string folder, IReadOnlyList<string> coveRoots)
+            => coveRoots
+                .Where(root => PathCandidateGuard.IsAtOrBelow(folder, root))
+                .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
+                .FirstOrDefault();
 
         internal async Task LinkAsync(string folder, CancellationToken ct)
         {
@@ -267,15 +387,27 @@ public static class SyncLibraryJob
         {
             var remoteId = Identifier(row);
 
-            // The entry is registered on the root that reaches this folder's own files. A library
-            // spread over several volumes cannot be registered on one: a hard link cannot cross a
-            // filesystem, so the import would copy the bytes instead.
-            var root = row.Folder is { } folder && linking is not null
-                ? await linking.RootReachingAsync(folder, ct).ConfigureAwait(false)
-                : null;
+            // The entry is registered on the root that reaches this scene's own files, at a folder
+            // holding links to them where one could be built. A library spread over several volumes
+            // cannot be registered on one root: a hard link cannot cross a filesystem, so the
+            // import would copy the bytes instead.
+            var placed = linking is null
+                ? SceneInTree.Nowhere
+                : await linking.PlaceAsync(row.Folder, remoteId, ct).ConfigureAwait(false);
 
-            var answered = await offer(remoteId, root, ct).ConfigureAwait(false);
-            linking?.Registered(remoteId, answered);
+            var answered = await offer(remoteId, placed.Placement, ct).ConfigureAwait(false);
+
+            // A scene in the tree attaches from its own folder in this run. One left outside it is
+            // held for the library folder's own pass, which attaches as the walk leaves the folder.
+            if (linking is not null && placed.Addressed is { } addressed)
+            {
+                await linking.AttachInTreeAsync(addressed, answered, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                linking?.Registered(remoteId, answered);
+            }
+
             return answered;
         };
     }

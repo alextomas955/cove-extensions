@@ -431,7 +431,7 @@ internal sealed class WhisparrV2Instance(
     // instance records the site and links nothing, so the site reports no file until the catalogue
     // is re-read.
     public async Task<WhisparrResponse> MoveSiteRootAsync(
-        int siteId, string rootFolderPath, CancellationToken ct)
+        int siteId, string rootFolderPath, string? entityFolderPath, CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(siteId, 1);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootFolderPath);
@@ -450,7 +450,8 @@ internal sealed class WhisparrV2Instance(
         var moved = await GeneratedActAsync(
             api => api.Api<V2Api.ISeriesApi>().UpdateSeriesAsync(
                 siteId.ToString(CultureInfo.InvariantCulture),
-                seriesResource: V2BodyProjector.MovedSiteRoot(resource, rootFolderPath),
+                seriesResource: V2BodyProjector.MovedSiteRoot(
+                    resource, rootFolderPath, entityFolderPath),
                 cancellationToken: ct)).ConfigureAwait(false);
         if (WhisparrTransport.Refused(moved))
         {

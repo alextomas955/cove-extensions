@@ -228,8 +228,10 @@ public sealed partial class WhisparrSync
 
     // A caller with one root for the whole run offers every scene against it.
     private static Func<string, CancellationToken, Task<WhisparrResponse?>>? Offering(
-        Func<string, string?, CancellationToken, Task<WhisparrResponse?>>? add)
-        => add is null ? null : (providerSceneId, ct) => add(providerSceneId, null, ct);
+        Func<string, EntityPlacement, CancellationToken, Task<WhisparrResponse?>>? add)
+        => add is null
+            ? null
+            : (providerSceneId, ct) => add(providerSceneId, EntityPlacement.Nowhere, ct);
 
     // Null where the run must not act at all. Nothing composed here grabs: the add is the
     // non-grabbing one and the flip writes a flag, so no run built from this can make an instance
@@ -243,7 +245,7 @@ public sealed partial class WhisparrSync
         => Offering(
             await ComposeSceneAddAsync(owningKind, owningId, services, runCt).ConfigureAwait(false));
 
-    private async Task<Func<string, string?, CancellationToken, Task<WhisparrResponse?>>?>
+    private async Task<Func<string, EntityPlacement, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneAddAsync(
             WhisparrEntityKind? owningKind,
             int owningId,
@@ -298,16 +300,23 @@ public sealed partial class WhisparrSync
             composeWith = perEntity;
         }
 
-        // The root travels per call rather than being fixed for the run: a library spread over
-        // several volumes needs each scene registered on the one holding its own files, because a
-        // hard link cannot cross a filesystem and the import copies the bytes instead.
-        return (providerSceneId, rootFolderPath, markCt) => ContainedAsync(
-            () => acting.AddSceneAsync(
-                providerSceneId,
-                rootFolderPath is null ? composeWith : composeWith with { RootFolderPath = rootFolderPath },
-                markCt),
+        // The root and the folder travel per call rather than being fixed for the run: a library
+        // spread over several volumes needs each scene registered on the one holding its own files,
+        // because a hard link cannot cross a filesystem and the import copies the bytes instead,
+        // and the folder is one entity's own.
+        return (providerSceneId, placement, markCt) => ContainedAsync(
+            () => acting.AddSceneAsync(providerSceneId, At(composeWith, placement), markCt),
             target,
             _log,
             markCt);
     }
+
+    // A member the placement left unsettled keeps the run-wide value, so a scene nothing settled a
+    // root or a folder for registers exactly as it did before either existed.
+    private static AddDefaults At(AddDefaults runWide, EntityPlacement placement)
+        => runWide with
+        {
+            RootFolderPath = placement.RootFolderPath ?? runWide.RootFolderPath,
+            EntityFolderPath = placement.EntityFolderPath,
+        };
 }

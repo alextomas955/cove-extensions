@@ -6,7 +6,10 @@ using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
+using WhisparrSync.Linking;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.TestSupport;
+using MonitorIdentity = WhisparrSync.Monitoring.IdentityResolution;
 
 namespace WhisparrSync.Tests.Jobs;
 
@@ -193,10 +196,26 @@ public sealed class ReflectOwnedJobTests
         services.AddScoped<ICurrentPrincipalAccessor>(_ => FakePrincipalAccessor.WithPermissions());
         services.AddScoped<IEntityFolderPort>(_ => new FixedFolders(folders));
         services.AddScoped(_ => roots);
+
+        // No library root is configured and nothing was linked, so these cases walk the library
+        // folders the case named rather than an entity's own folder.
+        services.AddScoped<ITreeLinkPort>(_ => new InMemoryTreeLinks());
+        services.AddScoped<IEntityIdentityPort>(_ => new EntityNamedNowhere());
+        services.AddScoped<ICoveLibraryPort>(_ => new RecordingLibrary(reached: true, []));
         await using var provider = services.BuildServiceProvider();
 
         return await ReflectOwnedJob.RunAsync(
             batch, provider.GetRequiredService<IServiceScopeFactory>(), aiming, ct);
+    }
+
+    private sealed class EntityNamedNowhere : IEntityIdentityPort
+    {
+        public Task<MonitorIdentity> ResolveAsync(
+            WhisparrEntityKind kind,
+            int coveId,
+            WhisparrGeneration generation,
+            CancellationToken ct)
+            => Task.FromResult(MonitorIdentity.Unmatched);
     }
 
     private sealed class FixedFolders(string[] folders) : IEntityFolderPort
@@ -214,6 +233,10 @@ public sealed class ReflectOwnedJobTests
 
             await Task.CompletedTask;
         }
+
+        public IAsyncEnumerable<string> FilePathsUnder(
+            WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
+            => throw new NotSupportedException("This case is about the folder loop.");
 
         public Task<int> FilesUnderAsync(
             WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
