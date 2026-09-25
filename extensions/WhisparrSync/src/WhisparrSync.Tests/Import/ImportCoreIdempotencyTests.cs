@@ -246,8 +246,7 @@ public sealed class ImportCoreIdempotencyTests
                     new StubReportedRoots(WhisparrRoot),
                     Library,
                     Paths,
-                    new OptionsStore(Store),
-                    Gate,
+                    new OptionsWriting(new OptionsStore(Store), Gate),
                     FollowUp,
                     new FixedClock(Now),
                     NullLogger.Instance)

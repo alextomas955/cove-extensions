@@ -11,7 +11,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
@@ -23,24 +22,20 @@ public sealed partial class WhisparrSync
     {
         // Configure tier, as the bulk route: one scene is no lesser act than a selection of them.
         endpoints.MapPost(MissingSceneMonitorRoute,
-            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
-             IEntityIdentityPort identities, InstanceCatalogueCache cache,
+            ([AsParameters] MissingSceneRoute scene, ICurrentPrincipalAccessor principal,
+             WhisparrAccess whisparr, IEntityIdentityPort identities, InstanceCatalogueCache cache,
              IServiceScopeFactory scopes, CancellationToken ct)
                 => MonitorMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, instances,
-                    identities, cache, scopes, _log, ct))
+                    scene, principal, whisparr, identities, cache, scopes, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         // Configure tier: the route aims the stored credential at a third party and spends the
         // reader's indexer traffic and disk.
         endpoints.MapPost(MissingSceneSearchRoute,
-            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
-             CancellationToken ct)
-                => SearchMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, instances, _log, ct))
+            ([AsParameters] MissingSceneRoute addressed, ICurrentPrincipalAccessor principal,
+             WhisparrAccess whisparr, CancellationToken ct)
+                => SearchMissingSceneAsync(addressed, principal, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -54,19 +49,20 @@ public sealed partial class WhisparrSync
     // acquisition-suppressing flag from the constant every non-grabbing body reads.
     internal static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>
         MonitorMissingSceneAsync(
-            string kind,
-            int coveId,
-            string providerSceneId,
+            MissingSceneRoute scene,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
             InstanceCatalogueCache cache,
             IServiceScopeFactory scopes,
-            ILogger log,
             CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(scene);
+        var (kind, coveId, providerSceneId) = scene;
+        var route = new EntityRoute(kind, coveId);
+
+        var (_, _, _, log) = whisparr;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
@@ -76,12 +72,12 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(identities);
         ArgumentNullException.ThrowIfNull(cache);
 
-        if (!TryReadEntity(kind, coveId, out var owning) || !IsBoundedSceneId(providerSceneId))
+        if (!TryReadEntity(route, out var owning) || !IsBoundedSceneId(providerSceneId))
         {
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
@@ -92,8 +88,8 @@ public sealed partial class WhisparrSync
         if (target.Reads is not IWhisparrMissingSceneActing)
         {
             return await MarkHeldSceneRowAsync(
-                owning, coveId, providerSceneId, target, identities, cache, log, ct)
-                .ConfigureAwait(false);
+                new OwnedSceneAddress(owning, coveId, providerSceneId),
+                target, identities, cache, log, ct).ConfigureAwait(false);
         }
 
         // A generation registering no scene add has no implementation to hand over, so there is
@@ -158,15 +154,15 @@ public sealed partial class WhisparrSync
     // was drawn from, held for a short window, so the mark normally costs one request.
     private static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>
         MarkHeldSceneRowAsync(
-            WhisparrEntityKind owning,
-            int coveId,
-            string providerSceneId,
+            OwnedSceneAddress scene,
             MonitoringTarget target,
             IEntityIdentityPort identities,
             InstanceCatalogueCache cache,
             ILogger log,
             CancellationToken ct)
     {
+        var (owning, coveId, providerSceneId) = scene;
+
         if (target.Reads is not IWhisparrSceneMonitorActing marking
             || target.Reads is not IWhisparrEntityCatalogueReading reading)
         {
@@ -316,28 +312,28 @@ public sealed partial class WhisparrSync
     // evidence. One read and no loop: nothing here says a release was taken.
     internal static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>
         SearchMissingSceneAsync(
-            string kind,
-            int coveId,
-            string providerSceneId,
+            MissingSceneRoute addressed,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
-            ILogger log,
+            WhisparrAccess whisparr,
             CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(addressed);
+        var (kind, coveId, providerSceneId) = addressed;
+        var route = new EntityRoute(kind, coveId);
+        var (_, _, _, log) = whisparr;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        if (!TryReadEntity(kind, coveId, out _) || !IsBoundedSceneId(providerSceneId))
+        if (!TryReadEntity(route, out _) || !IsBoundedSceneId(providerSceneId))
         {
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
@@ -440,3 +436,8 @@ public sealed partial class WhisparrSync
             && !providerSceneId.Any(char.IsControl)
             && providerSceneId.Trim().Length == providerSceneId.Length;
 }
+
+// The scene a mark addresses: the entity whose catalogue listed it, and the provider's identifier
+// for the scene itself.
+internal sealed record OwnedSceneAddress(
+    WhisparrEntityKind Owning, int CoveId, string ProviderSceneId);

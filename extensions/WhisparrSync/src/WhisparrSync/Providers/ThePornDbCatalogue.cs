@@ -717,24 +717,9 @@ internal sealed class ThePornDbCatalogue
                 return ProviderIdentityLookup.Unmatched;
             }
 
-            var matched = new List<string>();
-            foreach (var row in rows.EnumerateArray())
+            if (MatchedOnThisPage(rows, term, property) is { } decided)
             {
-                if (string.Equals(Text(row, "name"), term, StringComparison.OrdinalIgnoreCase)
-                    && Identifier(row, property) is { Length: > 0 } id)
-                {
-                    matched.Add(id);
-                }
-            }
-
-            if (matched.Count > 1)
-            {
-                return ProviderIdentityLookup.Ambiguous;
-            }
-
-            if (matched.Count == 1)
-            {
-                return ProviderIdentityLookup.Matched(matched[0]);
+                return decided;
             }
 
             if (page >= (Number(Meta(answered.Value), "last_page") ?? 1))
@@ -744,6 +729,29 @@ internal sealed class ThePornDbCatalogue
         }
 
         return ProviderIdentityLookup.Unmatched;
+    }
+
+    // Null where the page named none, which is what makes the walk read the next one. Two rows
+    // carrying the term is ambiguous rather than a pick: the provider names both.
+    private static ProviderIdentityLookup? MatchedOnThisPage(
+        JsonElement rows, string term, string property)
+    {
+        var matched = new List<string>();
+        foreach (var row in rows.EnumerateArray())
+        {
+            if (string.Equals(Text(row, "name"), term, StringComparison.OrdinalIgnoreCase)
+                && Identifier(row, property) is { Length: > 0 } id)
+            {
+                matched.Add(id);
+            }
+        }
+
+        return matched.Count switch
+        {
+            0 => null,
+            1 => ProviderIdentityLookup.Matched(matched[0]),
+            _ => ProviderIdentityLookup.Ambiguous,
+        };
     }
 
     // No body where no catalogue arrived: no whole answer, a status that is not a success, or a

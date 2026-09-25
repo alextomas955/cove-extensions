@@ -173,11 +173,12 @@ public sealed class EndpointPermissionTests
         var refused = await global::WhisparrSync.WhisparrSync.SceneDetailAsync(
             1,
             FakePrincipalAccessor.None(),
-            options,
-            credentials,
-            new FixedInstanceFactory(client),
+            new WhisparrAccess(
+                options,
+                credentials,
+                new FixedInstanceFactory(client),
+                NullLogger.Instance),
             identities,
-            NullLogger.Instance,
             TestCt);
 
         Assert.Equal(403, StatusOf(refused));
@@ -188,11 +189,12 @@ public sealed class EndpointPermissionTests
         var answered = await global::WhisparrSync.WhisparrSync.SceneDetailAsync(
             1,
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            options,
-            credentials,
-            new FixedInstanceFactory(client),
+            new WhisparrAccess(
+                options,
+                credentials,
+                new FixedInstanceFactory(client),
+                NullLogger.Instance),
             identities,
-            NullLogger.Instance,
             TestCt);
 
         Assert.NotEqual(403, StatusOf(answered));
@@ -332,57 +334,63 @@ public sealed class EndpointPermissionTests
             "add" => await global::WhisparrSync.WhisparrSync.AddSceneAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
                 new UnreachableScopes(),
-                NullLogger.Instance,
                 TestCt),
             "monitor" => await global::WhisparrSync.WhisparrSync.MonitorSceneAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
-                NullLogger.Instance,
                 TestCt),
             "unmonitor" => await global::WhisparrSync.WhisparrSync.UnmonitorSceneAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
-                NullLogger.Instance,
                 TestCt),
             "exclude" => await global::WhisparrSync.WhisparrSync.ExcludeSceneAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
-                NullLogger.Instance,
                 TestCt),
             "remove-exclusion" => await global::WhisparrSync.WhisparrSync.RemoveSceneExclusionAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
-                NullLogger.Instance,
                 TestCt),
             "search" => await global::WhisparrSync.WhisparrSync.SearchSceneNowAsync(
                 1,
                 principal,
-                options,
-                credentials,
-                new FixedInstanceFactory(client),
+                new WhisparrAccess(
+                    options,
+                    credentials,
+                    new FixedInstanceFactory(client),
+                    NullLogger.Instance),
                 identities,
-                NullLogger.Instance,
                 TestCt),
             _ => throw new ArgumentOutOfRangeException(nameof(verb)),
         };

@@ -9,7 +9,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
@@ -21,11 +20,10 @@ public sealed partial class WhisparrSync
         // Configure tier: it creates an entity in the reader's Whisparr, which a caller who cannot
         // configure the extension may not do.
         endpoints.MapPost(MissingTrackRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              InstanceCatalogueCache cache, CancellationToken ct)
                 => TrackEntityAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, cache, ct))
+                    route, principal, whisparr, identities, cache, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -35,16 +33,15 @@ public sealed partial class WhisparrSync
     // it has never been told about.
     internal static async Task<Results<Ok<MissingTrackResult>, BadRequest, ForbiddenCode>>
         TrackEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
             InstanceCatalogueCache cache,
             CancellationToken ct)
     {
+        var (_, coveId) = route;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
@@ -54,12 +51,12 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(identities);
         ArgumentNullException.ThrowIfNull(cache);
 
-        if (!TryReadEntity(kind, coveId, out var entityKind))
+        if (!TryReadEntity(route, out var entityKind))
         {
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(

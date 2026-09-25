@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
+using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -85,6 +86,29 @@ public sealed partial class WhisparrSync : FullExtensionBase
             _log));
 
         services.AddSingleton(TimeProvider.System);
+
+        // The three collaborators every verb reaching the instance resolves, as one service.
+        services.AddScoped(services => new WhisparrAccess(
+            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<ICredentialPort>(),
+            services.GetRequiredService<IWhisparrInstanceFactory>(),
+            _log));
+        services.AddScoped(services => new BackgroundWork(
+            services.GetRequiredService<IJobService>(),
+            services.GetRequiredService<IServiceScopeFactory>()));
+        services.AddScoped(services => new OptionsWriting(
+            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<OptionsWriteGate>()));
+        services.AddScoped(services => new CallbackAddressing(
+            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<ICallbackSecretPort>(),
+            services.GetRequiredService<IHostLockdownPort>(),
+            services.GetRequiredService<TimeProvider>()));
+        services.AddScoped(services => new CallbackRegistering(
+            services.GetRequiredService<OptionsWriteGate>(),
+            services.GetRequiredService<ICredentialPort>(),
+            services.GetRequiredService<IWhisparrNotificationPort>(),
+            services.GetRequiredService<RegistrationGate>()));
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
         services.AddScoped<IConnectionTestRunner, ConnectionTestRunner>();
         services.AddScoped<ICredentialPort, CredentialPort>();
@@ -138,21 +162,17 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddSingleton(services => new FollowUpScanCoalescer(
             services.GetRequiredService<TimeProvider>(), _log));
         services.AddScoped<IBackstopPass>(services => new BackstopPass(
-            services.GetRequiredService<IWhisparrInstanceFactory>(),
-            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<WhisparrAccess>(),
             services.GetRequiredService<OptionsWriteGate>(),
-            services.GetRequiredService<ICredentialPort>(),
             services.GetRequiredService<IImportCore>(),
             services.GetRequiredService<TimeProvider>(),
             services.GetRequiredService<FollowUpScanCoalescer>(),
-            services.GetRequiredService<ICoveLibraryPort>(),
-            _log));
+            services.GetRequiredService<ICoveLibraryPort>()));
         services.AddScoped<IImportCore>(services => new ImportCore(
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
             services.GetRequiredService<IImportPathPort>(),
-            services.GetRequiredService<OptionsStore>(),
-            services.GetRequiredService<OptionsWriteGate>(),
+            services.GetRequiredService<OptionsWriting>(),
             services.GetRequiredService<FollowUpScanCoalescer>(),
             services.GetRequiredService<TimeProvider>(),
             _log));

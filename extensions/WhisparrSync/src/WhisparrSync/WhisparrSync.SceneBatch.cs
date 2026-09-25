@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -11,8 +10,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
-using WhisparrSync.Options;
-using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
 
 namespace WhisparrSync;
@@ -24,9 +21,8 @@ public sealed partial class WhisparrSync
         // Configure tier: one gesture aims the stored credential at a third party for every scene
         // in the selection. The reach is what the body names.
         endpoints.MapPost(SceneBatchRoute,
-            (SceneBatchRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
-             IServiceScopeFactory scopes)
-                => EnqueueSceneBatch(request, principal, jobs, scopes))
+            (SceneBatchRequest request, ICurrentPrincipalAccessor principal, BackgroundWork work)
+                => EnqueueSceneBatch(request, principal, work))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -40,9 +36,10 @@ public sealed partial class WhisparrSync
     internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> EnqueueSceneBatch(
         SceneBatchRequest request,
         ICurrentPrincipalAccessor principal,
-        IJobService jobs,
-        IServiceScopeFactory scopes)
+        BackgroundWork work)
     {
+        var (jobs, scopes) = work;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -125,13 +122,11 @@ public sealed partial class WhisparrSync
         async Task<SceneRefusalKind> ActOnOneAsync(
             IServiceProvider services, int coveId, CancellationToken sceneCt)
         {
-            var options = services.GetRequiredService<OptionsStore>();
-            var credentials = services.GetRequiredService<ICredentialPort>();
-            var instances = services.GetRequiredService<IWhisparrInstanceFactory>();
+            var whisparr = services.GetRequiredService<WhisparrAccess>();
 
             if (!targetResolved)
             {
-                target = await ResolveTargetAsync(options, credentials, instances, sceneCt)
+                target = await ResolveTargetAsync(whisparr, sceneCt)
                     .ConfigureAwait(false);
                 targetResolved = true;
             }
@@ -148,33 +143,27 @@ public sealed partial class WhisparrSync
             var acted = verb switch
             {
                 SceneBatchVerb.Add => await AddSceneResolvedAsync(
-                    coveId, target, options, credentials, instances, sceneCards, scopes, _log, sceneCt)
+                    coveId, target, whisparr, sceneCards, scopes, sceneCt)
                     .ConfigureAwait(false),
                 SceneBatchVerb.Monitor => await SetSceneMonitoringResolvedAsync(
                     monitored: true,
                     coveId,
                     target,
-                    options,
-                    credentials,
-                    instances,
+                    whisparr,
                     sceneCards,
-                    _log,
                     sceneCt).ConfigureAwait(false),
                 SceneBatchVerb.Unmonitor => await SetSceneMonitoringResolvedAsync(
                     monitored: false,
                     coveId,
                     target,
-                    options,
-                    credentials,
-                    instances,
+                    whisparr,
                     sceneCards,
-                    _log,
                     sceneCt).ConfigureAwait(false),
                 SceneBatchVerb.Search => await SearchSceneResolvedAsync(
-                    coveId, target, options, credentials, instances, sceneCards, _log, sceneCt)
+                    coveId, target, whisparr, sceneCards, sceneCt)
                     .ConfigureAwait(false),
                 SceneBatchVerb.Exclude => await ExcludeSceneResolvedAsync(
-                    coveId, target, options, credentials, instances, sceneCards, _log, sceneCt)
+                    coveId, target, whisparr, sceneCards, sceneCt)
                     .ConfigureAwait(false),
                 _ => throw new InvalidOperationException(
                     $"{verb} is not a verb the scene selection carries."),

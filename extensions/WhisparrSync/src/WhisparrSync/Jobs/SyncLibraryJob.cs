@@ -227,25 +227,28 @@ public static class SyncLibraryJob
         {
             SyncRegisters.Scenes => await SyncLibraryPlanner.RunAsync(
                 aimed.Registers,
-                runCt => identities.SceneIdentitiesByFolder(aimed.Generation, rootOrder, runCt),
-                row => row.RemoteId ?? string.Empty,
-                Registering(aimed, linking),
-                Monitoring(aimed),
+                new SyncLibrarySource<LibrarySceneInFolder>(
+                    runCt => identities.SceneIdentitiesByFolder(aimed.Generation, rootOrder, runCt),
+                    row => row.RemoteId ?? string.Empty,
+                    Registering(aimed, linking),
+                    Monitoring(aimed)),
                 progress,
                 ct,
-                offers: row => row.RemoteId is not null,
-                folderOf: row => row.Folder,
-                linkFolder: linking is null ? null : linking.LinkAsync).ConfigureAwait(false),
+                new SyncLibraryWalk<LibrarySceneInFolder>(
+                    Offers: row => row.RemoteId is not null,
+                    FolderOf: row => row.Folder,
+                    LinkFolder: linking is null ? null : linking.LinkAsync)).ConfigureAwait(false),
 
             // Nothing monitors the site itself. What the reader owns on a site is its scenes, so
             // the monitor slot here marks those rather than the site, and it is null unless the
             // reader asked and every role that pass needs was obtained.
             SyncRegisters.Sites => await SyncLibraryPlanner.RunAsync(
                 aimed.Registers,
-                runCt => identities.SiteIdentities(aimed.Generation, runCt),
-                site => site.RemoteId,
-                Supplied(aimed.RegisterSite, aimed.Registers),
-                aimed.MonitorSiteScenes,
+                new SyncLibrarySource<LibrarySiteIdentity>(
+                    runCt => identities.SiteIdentities(aimed.Generation, runCt),
+                    site => site.RemoteId,
+                    Supplied(aimed.RegisterSite, aimed.Registers),
+                    aimed.MonitorSiteScenes),
                 progress,
                 ct).ConfigureAwait(false),
 
