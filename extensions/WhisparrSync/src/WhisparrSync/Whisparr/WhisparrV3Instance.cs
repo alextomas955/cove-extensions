@@ -10,15 +10,11 @@ using V3Client = Whisparr3.Net.Client;
 
 namespace WhisparrSync.Whisparr;
 
-// One Whisparr v3 instance, bound to the address and key it answers on. It declares the roles v3
-// holds and no others, so a caller asking it for a role v3 does not hold has nothing to call.
-//
-// No member takes an address, a key or a generation: all three arrive on the binding, so a read and
-// the write after it cannot name different instances.
-//
-// Requests are composed by the Whisparr 3 generated client through Whisparr3Gateway, except the two
-// notification verbs, which are hand-composed onto the route declared below and sent through the
-// transport, so the same bounds apply to them.
+// One v3 instance, bound to the address and key it answers on. It declares the roles v3 holds and
+// no others. No member takes an address, key or generation: all three arrive on the binding, so a
+// read and the write after it cannot name different instances. Requests go through the Whisparr 3
+// generated client, except the two notification verbs, hand-composed onto the route below and sent
+// through the transport, so the same bounds apply.
 internal sealed class WhisparrV3Instance(
     WhisparrBinding binding,
     WhisparrTransport transport,

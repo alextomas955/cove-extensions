@@ -6,16 +6,13 @@ using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Whisparr;
 
-// Every flag that suppresses acquisition is set here, from one local, so an edit cannot set one
+// Both acquisition-suppressing flags are set here from one local, so an edit cannot set one
 // spelling and miss the other. v2's pair is not v3's: a rule stated in v3's spellings leaves every
-// body composed here unguarded.
+// body here unguarded. This generation addresses a studio as a series and its catalogue as years,
+// which is why the wire names below read as they do; no sentence a user reads is composed here.
 //
-// This generation addresses a studio as a series and its catalogue as years, which is why the wire
-// field names below read the way they do. No sentence a user reads is composed here.
-//
-// A scope change on this generation is retroactive: re-applying a monitoring option rewrites the
-// flag on every year the instance already holds, in both directions. The v3 equivalent gates only
-// what a later catalogue read adds.
+// A scope change here is retroactive, rewriting the flag on every year the instance holds, in both
+// directions. The v3 equivalent gates only what a later catalogue read adds.
 internal static class V2BodyProjector
 {
     // The one verb that downloads.
@@ -112,17 +109,14 @@ internal static class V2BodyProjector
                 searchForCutoffUnmetEpisodes: search));
     }
 
-    // The resource the instance answered, changed in place and handed back rather than rebuilt.
-    // Rebuilding would name a fixed member set, and every member outside it - the tags, the
-    // per-year flags, whatever a later client carries - would be dropped on the way back out.
+    // The resource the instance answered, changed in place: rebuilding would name a fixed member
+    // set and drop everything outside it, the tags, the per-year flags, whatever a later client
+    // carries.
     //
-    // The path is what relocates a site. Changing the root folder alone is accepted and relocates
-    // nothing, and the instance derives the root folder from the path when the path is set, so the
-    // path is recomposed as the new root plus the site's existing last segment. The root folder is
-    // sent beside it, which states the intent and changes no outcome.
-    //
-    // Nothing here instructs a transfer. Whether the files move is a parameter of the request, not
-    // a member of this body.
+    // The path relocates a site; changing the root folder alone is accepted and relocates nothing.
+    // The instance derives the root from the path, so the path is recomposed as the new root plus
+    // the site's existing last segment, with the root sent beside it to state the intent. Nothing
+    // here instructs a transfer: whether files move is a parameter of the request, not of this body.
     internal static SeriesResource MovedSiteRoot(SeriesResource held, string instanceRoot)
     {
         ArgumentNullException.ThrowIfNull(held);

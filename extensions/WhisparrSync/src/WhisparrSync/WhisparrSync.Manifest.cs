@@ -130,15 +130,12 @@ public sealed partial class WhisparrSync
                 suppressSuccessAlert: true)
             .WithJsBundle("index.mjs");
 
-        // Whisparr v2 offers no route addressing one scene without its site, and holds no performer
-        // entity, so these surfaces cannot be answered there and are hidden by omission. A control
-        // that draws and then refuses is worse than an absent one: it offers a gesture no answer
-        // can follow. Its scene rows do carry an identifier, the number ThePornDB issued, reachable
-        // only by listing the site that holds them.
+        // v2 reaches no scene without its site and holds no performer, so these surfaces are hidden
+        // by omission: a control that draws and then refuses offers a gesture no answer can follow.
+        // Its scene rows do carry ThePornDB's number, reachable only by listing the owning site.
         //
-        // The scene tab carries neither a countEndpoint nor an icon: the video detail page maps a
-        // contributed tab into its own list keeping only the key, the label and the manual contexts,
-        // so either would be fetched and drawn by nothing.
+        // The scene tab carries neither a countEndpoint nor an icon: the video detail page keeps
+        // only the key, the label and the manual contexts, so either would be drawn by nothing.
         if (!SelectedGenerationIsV2)
         {
             manifest

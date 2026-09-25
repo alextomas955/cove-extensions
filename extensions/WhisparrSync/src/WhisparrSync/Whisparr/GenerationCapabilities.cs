@@ -41,20 +41,12 @@ public static class GenerationCapabilities
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
-    // v2 has no performer entry: it answers a not-found on every performer route and addresses a
-    // performer only as a studio's catalogue. No missing-scene entry: no v2 route adds a catalogue
-    // item, and its catalogue arrives only by re-reading its own metadata source. No scene-status,
-    // scene-exclusion read, per-scene search or scene-exclusion write entry: v2 answers a not-found
-    // on every per-scene route and keeps no scene exclusions.
-    //
-    // v2 holds the site-registration entry, which v3 does not: a site is v2's unit of presence.
-    //
-    // v2 holds the per-scene monitor entry and the site-row read: it does keep a row per scene,
-    // under a site and named by the number the metadata provider issued. What it lacks is a
-    // per-scene route addressing a scene without its site, not the monitored flag itself.
-    //
-    // v2 holds the held-site read, which v3 does not: v2 answers presence for a site through its own
-    // list and by no other route, so many sites are one request there.
+    // Measured against a real v2. It answers a not-found on every performer and per-scene route,
+    // adds no catalogue item, and keeps no scene exclusions, so it holds none of those entries. It
+    // does keep a row per scene, under a site and named by the provider's number, so the per-scene
+    // monitor and the site-row read are held: what it lacks is a route reaching a scene without its
+    // site, not the flag. Site registration and the held-site read are v2's alone, a site being its
+    // unit of presence and its list the only route answering presence for many sites at once.
     private static readonly WhisparrCapability[] V2Capabilities =
     [
         WhisparrCapability.OutOfBandCallbackSecret,

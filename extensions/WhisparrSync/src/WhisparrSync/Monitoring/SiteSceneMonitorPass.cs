@@ -13,17 +13,11 @@ internal sealed record SiteSceneMonitorPorts(
     Func<int, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyDictionary<int, int>>> RowsFor,
     Func<int, CancellationToken, Task<WhisparrResponse?>> SetMonitored);
 
-// The one part of this run that holds a collection: one chunk of numbers, asked about in one read
-// and dropped. Nothing else outlives one scene.
-//
-// Nothing bounds how many scenes the pass resolves. A ceiling would leave part of the library
-// unmonitored and report a total that reads like a complete one. What is bounded is how many reads
-// are outstanding, which is SyncPreviewJob.SiteSceneReadsInFlight and is why every read here is
-// awaited before the next is issued: the instance's and the provider's request queues are the
-// shared resource.
-//
-// Every step counts and nothing stops the pass, so a site that fails leaves the run offering the
-// next site.
+// Holds one chunk of numbers, asked about in one read and dropped; nothing else outlives one
+// scene. How many scenes the pass resolves is unbounded on purpose, a ceiling being a total that
+// reads complete while part of the library goes unmonitored. What is bounded is outstanding reads:
+// each is awaited before the next, the instance's and the provider's queues being the shared
+// resource. Nothing stops the pass, so a site that fails leaves the next one offered.
 internal static class SiteSceneMonitorPass
 {
     // A bound on what is held at once, not a ceiling on how many scenes the pass reaches; a larger

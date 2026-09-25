@@ -6,15 +6,13 @@ using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Whisparr;
 
-// Every flag that suppresses acquisition is set here, from one constant, so an edit cannot set one
-// and miss another. Each resource an add can name declares exactly one such flag and they differ:
-// the studio and performer resources declare a top-level one, the scene resource declares one
-// inside its add-options member and no top-level one. A flag a resource does not declare is
-// discarded by the instance, so sending it would report a suppression that was never applied.
+// Every acquisition-suppressing flag is set here from one constant, so an edit cannot set one and
+// miss another. Each add resource declares exactly one and they differ: studio and performer a
+// top-level flag, the scene resource one inside add-options and none at the top. A flag a resource
+// does not declare is discarded, so sending it reports a suppression never applied.
 //
-// The two library columns the add writes are NOT NULL with no rule set in front of them, so a
-// missing value answers a raw database message rather than a validation failure. Both are always
-// present.
+// The two library columns the add writes are NOT NULL with no rule in front of them: a missing
+// value answers a raw database message, not a validation failure. Both are always present.
 internal static class V3BodyProjector
 {
     internal const bool NoAcquisition = false;
@@ -282,19 +280,14 @@ internal static class V3BodyProjector
         return new PerformerEditorResource(performerIds: new List<int> { entityId }, monitored: monitored);
     }
 
-    // The whole resource rather than the editor resource, because the editor resource declares no
-    // date gate: a scope change sent there is accepted and applies nothing.
+    // The whole resource, not the editor one: the editor resource declares no date gate, so a scope
+    // change sent there is accepted and applies nothing.
     //
-    // The only body composed by cloning a whole instance response, so it carries members nothing
-    // here wrote. The read echoes the top-level acquisition-suppressing flag, and an entity added
-    // in the instance's own interface with search-on-add ticked holds it true, so a clone sent back
-    // as-is would re-assert a user's search flag. It is overwritten rather than removed, because
-    // omission relies on the instance defaulting an absent member to false, which was never
-    // measured.
-    //
-    // The add-options member is overwritten only where the clone already carries one. This
-    // resource's schema declares no such member and the read never answers with one, so composing
-    // it would send a shape the instance was never measured accepting on this route.
+    // The only body cloned from a whole instance response, so it carries members nothing here wrote.
+    // The suppression flag is overwritten, not removed: the read echoes it, an entity added through
+    // the instance's own interface with search-on-add ticked holds it true, and omitting it would
+    // rely on a default nobody measured. Add-options is overwritten only where the clone already
+    // carries one, this schema declaring none.
     internal static JsonObject WithScope(JsonObject held, MonitorScope scope, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(held);
