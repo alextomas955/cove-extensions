@@ -128,7 +128,7 @@ public sealed class SyncLibrarySitesTests
             Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
-            agreedRoot: null,
+            EntityPlacement.Nowhere,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
 
@@ -137,7 +137,7 @@ public sealed class SyncLibrarySitesTests
             Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
-            agreedRoot: null,
+            EntityPlacement.Nowhere,
             new LibrarySiteIdentity(7, SecondSite),
             TestCt);
 
@@ -162,7 +162,7 @@ public sealed class SyncLibrarySitesTests
             Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
             NeverMoves,
             NeverRefreshes,
-            agreedRoot: null,
+            EntityPlacement.Nowhere,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
 
@@ -597,7 +597,7 @@ public sealed class SyncLibrarySitesTests
             instance.AddAsync,
             instance.MoveAsync,
             instance.RefreshAsync,
-            agreedRoot,
+            new EntityPlacement(agreedRoot, null),
             new LibrarySiteIdentity(4, site),
             ct);
 
@@ -633,7 +633,8 @@ public sealed class SyncLibrarySitesTests
         }
     }
 
-    private static Task<WhisparrResponse?> NeverMoves(int siteId, string root, CancellationToken ct)
+    private static Task<WhisparrResponse?> NeverMoves(
+        int siteId, string root, string? folder, CancellationToken ct)
         => throw new InvalidOperationException("This case must send no move.");
 
     private static Task<WhisparrResponse?> NeverRefreshes(int siteId, CancellationToken ct)
@@ -853,10 +854,11 @@ public sealed class SyncLibrarySitesTests
             return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(201, RegisteredRow));
         }
 
-        public Task<WhisparrResponse?> MoveAsync(int siteId, string root, CancellationToken ct)
+        public Task<WhisparrResponse?> MoveAsync(
+            int siteId, string root, string? folder, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            Moves.Add((siteId, root));
+            Moves.Add((siteId, folder ?? root));
 
             if (RefusesTheMove)
             {

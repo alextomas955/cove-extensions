@@ -70,6 +70,15 @@ internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
                 .Select(row => new LibraryFileIdentity(row.RemoteId! + ".mp4", row.RemoteId!))],
             ct);
 
+    // One file per scene, named after the identifier, in the folder that scene is carried under.
+    public IAsyncEnumerable<string> SceneFilePathsUnder(
+        string remoteId, WhisparrGeneration generation, string coveRoot, CancellationToken ct)
+        => Streamed(
+            [.. _byFolder
+                .Where(row => row.RemoteId == remoteId && row.Folder is not null)
+                .Select(row => row.Folder + "/" + row.RemoteId + ".mp4")],
+            ct);
+
     public IAsyncEnumerable<LibrarySceneInFolder> SceneIdentitiesByFolder(
         WhisparrGeneration generation, IReadOnlyList<string> rootOrder, CancellationToken ct)
         => Streamed(_byFolder, ct);

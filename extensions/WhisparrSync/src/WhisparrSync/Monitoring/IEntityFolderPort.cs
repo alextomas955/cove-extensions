@@ -24,6 +24,22 @@ public interface IEntityFolderPort
     IAsyncEnumerable<string> FoldersFor(WhisparrEntityKind kind, int coveId, CancellationToken ct);
 
     /// <summary>
+    /// Every file the <paramref name="kind"/> entity <paramref name="coveId"/> names holds under
+    /// <paramref name="coveRoot"/>, in path order.
+    /// </summary>
+    /// <remarks>
+    /// Streamed one row at a time. A studio is an entity, and on a library whose files all sit
+    /// together one studio owns every one of them, so an answer holding the paths would be an
+    /// answer the size of the library. An id below one answers nothing.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="coveRoot"/> is blank.</exception>
+    IAsyncEnumerable<string> FilePathsUnder(
+        WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct);
+
+    /// <summary>
     /// How many files the <paramref name="kind"/> entity <paramref name="coveId"/> names holds under
     /// <paramref name="coveRoot"/>.
     /// </summary>

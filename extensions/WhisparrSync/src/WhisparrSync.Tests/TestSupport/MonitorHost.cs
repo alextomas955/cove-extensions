@@ -18,6 +18,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -90,6 +91,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public ILibrarySceneIdentityPort LibraryScenes { get; private set; } = null!;
 
+    /// <summary>The tree this host's runs build, held in memory rather than on a disk.</summary>
+    public InMemoryTreeLinks TreeLinks { get; } = new();
+
     // Null where this host stands the recorder instead.
     public BodyRecordingHandler? Bytes { get; private set; }
 
@@ -132,7 +136,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         IProviderCatalogue? catalogue = null,
         CoveConfiguration? metadataConfig = null,
         CoveConfiguration? libraryConfig = null,
-        ISiteNumberPort? siteNumbers = null)
+        ISiteNumberPort? siteNumbers = null,
+        bool foldersAddressThemselves = false)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -221,8 +226,9 @@ internal sealed class MonitorHost : IAsyncDisposable
         // With no library configuration the shipped chain would answer that every folder sits under
         // no root, which is true and is not what a case about the folder loop is asking. Those cases
         // run over an instance whose spelling is the library's own instead; a case whose subject IS
-        // the addressing names a configuration and gets the shipped chain.
-        if (libraryConfig is null)
+        // the addressing names a configuration and gets the shipped chain. A case that needs a
+        // configured root for some other reason asks for both.
+        if (libraryConfig is null || foldersAddressThemselves)
         {
             builder.Services.AddSingleton<IFolderAddressPort>(new PassThroughFolderAddresses());
         }
@@ -241,6 +247,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton(host.SceneIdentities);
         host.LibraryScenes = new LibrarySceneIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.LibraryScenes);
+        builder.Services.AddSingleton<ITreeLinkPort>(host.TreeLinks);
         builder.Services.AddSingleton(new SyncPreviewCache(TimeProvider.System));
 
         // The catalogue tab's add takes it, and a route parameter the container cannot resolve is
@@ -776,6 +783,10 @@ internal sealed class MonitorHost : IAsyncDisposable
         public IAsyncEnumerable<string> FoldersFor(
             WhisparrEntityKind kind, int coveId, CancellationToken ct)
             => held.FoldersFor(kind, coveId, ct);
+
+        public IAsyncEnumerable<string> FilePathsUnder(
+            WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
+            => held.FilePathsUnder(kind, coveId, coveRoot, ct);
 
         public Task<int> FilesUnderAsync(
             WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)

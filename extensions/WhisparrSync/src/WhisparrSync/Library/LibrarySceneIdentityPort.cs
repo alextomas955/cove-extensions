@@ -77,6 +77,48 @@ internal sealed class LibrarySceneIdentityPort(DbContext db, OptionsStore option
         }
     }
 
+    public IAsyncEnumerable<string> SceneFilePathsUnder(
+        string remoteId, WhisparrGeneration generation, string coveRoot, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+
+        return SceneFilesAsync(remoteId, generation, coveRoot, ct);
+    }
+
+    private async IAsyncEnumerable<string> SceneFilesAsync(
+        string remoteId,
+        WhisparrGeneration generation,
+        string coveRoot,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var namespaced = await NamespacedFor(generation, ct).ConfigureAwait(false);
+        var prefix = PathCandidateGuard.Normalize(coveRoot).TrimEnd('/') + "/";
+
+        var carried = db.Set<VideoFile>()
+            .AsNoTracking()
+            .Where(file => file.Path.StartsWith(prefix))
+            .Join(
+                db.Set<VideoRemoteId>().AsNoTracking().Where(row => row.RemoteId == remoteId),
+                file => file.VideoId,
+                row => row.VideoId,
+                (file, row) => new { file.Path, row.Endpoint })
+            .Distinct()
+            .OrderBy(row => row.Path)
+            .AsAsyncEnumerable();
+
+        await foreach (var row in carried.WithCancellation(ct).ConfigureAwait(false))
+        {
+            // The host's same-source rule cannot be expressed as a query, so a row carrying the
+            // identifier under another generation's namespace is dropped here rather than joined
+            // out. Without it one identifier would reach both generations' trees.
+            if (EndpointMatchGuard.SameSource(row.Endpoint, namespaced))
+            {
+                yield return row.Path;
+            }
+        }
+    }
+
     // The last segment, over the stored forward-slash spelling.
     private static string NameOf(string path)
     {

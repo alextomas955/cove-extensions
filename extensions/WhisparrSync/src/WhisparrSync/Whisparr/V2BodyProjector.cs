@@ -131,7 +131,11 @@ internal static class V2BodyProjector
     // The instance derives the root from the path, so the path is recomposed as the new root plus
     // the site's existing last segment, with the root sent beside it to state the intent. Nothing
     // here instructs a transfer: whether files move is a parameter of the request, not of this body.
-    internal static SeriesResource MovedSiteRoot(SeriesResource held, string instanceRoot)
+    // A folder this product built is sent as it is rather than recomposed: its last segment names
+    // the entity, and the site's own held path names wherever the instance put it, so carrying that
+    // segment across would move the site to a folder no entity owns.
+    internal static SeriesResource MovedSiteRoot(
+        SeriesResource held, string instanceRoot, string? entityFolderPath)
     {
         ArgumentNullException.ThrowIfNull(held);
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceRoot);
@@ -140,7 +144,9 @@ internal static class V2BodyProjector
         var separator = SeparatorOf(held.Path);
         var root = Respelled(instanceRoot, separator);
 
-        held.Path = Under(root, held.Path, separator);
+        held.Path = entityFolderPath is { } folder
+            ? Respelled(folder, separator)
+            : Under(root, held.Path, separator);
         held.RootFolderPath = root;
         return held;
     }

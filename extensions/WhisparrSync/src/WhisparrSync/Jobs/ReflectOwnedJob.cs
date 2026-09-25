@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Linking;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Whisparr;
 
@@ -144,9 +145,55 @@ public static class ReflectOwnedJob
         return await ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
             instanceRoots,
-            services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, coveId, ct),
+            await FoldersToWalkAsync(services, aimed.Generation, kind, coveId, ct)
+                .ConfigureAwait(false),
             new ReflectOwnedSteps(aimed.Address, aimed.ReadImportable, aimed.Attach),
             ct).ConfigureAwait(false);
+    }
+
+    // The entity's own folder where this product has built one, and the library folders its files
+    // sit in where it has not. The folder holds links to exactly this entity's files, so the
+    // instance is asked to read a directory whose every entry belongs to the entity, rather than a
+    // library folder holding whatever else the reader keeps beside them.
+    //
+    // One probe per configured library root, which an operator creates by hand. The first tree
+    // holding a name for the entity answers, because a tree lives on the drive its files live on
+    // and an entity's files are linked under one.
+    private static async Task<IAsyncEnumerable<string>> FoldersToWalkAsync(
+        IServiceProvider services,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        int coveId,
+        CancellationToken ct)
+    {
+        var folders = services.GetRequiredService<IEntityFolderPort>()
+            .FoldersFor(kind, coveId, ct);
+
+        var named = await services.GetRequiredService<IEntityIdentityPort>()
+            .ResolveAsync(kind, coveId, generation, ct).ConfigureAwait(false);
+        if (named.ForeignId is not { } remoteId)
+        {
+            return folders;
+        }
+
+        var links = services.GetRequiredService<ITreeLinkPort>();
+        foreach (var coveRoot in services.GetRequiredService<ICoveLibraryPort>().LibraryRoots)
+        {
+            if (TreePathGuard.TreeRootUnder(coveRoot, generation) is { } treeRoot
+                && TreePathGuard.EntityFolderIn(treeRoot, remoteId) is { } entityFolder
+                && links.NamesIn(entityFolder).Any())
+            {
+                return OnlyAsync(entityFolder);
+            }
+        }
+
+        return folders;
+    }
+
+    private static async IAsyncEnumerable<string> OnlyAsync(string folder)
+    {
+        yield return folder;
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     // One folder, for the library run that registers and links as it walks. The declared roots are
@@ -185,7 +232,36 @@ public static class ReflectOwnedJob
                     : null);
         }
 
-        var identified = await aimed.Identify(folder, registered, ct).ConfigureAwait(false);
+        return await AttachAsync(
+            aimed,
+            instanceRoots,
+            addressed.CoveRoot,
+            onInstance,
+            await aimed.Identify(folder, registered, ct).ConfigureAwait(false),
+            ct).ConfigureAwait(false);
+    }
+
+    // The files of one folder the instance can open, each already paired with the entry it belongs
+    // to. What decides which entry a file reaches is settled by the caller: the instance reads a
+    // studio and a date out of a file name, so a library whose names it cannot parse gets nothing
+    // attached however certainly the library knows which entry the file is.
+    internal static async Task<ReflectOwnedRun> AttachAsync(
+        ReflectOwnedAiming aimed,
+        IReadOnlyList<string> instanceRoots,
+        string coveRoot,
+        string onInstance,
+        IReadOnlyDictionary<string, RegisteredScene> identified,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(aimed);
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentException.ThrowIfNullOrWhiteSpace(onInstance);
+        ArgumentNullException.ThrowIfNull(identified);
+
+        if (aimed.ReadFile is null)
+        {
+            return Untaken;
+        }
 
         var filesAttached = 0;
         var leftUnderAnotherRoot = 0;
@@ -219,7 +295,7 @@ public static class ReflectOwnedJob
             ReflectOwnedRunOutcome.Completed,
             anyAttached ? 1 : 0,
             anyAttached || !anyRefused ? 0 : 1,
-            AddressedRoots: [addressed.CoveRoot],
+            AddressedRoots: [coveRoot],
             EntriesLeftUnderAnotherRoot: leftUnderAnotherRoot,
             FilesAttached: filesAttached);
     }

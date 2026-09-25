@@ -15,6 +15,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
@@ -367,14 +368,15 @@ public sealed partial class WhisparrSync
                         ? new SyncLibraryAiming(
                             target.Binding.Generation,
                             SyncRegisters.Scenes,
-                            (identity, rootFolderPath, sceneCt) =>
-                                OfferSceneAsync(register, identity, rootFolderPath, sceneCt),
+                            (identity, placement, sceneCt) =>
+                                OfferSceneAsync(register, identity, placement, sceneCt),
                             RegisterSite: null,
                             MonitorFor(batch, target),
                             Link: await LinkOwnedAimAsync(target, services, runCt)
                                 .ConfigureAwait(false),
                             RootOrder: ranked.Order,
-                            OutOfReach: ranked.OutOfReach)
+                            OutOfReach: ranked.OutOfReach,
+                            Tree: TreeFor(services, target.Binding.Generation))
                         : null,
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
@@ -399,12 +401,28 @@ public sealed partial class WhisparrSync
 
     // The add's own refusal is what tells a scene the instance already holds from one it declines.
     private static async Task<SyncRegistration> OfferSceneAsync(
-        Func<string, string?, CancellationToken, Task<WhisparrResponse?>> register,
+        Func<string, EntityPlacement, CancellationToken, Task<WhisparrResponse?>> register,
         string identity,
-        string? rootFolderPath,
+        EntityPlacement placement,
         CancellationToken ct)
         => SyncRegistration.Offered(
-            await register(identity, rootFolderPath, ct).ConfigureAwait(false));
+            await register(identity, placement, ct).ConfigureAwait(false));
+
+    // Resolved out of the run's elevated services, and one step per run: it remembers which library
+    // roots it has already written the host's ignore file at, so a run over a library of scenes
+    // writes one per root rather than one per scene.
+    private static TreeAiming TreeFor(IServiceProvider services, WhisparrGeneration generation)
+    {
+        var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+        var links = services.GetRequiredService<ITreeLinkPort>();
+
+        return new TreeAiming(
+            services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+            new TreeReconcileStep(links),
+            links,
+            (remoteId, coveRoot, ct) =>
+                identities.SceneFilePathsUnder(remoteId, generation, coveRoot, ct));
+    }
 
     // The presence-only add, so nothing this run registers is monitored or searched for.
     private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
@@ -458,6 +476,8 @@ public sealed partial class WhisparrSync
             return addressed;
         };
 
+        var tree = new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>());
+
         return async (site, siteCt) =>
         {
             var composed = await EntityAddDefaults.ComposeAsync(
@@ -469,6 +489,22 @@ public sealed partial class WhisparrSync
                     WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
                 agreedRoot,
                 siteCt).ConfigureAwait(false);
+
+            // Before the site is registered at the folder: an entry written to a path nothing holds
+            // is an entry the instance reports a file for that is not there. The files are the ones
+            // the studio owns under its chosen root, streamed one at a time, because a studio's
+            // files reach the size of the library.
+            if (composed.Defaults?.EntityFolderPath is not null
+                && composed.Root.CoveRoot is { } chosen)
+            {
+                await tree.BuildAsync(
+                    chosen,
+                    target.Binding.Generation,
+                    site.RemoteId,
+                    files.FilePathsUnder(
+                        WhisparrEntityKind.Studio, site.StudioId, chosen, siteCt),
+                    siteCt).ConfigureAwait(false);
+            }
 
             // A refused composition still reaches the step, so the site is read: where the instance
             // holds it, its root need not settle for its scenes to be marked, and stopping short
@@ -488,9 +524,9 @@ public sealed partial class WhisparrSync
                         _log,
                         addCt)
                     : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
-                (siteId, agreed, moveCt) => ContainedAsync(
+                (siteId, agreed, folder, moveCt) => ContainedAsync(
                     () => acting.MoveSiteRootAsync(
-                        siteId, agreed, moveCt),
+                        siteId, agreed, folder, moveCt),
                     target,
                     _log,
                     moveCt),
@@ -500,7 +536,8 @@ public sealed partial class WhisparrSync
                     target,
                     _log,
                     refreshCt),
-                composed.Root.InstanceRoot,
+                new EntityPlacement(
+                    composed.Root.InstanceRoot, composed.Defaults?.EntityFolderPath),
                 site,
                 siteCt).ConfigureAwait(false);
 

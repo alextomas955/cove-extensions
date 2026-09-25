@@ -15,12 +15,13 @@ internal static class SiteRegistrationStep
     internal static async Task<SyncRegistration> RegisterAsync(
         Func<string, CancellationToken, Task<WhisparrResponse?>> readSite,
         Func<string, CancellationToken, Task<WhisparrResponse?>> registerSite,
-        Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
         Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
-        string? agreedRoot,
+        EntityPlacement agreed,
         LibrarySiteIdentity site,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(agreed);
         ArgumentNullException.ThrowIfNull(readSite);
         ArgumentNullException.ThrowIfNull(registerSite);
         ArgumentNullException.ThrowIfNull(moveSiteRoot);
@@ -36,7 +37,7 @@ internal static class SiteRegistrationStep
         {
             case MonitoringProjector.EntityReading.Held:
                 return await HeldAsync(
-                    moveSiteRoot, refreshSiteCatalogue, agreedRoot, held!, ct)
+                    moveSiteRoot, refreshSiteCatalogue, agreed, held!, ct)
                     .ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 return SyncRegistration.Offered(
@@ -46,25 +47,30 @@ internal static class SiteRegistrationStep
         }
     }
 
+    // Where a folder was composed, it is the folder the site is compared against and moved to, not
+    // the root: two sites under one root are both at that root and only their folders differ, so a
+    // root comparison would read a site still at another entity's folder as correctly placed.
     private static async Task<SyncRegistration> HeldAsync(
-        Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
         Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
-        string? agreedRoot,
+        EntityPlacement agreed,
         WhisparrResponse held,
         CancellationToken ct)
     {
         var siteId = MonitoringProjector.EntityIdIn(held.Body);
-        var heldRoot = MonitoringProjector.RootFolderPathIn(held.Body);
+        var heldAt = agreed.EntityFolderPath is null
+            ? MonitoringProjector.RootFolderPathIn(held.Body)
+            : MonitoringProjector.PathIn(held.Body);
         var alreadyThere = new SyncRegistration(SceneRegistration.AlreadyHeld, held, siteId);
 
         if (siteId is not { } instanceId
-            || agreedRoot is not { } agreed
-            || heldRoot is not { } registeredAt)
+            || agreed.RootFolderPath is not { } agreedRoot
+            || heldAt is not { } registeredAt)
         {
             return alreadyThere;
         }
 
-        if (SameRoot(registeredAt, agreed))
+        if (SamePlace(registeredAt, agreed.EntityFolderPath ?? agreedRoot))
         {
             // A site at the agreed root with no file linked is what a move whose catalogue re-read
             // never arrived leaves behind. The root reads as correct from then on, so the re-read
@@ -78,7 +84,8 @@ internal static class SiteRegistrationStep
             return alreadyThere;
         }
 
-        var moved = await moveSiteRoot(instanceId, agreed, ct).ConfigureAwait(false);
+        var moved = await moveSiteRoot(
+            instanceId, agreedRoot, agreed.EntityFolderPath, ct).ConfigureAwait(false);
 
         // A move the instance declined is a failure a reader acts on, not a site left already held:
         // the site is still registered where none of its files sit.
@@ -88,14 +95,14 @@ internal static class SiteRegistrationStep
                 : new SyncRegistration(SceneRegistration.Refused, moved, siteId);
     }
 
-    // The agreed root reaches here through the addressing port, which spells every candidate with
-    // forward slashes and verifies it against the instance's own listing without regard to case.
-    // The instance answers its own verbatim spelling. Compared literally, a Windows instance
-    // holding D:\Media never matches the agreed D:/Media, so every held site is moved again on
-    // every run and the correction never converges.
-    private static bool SameRoot(string registeredAt, string agreed)
+    // The intended path is built on the agreed root, which reaches here through the addressing
+    // port, and that port spells every candidate with forward slashes and verifies it against the
+    // instance's own listing without regard to case. The instance answers its own verbatim
+    // spelling. Compared literally, a Windows instance holding D:\Media never matches the agreed
+    // D:/Media, so every held site is moved again on every run and the correction never converges.
+    private static bool SamePlace(string registeredAt, string intended)
         => string.Equals(
             PathCandidateGuard.Normalize(registeredAt),
-            PathCandidateGuard.Normalize(agreed),
+            PathCandidateGuard.Normalize(intended),
             StringComparison.OrdinalIgnoreCase);
 }
