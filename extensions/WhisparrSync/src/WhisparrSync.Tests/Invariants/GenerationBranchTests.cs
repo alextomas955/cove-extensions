@@ -23,9 +23,14 @@ public sealed partial class GenerationBranchTests
     // about how a Whisparr instance spells a payload, so it belongs to neither instance: filing it
     // under one would put provider configuration under a type that has nothing to do with it. Each
     // catalogue also names the endpoint slot that is its own.
+    //
+    // The tree layout is the same kind of fact. The two generations group one library's files
+    // differently, so each keeps its own tree and the folder name is what says which. It is a
+    // spelling this extension owns rather than one a Whisparr instance sends.
     private static readonly string[] Allowed =
     [
         "Identity/IdentityEndpoint.cs",
+        "Linking/TreePathGuard.cs",
         "Providers/ProviderCatalogueChoice.cs",
         "Providers/StashDbCatalogue.cs",
         "Providers/ThePornDbCatalogue.cs",
@@ -35,7 +40,7 @@ public sealed partial class GenerationBranchTests
     // the list that starts to: a list that only capped the count would let a new branch hide behind
     // a removed one.
     [Fact]
-    public void TheOnlyApplicationCodeNamingAGenerationIsTheMetadataProviderCluster()
+    public void TheOnlyApplicationCodeNamingAGenerationIsTheProviderClusterAndTheTreeLayout()
     {
         var sources = Sources();
 
