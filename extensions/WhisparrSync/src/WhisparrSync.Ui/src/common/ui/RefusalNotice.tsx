@@ -10,11 +10,11 @@ import { StatusText } from "@cove-extensions/ui-shared";
 export function RefusalNotice({
   reason,
   affectedControls,
-}: {
+}: Readonly<{
   reason: string;
   /** How many controls on this screen the reason applies to. */
   affectedControls: number;
-}) {
+}>) {
   if (affectedControls < 1) {
     return null;
   }

@@ -58,7 +58,7 @@ export function MissingSelectionBar({
   onSelect,
   onMonitorSelection,
   onUnmonitorSelection,
-}: {
+}: Readonly<{
   /** The scenes on screen, in the order they are drawn. */
   loadedPageIds: readonly string[];
   selected: ReadonlySet<string>;
@@ -69,7 +69,7 @@ export function MissingSelectionBar({
   onSelect: (ids: readonly string[]) => void;
   onMonitorSelection: () => void;
   onUnmonitorSelection: () => void;
-}) {
+}>) {
   const actions = selectionActionsFor(loadedPageIds, selected);
   const refusal = selectionOutcomeLine(outcome);
   // The press settles in milliseconds and the run it started goes on, so the controls wait on

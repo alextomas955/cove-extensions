@@ -11,7 +11,7 @@
  */
 import { useId } from "react";
 
-export function WhisparrLogo({ className }: { className?: string }) {
+export function WhisparrLogo({ className }: Readonly<{ className?: string }>) {
   const maskId = `whisparr-mark-${useId()}`;
   return (
     <svg

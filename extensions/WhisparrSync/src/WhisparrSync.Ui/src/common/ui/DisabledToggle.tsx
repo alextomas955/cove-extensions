@@ -22,7 +22,13 @@ export interface DisabledToggleProps {
   reason: string | null;
 }
 
-export function DisabledToggle({ label, checked, onChange, helper, reason }: DisabledToggleProps) {
+export function DisabledToggle({
+  label,
+  checked,
+  onChange,
+  helper,
+  reason,
+}: Readonly<DisabledToggleProps>) {
   if (reason === null) {
     return <Toggle label={label} checked={checked} onChange={onChange} helper={helper} />;
   }

@@ -4,11 +4,10 @@
  * Every settle names the entity and the view it was started for. A page-three read settling
  * after the reader has moved to page four would otherwise paint the wrong page.
  */
-import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
+import type { MissingPageView, MissingSceneActionResult, WhisparrEntityKind } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 import type { MissingRun } from "./missingRunLogic";
-import type { WhisparrEntityKind } from "../wire/api";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
 

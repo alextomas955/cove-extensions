@@ -10,6 +10,7 @@ import type {
   MissingSceneActionResult,
   MissingTrackOutcome,
   MissingTrackResult,
+  WhisparrEntityKind,
 } from "../wire/api";
 import {
   announceEntityChanged,
@@ -19,7 +20,6 @@ import {
 import { api } from "../common/lib/extension";
 import { whenRunEnds } from "../common/lib/runCompletion";
 import { runOver, RUN_OVER_EVERYTHING } from "./missingRunLogic";
-import type { WhisparrEntityKind } from "../wire/api";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
 import type { MissingView } from "./missingUrlLogic";

@@ -79,7 +79,7 @@ export function SyncLibrarySection({
   sentences,
   onMonitorAlso,
   onSync,
-}: SyncLibrarySectionProps) {
+}: Readonly<SyncLibrarySectionProps>) {
   const control = countControl(counting, counts !== null);
   const [confirming, setConfirming] = useState(false);
 
@@ -185,7 +185,11 @@ export function SyncLibrarySection({
   );
 }
 
-function Counts({ counts, now, remedy }: { counts: SyncPreviewView; now: number; remedy: string }) {
+function Counts({
+  counts,
+  now,
+  remedy,
+}: Readonly<{ counts: SyncPreviewView; now: number; remedy: string }>) {
   const age = describeInstant(counts.countedAt, now);
 
   return (
@@ -201,7 +205,7 @@ function Counts({ counts, now, remedy }: { counts: SyncPreviewView; now: number;
   );
 }
 
-function CountRow({ label, value }: { label: string; value: number }) {
+function CountRow({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
     <div className="flex items-baseline justify-between gap-2">
       <span className="min-w-0 text-sm text-secondary">{label}</span>

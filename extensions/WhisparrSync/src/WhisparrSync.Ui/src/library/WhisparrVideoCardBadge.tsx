@@ -6,6 +6,6 @@
  */
 import { CardStatusBadge } from "./CardStatusBadge";
 
-export function WhisparrVideoCardBadge({ video }: { video: { id: number } }) {
+export function WhisparrVideoCardBadge({ video }: Readonly<{ video: { id: number } }>) {
   return <CardStatusBadge kind="video" coveId={video.id} />;
 }

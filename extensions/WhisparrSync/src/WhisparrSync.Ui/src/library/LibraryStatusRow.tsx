@@ -43,11 +43,11 @@ function CountPill({
   description,
   count,
   title,
-}: {
+}: Readonly<{
   description: StateDescription;
   count: number;
   title?: string;
-}) {
+}>) {
   return (
     <StatusPill
       variant={description.variant}
@@ -61,7 +61,7 @@ function CountPill({
   );
 }
 
-function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
+function LibraryStatusRow({ kind }: Readonly<{ kind: LibraryCardKind }>) {
   const on = useLibraryStatusOn();
   const { tally, registered, answered } = useLibraryTally(kind, on);
 

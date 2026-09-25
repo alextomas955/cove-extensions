@@ -12,14 +12,14 @@ export function BulkMonitorChoice({
   count,
   reason,
   onChoose,
-}: {
+}: Readonly<{
   actions: readonly BulkMonitorAction[];
   count: number;
   /** The one sentence saying why nothing is offered, or null when something is. */
   reason: string | null;
   /** Called with the chosen action, or with null when the reader leaves without choosing. */
   onChoose: (action: BulkMonitorAction | null) => void;
-}) {
+}>) {
   return (
     <ChoiceOverlay<BulkMonitorAction & { icon: RowIcon }>
       count={count}

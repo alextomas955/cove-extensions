@@ -28,8 +28,11 @@ import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 
 const RefreshGlyph = VERB_GLYPH.refresh;
 const MonitorGlyph = VERB_GLYPH.monitor;
-import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
-import type { WhisparrEntityKind } from "../wire/api";
+import type {
+  MissingFacetMenu as FacetMenuView,
+  MissingPageView,
+  WhisparrEntityKind,
+} from "../wire/api";
 import { ConfirmDialog } from "./hostComponents";
 import { countLineParts } from "./missingCountLogic";
 import { facetMenuRows, toggleFacetValue } from "./missingFacetLogic";
@@ -85,12 +88,12 @@ export function MissingToolbar({
   onRefresh,
   onMonitorAll,
   catalogue,
-}: {
+}: Readonly<{
   onRefresh: () => void;
   /** Marks everything the narrowing in the address covers, once the reader has confirmed. */
   onMonitorAll: () => void;
   catalogue?: MissingToolbarCatalogue;
-}) {
+}>) {
   const [view, setView] = useMissingUrlState();
   const [text, setText] = useState(() => view.q);
   const [confirming, setConfirming] = useState(false);
@@ -242,11 +245,11 @@ function FacetControl({
   menu,
   selected,
   onPick,
-}: {
+}: Readonly<{
   menu: FacetMenuView;
   selected: string | null;
   onPick: (value: string) => void;
-}) {
+}>) {
   // A value in force the served list does not carry leads the options, so it can still be cleared.
   const rows = facetMenuRows(
     menu,
