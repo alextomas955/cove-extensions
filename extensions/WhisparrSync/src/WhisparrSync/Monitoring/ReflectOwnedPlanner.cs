@@ -120,6 +120,17 @@ internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot
     internal static PlannedFiles Nothing { get; } = new(null, 0);
 }
 
+// The three requests a reflect-owned run makes per folder, and the optional read that names the
+// instance's own id for each entry.
+//
+// A run whose identify step is absent attaches by path alone, which is what a generation keeping no
+// scene rows answers to.
+internal sealed record ReflectOwnedSteps(
+    Func<string, CancellationToken, Task<AddressedFolder>> Address,
+    Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
+    Func<JsonArray, CancellationToken, Task<bool>> Attach,
+    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? Identify = null);
+
 // Without the decision here every matched file would be copied in full on an instance whose
 // hard-link setting is off: the import mode that links is labelled as a copy, and it copies with no
 // error and no distinct outcome when it cannot link. Neither generation offers a mode that only
@@ -133,17 +144,6 @@ internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot
 // exclusion is on absence.
 //
 // Nothing outlives one folder's command, so nothing grows with the library and nothing is persisted.
-// The three requests a reflect-owned run makes per folder, and the optional read that names the
-// instance's own id for each entry.
-//
-// A run whose identify step is absent attaches by path alone, which is what a generation keeping no
-// scene rows answers to.
-internal sealed record ReflectOwnedSteps(
-    Func<string, CancellationToken, Task<AddressedFolder>> Address,
-    Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
-    Func<JsonArray, CancellationToken, Task<bool>> Attach,
-    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? Identify = null);
-
 internal static class ReflectOwnedPlanner
 {
     internal const string CommandName = "ManualImport";
