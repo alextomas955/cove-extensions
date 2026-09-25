@@ -17,8 +17,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingTrackEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier: it creates an entity in the reader's Whisparr, which a caller who cannot
-        // configure the extension may not do.
         endpoints.MapPost(MissingTrackRoute,
             ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              InstanceCatalogueCache cache, CancellationToken ct)

@@ -34,7 +34,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Read tier: each reaches the one entity the route segment names.
         endpoints.MapGet(MissingPageRoute,
             ([AsParameters] EntityRoute route, [AsParameters] MissingNarrowing narrowing,
              ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
@@ -53,8 +52,7 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
-        // Read tier: the same entity reach, and the answer is values the metadata source publishes.
-        // It composes no write and asks the connected instance nothing.
+        // Answered from the metadata source; the connected instance is not asked.
         endpoints.MapGet(MissingFacetValuesRoute,
             ([AsParameters] EntityRoute route, string facetKey, string? q,
              ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,

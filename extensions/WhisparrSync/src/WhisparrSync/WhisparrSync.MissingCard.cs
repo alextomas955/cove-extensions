@@ -20,7 +20,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingCardEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier, as the bulk route: one scene is no lesser act than a selection of them.
         endpoints.MapPost(MissingSceneMonitorRoute,
             ([AsParameters] MissingSceneRoute scene, ICurrentPrincipalAccessor principal,
              WhisparrAccess whisparr, IEntityIdentityPort identities, InstanceCatalogueCache cache,
@@ -30,8 +29,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // Configure tier: the route aims the stored credential at a third party and spends the
-        // reader's indexer traffic and disk.
         endpoints.MapPost(MissingSceneSearchRoute,
             ([AsParameters] MissingSceneRoute addressed, ICurrentPrincipalAccessor principal,
              WhisparrAccess whisparr, CancellationToken ct)
