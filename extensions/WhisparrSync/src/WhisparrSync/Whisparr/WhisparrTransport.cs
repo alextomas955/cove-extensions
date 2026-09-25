@@ -212,16 +212,12 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
         return SendAsync(baseAddress, apiKey, method, path, body, ct);
     }
 
-    // Null when no whole answer arrived, which is the one failure a read may be re-issued after. A
-    // status, however unwelcome, is an answer and is returned.
-    //
-    // Two failures reach that reading rather than one. A connection that never established raises
-    // HttpRequestException. A body that ended before its declared length raises IOException, because
-    // the body is read out of the response stream here rather than buffered inside the send, and the
-    // stream reports a truncation as an I/O failure.
-    //
-    // An answer past the read bound is an answer too: it carries its own refusal rather than throwing,
-    // so it returns here on the first attempt and is not downloaded a second time.
+    // Null when no whole answer arrived, the one failure a read may be re-issued after; a status,
+    // however unwelcome, is an answer. Two failures reach that reading: a connection that never
+    // established raises HttpRequestException, and a body ending before its declared length raises
+    // IOException, the body being read out of the stream here rather than buffered inside the send.
+    // An answer past the read bound carries its own refusal instead of throwing, so it returns on
+    // the first attempt and is not downloaded twice.
     internal async Task<WhisparrResponse?> TrySendAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode? body, CancellationToken ct)
     {
