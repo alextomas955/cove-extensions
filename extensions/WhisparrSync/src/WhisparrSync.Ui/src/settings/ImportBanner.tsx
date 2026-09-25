@@ -27,7 +27,7 @@ export interface ImportBannerProps {
   now: number;
 }
 
-export function ImportBanner({ read, view, now }: ImportBannerProps) {
+export function ImportBanner({ read, view, now }: Readonly<ImportBannerProps>) {
   const lines = bannerLines(view);
   const passedOver = passedOverLine(view, now);
 

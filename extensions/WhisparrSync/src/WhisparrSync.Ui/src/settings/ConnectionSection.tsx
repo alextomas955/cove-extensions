@@ -63,7 +63,7 @@ export function ConnectionSection({
   onClearStoredKey,
   onChooseGeneration,
   onTest,
-}: ConnectionSectionProps) {
+}: Readonly<ConnectionSectionProps>) {
   const testing = test.phase === "running";
   const stored = valuesForCard(settings, card);
 
@@ -175,10 +175,10 @@ export function ConnectionSection({
 function RecordedLines({
   stored,
   now,
-}: {
+}: Readonly<{
   stored: WhisparrSyncGenerationSettingsView | null;
   now: number;
-}) {
+}>) {
   if (stored === null) {
     return null;
   }
@@ -199,7 +199,7 @@ function RecordedLines({
 
 // What the next save would do to the key, which is a different statement from what is stored. Each
 // state is a distinct sentence, so nothing here is signalled by colour alone.
-function KeyIntent({ draft }: { draft: SettingsDraft }) {
+function KeyIntent({ draft }: Readonly<{ draft: SettingsDraft }>) {
   if (draft.keyCleared) {
     return <StatusText kind="warning">Key will be removed when you save</StatusText>;
   }
@@ -209,7 +209,7 @@ function KeyIntent({ draft }: { draft: SettingsDraft }) {
   return null;
 }
 
-function TestResult({ test, card }: { test: TransientTest; card: CardGeneration }) {
+function TestResult({ test, card }: Readonly<{ test: TransientTest; card: CardGeneration }>) {
   if (test.phase === "none") {
     return null;
   }

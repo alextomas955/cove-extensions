@@ -73,7 +73,7 @@ export function FolderAgreementSection({
   onPathChange,
   onSave,
   onWithdraw,
-}: FolderAgreementSectionProps) {
+}: Readonly<FolderAgreementSectionProps>) {
   const lines = agreementLines(view);
 
   return (
@@ -120,7 +120,7 @@ function Prompt({
   onPathChange,
   onSave,
   onWithdraw,
-}: {
+}: Readonly<{
   line: FolderAgreementRootLine;
   draft: string;
   saving: boolean;
@@ -130,7 +130,7 @@ function Prompt({
   onPathChange: (root: string, next: string) => void;
   onSave: (root: string) => void;
   onWithdraw: (root: string) => void;
-}) {
+}>) {
   const [opened, setOpened] = useState(false);
   const state = stateOf(line);
   const reason = reasonFor(line);

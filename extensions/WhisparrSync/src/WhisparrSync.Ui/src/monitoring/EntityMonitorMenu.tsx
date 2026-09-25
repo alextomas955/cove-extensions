@@ -49,7 +49,7 @@ function MenuRow({
   icon: Icon,
   reason,
   onSelect,
-}: {
+}: Readonly<{
   role: "menuitem" | "menuitemradio";
   /** The radio's own state. Omitted for a row that is not one of a pair. */
   checked?: boolean;
@@ -58,7 +58,7 @@ function MenuRow({
   /** Why the row cannot be pressed, or null when it can. */
   reason: string | null;
   onSelect: () => void;
-}) {
+}>) {
   const disabled = reason !== null;
   return (
     <div className={disabled ? "px-3 py-2 opacity-60" : "px-3 py-2 hover:bg-surface"}>
@@ -104,7 +104,7 @@ export function EntityMonitorMenu({
   notice,
   onSelect,
   onClose,
-}: {
+}: Readonly<{
   menu: MonitorMenu;
   /** What the control this menu belongs to is called, so the menu is named too. */
   label: string;
@@ -116,7 +116,7 @@ export function EntityMonitorMenu({
   notice?: string | null;
   onSelect: (item: MonitorMenuItem) => void;
   onClose: () => void;
-}) {
+}>) {
   const ref = useRef<HTMLDivElement>(null);
   const placement = useAnchoredTo(triggerRef);
 

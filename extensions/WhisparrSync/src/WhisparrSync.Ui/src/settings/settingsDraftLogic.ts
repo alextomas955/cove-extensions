@@ -86,9 +86,7 @@ export function unsavedSummary(fields: readonly UnsavedField[]): string {
   }
   const names = fields.map((field) => FIELD_NAMES[field]);
   const list =
-    names.length === 1
-      ? names[0]
-      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
   const sentence = `${list.charAt(0).toUpperCase()}${list.slice(1)} ${
     names.length === 1 ? "is" : "are"
   } not saved yet.`;

@@ -4,8 +4,7 @@
  * An ordering the provider does not offer is absent from the rows, and no member here carries a
  * disabled flag for one.
  */
-import type { MissingSortOption } from "../wire/api";
-import type { WhisparrEntityKind } from "../wire/api";
+import type { MissingSortOption, WhisparrEntityKind } from "../wire/api";
 
 // Long enough that a typed word costs one provider read, short enough that the count line does
 // not sit reporting the previous search.
