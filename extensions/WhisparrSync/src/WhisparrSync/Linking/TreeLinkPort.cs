@@ -9,8 +9,7 @@ namespace WhisparrSync.Linking;
 // a substitute; it points at a name, so it dangles the moment the reader renames the file.
 internal sealed partial class TreeLinkPort : ITreeLinkPort
 {
-    // The host's scan honours this file in any directory and applies it to everything below.
-    private const string IgnoreFileName = ".coveignore";
+    // The one line the host's scan needs to leave everything below the tree alone.
     private const string IgnoreEverything = "*\n";
 
     // errno values, which are the same numbers on every platform this runs on.
@@ -120,7 +119,7 @@ internal sealed partial class TreeLinkPort : ITreeLinkPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(treeRoot);
 
-        if (PathCandidateGuard.CandidateUnder(treeRoot, IgnoreFileName) is not { } ignoreFile)
+        if (TreePathGuard.IgnoreFileIn(treeRoot) is not { } ignoreFile)
         {
             return false;
         }
