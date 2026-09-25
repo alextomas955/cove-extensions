@@ -82,7 +82,7 @@ export interface SceneControlState {
   readonly state: WhisparrEntityState;
 }
 
-export interface SceneStatusLine {
+interface SceneStatusLine {
   readonly sentence: string;
   /** Decides the tone the sentence reads in. */
   readonly failed: boolean;

@@ -322,7 +322,7 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = membersOf(RE
 export const SCOPE_ORDER: readonly MonitorScopeChoice[] = membersOf(SCOPE_LABEL);
 
 /** The scope taken when the reader takes none. */
-export const DEFAULT_SCOPE: MonitorScopeChoice = "futureScenes";
+const DEFAULT_SCOPE: MonitorScopeChoice = "futureScenes";
 
 /** The secondary actions, in the order they render. */
 export const SECONDARY_ACTIONS: readonly SecondaryAction[] = membersOf(SECONDARY_LABEL);
@@ -365,11 +365,6 @@ export function marksTheBackCatalogue(item: MonitorMenuItem): boolean {
 /** Which capability `action` needs the connected generation to hold. */
 export function capabilityBehindAction(action: SecondaryAction): WhisparrCapability {
   return CAPABILITY_BEHIND_ITEM[action];
-}
-
-/** Which item of this menu `capability` gates, or null where it gates none. */
-export function actionBehindCapability(capability: WhisparrCapability): SecondaryAction | null {
-  return ITEM_BEHIND_CAPABILITY[capability];
 }
 
 /** What `reason` states at the control when reflect owned linked nothing. */
@@ -560,7 +555,7 @@ export function monitorMenuItemKey(item: MonitorMenuItem): MonitorMenuItemKey {
 }
 
 /** A verb the bulk route carries. The wire type admits null, which names no verb. */
-export type BulkVerb = NonNullable<MonitorBulkVerb>;
+type BulkVerb = NonNullable<MonitorBulkVerb>;
 
 /** One action the selection overlay offers, already decided. */
 export interface BulkMonitorAction {

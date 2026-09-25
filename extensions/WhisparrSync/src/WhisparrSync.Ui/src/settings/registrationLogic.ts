@@ -22,7 +22,7 @@ export function carriesSecretInAddress(address: string): boolean {
  * Registered with no events is its own rendering, not a shade of registered. That combination is
  * the tell for an address mismatch, and plain success would hide it.
  */
-export type RegistrationRendering =
+type RegistrationRendering =
   "notCheckedYet" | "notRegistered" | "registeredWithNoEvents" | "registeredAndDelivering";
 
 export interface RegistrationDescription {

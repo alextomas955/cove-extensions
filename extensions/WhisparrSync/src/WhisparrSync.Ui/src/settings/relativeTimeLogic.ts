@@ -6,7 +6,7 @@
  * assert.
  */
 
-export type InstantForm = "relative" | "absolute";
+type InstantForm = "relative" | "absolute";
 
 export interface InstantRendering {
   readonly form: InstantForm;

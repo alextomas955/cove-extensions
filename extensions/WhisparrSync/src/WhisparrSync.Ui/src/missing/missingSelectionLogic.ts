@@ -12,7 +12,7 @@ import {
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
 
-export type SelectionActionKey = "selectAll" | "selectNone" | "invert";
+type SelectionActionKey = "selectAll" | "selectNone" | "invert";
 
 export interface SelectionAction {
   readonly key: SelectionActionKey;
