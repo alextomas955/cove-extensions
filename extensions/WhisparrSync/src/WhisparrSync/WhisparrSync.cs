@@ -11,6 +11,7 @@ using WhisparrSync.Connection;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -168,6 +169,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddMissingDerivation();
         services.AddLibraryStatus(_log);
         services.AddFolderAddressing(_log);
+        services.AddTreeLinking();
     }
 
     public override async Task InitializeAsync(
