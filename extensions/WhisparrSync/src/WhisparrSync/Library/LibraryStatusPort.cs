@@ -7,20 +7,19 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Library;
 
-// The reads run one after another. Issuing them together would put a page of parallel requests
-// against a third party on every press of one control.
-// Nothing is enumerated: each read names one entity the caller asked about, so a page of cards costs
-// one read per card whatever the instance's catalogue holds.
-// A contained failure writes one line naming its classification and the host, so a page of badges
-// that drew nothing leaves a trace.
+// The reads run one after another: issuing them together would put a page of parallel requests
+// against a third party on every press of one control. Nothing is enumerated, each read naming one
+// entity the caller asked about, so a page of cards costs one read per card whatever the catalogue
+// holds. A contained failure writes one line naming its classification and the host, so a page of
+// badges that drew nothing leaves a trace.
 internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger log)
 {
-    // Costs at most one read per card, so it is bounded by the caller's own set and never by what
-    // the instance holds. A card the library names no usable identifier for costs no read.
-    // reading arrives per call, not per construction: which generation is connected is a stored
-    // setting, so a role held from construction would predate the connection it describes.
-    // A dropped read is reported apart from the readings, because a card the instance answered and
-    // established nothing about looks exactly like a card whose read dropped.
+    // Costs at most one read per card, so it is bounded by the caller's set and never by what the
+    // instance holds; a card the library names no usable identifier for costs none. The reading
+    // arrives per call, not per construction: which generation is connected is a stored setting, so
+    // a role held from construction would predate the connection. A dropped read is reported apart
+    // from the readings, a card the instance answered and established nothing about looking exactly
+    // like one whose read dropped.
     public async Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
             Func<string, CancellationToken, Task<WhisparrResponse>> reading,
@@ -82,7 +81,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
 
     // One read for the whole page where the generation registers the role. A contained failure
     // reports no card rather than sending a read per card behind it: the page would then cost what
-    // the batch was there to avoid, against an instance that just failed to answer.
+    // the batch was there to avoid, against an instance that just failed.
     private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedAsync(
         IWhisparrEntityBatchReading? batch,
         WhisparrEntityKind kind,
@@ -120,8 +119,8 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     }
 
     // An identifier the answer carries no row for is the instance stating it holds none. Never
-    // excluded on this path: no entity exclusion reading role exists, so a true here would be a fact
-    // no instance answered.
+    // excluded on this path: no entity exclusion reading role exists, so a true here would be a
+    // fact no instance answered.
     private static LibraryCardReading EntityReading(WhisparrHeldCards cards, string foreignId)
         => cards.Held.TryGetValue(foreignId, out var held)
             ? new LibraryCardReading(false, true, held.Monitored)
@@ -129,9 +128,9 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
 
     // Costs one exclusion read for the whole set, plus either one batch read for the page or one
     // status read per identifier where the instance declares no batch role. The exclusion read
-    // comes first, because a scene that is both excluded and unheld reads as excluded. exclusions is
-    // null where the instance declares no exclusion read, so that generation sends nothing and no
-    // card is reported as excluded on a fact no instance answered.
+    // comes first, a scene that is both excluded and unheld reading as excluded. exclusions is null
+    // where the instance declares no exclusion read, so that generation sends nothing and no card
+    // is reported excluded on a fact no instance answered.
     public async Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
         ReadSceneCardsAsync(
             IWhisparrSceneStatusReading reading,
@@ -183,10 +182,8 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             catch (Exception failure)
                 when (failure is HttpRequestException or IOException or TaskCanceledException)
             {
-                // Contained per card, as the entity path's is: a read that dropped part way through
-                // one answer must not take the rest of the page's answers with it. An instance that
-                // accepts the connection and then hangs outlives the client's own timeout, which is
-                // told from a shutdown by the token and by nothing in the failure itself.
+                // Contained per card, as the entity path above records: a read that dropped part
+                // way through one answer must not take the rest of the page with it.
                 Contained(binding, failure);
                 readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
                 dropped = true;
@@ -323,10 +320,9 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            // Contained per card. A read that dropped part way through one answer must not take the
-            // rest of the page's answers with it. An instance that accepts the connection and then
-            // hangs outlives the client's own timeout, which is told from a shutdown by the token and
-            // by nothing in the failure itself.
+            // Contained per card, as the entity path above records. An instance that accepts the
+            // connection and then hangs outlives the client's own timeout, which is told from a
+            // shutdown by the token and by nothing in the failure itself.
             Contained(binding, failure);
             return (Unestablished, true);
         }

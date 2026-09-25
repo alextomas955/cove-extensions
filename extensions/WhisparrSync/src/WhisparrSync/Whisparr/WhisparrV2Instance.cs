@@ -43,8 +43,8 @@ internal sealed class WhisparrV2Instance(
     public OutOfBandSecretField Carry(string secret)
         => new V2BasicAuthSecretRegistration().Carry(secret);
 
-    // The one status composed rather than received. Whisparr v2 answers "do you hold this site" only
-    // as a row inside its own list, so an absent row is reported in the spelling a caller already
+    // The one status composed rather than received: v2 answers "do you hold this site" only as a
+    // row inside its own list, so an absent row is reported in the spelling a caller already
     // classifies.
     private const int AssembledNotHeld = 404;
 
@@ -52,9 +52,9 @@ internal sealed class WhisparrV2Instance(
     // one: every caller of an answer carrying it reads the refusal, which outranks the status.
     private const int NoInstanceStatus = 0;
 
-    // How many of a page's site lookups are in flight at once. One request per card is the
-    // cheap shape here, and an unbounded fan-out over a page would still be a burst this
-    // product has no reason to send.
+    // How many of a page's site lookups are in flight at once. One request per card is the cheap
+    // shape here, and an unbounded fan-out over a page would still be a burst this product has no
+    // reason to send.
     private const int LookupLanes = 6;
 
     public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
@@ -70,8 +70,8 @@ internal sealed class WhisparrV2Instance(
         => GeneratedReadAsync(api => api.Api<V2Api.IQualityProfileApi>().ListQualityProfileAsync(ct));
 
     // This generation names its own metadata entity on this route, and that entity carries the
-    // identifier the two ingest channels agree on. Embedded on the same request, so a page costs one
-    // request whatever it holds.
+    // identifier the two ingest channels agree on. Embedded on the same request, so a page costs
+    // one request whatever it holds.
     public Task<WhisparrResponse> ReadHistoryAsync(int page, int pageSize, CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
@@ -178,10 +178,9 @@ internal sealed class WhisparrV2Instance(
     }
 
     // One request against the instance's own site list, whatever the batch holds. Narrowing would
-    // not help: this generation builds the whole set before filtering, so ?tvdbId= answers a single
-    // row no faster than the unfiltered list answers all of them. The read is bounded by the
-    // transport's library read timeout, because what it waits on is the instance's own work over its
-    // holdings.
+    // not help: this generation builds the whole set before filtering, so ?tvdbId= answers one row
+    // no faster than the unfiltered list answers all. Bounded by the library read timeout, what it
+    // waits on being the instance's work over its holdings.
     public async Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
         IReadOnlyCollection<int> siteNumbers, CancellationToken ct)
     {
@@ -197,9 +196,9 @@ internal sealed class WhisparrV2Instance(
             WhisparrTransport.LibraryReadTimeout)
             .ConfigureAwait(false);
 
-        // Raised rather than answered as an empty set. An empty set would report every site it asked
-        // about as one the instance holds none of, and a caller acting on that registers the whole
-        // library a second time.
+        // Raised rather than answered as an empty set, which would report every site asked about as
+        // one the instance holds none of, and a caller acting on that registers the whole library a
+        // second time.
         if (WhisparrTransport.Refused(listed))
         {
             throw new HttpRequestException(
@@ -215,8 +214,8 @@ internal sealed class WhisparrV2Instance(
     }
 
     // Adds the entity so the instance tracks its catalogue and wants none of it. A site is this
-    // generation's only unit of presence, and registering one is exactly that request, so the two
-    // roles reach the same member rather than composing the same body twice.
+    // generation's only unit of presence, and registering one is exactly that request, so both
+    // roles reach this member rather than composing one body twice.
     public Task<WhisparrResponse> TrackEntityAsync(
         WhisparrEntityKind kind, string foreignId, AddDefaults defaults, CancellationToken ct)
     {
@@ -227,19 +226,17 @@ internal sealed class WhisparrV2Instance(
     }
 
     // The catalogue an entity's own scenes are read from, so the missing surface asks the metadata
-    // source for no scene list at all. One request per entity, plus one more to resolve the number
-    // this generation addresses a site by.
-    //
-    // This generation lists a scene only under its site, so the site's own number is resolved first.
-    // A site it names no number for is one it holds no entry for.
+    // source for no scene list. One request per entity, plus one to resolve the number this
+    // generation addresses a site by: it lists a scene only under its site, and a site it names no
+    // number for is one it holds no entry for.
     public async Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
         WhisparrEntityKind kind, string foreignId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
 
-        // The lookup answers the site from the instance's own row where it holds that site, so the
-        // id its scenes are listed under arrives with it. Asking the site list for that id instead
-        // would cost a pass over every site the instance holds.
+        // The lookup answers the site from the instance's own row where it holds it, so the id its
+        // scenes are listed under arrives with it. Asking the site list instead would cost a pass
+        // over every site the instance holds.
         var answered = await GeneratedReadAsync(
                 api => api.Api<V2Api.ISeriesLookupApi>()
                     .ListSeriesLookupAsync(HeldCardProjector.SiteLookupTerm(foreignId), ct))
@@ -428,12 +425,11 @@ internal sealed class WhisparrV2Instance(
                 ct)).ConfigureAwait(false);
     }
 
-    // One read and one update, then the catalogue re-read that links the files. The update's body is
-    // the resource the read answered rather than one composed here. No transfer parameter is named,
-    // which is what leaves the files where they are.
-    //
-    // The re-read is not optional: the update alone rewrites where the instance records the site and
-    // links nothing, so the site reports no file until the catalogue is re-read.
+    // One read and one update, then the catalogue re-read that links the files. The update's body
+    // is the resource the read answered, and names no transfer parameter, which is what leaves the
+    // files where they are. The re-read is not optional: the update alone rewrites where the
+    // instance records the site and links nothing, so the site reports no file until the catalogue
+    // is re-read.
     public async Task<WhisparrResponse> MoveSiteRootAsync(
         int siteId, string rootFolderPath, CancellationToken ct)
     {
@@ -444,8 +440,8 @@ internal sealed class WhisparrV2Instance(
         if (resource is null)
         {
             // A success status carrying nothing the model could be read from arrives here too, and
-            // its own status classifies as accepted. Returning it unchanged would report a move the
-            // caller counts as done while no update was sent and the site still sits where it was.
+            // classifies as accepted. Returning it unchanged would report a move the caller counts
+            // as done while no update was sent and the site still sits where it was.
             return WhisparrTransport.Refused(read)
                 ? read
                 : read with { Refusal = MonitorRefusalKind.InstanceRefused };
@@ -476,8 +472,8 @@ internal sealed class WhisparrV2Instance(
     }
 
     // The typed resource beside the answer, because the update re-sends what the read answered.
-    // Re-parsing the text answer into a member set named here would drop every member not named
-    // here: the tags, the per-year flags, and whatever a later instance build adds.
+    // Re-parsing into a member set named here would drop every member not named: the tags, the
+    // per-year flags, and whatever a later instance build adds.
     private async Task<(WhisparrResponse Answer, V2Model.SeriesResource? Held)>
         ReadSeriesResourceAsync(int siteId, CancellationToken ct)
     {
@@ -494,8 +490,8 @@ internal sealed class WhisparrV2Instance(
         return WhisparrTransport.Refused(answered) ? (answered, null) : (answered, held);
     }
 
-    // Nothing was sent, so there is no status and the refusal is the whole of what a caller reads. A
-    // source naming no site is the no-identity reading; a source that was not reached is not, and
+    // Nothing was sent, so there is no status and the refusal is the whole of what a caller reads.
+    // A source naming no site is the no-identity reading; a source that was not reached is not, and
     // reporting it as unidentified would send a reader to fix an identity that may be correct.
     private static WhisparrResponse NoSiteNumber(WhisparrSiteNumber numbered)
         => new(NoInstanceStatus, null, string.Empty)
@@ -505,9 +501,9 @@ internal sealed class WhisparrV2Instance(
                 : MonitorRefusalKind.InstanceRefused,
         };
 
-    // Declared here because this generation serves all three of these routes: measured against a
-    // running 2.2.0.231 instance on 2026-09-22, each answering as v3's does, and its hard-link
-    // document carried the member this product reads.
+    // Declared here because this generation serves all three of these routes, measured against a
+    // running 2.2.0.231 instance: each answers as v3's does, and its hard-link document carried the
+    // member this product reads.
     public Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct)
         => GeneratedReadAsync(
             api => api.Api<V2Api.IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));

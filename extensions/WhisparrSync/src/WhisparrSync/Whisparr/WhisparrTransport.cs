@@ -8,8 +8,8 @@ using WhisparrSync.Contracts;
 namespace WhisparrSync.Whisparr;
 
 // What every outbound request crosses, whichever generation answers and whichever role issued it.
-// The bounds a request is sent under live here as one set, so an attempt's timeout, its redirect
-// cap and the size of answer that will be read are stated once rather than per generation.
+// The bounds live here as one set, so an attempt's timeout, its redirect cap and the size of answer
+// that will be read are stated once rather than per generation.
 internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gateway, ILogger log)
 {
     // The header both v2 and v3 authenticate an API request with.
@@ -42,10 +42,10 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
     // How long one attempt may take before it is reported as unreachable.
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-    // A read of everything an instance holds is answered only once the instance has built all of it,
-    // so its cost grows with the holdings rather than signalling that it cannot be reached: a v2
-    // instance holding 512 sites takes about 20 seconds to answer GET /api/v3/series, all of it
-    // before the first byte. Set well above that, and below where a waiting reader reads it as hung.
+    // A read of everything an instance holds is answered only once the instance has built all of
+    // it, so its cost grows with the holdings rather than signalling it cannot be reached: a v2
+    // instance holding 512 sites takes about 20 seconds to answer GET /api/v3/series, all before
+    // the first byte. Set well above that, and below where a waiting reader reads it as hung.
     internal static readonly TimeSpan LibraryReadTimeout = TimeSpan.FromSeconds(120);
 
     internal static IReadOnlySet<string> NothingUnanswered { get; }
@@ -64,9 +64,9 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
             && (address.Scheme == Uri.UriSchemeHttp || address.Scheme == Uri.UriSchemeHttps);
     }
 
-    // The settings every request through this transport is made under. The timeout set here is the
-    // number the send bounds a whole attempt with: the framework's own timeout ends at the headers
-    // once the body is asked for separately, so the send reads this value and bounds both phases.
+    // The settings every request through this transport is made under. The timeout set here bounds
+    // a whole attempt: the framework's own ends at the headers once the body is asked for
+    // separately, so the send reads this value and bounds both phases.
     internal static void Configure(HttpClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
@@ -84,10 +84,10 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
 
     internal static bool IsSuccess(int statusCode) => statusCode is >= 200 and < 300;
 
-    // A refusal the send read for itself outranks the status, which is the rule
-    // MonitoringProjector.Classify applies too. An answer past the read bound arrives with whatever
-    // status the instance gave, so a success one, and with an empty body: parsing that body would
-    // report the entity as absent and lose the reason the send established.
+    // A refusal the send read for itself outranks the status, the rule MonitoringProjector.Classify
+    // applies too. An answer past the read bound arrives with whatever status the instance gave, so
+    // a success one, and an empty body: parsing it would report the entity as absent and lose the
+    // reason the send established.
     internal static bool Refused(WhisparrResponse answered)
         => answered.Refusal is not MonitorRefusalKind.None || !IsSuccess(answered.StatusCode);
 
@@ -103,9 +103,9 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
         return (name, payload);
     }
 
-    // Without a trailing separator the instance reads the spelling as a partial name and answers with
-    // the names its parent holds that start with it. The separator already in the spelling is the one
-    // appended, so a path rooted on a drive letter keeps its own.
+    // Without a trailing separator the instance reads the spelling as a partial name and answers
+    // the names its parent holds that start with it. The separator already in the spelling is the
+    // one appended, so a path rooted on a drive letter keeps its own.
     internal static string WithTrailingSeparator(string directory)
     {
         if (directory.EndsWith('/') || directory.EndsWith('\\'))
@@ -242,10 +242,10 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
                 body.ToJsonString(), Encoding.UTF8, MediaTypeNames.Application.Json);
         }
 
-        // The whole attempt is bounded here, headers and body alike. The client's own timeout stops
+        // The whole attempt is bounded here, headers and body alike: the client's own timeout stops
         // at the headers once the body is asked for separately, so a body phase left to it runs
-        // until the instance itself gives up. The number is read off the client rather than restated,
-        // so one setting bounds one attempt.
+        // until the instance gives up. The number is read off the client, so one setting bounds one
+        // attempt.
         using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
         attempt.CancelAfter(http.Timeout);
 
@@ -272,9 +272,9 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            // Reported as the framework reports its own timeout, so a caller classifying the failure
-            // does not have to know where the bound lives. A shutdown fails the filter and propagates
-            // as itself, which is what keeps it classified as cancelled rather than as a verdict
+            // Reported as the framework reports its own timeout, so a caller classifying the
+            // failure need not know where the bound lives. A shutdown fails the filter and
+            // propagates as itself, which keeps it classified as cancelled rather than as a verdict
             // about the instance.
             throw new TaskCanceledException(
                 "The request outlived the bound on one attempt.", new TimeoutException(), attempt.Token);
@@ -282,8 +282,8 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
     }
 
     // Null when the answer is past the bound. Read here rather than bounded by the handler, whose
-    // own bound raises an exception whose type a refused connection shares. A body past the bound is
-    // discarded unread and never returned.
+    // own bound raises an exception whose type a refused connection shares. A body past the bound
+    // is discarded unread and never returned.
     private static async Task<string?> ReadWithinBoundAsync(HttpContent content, CancellationToken ct)
     {
         var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -309,9 +309,9 @@ internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gate
     }
 
     // Decoded without the encoding's preamble, which a framework-level string read also skips. A
-    // preamble left in place puts U+FEFF at the front of the string, and every reader of a body here
-    // parses it as JSON: the parse then fails and each of them answers null, so a BOM-prefixed
-    // instance would read as holding nothing anywhere, with nothing saying why.
+    // preamble left in place puts U+FEFF at the front, and every reader of a body here parses it as
+    // JSON: the parse fails and each answers null, so a BOM-prefixed instance would read as holding
+    // nothing anywhere, with nothing saying why.
     private static string Decode(Encoding encoding, MemoryStream buffered)
     {
         var preamble = encoding.Preamble;
