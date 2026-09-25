@@ -57,7 +57,13 @@ public sealed class OptionsWriteGate(ILogger? logger = null) : IDisposable
             var load = await options.LoadBoundAsync(ct).ConfigureAwait(false);
             var stored = load.Options;
             var next = fold(stored);
-            if (next == stored)
+
+            // Compared as the blob they persist as, so every member that reaches the store takes
+            // part and one that does not cannot make a write vanish.
+            if (string.Equals(
+                    WhisparrSyncOptions.Persisted(next),
+                    WhisparrSyncOptions.Persisted(stored),
+                    StringComparison.Ordinal))
             {
                 return stored;
             }

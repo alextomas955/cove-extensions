@@ -27,34 +27,9 @@ public sealed class WhisparrSyncOptionsTests
         await new OptionsStore(store).SaveAsync(saved);
         var loaded = await new OptionsStore(store).LoadAsync();
 
-        Assert.Equal(saved, loaded);
-        Assert.Equal(saved.GetHashCode(), loaded.GetHashCode());
+        Assert.Equal(WhisparrSyncOptions.Persisted(saved), WhisparrSyncOptions.Persisted(loaded));
         Assert.Equal(2, loaded.Instance().ImportRefusals.Count);
         Assert.Equal(2, loaded.Instance().ImportRefusals[0].NewestPaths.Count);
-    }
-
-    // The discriminating case for the count that precedes the elements in each component stream. A
-    // stream that yielded only the elements would let a shorter list line up against a longer one
-    // whose extra member happens to match the next component.
-    [Fact]
-    public void RecordsDifferingOnlyInHowManyRefusalsTheyHoldAreNotEqual()
-    {
-        var saved = Populated();
-
-        var oneRootFewer = saved.WithInstance(importRefusals: [saved.Instance().ImportRefusals[0]]);
-        var onePathFewer = saved.WithInstance(
-            importRefusals:
-            [
-                saved.Instance().ImportRefusals[0] with
-                {
-                    NewestPaths = [saved.Instance().ImportRefusals[0].NewestPaths[0]],
-                },
-                saved.Instance().ImportRefusals[1],
-            ]);
-
-        Assert.NotEqual(saved, oneRootFewer);
-        Assert.NotEqual(saved, onePathFewer);
-        Assert.NotEqual(saved.Instance().ImportRefusals[0], onePathFewer.Instance().ImportRefusals[0]);
     }
 
     // Storing a spelling rather than an ordinal is what keeps a stored blob readable after a member
@@ -389,7 +364,7 @@ public sealed class WhisparrSyncOptionsTests
         var trailing = new ImportRootRefusals { Root = "/whisparr/media/", CountSinceLastSuccess = 1 };
         var backslash = new ImportRootRefusals { Root = @"C:\whisparr\media\", CountSinceLastSuccess = 1 };
 
-        Assert.Equal(bare, trailing);
+        Assert.Equal(bare.Root, trailing.Root);
         Assert.Equal("/whisparr/media", trailing.Root);
         Assert.Equal(@"C:\whisparr\media", backslash.Root);
     }

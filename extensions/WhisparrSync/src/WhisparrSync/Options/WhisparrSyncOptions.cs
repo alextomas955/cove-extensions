@@ -145,47 +145,6 @@ public sealed record WhisparrSyncGenerationInstanceSettings
     /// </remarks>
     public bool RootsEstablished { get; init; }
 
-    // Record value equality compares the List members by reference, so a JSON round-trip, which
-    // allocates fresh lists, would never be Equal to the original. Both Equals and GetHashCode run
-    // off the same component list.
-    public bool Equals(WhisparrSyncGenerationInstanceSettings? other)
-        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
-
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        foreach (var component in EqualityComponents())
-        {
-            hash.Add(component);
-        }
-
-        return hash.ToHashCode();
-    }
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return RootsEstablished;
-
-        // Each count precedes its entries so two component streams cannot line up by borrowing a
-        // member from either side of a list.
-        yield return OutboundMappings.Count;
-        foreach (var mapping in OutboundMappings)
-        {
-            yield return mapping;
-        }
-
-        yield return OutboundRefusals.Count;
-        foreach (var refusal in OutboundRefusals)
-        {
-            yield return refusal;
-        }
-
-        yield return ImportRefusals.Count;
-        foreach (var refusals in ImportRefusals)
-        {
-            yield return refusals;
-        }
-    }
 }
 
 /// <summary>
@@ -349,36 +308,6 @@ public sealed record ImportRootRefusals
         return trimmed.Length == 0 ? root[..1] : trimmed;
     }
 
-    // Record value equality compares the List member by reference, so a JSON round-trip, which
-    // allocates a fresh list, would never be Equal to the original. Both Equals and GetHashCode run
-    // off the same component list.
-    public bool Equals(ImportRootRefusals? other)
-        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
-
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        foreach (var component in EqualityComponents())
-        {
-            hash.Add(component);
-        }
-
-        return hash.ToHashCode();
-    }
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return Root;
-        yield return CountSinceLastSuccess;
-
-        // The count precedes the paths so two component streams cannot line up by borrowing a member
-        // from either side of the list.
-        yield return NewestPaths.Count;
-        foreach (var path in NewestPaths)
-        {
-            yield return path;
-        }
-    }
 }
 
 /// <summary>One Cove library root the connected instance established no path for.</summary>
@@ -422,36 +351,6 @@ public sealed record OutboundRootRefusal
             : [.. value.Take(PathsTriedKept)];
     }
 
-    // Record value equality compares the List member by reference, so a JSON round-trip, which
-    // allocates a fresh list, would never be Equal to the original. Both Equals and GetHashCode run
-    // off the same component list.
-    public bool Equals(OutboundRootRefusal? other)
-        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
-
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        foreach (var component in EqualityComponents())
-        {
-            hash.Add(component);
-        }
-
-        return hash.ToHashCode();
-    }
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return Root;
-        yield return Refusal;
-
-        // The count precedes the paths so two component streams cannot line up by borrowing a member
-        // from either side of the list.
-        yield return PathsTried.Count;
-        foreach (var path in PathsTried)
-        {
-            yield return path;
-        }
-    }
 }
 
 /// <summary>Where an operator states one Cove library root is on the connected instance.</summary>
@@ -663,41 +562,12 @@ public sealed record WhisparrSyncOptions
         PropertyNameCaseInsensitive = true,
     };
 
-    // Record value equality compares List members by reference, so a JSON round-trip, which
-    // allocates a fresh list, would never be Equal to the original. Both Equals and GetHashCode run
-    // off the same component list.
-    public bool Equals(WhisparrSyncOptions? other)
-        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
+    /// <summary>These options as the blob they are stored as.</summary>
+    /// <remarks>
+    /// What a writer compares. A member that does not reach the blob cannot make a write vanish,
+    /// because there is nothing of it to write.
+    /// </remarks>
+    public static string Persisted(WhisparrSyncOptions options)
+        => JsonSerializer.Serialize(options, JsonOptions);
 
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        foreach (var component in EqualityComponents())
-        {
-            hash.Add(component);
-        }
-
-        return hash.ToHashCode();
-    }
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return SelectedGeneration;
-        yield return V3;
-        yield return V2;
-
-        // The write gate writes nothing when a fold answers a value equal to the one it was given, so
-        // a slot left out here makes every write through it vanish with nothing reported.
-        yield return InstanceSettingsV3;
-        yield return InstanceSettingsV2;
-        yield return DefaultMonitorScope;
-        yield return MetadataProviderEndpoints;
-        yield return CallbackHost;
-        yield return UpgradeBehavior;
-        yield return BackstopIntervalSeconds;
-        yield return ImportHealth;
-
-        // The count precedes the entries so two component streams cannot line up by borrowing a
-        // member from either side of the list.
-    }
 }
