@@ -54,11 +54,11 @@ public sealed partial class WhisparrSync
     }
 
     private static async Task<MonitoringTarget?> ResolveTargetAsync(
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         CancellationToken ct)
     {
+        var (options, credentials, instances, _) = whisparr;
+
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(instances);

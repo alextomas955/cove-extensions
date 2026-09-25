@@ -15,6 +15,7 @@ using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -259,6 +260,20 @@ internal sealed class MonitorHost : IAsyncDisposable
                 catalogues,
                 new OwnedScenePort(host._db),
                 new InstanceCatalogueCache(TimeProvider.System)));
+
+        // The bundles the route lambdas take. Built from the same instances registered above, so a
+        // case that seeds one reaches it through either shape.
+        builder.Services.AddSingleton(
+            services => new WhisparrAccess(
+                options,
+                credentials,
+                services.GetRequiredService<IWhisparrInstanceFactory>(),
+                NullLogger.Instance));
+        builder.Services.AddSingleton(
+            services => new BackgroundWork(
+                services.GetRequiredService<IJobService>(),
+                services.GetRequiredService<IServiceScopeFactory>()));
+        builder.Services.AddSingleton(new OptionsWriting(options, host._writeGate));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();

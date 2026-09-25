@@ -133,6 +133,17 @@ internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot
 // exclusion is on absence.
 //
 // Nothing outlives one folder's command, so nothing grows with the library and nothing is persisted.
+// The three requests a reflect-owned run makes per folder, and the optional read that names the
+// instance's own id for each entry.
+//
+// A run whose identify step is absent attaches by path alone, which is what a generation keeping no
+// scene rows answers to.
+internal sealed record ReflectOwnedSteps(
+    Func<string, CancellationToken, Task<AddressedFolder>> Address,
+    Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
+    Func<JsonArray, CancellationToken, Task<bool>> Attach,
+    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? Identify = null);
+
 internal static class ReflectOwnedPlanner
 {
     internal const string CommandName = "ManualImport";
@@ -349,19 +360,30 @@ internal static class ReflectOwnedPlanner
     // The path handed to the read is always the instance's own. A folder with none is not read at
     // all: the library's spelling would produce a legitimately empty listing, and the run would
     // report a clean zero over a folder nothing looked in.
+    // One line per library root, keyed by the root: every folder under one root reaches the same
+    // reason, so a second folder there adds nothing a reader has not been told.
+    private static void NoteUnaddressed(
+        Dictionary<string, FolderAddressRefusal> refusalByRoot, AddressedFolder addressed)
+    {
+        if (addressed.Refusal is { } reason)
+        {
+            refusalByRoot.TryAdd(
+                addressed.CoveRoot,
+                new FolderAddressRefusal(addressed.CoveRoot, reason, addressed.Tried));
+        }
+    }
+
     internal static async Task<ReflectOwnedRun> RunAsync(
         WhisparrGeneration generation,
         IReadOnlyList<string> instanceRoots,
         IAsyncEnumerable<string> folders,
-        Func<string, CancellationToken, Task<AddressedFolder>> address,
-        Func<string, CancellationToken, Task<ImportableListing>> readImportable,
-        Func<JsonArray, CancellationToken, Task<bool>> attach,
-        CancellationToken ct,
-        Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? identify = null)
+        ReflectOwnedSteps steps,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
         ArgumentNullException.ThrowIfNull(folders);
-        ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(steps);
+        var (address, readImportable, attach, identify) = steps;
         ArgumentNullException.ThrowIfNull(readImportable);
         ArgumentNullException.ThrowIfNull(attach);
 
@@ -383,13 +405,7 @@ internal static class ReflectOwnedPlanner
                 if (addressed.InstancePath is not { } onInstance)
                 {
                     unaddressed++;
-                    if (addressed.Refusal is { } reason)
-                    {
-                        refusalByRoot.TryAdd(
-                            addressed.CoveRoot,
-                            new FolderAddressRefusal(addressed.CoveRoot, reason, addressed.Tried));
-                    }
-
+                    NoteUnaddressed(refusalByRoot, addressed);
                     continue;
                 }
 

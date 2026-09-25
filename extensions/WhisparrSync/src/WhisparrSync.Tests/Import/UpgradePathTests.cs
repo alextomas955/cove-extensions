@@ -199,8 +199,7 @@ public sealed class UpgradePathTests
                     new StubReportedRoots(WhisparrRoot),
                     Library,
                     Paths,
-                    new OptionsStore(Store),
-                    new OptionsWriteGate(),
+                    new OptionsWriting(new OptionsStore(Store), new OptionsWriteGate()),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     TimeProvider.System,
                     NullLogger.Instance)

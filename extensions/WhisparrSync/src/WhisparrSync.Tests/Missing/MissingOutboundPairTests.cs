@@ -63,11 +63,10 @@ public sealed class MissingOutboundPairTests
             TestCt);
 
         await WhisparrSync.ReadMissingPageAsync(
-            "studio", 7, 1, 40, null, null, null, null,
+            new EntityRoute("studio", 7),
+            new MissingNarrowing(1, 40, null, null, null, null),
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            options,
-            credentials,
-            instances,
+            new WhisparrAccess(options, credentials, instances, NullLogger.Instance),
             new ProviderEndpointPort(null),
             new MissingPagePlanner(
                 new MissingIdentityResolver(
@@ -77,7 +76,6 @@ public sealed class MissingOutboundPairTests
                 TestProviderCatalogues.Naming(new StubProviderCatalogue([])),
                 new StubOwnedScenes(),
                 new InstanceCatalogueCache(TimeProvider.System)),
-            NullLogger.Instance,
             TestCt);
     }
 }

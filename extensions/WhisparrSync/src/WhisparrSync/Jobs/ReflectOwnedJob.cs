@@ -145,9 +145,7 @@ public static class ReflectOwnedJob
             aimed.Generation,
             instanceRoots,
             services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, coveId, ct),
-            aimed.Address,
-            aimed.ReadImportable,
-            aimed.Attach,
+            new ReflectOwnedSteps(aimed.Address, aimed.ReadImportable, aimed.Attach),
             ct).ConfigureAwait(false);
     }
 

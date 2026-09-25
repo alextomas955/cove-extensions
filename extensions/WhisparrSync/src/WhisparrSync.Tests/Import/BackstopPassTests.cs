@@ -894,15 +894,16 @@ public sealed class BackstopPassTests
         {
             Instances = new FixedInstanceFactory(ClientForRun());
             return new BackstopPass(
-                    Instances,
-                    _options,
+                    new WhisparrAccess(
+                        _options,
+                        _credentials,
+                        Instances,
+                        NullLogger.Instance),
                     Gate,
-                    _credentials,
                     Core,
                     new FixedClock(Now),
                     FollowUp,
-                    Library,
-                    NullLogger.Instance)
+                    Library)
                 .RunAsync(TestContext.Current.CancellationToken);
         }
 

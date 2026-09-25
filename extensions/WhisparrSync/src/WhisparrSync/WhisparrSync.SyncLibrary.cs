@@ -17,7 +17,6 @@ using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
@@ -32,11 +31,11 @@ public sealed partial class WhisparrSync
         // The configure tier, because this aims the stored credential at a third party and reads
         // the whole library to do it.
         endpoints.MapPost(SyncPreviewRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+            (ICurrentPrincipalAccessor principal, BackgroundWork work,
+             WhisparrAccess whisparr,
              CancellationToken ct)
                 => EnqueueSyncPreviewAsync(
-                    principal, jobs, scopes, options, credentials, instances, ct))
+                    principal, work, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -44,21 +43,19 @@ public sealed partial class WhisparrSync
         // party holds, which is the same fact whichever route answered it.
         endpoints.MapGet(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+             WhisparrAccess whisparr,
              CancellationToken ct)
                 => ReadSyncPreviewAsync(
-                    principal, jobs, counts, options, credentials, instances, ct))
+                    principal, jobs, counts, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         // The same tier again: this one writes into a third party's catalogue on behalf of the
         // whole library.
         endpoints.MapPost(SyncRunRoute,
-            (SyncRunRequest? request, ICurrentPrincipalAccessor principal, IJobService jobs,
-             IServiceScopeFactory scopes, OptionsStore options, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, CancellationToken ct)
+            (SyncRunRequest? request, ICurrentPrincipalAccessor principal, BackgroundWork work, WhisparrAccess whisparr, CancellationToken ct)
                 => EnqueueSyncRunAsync(
-                    request, principal, jobs, scopes, options, credentials, instances, ct))
+                    request, principal, work, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -71,13 +68,12 @@ public sealed partial class WhisparrSync
     // behind an unrelated run this extension made exclusive.
     internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncPreviewAsync(
         ICurrentPrincipalAccessor principal,
-        IJobService jobs,
-        IServiceScopeFactory scopes,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        BackgroundWork work,
+        WhisparrAccess whisparr,
         CancellationToken ct)
     {
+        var (jobs, scopes) = work;
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -87,7 +83,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncEnqueued(null, refused));
@@ -108,11 +104,11 @@ public sealed partial class WhisparrSync
         ICurrentPrincipalAccessor principal,
         IJobService jobs,
         SyncPreviewCache counts,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         CancellationToken ct)
     {
+        var (options, _, _, _) = whisparr;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -123,7 +119,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
 
         var running = SyncRunIsInFlight(jobs);
-        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncPreviewRead(null, refused, running));
@@ -154,9 +150,7 @@ public sealed partial class WhisparrSync
         async Task<SyncPreviewAiming?> AimAsync(IServiceProvider services, CancellationToken runCt)
         {
             var target = await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrInstanceFactory>(),
+                    services.GetRequiredService<WhisparrAccess>(),
                     runCt)
                 .ConfigureAwait(false);
 
@@ -274,13 +268,12 @@ public sealed partial class WhisparrSync
     internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncRunAsync(
         SyncRunRequest? request,
         ICurrentPrincipalAccessor principal,
-        IJobService jobs,
-        IServiceScopeFactory scopes,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        BackgroundWork work,
+        WhisparrAccess whisparr,
         CancellationToken ct)
     {
+        var (jobs, scopes) = work;
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -290,7 +283,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        var refused = await SyncRefusalFor(options, credentials, instances, ct).ConfigureAwait(false);
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
         if (refused is not SyncRefusalKind.None)
         {
             return TypedResults.Ok(new SyncEnqueued(null, refused));
@@ -356,9 +349,7 @@ public sealed partial class WhisparrSync
             IServiceProvider services, SyncLibraryBatch batch, CancellationToken runCt)
         {
             var target = await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrInstanceFactory>(),
+                    services.GetRequiredService<WhisparrAccess>(),
                     runCt)
                 .ConfigureAwait(false);
 
@@ -433,9 +424,7 @@ public sealed partial class WhisparrSync
             CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
-                services.GetRequiredService<OptionsStore>(),
-                services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrInstanceFactory>(),
+                services.GetRequiredService<WhisparrAccess>(),
                 runCt).ConfigureAwait(false) is not { } target
             || target.Reads is not IWhisparrSiteRegistrationActing acting
             || target.Reads is not IWhisparrStudioActing studios)
@@ -764,12 +753,10 @@ public sealed partial class WhisparrSync
             && job.Status is JobStatus.Pending or JobStatus.Running);
 
     private static async Task<SyncRefusalKind> SyncRefusalFor(
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         CancellationToken ct)
     {
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return SyncRefusalKind.NoInstanceConnected;

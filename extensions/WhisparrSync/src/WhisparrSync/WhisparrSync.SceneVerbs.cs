@@ -3,12 +3,10 @@ using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
@@ -22,14 +20,12 @@ public sealed partial class WhisparrSync
         AddSceneAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
             IServiceScopeFactory scopes,
-            ILogger log,
             CancellationToken ct)
     {
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -44,7 +40,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await AddSceneResolvedAsync(
-                coveId, known: null, options, credentials, instances, sceneCards, scopes, log, ct)
+                coveId, known: null, whisparr, sceneCards, scopes, ct)
                 .ConfigureAwait(false));
     }
 
@@ -54,16 +50,15 @@ public sealed partial class WhisparrSync
     private static async Task<SceneActionResult> AddSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         ILibraryCardIdentityPort sceneCards,
         IServiceScopeFactory scopes,
-        ILogger log,
         CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrMissingSceneActing>(
-            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -125,13 +120,11 @@ public sealed partial class WhisparrSync
         MonitorSceneAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -146,7 +139,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SetSceneMonitoringResolvedAsync(
-                monitored: true, coveId, known: null, options, credentials, instances, sceneCards, log, ct)
+                monitored: true, coveId, known: null, whisparr, sceneCards, ct)
                 .ConfigureAwait(false));
     }
 
@@ -155,13 +148,11 @@ public sealed partial class WhisparrSync
         UnmonitorSceneAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -176,7 +167,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SetSceneMonitoringResolvedAsync(
-                monitored: false, coveId, known: null, options, credentials, instances, sceneCards, log, ct)
+                monitored: false, coveId, known: null, whisparr, sceneCards, ct)
                 .ConfigureAwait(false));
     }
 
@@ -187,13 +178,11 @@ public sealed partial class WhisparrSync
         ExcludeSceneAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -208,22 +197,21 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await ExcludeSceneResolvedAsync(
-                coveId, known: null, options, credentials, instances, sceneCards, log, ct)
+                coveId, known: null, whisparr, sceneCards, ct)
                 .ConfigureAwait(false));
     }
 
     private static async Task<SceneActionResult> ExcludeSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         ILibraryCardIdentityPort sceneCards,
-        ILogger log,
         CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -251,13 +239,12 @@ public sealed partial class WhisparrSync
         RemoveSceneExclusionAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -271,7 +258,7 @@ public sealed partial class WhisparrSync
         }
 
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, known: null, options, credentials, instances, sceneCards, log, ct)
+            coveId, known: null, whisparr, sceneCards, ct)
             .ConfigureAwait(false);
         if (ground is null)
         {
@@ -301,13 +288,11 @@ public sealed partial class WhisparrSync
         SearchSceneNowAsync(
             int coveId,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
         // API.
         if (!HasConfigurePermission(principal))
@@ -322,22 +307,21 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SearchSceneResolvedAsync(
-                coveId, known: null, options, credentials, instances, sceneCards, log, ct)
+                coveId, known: null, whisparr, sceneCards, ct)
                 .ConfigureAwait(false));
     }
 
     private static async Task<SceneActionResult> SearchSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         ILibraryCardIdentityPort sceneCards,
-        ILogger log,
         CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneSearchGrabbing>(
-            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);

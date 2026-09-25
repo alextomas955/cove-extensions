@@ -100,14 +100,16 @@ public sealed class CallbackOutboundPairTests
                 RequestFrom(CoveOrigin),
                 FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure),
                 ExtensionId,
-                options,
-                gate,
-                credentials,
-                new MintedSecretPort(),
-                notifications,
-                registrations,
-                new OpenLockdown(),
-                new FixedClock(Now),
+                new CallbackAddressing(
+                    options,
+                    new MintedSecretPort(),
+                    new OpenLockdown(),
+                    new FixedClock(Now)),
+                new CallbackRegistering(
+                    gate,
+                    credentials,
+                    notifications,
+                    registrations),
                 TestCt));
     }
 

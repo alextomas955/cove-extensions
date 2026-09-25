@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
+using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -39,6 +40,14 @@ internal static class BindingServices
         services.AddSingleton<OptionsWriteGate>(_ => null!);
         services.AddSingleton<RegistrationGate>(_ => null!);
         services.AddSingleton<TimeProvider>(_ => null!);
+
+        // The bundles the route lambdas name. Registered so the minimal-API binder reads each as a
+        // service rather than as a body.
+        services.AddSingleton<WhisparrAccess>(_ => null!);
+        services.AddSingleton<BackgroundWork>(_ => null!);
+        services.AddSingleton<OptionsWriting>(_ => null!);
+        services.AddSingleton<CallbackAddressing>(_ => null!);
+        services.AddSingleton<CallbackRegistering>(_ => null!);
         return services;
     }
 }
