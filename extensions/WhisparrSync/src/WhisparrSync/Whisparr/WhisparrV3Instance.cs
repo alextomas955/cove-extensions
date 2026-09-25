@@ -43,21 +43,19 @@ internal sealed class WhisparrV3Instance(
     // its own type, which has its own tests.
     public OutOfBandSecretField Carry(string secret) => new V3HeaderSecretRegistration().Carry(secret);
 
-    // Relative, so they compose onto a base address carrying a URL base (a reverse-proxy subpath).
-    // Both generations serve the v3 route family; the version in the path is not the generation.
-    //
-    // The self-composed routes are declared across the types the outbound seam is made of, and the
-    // route invariant reads that named set rather than one type, so a constant declared on any of
-    // them is covered.
+    // Relative, so they compose onto a base address carrying a URL base. Both generations serve the
+    // v3 route family; the version in the path is not the generation. They are declared across the
+    // types the outbound seam is made of, and the route invariant reads that named set rather than
+    // one type.
     internal const string StudioPath = "api/v3/studio";
     internal const string PerformerPath = "api/v3/performer";
     internal const string ExclusionsPath = "api/v3/exclusions";
 
     private static readonly JsonSerializerOptions ExclusionRowShape = new(JsonSerializerDefaults.Web);
 
-    // The two members of an exclusion row that are read. Declared with no others so a row costs one
-    // small object that is dropped before the next is read. The id is the row's own, which the
-    // removing route addresses; the foreign id is the scene's.
+    // The two members of an exclusion row that are read, declared with no others so a row costs one
+    // small object dropped before the next. The id is the row's own, which the removing route
+    // addresses; the foreign id is the scene's.
     private sealed record ExclusionRow(int Id, string? ForeignId);
 
     private static readonly JsonSerializerOptions HeldSceneRowShape = new(JsonSerializerDefaults.Web);
@@ -166,10 +164,8 @@ internal sealed class WhisparrV3Instance(
     }
 
     // The catalogue an entity's own scenes are read from, so the missing surface asks the metadata
-    // source for no scene list at all. One request per entity.
-    //
-    // A works route answers only for an entity the instance holds, so a not-found there is the
-    // entity's absence and not an empty catalogue.
+    // source for no scene list. One request per entity. A works route answers only for an entity
+    // the instance holds, so a not-found there is absence, not an empty catalogue.
     public async Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
         WhisparrEntityKind kind, string foreignId, CancellationToken ct)
     {
@@ -200,12 +196,9 @@ internal sealed class WhisparrV3Instance(
             : WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
     }
 
-    // One request for a page of entity cards, whatever the page holds. The alternative is a read per
-    // card, which is what this replaces: a page of forty studios cost forty requests against a third
-    // party.
-    //
-    // One list route per kind, and neither answers for the other, so the two reads are issued apart
-    // rather than through one call the generated client types differently per arm.
+    // One request for a page of entity cards, whatever the page holds, replacing a read per card: a
+    // page of forty studios cost forty requests against a third party. One list route per kind, and
+    // neither answers for the other, so the two reads are issued apart.
     public async Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
         WhisparrEntityKind kind, IReadOnlyList<string> foreignIds, CancellationToken ct)
     {
@@ -342,16 +335,16 @@ internal sealed class WhisparrV3Instance(
         };
 
     // One key, single-valued. Repeating it answers only the first value's row, comma-joining
-    // answers nothing, and the two plural spellings v3 accepts are ignored and answer with the whole
-    // catalogue.
+    // answers nothing, and the two plural spellings v3 accepts are ignored and answer with the
+    // whole catalogue.
     public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(string remoteId, CancellationToken ct)
         => GeneratedReadAsync(
             api => api.Api<V3Api.IMovieApi>().GetMovieAsync(
                 stashId: Named(remoteId), cancellationToken: ct));
 
-    // Each row is reduced to one question, so what this holds is the caller's own set and never the
-    // instance's. There is no row cap: a cap would stop part way and report the rest as not
-    // excluded, with nothing saying so.
+    // Each row is reduced to one question, so what this holds is the caller's set and never the
+    // instance's. No row cap: one would stop part way and report the rest as not excluded, with
+    // nothing saying so.
     public async Task<IReadOnlySet<string>> ReduceExclusionsAsync(
         IReadOnlyCollection<string> providerSceneIds, CancellationToken ct)
     {
@@ -376,7 +369,7 @@ internal sealed class WhisparrV3Instance(
 
         // An answer that did not arrive, or one this could not read, excludes nothing: reporting a
         // scene as excluded on a failed read would remove it from the surface with nothing saying
-        // why. The walk's own outcome is left unread here for that reason.
+        // why.
         await OverExclusionRowsAsync(
             row =>
             {
@@ -393,10 +386,9 @@ internal sealed class WhisparrV3Instance(
         return excluded;
     }
 
-    // Each answered row is reduced to one question, so what this holds is the caller's own set and
-    // never the instance's. There is no row cap, for the reason the exclusion reduce has none.
-    //
-    // The body is a bare JSON array of identifier strings. An object naming the ids as a member is
+    // Each answered row is reduced to one question, so what this holds is the caller's set and
+    // never the instance's, and there is no row cap for the reason the exclusion reduce has none.
+    // The body is a bare JSON array of identifier strings; an object naming the ids as a member is
     // answered 400, measured against whisparr:v3-3.3.8-release.1097.
     public async Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
         IReadOnlyCollection<string> foreignIds, CancellationToken ct)
@@ -592,12 +584,10 @@ internal sealed class WhisparrV3Instance(
                 cancellationToken: ct));
     }
 
-    // The one member of this instance that can make it acquire anything, apart from the per-scene
+    // One of the two members that can make this instance acquire, the other being the per-scene
     // search below, and the only ones whose invocation is recorded on its own. Their verb class has
-    // no retry entry: a second search is a second download.
-    //
-    // This generation's command names an id array and carries every id in one, so each entity is
-    // searched once.
+    // no retry entry: a second search is a second download. This generation's command names an id
+    // array and carries every id in one, so each entity is searched once.
     public Task<WhisparrResponse> SearchMonitoredAsync(
         WhisparrEntityKind kind, IReadOnlyList<int> entityIds, CancellationToken ct)
     {
@@ -654,9 +644,9 @@ internal sealed class WhisparrV3Instance(
         where TResponse : V3Client.IApiResponse
         => GeneratedSendAsync(call);
 
-    // Every instance-side action this generation takes is issued through the one command route. Sent
-    // once. The acting class and the grabbing class both reach the route through this send, so an
-    // attempt count added here would cover the class that downloads.
+    // Every instance-side action this generation takes goes through the one command route, sent
+    // once. The acting and grabbing classes both reach it through this send, so an attempt count
+    // added here would cover the class that downloads.
     private Task<WhisparrResponse> GeneratedCommandAsync(JsonObject command, CancellationToken ct)
     {
         var (name, payload) = WhisparrTransport.VerbAndPayload(command);
@@ -682,9 +672,9 @@ internal sealed class WhisparrV3Instance(
         }
     }
 
-    // Re-issuing a read re-reads and can create nothing, so the read class is the only one that gets
-    // more than one attempt. The last attempt is the plain send, so its failure propagates rather
-    // than being counted again.
+    // Re-issuing a read creates nothing, so the read class is the only one granted more than one
+    // attempt. The last attempt is the plain send, so its failure propagates rather than being
+    // counted again.
     private async Task<WhisparrResponse> ReadAsync(string path, CancellationToken ct)
     {
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);

@@ -25,12 +25,10 @@ internal sealed record SyncRegistration(
             MonitoringProjector.EntityIdIn(answered?.Body));
 }
 
-// Counts only. One entry can carry any number of scenes, so a member listing them would grow with
-// the library.
-//
-// The three failures are counted apart because a reader acts on them differently: Unnumbered is a
-// scene the metadata provider names no number for, Unresolved is one the instance holds no row for
-// or would not answer about, and Refused is the instance declining to flag a row it does hold.
+// Counts only: one entry can carry any number of scenes, so a member listing them would grow with
+// the library. The three failures are counted apart because a reader acts on them differently:
+// Unnumbered is a scene the provider names no number for, Unresolved one the instance holds no row
+// for or would not answer about, Refused the instance declining to flag a row it holds.
 internal readonly record struct SceneMonitorTally(
     int Monitored, int Unnumbered, int Unresolved, int Refused)
 {
@@ -128,12 +126,11 @@ internal sealed record SyncLibraryWalk<TIdentity>(
 // what one instance answered, and a second transcription could drift while both files stayed green.
 internal static class SyncLibraryPlanner
 {
-    // The host requires this order: count, then the declaration, then units, then the summary last.
-    // A declaration made after a unit starts is refused, a run declaring none derives no fraction,
-    // and a summary set before the last unit is overwritten by the host's own aggregate line.
-    //
-    // Each unit is completed and disposed in one scope: the host clears a unit's state only on
-    // disposal, so a run disposing none leaves an entry per scene in a host dictionary.
+    // The host requires this order: count, declaration, units, summary last. A declaration after a
+    // unit starts is refused, a run declaring none derives no fraction, and a summary set before
+    // the last unit is overwritten by the host's aggregate line. Each unit is completed and
+    // disposed in one scope: the host clears a unit's state only on disposal, so a run disposing
+    // none leaves an entry per scene in a host dictionary.
     internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
         SyncRegisters registers,
         SyncLibrarySource<TIdentity> source,
@@ -154,9 +151,9 @@ internal static class SyncLibraryPlanner
 
             var total = await CountAsync(source, walking, ct).ConfigureAwait(false);
 
-            // Answered before anything is declared. The host returns immediately from its progress
-            // refresh at a zero total, so a run declaring zero would never derive a fraction and
-            // would never be given an ending at all.
+            // Answered before anything is declared: the host returns immediately from its progress
+            // refresh at a zero total, so a run declaring zero would derive no fraction and be
+            // given no ending.
             if (total == 0)
             {
                 return Ending(Nothing, monitors, registers, progress);
@@ -238,9 +235,9 @@ internal static class SyncLibraryPlanner
         await folders.LeaveAsync(ct).ConfigureAwait(false);
     }
 
-    // The folder the walk is inside. Linked once the walk leaves it, and once more after the stream
-    // ends, so the last folder is not left out. A row naming no folder leaves the walk where it is:
-    // it is an identifier the library holds no file for, so there is nothing to link on its account.
+    // The folder the walk is inside, linked as the walk leaves it and once more after the stream
+    // ends so the last is not left out. A row naming no folder leaves the walk where it is: it is
+    // an identifier the library holds no file for.
     private sealed class FolderWalk<TIdentity>(SyncLibraryWalk<TIdentity> walk)
     {
         private string? _inside;
@@ -359,17 +356,16 @@ internal static class SyncLibraryPlanner
         }
     }
 
-    // Composed under the invariant culture with a grouped format, so the same figure reads the
-    // same wherever it appears, including beside the browser's own hand-written grouping on the
-    // settings page. No word for a batch, a chunk, a unit or a slice appears here or in the
-    // summary: a reader could take any of them for a number of entries.
+    // Composed under the invariant culture with a grouped format, so one figure reads the same
+    // everywhere, including beside the browser's own grouping. No word for a batch, chunk, unit or
+    // slice appears here or in the summary: a reader could take any for a number of entries.
     internal static string LineFor(int offered, int total, SyncRegisters registers)
         => string.Create(
             CultureInfo.InvariantCulture, $"{Singular(registers)} {offered:N0} of {total:N0}");
 
-    // Counts rather than a list of scenes. Registered, already held and refused are stated apart
-    // because they are different facts. What was monitored is named only where monitoring was asked
-    // for, so a run with the choice off says nothing about a flag it never set.
+    // Counts, not a list of scenes. Registered, already held and refused are stated apart as
+    // different facts. Monitoring is named only where it was asked for, so a run with the choice
+    // off says nothing about a flag it never set.
     internal static string SummaryOf(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -403,9 +399,9 @@ internal static class SyncLibraryPlanner
                 CultureInfo.InvariantCulture,
                 $", {run.WithoutAnAgreedRoot:N0} with no agreed root");
 
-    // Absent where nothing was split. The library roots are named and nothing else is, and the
-    // line says the files were left where they are: an operator reading that an entry moved could
-    // otherwise take it to mean the files moved with it.
+    // Absent where nothing was split. Only the library roots are named, and the line says the files
+    // were left where they are: a reader told an entry moved could otherwise take it that the files
+    // moved with it.
     private static string Split(SyncLibraryRun run, SyncRegisters registers)
     {
         if (run.SplitAcrossRoots == 0 || run.RootsLeftBehind.Count == 0)
@@ -461,12 +457,10 @@ internal static class SyncLibraryPlanner
         return run;
     }
 
-    // What was monitored is scenes on both passes. On the scene pass the noun is already the one
-    // every other figure is stated in, so it is left implicit; on the site pass it is stated,
-    // because a bare figure between two counts of sites would read as a third one.
-    //
-    // The figure that could not be monitored covers every way a scene was not flagged, because a
-    // reader is being told how many of their own scenes are not being watched for.
+    // Monitoring counts scenes on both passes. The scene pass leaves the noun implicit, every other
+    // figure already being in it; the site pass states it, a bare figure between two counts of
+    // sites reading as a third. The could-not figure covers every way a scene was not flagged, a
+    // reader being told how many of their scenes are unwatched.
     private static string Monitoring(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         if (!monitoring)
@@ -492,9 +486,9 @@ internal static class SyncLibraryPlanner
         _ => counted == 1 ? " scene" : " scenes",
     };
 
-    // A scene the instance already held is skipped rather than succeeded: nothing about it
-    // changed, and the host's own aggregate counts the two apart. An entry this run moved
-    // succeeded, because the run did change the instance.
+    // A scene the instance already held is skipped rather than succeeded: nothing changed, and the
+    // host's aggregate counts the two apart. An entry this run moved succeeded, because the run did
+    // change the instance.
     private static JobUnitOutcome OutcomeFor(SceneRegistration registration) => registration switch
     {
         SceneRegistration.Registered => JobUnitOutcome.Succeeded,
