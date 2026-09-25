@@ -11,9 +11,9 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Providers;
 
 // REST rather than the GraphQL address Cove is configured with: that surface answers a scene query
-// with the requested page size as its count and a null scene list, so a caller reading it would
-// state a page size as a catalogue's size and never see an error. Every request is a GET on one of
-// the routes named here, and no member takes a path, verb or query key from a caller.
+// with the requested page size as its count and a null scene list, so a caller would state a page
+// size as a catalogue's size and never see an error. Every request is a GET on one of the routes
+// named here, and no member takes a path, verb or query key from a caller.
 internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
 {
     internal const string ProviderName = "ThePornDB";
@@ -26,9 +26,8 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
     internal const int MaxPerPage = 100;
 
     // How many rows of any one catalogue the provider will serve at all. A size reading this figure
-    // is a floor rather than a count: a page past the last one is clamped to the last and
-    // re-served with the clamped number echoed back, so paging beyond it repeats silently instead
-    // of erroring.
+    // is a floor, not a count: a page past the last is clamped and re-served with the clamped
+    // number echoed back, so paging beyond it repeats silently instead of erroring.
     internal const int CatalogueCeiling = 10_000;
 
     // The exact-name walk is bounded by the search result, not by the library. A search is
@@ -95,7 +94,7 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
     // The identifier this product carries is the one the site's own scene path takes. Whisparr
     // composes the same path from the same uuid, so the shape is read off a client the provider
     // already serves rather than guessed. A scene row's `url` is the studio's own address, not the
-    // provider's, so it is not this.
+    // provider's.
     public string? SceneAddress(string providerSceneId)
         => string.IsNullOrWhiteSpace(providerSceneId)
             ? null
@@ -141,8 +140,8 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
         var size = Number(meta, "total") ?? 0;
 
         // The last page is read from the provider, never derived from the size: past the ceiling
-        // the provider silently re-serves its last page, so a derived number would offer pages that
-        // answer rows already shown.
+        // the provider silently re-serves its last page, so a derived number would offer pages
+        // answering rows already shown.
         return ProviderCatalogueAnswer.Answered(
             new ProviderCataloguePage(
                 scenes,
@@ -194,12 +193,11 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
                 : null;
     }
 
-    // The scene route answers one row for the identifier Cove stores, carrying several pictures of
-    // the same scene. `background` is the widescreen one and is served from the provider's own
-    // store; `image` is the same shape but addresses the studio's site, which refuses some of them.
-    // `poster` is a tall one, so a card crops most of its height away and is the last resort.
-    // Null is both a row the provider names no picture on and a read that established nothing,
-    // which the card renders the same placeholder for.
+    // The scene route answers one row for the identifier Cove stores, carrying several pictures.
+    // `background` is the widescreen one, served from the provider's own store; `image` is the same
+    // shape but addresses the studio's site, which refuses some; `poster` is tall, so a card crops
+    // most of it away and it is the last resort. Null covers both a row naming no picture and a
+    // read that established nothing, which the card renders the same placeholder for.
     public async Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct)
     {
         var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
@@ -272,8 +270,8 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
     }
 
     // Each search route matches on a substring and orders by relevance, so the exact filter is this
-    // product's own. A tag answers the provider's numeric identifier, which is what the scene route
-    // accepts; a site and a performer answer the identifier Cove itself stores.
+    // product's own. A tag answers the provider's numeric identifier, which the scene route
+    // accepts; a site and a performer answer the identifier Cove stores.
     public async Task<ProviderIdentityLookup> LookUpByNameAsync(
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
     {
@@ -335,8 +333,8 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
     }
 
     // The tag route takes a `q`, so tags are searched at the provider. The year menu is derived
-    // from the two edges of the entity's own catalogue rather than from a value list, so there is
-    // nothing to search there and it answers unsearchable.
+    // from the two edges of the entity's own catalogue rather than a value list, so there is
+    // nothing to search and it answers unsearchable.
     public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
         WhisparrEntityKind kind,
         string providerEntityId,
@@ -356,7 +354,7 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
             return ProviderFacetSearch.NotReached;
         }
 
-        // No page size is asked for. The route serves thirty rows a page and declares no per_page,
+        // No page size is asked for: the route serves thirty rows a page and declares no per_page,
         // so a size named here would be a number this product invented for a parameter the provider
         // does not read.
         var answered = (await AskAsync(
@@ -662,7 +660,7 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
 
     // One row of one collection, addressed by the identifier Cove stores. The send is carried
     // beside the row, so a caller can tell a row the provider states it has none of from a read
-    // that established nothing at all.
+    // that established nothing.
     private async Task<(ProviderSend Send, JsonElement? Entity)> EntityAsync(
         ResolvedProvider resolved, string collection, string storedId, CancellationToken ct)
     {
@@ -745,8 +743,8 @@ internal sealed class ThePornDbCatalogue : IProviderCatalogue, IReadsSceneCover
     }
 
     // No body where no catalogue arrived: no whole answer, a status that is not a success, or a
-    // body carrying the provider's own refusal. A refusal is never read as a catalogue that is
-    // simply empty, and an answer the provider stated ends the attempts.
+    // body carrying the provider's own refusal. A refusal is never read as an empty catalogue, and
+    // an answer the provider stated ends the attempts.
     private async Task<ProviderSend> AskAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {

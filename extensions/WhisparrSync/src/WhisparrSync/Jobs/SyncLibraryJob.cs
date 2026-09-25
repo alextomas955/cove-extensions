@@ -37,9 +37,9 @@ internal sealed record SyncLibraryAiming(
 /// </summary>
 public static class SyncLibraryJob
 {
-    // Read from the one declaration beside the routes, never restated. The count route derives
-    // whether a run is in flight from the same constant, so a second literal could let the route
-    // answer about a job type nothing enqueues.
+    // Read from the one declaration beside the routes, never restated: the count route derives
+    // whether a run is in flight from the same constant, so a second literal could let it answer
+    // about a job type nothing enqueues.
     public const string JobId = global::WhisparrSync.WhisparrSync.SyncLibraryJobId;
 
     private const string AlsoMonitorKey = "alsoMonitor";
@@ -66,11 +66,11 @@ public static class SyncLibraryJob
             && bool.TryParse(value, out var asked)
             && asked);
 
-    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
-    // anonymous reader with zero rows and no error, so the library would read as empty.
-    // The identifier stream is handed over as a factory, never as a collection: the planner walks it
-    // twice and libraries reach millions of files. The host's batching helper is not used here,
-    // because it materializes its unit sequence before the first request.
+    // Runs as System: the job carries no principal, and Cove's filters answer an anonymous reader
+    // zero rows and no error, so the library would read as empty. The identifier stream is a
+    // factory, never a collection: the planner walks it twice and libraries reach millions of
+    // files. The host's batching helper materializes its unit sequence before the first request, so
+    // it is not used.
     internal static Task<SyncLibraryRun> RunAsync(
         SyncLibraryBatch batch,
         IServiceScopeFactory scopes,
@@ -94,14 +94,13 @@ public static class SyncLibraryJob
             var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
 
             // A folder is linked as the walk leaves it, so files attach from the first folder
-            // rather than after the whole library has been offered, and a stop keeps what it
-            // linked. Null where the pass links nothing, which leaves the walk registering only.
+            // rather than after the whole library is offered, and a stop keeps what it linked. Null
+            // where the pass links nothing, leaving the walk registering only.
             var linking = await LinkingThrough(services, aimed, ct).ConfigureAwait(false);
 
-            // The roots this instance can reach are walked first, so a library whose other half is
-            // out of reach still links something within the first folder rather than the last.
-            // Empty where nothing links and so nothing needed the roots probed: the walk then takes
-            // every folder in path order, which is the order it had before any root was ranked.
+            // Reachable roots are walked first, so a library whose other half is out of reach still
+            // links something within the first folder rather than the last. Empty where nothing
+            // links and no root needed probing: the walk then takes every folder in path order.
             var rootOrder = aimed.RootOrder ?? [];
 
             var registered = await RegisterAsync(aimed, identities, linking, rootOrder, progress, ct)
@@ -124,9 +123,8 @@ public static class SyncLibraryJob
 
     // Null where nothing links: a pass registering studios, an instance holding no reflect-owned
     // role, or a hard-link setting that refused. A declared-root list that could not be read gives
-    // one that carries that fact and attaches nothing, because an import made without the
-    // comparison copies the bytes rather than linking them. The roots are read once here rather
-    // than once per folder.
+    // one carrying that fact and attaching nothing, an import made without the comparison copying
+    // the bytes rather than linking. The roots are read once here, not per folder.
     private static async Task<FolderLinking?> LinkingThrough(
         IServiceProvider services, SyncLibraryAiming aimed, CancellationToken ct)
     {
@@ -149,12 +147,10 @@ public static class SyncLibraryJob
             : new FolderLinking(aim, instanceRoots, outOfReach, acts: true);
     }
 
-    // Carries the total across a walk rather than answering one per folder, so the run states one
-    // line however many folders it passed through.
-    //
-    // What the walk registered in the folder it is inside is held by the identity Cove knows each
-    // scene by, and dropped as the walk leaves, so nothing here grows with the library: it holds one
-    // entry per scene in one directory.
+    // Carries the total across a walk rather than one per folder, so the run states one line
+    // however many folders it passed. What the walk registered in the folder it is inside is held
+    // by the identity Cove knows each scene by and dropped as the walk leaves, so it holds one
+    // entry per scene in one directory and nothing more.
     private sealed class FolderLinking(
         ReflectOwnedAiming aim,
         IReadOnlyList<string> instanceRoots,
@@ -180,7 +176,7 @@ public static class SyncLibraryJob
         }
 
         // The declared root on the same filesystem as this folder, or null where none is. Addressed
-        // through the same held reading every folder under that root uses, so this costs no request
+        // through the same held reading every folder under that root uses, so it costs no request
         // beyond the first folder under each.
         internal async Task<string?> RootReachingAsync(string folder, CancellationToken ct)
         {
@@ -240,8 +236,8 @@ public static class SyncLibraryJob
                     LinkFolder: linking is null ? null : linking.LinkAsync)).ConfigureAwait(false),
 
             // Nothing monitors the site itself. What the reader owns on a site is its scenes, so
-            // the monitor slot here marks those rather than the site, and it is null unless the
-            // reader asked and every role that pass needs was obtained.
+            // this slot marks those, and it is null unless the reader asked and every role the pass
+            // needs was obtained.
             SyncRegisters.Sites => await SyncLibraryPlanner.RunAsync(
                 aimed.Registers,
                 new SyncLibrarySource<LibrarySiteIdentity>(
@@ -256,12 +252,10 @@ public static class SyncLibraryJob
                 $"{aimed.Registers} is not a pass this run makes."),
         };
 
-    // The scene pass acts on the identifier inside the row the folder walk yields. A row carrying
-    // none never reaches either: the walk skips it, because it is a folder and not a scene.
-    //
-    // The instance's own id for what it just registered is kept against the identity the offer
-    // named, so the folder's files are attached to the entries Cove identified rather than to
-    // whatever the instance managed to parse out of their names.
+    // The scene pass acts on the identifier inside the row the folder walk yields; a row carrying
+    // none is skipped as a folder rather than a scene. The instance's own id for what it just
+    // registered is kept against the identity the offer named, so a folder's files attach to the
+    // entries Cove identified rather than to whatever the instance parsed out of their names.
     private static Func<LibrarySceneInFolder, CancellationToken, Task<SyncRegistration>> Registering(
         SyncLibraryAiming aimed, FolderLinking? linking)
     {
@@ -274,8 +268,8 @@ public static class SyncLibraryJob
             var remoteId = Identifier(row);
 
             // The entry is registered on the root that reaches this folder's own files. A library
-            // spread over several volumes cannot be registered on one of them: a hard link cannot
-            // cross a filesystem, so the import would copy the bytes instead.
+            // spread over several volumes cannot be registered on one: a hard link cannot cross a
+            // filesystem, so the import would copy the bytes instead.
             var root = row.Folder is { } folder && linking is not null
                 ? await linking.RootReachingAsync(folder, ct).ConfigureAwait(false)
                 : null;

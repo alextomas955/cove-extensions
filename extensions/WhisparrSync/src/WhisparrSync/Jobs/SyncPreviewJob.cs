@@ -7,12 +7,11 @@ using WhisparrSync.Library;
 
 namespace WhisparrSync.Jobs;
 
-// Resolved when the run starts, not when it was enqueued: which instance is connected is a setting
-// a person edits.
-// Registers decides which count runs. Held and HeldSites are not interchangeable: one asks a batch
-// of scene identifiers and the other a batch of stored studio identifiers.
-// HeldSites raises rather than answering a short reading, because an identifier absent from both its
-// sets would land in the not-yet-there column on the strength of nothing.
+// Resolved at run start, not at enqueue: which instance is connected is a setting a person edits.
+// Registers decides which count runs. Held and HeldSites are not interchangeable, one asking a
+// batch of scene identifiers and the other stored studio identifiers, and HeldSites raises rather
+// than answering short: an identifier absent from both its sets would land in the not-yet-there
+// column on the strength of nothing.
 internal sealed record SyncPreviewAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
@@ -32,36 +31,32 @@ public static class SyncPreviewJob
 {
     public const string JobId = "sync-preview";
 
-    // The largest batch measured to answer 200 against whisparr:v3-3.3.8-release.1097 on 2026-09-10.
-    // It also keeps a batch's worst-case answer inside WhisparrTransport.MaxResponseBytes, which the
-    // transport refuses outright rather than truncating: ChunkSize times MeasuredBytesPerHit is
-    // about 2.3 MiB against an 8 MiB bound.
+    // The largest batch measured to answer 200 against whisparr:v3-3.3.8-release.1097. It also
+    // keeps a batch's worst-case answer inside WhisparrTransport.MaxResponseBytes, which the
+    // transport refuses outright rather than truncating: about 2.3 MiB against an 8 MiB bound.
     internal const int ChunkSize = 1000;
 
     // What one answered entry costs, measured against the same instance and date. A constant so the
     // bound above is arithmetic a test can re-derive.
     internal const int MeasuredBytesPerHit = 2370;
 
-    // A pacing bound, not a ceiling on how many reads are issued: every scene the reader owns on the
-    // site is read. One, because the instance's request queue is the shared resource. A bound on how
-    // many reads are issued would leave part of the library unmonitored and report a total that
-    // reads like a complete one.
+    // A pacing bound, not a ceiling on how many reads are issued: every scene the reader owns on
+    // the site is read. One, the instance's request queue being the shared resource. A ceiling
+    // would leave part of the library unmonitored and report a total that reads complete.
     internal const int SiteSceneReadsInFlight = 1;
 
-    // A pacing bound, not a ceiling: every studio the library yields is resolved. Measured against a
-    // 525-studio library on 2026-09-13: at four, 522 resolved and none was rate-limited; at eight,
-    // 144 of the 525 were rejected.
-    // Not a second rate bound. ProviderPacer already holds the rate to the host's metadata-server
-    // setting. What it does not bound is how many callers wait: past its queue depth a caller is
-    // refused immediately, which arrives here as a source that was not reached and ends the count.
+    // A pacing bound, not a ceiling: every studio the library yields is resolved. Measured against
+    // a 525-studio library: at four, 522 resolved and none was rate-limited; at eight, 144 were
+    // rejected. Not a second rate bound, ProviderPacer already holding the rate to the host's
+    // setting. What it bounds is how many callers wait: past its queue depth a caller is refused
+    // immediately, which arrives as a source not reached and ends the count.
     internal const int MetadataResolvesInFlight = 4;
 
-    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
-    // anonymous reader with zero rows and no error, so the library would read as empty.
-    // Nothing per scene is held: the only collection alive at once is one batch of identifiers,
-    // bounded by ChunkSize whatever the library holds.
-    // A batch the instance did not answer throws and ends the whole count. The three counts arrive
-    // together or not at all, because a count missing one of its numbers reads as a zero.
+    // Runs as System: the job carries no principal, and Cove's filters answer an anonymous reader
+    // zero rows and no error, so the library would read as empty. Nothing per scene is held, the
+    // only collection alive being one batch bounded by ChunkSize. A batch the instance did not
+    // answer throws and ends the count: the three numbers arrive together or not at all, one
+    // missing reading as a zero.
     internal static Task<SyncPreviewView?> RunAsync(
         IServiceScopeFactory scopes,
         Func<IServiceProvider, CancellationToken, Task<SyncPreviewAiming?>> aiming,
@@ -110,10 +105,9 @@ public static class SyncPreviewJob
                 nameof(aimed), aimed.Registers, "This is not a count this product takes."),
         };
 
-    // Nothing caps how many batches are asked: a cap would answer a short pair that reads like a
-    // complete one. What is bounded is MetadataResolvesInFlight.
-    // Nothing per site is held: one batch of identifiers is alive at a time, bounded by ChunkSize
-    // whatever the library holds, and the three answers are integers.
+    // Nothing caps how many batches are asked, a cap answering a short pair that reads complete;
+    // what is bounded is MetadataResolvesInFlight. One batch of identifiers is alive at a time,
+    // bounded by ChunkSize whatever the library holds, and the three answers are integers.
     private static async Task<SyncPreviewView> CompareSitesAsync(
         ILibrarySceneIdentityPort identities,
         SyncPreviewAiming aimed,
@@ -194,9 +188,9 @@ public static class SyncPreviewJob
 
         internal int NamesNone { get; private set; }
 
-        // Each offered identifier is classified rather than the answered set being counted. Two
-        // studios carrying one identifier answer one number, and counting the answer's own size
-        // would put the second of them in the not-yet-there column.
+        // Each offered identifier is classified rather than the answered set counted: two studios
+        // carrying one identifier answer one number, and counting the answer's size would put the
+        // second in the not-yet-there column.
         internal void Classify(IReadOnlyList<string> offered, SiteBatchReading answered)
         {
             foreach (var identity in offered)
@@ -207,9 +201,9 @@ public static class SyncPreviewJob
                 }
                 else if (answered.NamesNone.Contains(identity))
                 {
-                    // Counted with the studios carrying no identifier at all, because a run can
-                    // compose no add for either. In the not-yet-there column it would be offered
-                    // for registration and the run would then refuse it.
+                    // Counted with the studios carrying no identifier at all, a run composing no
+                    // add for either. In the not-yet-there column it would be offered for
+                    // registration and then refused.
                     NamesNone++;
                 }
                 else
@@ -281,9 +275,9 @@ public static class SyncPreviewJob
         {
             var answered = await held(batch, ct).ConfigureAwait(false);
 
-            // Each offered identifier is classified rather than the answered set being counted.
-            // Two spellings of one source yield one identifier twice, and counting the answer's own
-            // size would put the second copy of a held scene in the not-yet-there column.
+            // Each offered identifier is classified rather than the answered set counted: two
+            // spellings of one source yield one identifier twice, and counting the answer's size
+            // would put the second copy of a held scene in the not-yet-there column.
             var wasHeld = batch.Count(answered.Contains);
             alreadyThere += wasHeld;
             notYetThere += batch.Count - wasHeld;
