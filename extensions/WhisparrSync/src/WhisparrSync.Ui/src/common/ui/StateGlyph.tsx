@@ -41,10 +41,10 @@ const FILLED = new Set(["bookmark"]);
 export function StateGlyph({
   iconKey,
   className = "h-3.5 w-3.5",
-}: {
+}: Readonly<{
   iconKey: string;
   className?: string;
-}) {
+}>) {
   // A key with no glyph draws the plain circle, not nothing. A chip with no mark leaves the state
   // distinguished by its tint alone.
   const Icon = GLYPH[iconKey] ?? Circle;

@@ -61,15 +61,18 @@ function bodyFor(item: MonitorMenuItem): unknown {
   return { scope: item.item === "scope" ? item.scope : null };
 }
 
-export function WhisparrStudioActions({ studio }: { studio: { id: number } }) {
+export function WhisparrStudioActions({ studio }: Readonly<{ studio: { id: number } }>) {
   return <EntityMonitorControl kind="studio" coveId={studio.id} />;
 }
 
-export function WhisparrPerformerActions({ performer }: { performer: { id: number } }) {
+export function WhisparrPerformerActions({ performer }: Readonly<{ performer: { id: number } }>) {
   return <EntityMonitorControl kind="performer" coveId={performer.id} />;
 }
 
-function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; coveId: number }) {
+function EntityMonitorControl({
+  kind,
+  coveId,
+}: Readonly<{ kind: WhisparrEntityKind; coveId: number }>) {
   const { state, act } = useMonitoring(kind, coveId);
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<{

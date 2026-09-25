@@ -16,7 +16,10 @@ import { BADGE_STRIP_CLASS } from "./libraryClasses";
 import { useLibraryStatusOn } from "./libraryToggleStore";
 import { useCardStatus } from "./useCardStatus";
 
-export function CardStatusBadge({ kind, coveId }: { kind: LibraryCardKind; coveId: number }) {
+export function CardStatusBadge({
+  kind,
+  coveId,
+}: Readonly<{ kind: LibraryCardKind; coveId: number }>) {
   const on = useLibraryStatusOn();
   const { reading, settled, running, pageRefused } = useCardStatus(kind, coveId, on);
 

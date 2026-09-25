@@ -65,12 +65,12 @@ export function MissingGrid({
   view,
   surroundings,
   cards: wiring,
-}: {
+}: Readonly<{
   read: AsyncRead;
   view: MissingPageView | null;
   surroundings: MissingGridSurroundings;
   cards: MissingGridCards;
-}) {
+}>) {
   const cards = view?.cards ?? [];
   const kind = deriveGridState({ read, view, ...surroundings });
   const state = kind === null ? null : describeGridState(kind);
@@ -114,25 +114,23 @@ export function MissingGrid({
         )}
         outageNotice={kind === "readIsStale" ? stated : null}
         content={
-          <>
-            <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
-              {cards.map((card) => (
-                <MissingCard
-                  key={card.providerSceneId}
-                  card={card}
-                  selected={wiring.selected.has(card.providerSceneId)}
-                  selecting={wiring.selecting}
-                  onToggleSelect={(options) => {
-                    wiring.onToggleSelect(card.providerSceneId, options);
-                  }}
-                  action={wiring.actions[card.providerSceneId]}
-                  inARun={runCovers(wiring.running, card.providerSceneId)}
-                  onMonitor={wiring.onMonitor}
-                  onSearch={wiring.onSearch}
-                />
-              ))}
-            </div>
-          </>
+          <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+            {cards.map((card) => (
+              <MissingCard
+                key={card.providerSceneId}
+                card={card}
+                selected={wiring.selected.has(card.providerSceneId)}
+                selecting={wiring.selecting}
+                onToggleSelect={(options) => {
+                  wiring.onToggleSelect(card.providerSceneId, options);
+                }}
+                action={wiring.actions[card.providerSceneId]}
+                inARun={runCovers(wiring.running, card.providerSceneId)}
+                onMonitor={wiring.onMonitor}
+                onSearch={wiring.onSearch}
+              />
+            ))}
+          </div>
         }
         empty={stated}
         failed={stated}

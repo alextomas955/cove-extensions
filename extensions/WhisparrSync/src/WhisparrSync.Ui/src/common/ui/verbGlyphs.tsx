@@ -39,7 +39,7 @@ export type WhisparrVerb =
 // Hidden from assistive technology in the one place a verb becomes a glyph, because every surface
 // draws the verb's own name beside it.
 function decorative(Icon: typeof Bookmark): RowIcon {
-  return function VerbGlyph({ className }: { className?: string }) {
+  return function VerbGlyph({ className }: Readonly<{ className?: string }>) {
     return <Icon className={className} aria-hidden="true" />;
   };
 }

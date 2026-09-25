@@ -36,14 +36,14 @@ export function MissingGridStates({
   sentence,
   affectedControls,
   actions,
-}: {
+}: Readonly<{
   kind: MissingGridStateKind;
   /** The kind's own sentence with the provider and entity names filled in. */
   sentence: string;
   /** How many controls on screen the reason applies to, so a reason covering none renders nothing. */
   affectedControls: number;
   actions: MissingGridStateActions;
-}) {
+}>) {
   const state = describeGridState(kind);
 
   if (!state.replacesTheGrid) {

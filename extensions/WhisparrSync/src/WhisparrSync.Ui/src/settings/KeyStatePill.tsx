@@ -27,7 +27,12 @@ export interface KeyStateFieldProps {
   onChange: (next: string) => void;
 }
 
-export function KeyStateField({ id, value, storedKeyIsSet, onChange }: KeyStateFieldProps) {
+export function KeyStateField({
+  id,
+  value,
+  storedKeyIsSet,
+  onChange,
+}: Readonly<KeyStateFieldProps>) {
   return (
     <div className="relative">
       <input

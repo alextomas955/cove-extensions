@@ -20,7 +20,7 @@ export function WhisparrBatchChooser({
   count,
   reason,
   onChoose,
-}: {
+}: Readonly<{
   /** Empty when a refusal is being stated. */
   rows: readonly BatchMenuRow[];
   count: number;
@@ -28,7 +28,7 @@ export function WhisparrBatchChooser({
   reason: string | null;
   /** Called with null when the overlay is left without a choice. */
   onChoose: (row: BatchMenuRow | null) => void;
-}) {
+}>) {
   return (
     <ChoiceOverlay<BatchMenuRow & { icon: RowIcon }>
       count={count}

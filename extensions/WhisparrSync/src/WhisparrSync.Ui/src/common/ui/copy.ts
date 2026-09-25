@@ -586,9 +586,7 @@ export function folderAgreementTriedSentence(tried: readonly string[]): string {
     return "Cove asked Whisparr about no path at all.";
   }
   const asked =
-    tried.length === 1
-      ? tried[0]
-      : `${tried.slice(0, -1).join(", ")} and ${tried[tried.length - 1]}`;
+    tried.length === 1 ? tried[0] : `${tried.slice(0, -1).join(", ")} and ${tried.at(-1)}`;
   return `Cove asked Whisparr about ${asked}.`;
 }
 

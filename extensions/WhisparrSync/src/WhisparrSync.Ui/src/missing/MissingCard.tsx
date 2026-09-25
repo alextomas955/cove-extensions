@@ -71,7 +71,7 @@ export function MissingCard({
   onMonitor,
   onSearch,
   inARun = false,
-}: {
+}: Readonly<{
   card: MissingCardView;
   selected?: boolean;
   /** A selection is in progress, so every card shows its control rather than only the hovered one. */
@@ -85,7 +85,7 @@ export function MissingCard({
   onMonitor?: (providerSceneId: string) => void;
   /** Asks Whisparr to look for this scene. Absent where the surface offers no verbs. */
   onSearch?: (providerSceneId: string) => void;
-}) {
+}>) {
   const rows = deriveCardRows(card);
   const pillState = displayedState(card.state, action);
   const failure = cardFailureLine(action);
@@ -156,12 +156,12 @@ function AtTheSource({
   title,
   className,
   children,
-}: {
+}: Readonly<{
   url: string | null;
   title: string;
   className: string;
   children: ReactNode;
-}) {
+}>) {
   if (url === null) {
     return children;
   }
@@ -187,12 +187,12 @@ function CardAction({
   glyph: Glyph,
   waiting,
   onPress,
-}: {
+}: Readonly<{
   name: string;
   glyph: RowIcon;
   waiting: boolean;
   onPress: () => void;
-}) {
+}>) {
   return (
     <button
       type="button"
@@ -207,7 +207,7 @@ function CardAction({
   );
 }
 
-function CardBodyRows({ rows }: { rows: CardRows }) {
+function CardBodyRows({ rows }: Readonly<{ rows: CardRows }>) {
   return (
     <>
       {rows.meta === null ? null : (
@@ -227,7 +227,7 @@ function CardBodyRows({ rows }: { rows: CardRows }) {
   );
 }
 
-function Cover({ coverUrl, title }: { coverUrl: string | null; title: string }) {
+function Cover({ coverUrl, title }: Readonly<{ coverUrl: string | null; title: string }>) {
   if (coverUrl === null) {
     return (
       <div
@@ -245,7 +245,7 @@ function Cover({ coverUrl, title }: { coverUrl: string | null; title: string }) 
 
 // A provider performer carries no Cove id, so there is no page for a chip to lead to. The
 // no-picture fallback is the glyph Cove's own performer badge falls back to.
-function PerformerChips({ performers }: { performers: readonly MissingPerformerChip[] }) {
+function PerformerChips({ performers }: Readonly<{ performers: readonly MissingPerformerChip[] }>) {
   const overflow = overflowChipCount(performers);
 
   return (
@@ -281,11 +281,11 @@ function SelectionToggle({
   selected,
   selecting,
   onToggleSelect,
-}: {
+}: Readonly<{
   selected: boolean;
   selecting: boolean;
   onToggleSelect: (options?: MultiSelectToggleOptions<string>) => void;
-}) {
+}>) {
   const revealed = selected || selecting ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
   return (

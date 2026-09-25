@@ -17,7 +17,7 @@ export function AsyncRegion({
   content,
   empty,
   failed,
-}: {
+}: Readonly<{
   state: AsyncRegionState;
   /** `false` omits the surface from the DOM. A caller with no capability passes it. */
   available?: boolean;
@@ -28,7 +28,7 @@ export function AsyncRegion({
   content: ReactNode;
   empty: ReactNode;
   failed: ReactNode;
-}) {
+}>) {
   if (!available) {
     return null;
   }

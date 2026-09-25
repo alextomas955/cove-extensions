@@ -53,7 +53,7 @@ function useIncludeSubStudios(): boolean {
   return included;
 }
 
-export function WhisparrMissingTab({ entityId }: { entityId: number }) {
+export function WhisparrMissingTab({ entityId }: Readonly<{ entityId: number }>) {
   const kind = readEntityKind(window.location.pathname);
   const includeSubStudios = useIncludeSubStudios();
 
@@ -68,11 +68,11 @@ function MissingTabFor({
   kind,
   coveId,
   includeSubStudios,
-}: {
+}: Readonly<{
   kind: WhisparrEntityKind;
   coveId: number;
   includeSubStudios: boolean;
-}) {
+}>) {
   const [view, setView] = useMissingUrlState();
 
   // The toggle is the host's, so it is carried into the request and never written into this

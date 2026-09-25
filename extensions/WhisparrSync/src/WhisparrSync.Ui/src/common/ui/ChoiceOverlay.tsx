@@ -11,7 +11,7 @@ import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 import { selectionMenuHeader } from "./copy";
 import { WhisparrLogo } from "./WhisparrLogo";
 
-export type RowIcon = (props: { className?: string }) => ReactNode;
+export type RowIcon = (props: Readonly<{ className?: string }>) => ReactNode;
 
 export interface ChoiceRow {
   readonly key: string;
@@ -35,7 +35,7 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
   cancelLabel,
   closeLabel,
   onChoose,
-}: {
+}: Readonly<{
   count: number;
   /** Why nothing is offered, or null when something is. */
   reason: string | null;
@@ -45,7 +45,7 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
   closeLabel: string;
   /** Called with the chosen row, or null when the reader leaves without choosing. */
   onChoose: (row: TRow | null) => void;
-}) {
+}>) {
   const panel = useRef<HTMLDivElement>(null);
   const header = selectionMenuHeader(count);
 

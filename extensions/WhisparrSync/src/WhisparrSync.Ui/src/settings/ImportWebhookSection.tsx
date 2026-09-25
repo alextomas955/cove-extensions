@@ -49,7 +49,7 @@ export function ImportWebhookSection({
   onAddressChange,
   onCopy,
   onRegister,
-}: ImportWebhookSectionProps) {
+}: Readonly<ImportWebhookSectionProps>) {
   const registerReason = registerRefusal({ sharedReason, registering, address });
 
   return (
@@ -117,7 +117,7 @@ export function ImportWebhookSection({
   );
 }
 
-function Status({ view }: { view: CallbackView | null }) {
+function Status({ view }: Readonly<{ view: CallbackView | null }>) {
   if (view === null) {
     return null;
   }
@@ -150,7 +150,7 @@ function Status({ view }: { view: CallbackView | null }) {
   );
 }
 
-function CopyOutcome({ result }: { result: CopyResult }) {
+function CopyOutcome({ result }: Readonly<{ result: CopyResult }>) {
   if (result.status === "copied") {
     return <StatusText kind="success">Copied.</StatusText>;
   }
