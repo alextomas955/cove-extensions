@@ -601,6 +601,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     // One video across several folders, which the per-file helpers cannot express: each of those
     // seeds a video of its own, so a case about one video's files would be about several.
+    //
+    // Saved once for the whole set. A save per row makes the context rescan every entity it already
+    // tracks, so a case seeding a few hundred files pays for that walk once per file.
     public async Task<int> SeedVideoWithFilesAsync(int studioId, params string[] folderPaths)
     {
         ArgumentNullException.ThrowIfNull(folderPaths);
@@ -608,25 +611,31 @@ internal sealed class MonitorHost : IAsyncDisposable
         var videoId = await SeedSceneAsync(studioId, null, null, null);
         foreach (var folderPath in folderPaths)
         {
-            await SeedSceneFileAsync(videoId, folderPath);
+            _db.Add(await SceneFileAsync(videoId, folderPath));
         }
 
+        await _db.SaveChangesAsync(TestCt);
         return videoId;
     }
 
     public async Task<string> SeedSceneFileAsync(int videoId, string folderPath)
     {
+        var file = await SceneFileAsync(videoId, folderPath);
+        _db.Add(file);
+        await _db.SaveChangesAsync(TestCt);
+        return file.Path;
+    }
+
+    private async Task<VideoFile> SceneFileAsync(int videoId, string folderPath)
+    {
         var folder = await FolderAtAsync(folderPath);
-        var file = new VideoFile
+        return new VideoFile
         {
             Basename = "scene " + (++_seeded).ToString(CultureInfo.InvariantCulture) + ".mp4",
             ParentFolderId = folder.Id,
             VideoId = videoId,
             Size = SeededFileSize,
         };
-        _db.Add(file);
-        await _db.SaveChangesAsync(TestCt);
-        return file.Path;
     }
 
     private async Task<Folder> FolderAtAsync(string folderPath)
@@ -641,6 +650,46 @@ internal sealed class MonitorHost : IAsyncDisposable
         }
 
         return folder;
+    }
+
+    // A file per folder, or several, seeded in two saves rather than four per file. A save per row
+    // makes the context rescan every entity it already tracks, so a case seeding a few hundred
+    // files pays for that walk once per row.
+    public async Task SeedStudioFilesAsync(
+        int studioId, IEnumerable<string> folderPaths, int perFolder = 1)
+    {
+        ArgumentNullException.ThrowIfNull(folderPaths);
+
+        var folders = new List<(Folder Folder, Video Video)>();
+        foreach (var folderPath in folderPaths)
+        {
+            for (var at = 0; at < perFolder; at++)
+            {
+                var folder = await FolderAtAsync(folderPath);
+                var video = new Video
+                {
+                    Title = "scene " + (++_seeded).ToString(CultureInfo.InvariantCulture) + ".mp4",
+                    StudioId = studioId,
+                };
+                _db.Add(video);
+                folders.Add((folder, video));
+            }
+        }
+
+        await _db.SaveChangesAsync(TestCt);
+
+        foreach (var (folder, video) in folders)
+        {
+            _db.Add(new VideoFile
+            {
+                Basename = video.Title!,
+                ParentFolderId = folder.Id,
+                VideoId = video.Id,
+                Size = SeededFileSize,
+            });
+        }
+
+        await _db.SaveChangesAsync(TestCt);
     }
 
     private async Task<string> SeedVideoFileAsync(

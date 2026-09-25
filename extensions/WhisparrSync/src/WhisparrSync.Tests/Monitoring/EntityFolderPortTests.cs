@@ -135,13 +135,8 @@ public sealed class EntityFolderPortTests
     {
         await using var host = await MonitorHost.CreateAsync();
         var studioId = await host.SeedStudioAsync(null, null);
-        var expected = new List<string>();
-        foreach (var folder in YearFolders("/library/vixen"))
-        {
-            expected.Add(folder);
-            await host.SeedStudioFileAsync(studioId, folder);
-            await host.SeedStudioFileAsync(studioId, folder);
-        }
+        var expected = YearFolders("/library/vixen").ToList();
+        await host.SeedStudioFilesAsync(studioId, expected, perFolder: 2);
 
         Assert.Equal(expected, await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
     }
@@ -259,11 +254,7 @@ public sealed class EntityFolderPortTests
     {
         await using var host = await MonitorHost.CreateAsync();
         var studioId = await host.SeedStudioAsync(null, null);
-        foreach (var folder in YearFolders(FirstRoot))
-        {
-            await host.SeedStudioFileAsync(studioId, folder);
-            await host.SeedStudioFileAsync(studioId, folder);
-        }
+        await host.SeedStudioFilesAsync(studioId, YearFolders(FirstRoot), perFolder: 2);
 
         Assert.Equal(
             FolderCount * 2, await CountUnder(host, WhisparrEntityKind.Studio, studioId, FirstRoot));
