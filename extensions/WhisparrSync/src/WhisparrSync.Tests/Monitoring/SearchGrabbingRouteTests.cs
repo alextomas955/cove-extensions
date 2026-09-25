@@ -13,14 +13,9 @@ namespace WhisparrSync.Tests.Monitoring;
 // The guarantee is not that no grabbing verb is reachable. It is that exactly one named gesture
 // reaches one: the verb lives alone on its own role, exactly one call site obtains that role by
 // name, the route has its own path segment, and no composed body can express it. Each is asserted
-// here rather than read off the source.
-//
-// Driven through the shipped registration rather than by calling the handler. A handler called
-// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
-// send, or reachable by a caller the declaration excludes.
-//
-// No search is issued against a real instance. What is asserted is that the command left the seam
-// once and carried the instance's own identifier.
+// here rather than read off the source, and driven through the shipped registration rather than by
+// calling the handler. No search is issued against a real instance: what is asserted is that the
+// command left the seam once carrying the instance's own identifier.
 public sealed class SearchGrabbingRouteTests
 {
     private const string SearchRoute = "search-all-monitored";
@@ -156,8 +151,8 @@ public sealed class SearchGrabbingRouteTests
     // The whole monitor gesture, the whole unmonitor gesture, a whole scope change and a whole
     // reflect-owned run, each driven to completion on one host so the ordered verb log holds all
     // four. Every index rather than the last: a grab issued before an act would be just as
-    // acquiring. Paired with an assertion that the log holds an acting verb, so a set of gestures
-    // that reached the instance not at all cannot satisfy this.
+    // acquiring. Paired with an assertion that the log holds an acting verb, so gestures that
+    // reached the instance not at all cannot satisfy this.
     [Fact]
     public async Task NoOtherMountedGestureReachesAGrabbingVerbAtAnyPosition()
     {

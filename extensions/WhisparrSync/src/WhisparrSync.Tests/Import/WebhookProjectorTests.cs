@@ -5,12 +5,10 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-// The two fixtures are inputs, taken verbatim from a delivery each build made. Every expected value
-// below is transcribed by hand from those files rather than read back out of them, because an
-// expectation computed from the document it checks agrees with it whatever either says.
-// The generations carry different key sets for the same event, which is why the reader is told the
-// generation instead of inferring one from the body: a body's own keys would classify a v2 delivery
-// as an unrecognised v3 one.
+// The two fixtures are inputs, taken verbatim from a delivery each build made, and every expected
+// value below is transcribed by hand from them: one computed from the document it checks would
+// agree with that document whatever it said. The generations carry different key sets for the same
+// event, which is why the reader is told the generation rather than inferring it from the body.
 public sealed class WebhookProjectorTests
 {
     private const string V3Capture = "whisparr-v3-3.3.8.1097-webhook-import.json";

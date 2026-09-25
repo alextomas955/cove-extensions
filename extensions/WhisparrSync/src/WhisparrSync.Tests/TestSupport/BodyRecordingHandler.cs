@@ -6,13 +6,11 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.TestSupport;
 
 // The body is read here rather than off the request afterwards: the client disposes the request and
-// its content once the send returns, so a body read later is a read of a disposed stream.
-// A queue rather than one answer, because one generation reaches its entity through two reads and
-// the two answers are the point. A dry queue keeps answering with its last entry, so a case only has
-// to state the answers that differ.
-// The query is recorded beside the path. What one generation is asked under is a query value, and a
-// recording that dropped it could not tell a term that matches from one that silently matches
-// nothing.
+// its content once the send returns. A queue rather than one answer, because one generation reaches
+// its entity through two reads and the two answers are the point; a dry queue keeps answering with
+// its last entry, so a case only has to state the answers that differ. The query is recorded beside
+// the path, because a recording that dropped it could not tell a term that matches from one that
+// silently matches nothing.
 internal sealed class BodyRecordingHandler : HttpMessageHandler
 {
     private readonly Queue<(HttpStatusCode Status, string Answer)> _answers;

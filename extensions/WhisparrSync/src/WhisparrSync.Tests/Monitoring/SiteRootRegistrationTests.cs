@@ -11,11 +11,10 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Monitoring;
 
 // Every case declares two library roots and two instance roots, and the instance's first declared
-// root is never the one the studio's files sit under. A composition that fell back to the instance's
-// own first answer is therefore visible rather than coincidentally right.
-//
-// Asserted on the body the instance received, not on the values a seam was handed: the add body is
-// composed below the level a call site can see.
+// root is never the one the studio's files sit under, so a composition falling back to the
+// instance's own first answer is visible rather than coincidentally right. Asserted on the body the
+// instance received, not on the values a seam was handed: the add body is composed below the level
+// a call site can see.
 public sealed class SiteRootRegistrationTests
 {
     // The namespace v2 identifies a site in.

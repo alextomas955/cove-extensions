@@ -6,8 +6,8 @@ namespace WhisparrSync.Tests.TestSupport;
 // Builds the extension the way the host does: instance first, then extension.json applied through
 // IManifestAware. The extension declares no metadata in code, so an instance without an applied
 // manifest has a null Id and mounts its routes under the wrong prefix. The manifest read is the
-// shipped file next to the test assembly, so a file that stops parsing or loses its id fails the
-// suite rather than only a live install.
+// shipped file next to the test assembly, so one that stops parsing or loses its id fails the suite
+// rather than only a live install.
 internal static class WhisparrSyncFixture
 {
     private const string ManifestFileName = "extension.json";

@@ -18,10 +18,9 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-// The host's [RequiresPermission] filter is MVC-only and does nothing for a minimal-API extension
-// endpoint, so each handler enforces its gate itself through ICurrentPrincipalAccessor. Each deny
-// case is paired with a caller who holds the gate, because a 403 alone could mean the handler is
-// broken for everyone.
+// The host's [RequiresPermission] filter is MVC-only and does nothing for a minimal-API endpoint,
+// so each handler enforces its gate through ICurrentPrincipalAccessor. Each deny case is paired
+// with a caller who holds the gate: a 403 alone could mean the handler is broken for everyone.
 public sealed class EndpointPermissionTests
 {
     // The one route that answers a caller holding no Cove permission. A single value rather than a
@@ -382,12 +381,10 @@ public sealed class EndpointPermissionTests
         }
     }
 
-    // Every mounted route is driven, so a route added later is refused here on its own rather than
-    // waiting for someone to write a case for it. The anonymous one is left out: it is authenticated
-    // by the secret this extension mints, which the case above pins as the only such route.
-    //
-    // A route value stands for an id every one of these answers for whether or not it names
-    // anything, so one literal serves them all.
+    // Every mounted route is driven, so a route added later is refused here rather than waiting for
+    // someone to write a case for it. The anonymous one is left out: the case above pins it as the
+    // only route authenticated by this extension's own secret. One literal serves every id, which
+    // each route answers for whether or not it names anything.
     [Fact]
     public async Task EveryMountedRouteRefusesAnAnonymousCallerAndReachesNothing()
     {

@@ -8,13 +8,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-// No search is executed here. Both fixture instances report no indexer and no download client, so
-// a search that did start could find nothing, and it would still cost a real instance work if the
-// fixture ever gained one. The grabbing verb is asserted on the body it composes and on the role's
-// reachability.
-//
-// The command payloads are transcribed from the two interface bundles. The array-versus-scalar
-// split is the subject: a cross-lineage payload is accepted and does nothing.
+// No search is executed here. Both fixture instances report no indexer and no download client, so a
+// search that did start could find nothing. The grabbing verb is asserted on the body it composes
+// and on the role's reachability. The command payloads are transcribed from the two interface
+// bundles, and the array-versus-scalar split is the subject: a cross-lineage payload is accepted
+// and does nothing.
 public sealed class SecondaryVerbTests
 {
     private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
@@ -133,11 +131,9 @@ public sealed class SecondaryVerbTests
     }
 
     // Neither generation offers an import mode that only links, so the two cases the verb decides
-    // between are identical on each.
-    //
-    // The role is asserted off each instance rather than off a runtime table, and the declared
-    // capability array is asserted to agree. v2 was measured serving all three of the routes this
-    // role sends on, at 2.2.0.231 on 2026-09-22.
+    // between are identical on each. The role is asserted off each instance rather than off a
+    // runtime table, and the declared capability array is asserted to agree. v2 was measured
+    // serving all three of the routes this role sends on, at 2.2.0.231.
     [Fact]
     public void BothGenerationsDeclareTheReflectOwnedRole()
     {
