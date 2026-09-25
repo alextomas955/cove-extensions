@@ -48,23 +48,17 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    // Authenticated by a secret this product minted, not by a Cove permission: the caller is another
-    // application rather than a Cove user. The secret is accepted from either position, because an
-    // address a user pasted by hand has nowhere but the query to carry one.
+    // Authenticated by a secret this product minted, the caller being another application rather
+    // than a Cove user. Either position is accepted: an address pasted by hand has nowhere but the
+    // query to carry one. Neither generation signs a delivery, so the secret is the whole of the
+    // authentication, and on a Cove with its own authentication disabled nothing else stands in
+    // front of this route.
     //
-    // Runs as System. The caller carries no principal, and Cove's per-principal query filters answer
-    // an Anonymous reader with zero rows and no error, which would report the stored secret as absent
-    // and refuse every delivery.
-    //
-    // The body is read once and only after the secret matches, so an unauthenticated delivery reaches
-    // no allocation, no filesystem probe and no host call.
-    //
-    // The answer names no path and does not say whether a file was found. The caller is anonymous,
-    // and an answer that varied with what is on disk would make this route a filesystem probe.
-    //
-    // Neither generation signs a delivery, so the secret is the whole of the authentication. On a
-    // Cove whose own authentication is disabled nothing else stands in front of this route: the host
-    // issues no authentication challenge and consults no proxy or trusted-host allow-list.
+    // Runs as System: the caller carries no principal, and Cove's query filters answer an anonymous
+    // reader with zero rows and no error, reporting the stored secret as absent and refusing every
+    // delivery. The body is read only after the secret matches, so an unauthenticated delivery
+    // reaches no allocation, no filesystem probe and no host call. The answer names no path and does
+    // not say whether a file was found, which would make this a filesystem probe.
     internal static async Task<Results<Ok<ImportAcknowledgement>, BadRequest, UnauthorizedHttpResult>> CallbackAsync(
         HttpContext http,
         IServiceScopeFactory scopes,

@@ -31,17 +31,11 @@ internal enum AddAllMissingRunOutcome
 internal sealed record AddAllMissingRun(
     AddAllMissingRunOutcome Outcome, int Registered, int AlreadyHeld, int Refused);
 
-// Offers one entity's own scenes to the connected instance, one bounded request each. Nothing
-// outlives one identifier: each is offered, classified into a count and dropped, so nothing grows
-// with the entity.
-//
-// Whether the instance already holds a scene is the instance's own answer, one row at a time, never
-// computed from a catalogue listing. A second offer of a scene it holds costs one request and
-// changes nothing.
-//
-// The catalogue refresh follows the loop, because a registration becomes visible in the instance's
-// catalogue only once one has run. It is issued even where every scene was already held, and never
-// on the cancelled path.
+// Offers one entity's scenes, one bounded request each. Each identifier is offered, counted and
+// dropped, so nothing grows with the entity. Whether a scene is already held is the instance's own
+// answer per row, never computed from a listing, so a second offer costs one request and changes
+// nothing. The catalogue refresh follows the loop because a registration becomes visible only once
+// one has run; it is issued even where every scene was held, and never on the cancelled path.
 internal static class AddAllMissingPlanner
 {
     // Transcribed from what the instance answered, pinned in

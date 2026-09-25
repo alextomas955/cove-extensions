@@ -138,19 +138,13 @@ public sealed partial class WhisparrSync
                             target.Binding.Generation)));
     }
 
-    // The request carries a scope and nothing else. Which entity the instance is asked about comes
-    // from the stored identity row for the Cove entity the route names, so an identifier a caller put
-    // in the body reaches nothing.
+    // The body carries a scope and nothing else: the entity comes from the stored identity row, so
+    // an identifier in the body reaches nothing. The gate is checked before the body is read.
     //
-    // The configure tier: the route aims this extension's stored credential at a third party. The
-    // gate is checked before the body is read.
-    //
-    // The order matters. Identity first, so a refusal happens before any outbound request. Then the
-    // entity itself, because one the instance already holds keeps its own add defaults and reading
-    // them would invite sending them over values a user chose. Only then the defaults.
-    //
-    // An accepted monitor enqueues the reflect-owned run rather than awaiting it: the run reads one
-    // folder of the entity at a time, and awaiting it would make the click as long as the entity.
+    // Order: identity, so a refusal costs no request; then the entity, because one the instance
+    // holds keeps its own add defaults and reading them would invite sending them over a user's
+    // values; then the defaults. An accepted monitor enqueues the reflect-owned run rather than
+    // awaiting it, which would make the click as long as the entity.
     internal async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         MonitorEntityAsync(
             EntityRoute route,
@@ -292,20 +286,12 @@ public sealed partial class WhisparrSync
         }
     }
 
-    // The one route of this extension whose effect spends the reader's bandwidth and disk, and the
-    // one place in this product that obtains IWhisparrSearchGrabbing.
-    //
-    // No request body: there is no verb, scope or identifier member in its input, so a body omitting
-    // a field and binding to a permissive default is not expressible here. Which entity is named by
-    // the route segment, and the identifier the instance is given comes from the stored identity row
-    // and then from the instance's own record.
-    //
-    // Given its own path from identity to call rather than routed through the shared delegate seam
-    // the monitor, unmonitor and scope verbs go through. No delegate that seam takes can express a
-    // grabbing verb.
-    //
-    // The entity is read before anything is asked for: an entity the instance does not hold monitors
-    // nothing there, so the read turns that into a refusal instead of a request.
+    // The only route that spends the reader's bandwidth and disk, and the only place
+    // IWhisparrSearchGrabbing is obtained. It takes no body, so no field can bind to a permissive
+    // default; the entity comes from the route segment and the instance's id from the stored
+    // identity row. It has its own path rather than the delegate seam the monitor verbs use, which
+    // can express no grabbing verb. The entity is read first, so one the instance does not hold
+    // refuses instead of sending.
     internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         SearchAllMonitoredEntityAsync(
             EntityRoute route,

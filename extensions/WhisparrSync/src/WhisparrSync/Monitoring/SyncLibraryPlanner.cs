@@ -65,18 +65,11 @@ internal enum SyncLibraryRunOutcome
     Cancelled,
 }
 
-// Counts only. A member listing the identifiers would grow with the library.
-//
-// Monitored and MonitorRefused are counted in scenes on both passes, apart from Registered and
-// Refused, which count entries. Moved counts entries the run relocated, apart from Registered and
-// AlreadyHeld because the run changed the instance and added nothing.
-//
-// WithoutAnAgreedRoot is neither inside Refused nor apart from it: an entry the instance already
-// holds is counted as already held and its scenes are still marked, while one it does not hold is
-// refused, and both are counted here. What a reader fixes is the folder mapping.
-//
-// RootsLeftBehind is the one member naming anything rather than counting it. An operator creates
-// those roots by hand, so it does not grow with the library.
+// Counts only; a member listing identifiers would grow with the library. Monitored and
+// MonitorRefused count scenes, the rest count entries, and Moved is apart from Registered and
+// AlreadyHeld because the run changed the instance without adding. WithoutAnAgreedRoot overlaps
+// both Refused and AlreadyHeld, since either can lack a root; what a reader fixes is the folder
+// mapping. RootsLeftBehind names roots an operator created by hand, so it too is bounded.
 internal sealed record SyncLibraryRun(
     SyncLibraryRunOutcome Outcome,
     int Registered,
@@ -95,15 +88,13 @@ internal sealed record SyncLibraryRun(
 
 // What a run walks and what it does with each identifier.
 //
-// identities is a factory rather than one enumerable because it is enumerated twice, once to count
-// and once to offer, and both enumerations must come from the same derivation: the stream applies
-// the host's same-source rule in memory after the query's own distinct, so a cheaper count would
-// disagree with the number of ticks.
+// Identities is a factory because it is enumerated twice, to count and to offer, and both must come
+// from one derivation: the stream applies the host's same-source rule in memory after the query's
+// distinct, so a cheaper count would disagree with the number of ticks.
 //
-// Monitor is called for an entry the instance already held as well as for one just registered: the
-// choice means monitor what I own, not monitor what I just added. It is handed the offer's own
-// answer, so the instance's numeric id costs no further request, and it answers a tally because one
-// entry can carry any number of scenes.
+// Monitor is called for an entry already held as well as one just registered, the choice meaning
+// monitor what I own. It takes the offer's own answer, so the instance's id costs no further
+// request, and answers a tally because one entry can carry any number of scenes.
 internal sealed record SyncLibrarySource<TIdentity>(
     Func<CancellationToken, IAsyncEnumerable<TIdentity>> Identities,
     Func<TIdentity, string> Named,
@@ -127,31 +118,22 @@ internal sealed record SyncLibraryWalk<TIdentity>(
     internal bool Offered(TIdentity identity) => Offers is null || Offers(identity);
 }
 
-// Nothing outlives one identifier: each is offered, classified into a count and dropped, so
-// nothing grows with the library.
+// Each identifier is offered, counted and dropped, so nothing grows with the library. Whether an
+// entry is already held is the instance's own answer per row, never computed from a listing, so a
+// second run creates no duplicate. A refusal never ends the run; every identifier is offered once
+// and refusals are counted.
 //
-// Whether the instance already holds an entry is the instance's own answer, one row at a time,
-// never computed from a catalogue listing. A second run over the same library therefore creates no
-// duplicate.
-//
-// A refusal never ends the run. Every identifier is offered once and the refusals are counted.
-//
-// The classification arrives on SyncRegistration rather than being derived here. The scene pass
-// composes it through AddAllMissingPlanner.Classify and its AlreadyHeldErrorCode, reused rather
-// than restated: the code is transcribed from what one instance answered, and a second
-// transcription could drift while both files still passed their own tests.
+// The classification rides on SyncRegistration. The scene pass composes it through
+// AddAllMissingPlanner.Classify, reused rather than restated: the error code is transcribed from
+// what one instance answered, and a second transcription could drift while both files stayed green.
 internal static class SyncLibraryPlanner
 {
-    // The three progress calls are in the order the host requires. The count comes first, because
-    // the host refuses a declaration made once a unit has started. The declaration comes before the
-    // first unit, because a run that never declares one never derives a fraction. The summary comes
-    // last, because the host writes its own aggregate line into the job's summary on every unit
-    // completion and copies that over the sub-task, so a summary set earlier is silently replaced
-    // by phrasing that counts units rather than scenes.
+    // The host requires this order: count, then the declaration, then units, then the summary last.
+    // A declaration made after a unit starts is refused, a run declaring none derives no fraction,
+    // and a summary set before the last unit is overwritten by the host's own aggregate line.
     //
-    // A unit is completed and disposed inside one scope. The host removes a completed unit's state
-    // only on disposal, so a run that disposed none would leave one entry per scene in a host
-    // dictionary.
+    // Each unit is completed and disposed in one scope: the host clears a unit's state only on
+    // disposal, so a run disposing none leaves an entry per scene in a host dictionary.
     internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
         SyncRegisters registers,
         SyncLibrarySource<TIdentity> source,

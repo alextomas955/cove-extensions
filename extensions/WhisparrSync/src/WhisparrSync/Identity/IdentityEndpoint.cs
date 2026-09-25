@@ -3,16 +3,12 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Identity;
 
-// Which endpoint spelling an identity row is written under.
-//
-// The host's merge writes its identity row under the spelling the host is configured with and
-// dedupes those rows by exact string, while resolving an endpoint to a source on the registrable
-// domain. A stamp under a different spelling of the same source gains a second row on the next
-// merge, and no database constraint prevents it. So the configured spelling wins where the host
-// has one for the source; where it has none, the standard address below is written.
-//
-// A row already written under one spelling stays under it. Changing the answer later is a data fix
-// in the user's library, not a code change.
+// Which endpoint spelling an identity row is written under. The host dedupes those rows by exact
+// string while resolving an endpoint to a source on the registrable domain, so a stamp under a
+// second spelling of one source gains a row on the next merge and no constraint prevents it. The
+// configured spelling therefore wins where the host has one; otherwise the standard address below.
+// A row already written stays where it is: changing the answer later is a data fix, not a code
+// change.
 internal static class IdentityEndpoint
 {
     internal const string StashDb = "https://stashdb.org/graphql";

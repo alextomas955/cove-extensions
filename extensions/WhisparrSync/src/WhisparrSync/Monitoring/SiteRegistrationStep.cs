@@ -5,17 +5,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-// Whether the instance holds the site is the instance's own answer about that one site, never
-// computed from a listing. A second pass over the same library therefore creates no duplicate.
-//
-// A read that answered neither presence nor absence is refused rather than registered: registering
-// on an unreadable answer would add a site the instance may already hold.
-//
-// The instance's id for the site comes off the answer the step already read, so nothing re-reads
-// the site to learn an id the instance just stated.
-//
-// With no agreed root nothing is sent and the site is left where it is, because nothing here knows
-// where it belongs.
+// Presence is the instance's own answer about that one site, never computed from a listing, so a
+// second pass creates no duplicate. An answer that stated neither presence nor absence is refused
+// rather than registered, which would add a site the instance may already hold. The instance's id
+// comes off that same answer. With no agreed root nothing is sent: nothing here knows where the
+// site belongs.
 internal static class SiteRegistrationStep
 {
     internal static async Task<SyncRegistration> RegisterAsync(

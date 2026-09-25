@@ -44,17 +44,12 @@ internal readonly record struct ImportableListing(string? Rows, bool WasRefused)
 internal sealed record FolderAddressRefusal(
     string CoveRoot, FolderAgreementRefusal Refusal, IReadOnlyList<string> Tried);
 
-// Skipped is null both for a run that ran and for a run stopped for a cause other than the
-// instance's linking setting, because no setting was read on that path.
-//
-// FoldersNotAddressed and EntriesLeftUnderAnotherRoot are apart from FoldersRefused on purpose:
-// the instance declined nothing and was never asked about those folders or files.
-//
-// AddressRefusals carries one line per library root rather than per folder, which would grow with
-// the entity and record filesystem paths nothing needs. AddressedRoots is carried beside the
-// counts because a root that agreed is what clears that root's stored refusal.
-//
-// RootsCouldNotBeRead leaves every other count zero: no folder was reached.
+// Skipped is null for a run that ran and for one stopped by anything but the linking setting,
+// no setting being read on that path. FoldersNotAddressed and EntriesLeftUnderAnotherRoot sit apart
+// from FoldersRefused because the instance declined nothing and was never asked. AddressRefusals is
+// one line per library root, not per folder, which would grow with the entity and record paths
+// nothing needs; AddressedRoots rides beside it because a root that agreed clears its stored
+// refusal. RootsCouldNotBeRead leaves every other count zero: no folder was reached.
 internal sealed record ReflectOwnedRun(
     ReflectOwnedRunOutcome Outcome,
     int FoldersAttached,
@@ -131,19 +126,15 @@ internal sealed record ReflectOwnedSteps(
     Func<JsonArray, CancellationToken, Task<bool>> Attach,
     Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? Identify = null);
 
-// Without the decision here every matched file would be copied in full on an instance whose
-// hard-link setting is off: the import mode that links is labelled as a copy, and it copies with no
-// error and no distinct outcome when it cannot link. Neither generation offers a mode that only
-// links.
+// Without the hard-link decision every matched file would be copied in full: the import mode that
+// links is labelled a copy, copies when it cannot link, and reports no distinct outcome for it.
+// Neither generation offers a mode that only links. An unreadable setting therefore answers skipped,
+// not act, which is stricter than either build's default; acting on a setting nobody read is how a
+// silent full copy happens.
 //
-// An unreadable setting answers skipped, not act, which is stricter than the default both builds
-// ship. Acting on a setting nobody read is how a full copy of every matched file happens silently.
-//
-// A file's quality and languages are copied from the parse route's rows, never composed. The submit
-// path refuses a row missing either, and an unmatched row carries no matched member at all, so
-// exclusion is on absence.
-//
-// Nothing outlives one folder's command, so nothing grows with the library and nothing is persisted.
+// Quality and languages are copied from the parse route's rows, never composed: the submit path
+// refuses a row missing either, and an unmatched row carries no matched member, so exclusion is on
+// absence. Nothing outlives one folder's command.
 internal static class ReflectOwnedPlanner
 {
     internal const string CommandName = "ManualImport";
