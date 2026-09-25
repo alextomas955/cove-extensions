@@ -308,7 +308,7 @@ public sealed class LibraryStatusRouteTests
 
         public string? SceneAddress(string providerSceneId) => throw Reached();
 
-        public ProviderCapabilitySet Capabilities => throw Reached();
+        public string ProviderName => throw Reached();
 
         public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct) => throw Reached();
