@@ -37,7 +37,7 @@ export function OptionallyDisabled({
   variant,
   fill,
   reason,
-}: {
+}: Readonly<{
   name: string;
   onClick: () => void;
   variant?: "primary" | "ghost";
@@ -45,7 +45,7 @@ export function OptionallyDisabled({
   fill?: boolean;
   /** Why the control is unavailable, or null when it is available. */
   reason: string | null;
-}) {
+}>) {
   return reason === null ? (
     <DisabledControl name={name} onClick={onClick} variant={variant} fill={fill} />
   ) : (
@@ -60,7 +60,7 @@ export function OptionallyDisabled({
   );
 }
 
-export function DisabledControl(props: DisabledControlProps) {
+export function DisabledControl(props: Readonly<DisabledControlProps>) {
   const { name, onClick, variant, fill, disabled } = props;
   const reason = props.disabled === true ? props.reason : undefined;
 

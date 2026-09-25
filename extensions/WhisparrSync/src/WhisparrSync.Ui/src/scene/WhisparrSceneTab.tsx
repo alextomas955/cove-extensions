@@ -31,7 +31,7 @@ import {
 import type { SceneState } from "./sceneStore";
 import { useSceneDetail } from "./useSceneDetail";
 
-export function WhisparrSceneTab({ entityId }: { entityId: number }) {
+export function WhisparrSceneTab({ entityId }: Readonly<{ entityId: number }>) {
   const { state, act } = useSceneDetail(entityId);
   const couldNotBeRead = <StatusText kind="error">{WHISPARR_STATUS_COULD_NOT_BE_READ}</StatusText>;
 
@@ -56,11 +56,11 @@ function SceneSurface({
   scene,
   view,
   act,
-}: {
+}: Readonly<{
   scene: SceneState;
   view: SceneDetailView;
   act: (verb: SceneVerb) => void;
-}) {
+}>) {
   const refusedRead = sceneReadRefusal(view.refusal);
   if (refusedRead.sentence !== null) {
     return (
@@ -133,7 +133,7 @@ function SceneSurface({
   );
 }
 
-function SceneFacts({ view }: { view: SceneDetailView }) {
+function SceneFacts({ view }: Readonly<{ view: SceneDetailView }>) {
   const facts = (
     [
       [SCENE_FACT_QUALITY, view.qualityName],
@@ -153,7 +153,7 @@ function SceneFacts({ view }: { view: SceneDetailView }) {
   );
 }
 
-function FactRow({ label, named }: { label: string; named: string }) {
+function FactRow({ label, named }: Readonly<{ label: string; named: string }>) {
   return (
     <div className="flex items-center gap-3">
       <dt className="text-xs text-secondary">{label}</dt>

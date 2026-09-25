@@ -30,7 +30,7 @@ export function ImportBehaviorSection({
   behavior,
   sharedReason,
   onChange,
-}: ImportBehaviorSectionProps) {
+}: Readonly<ImportBehaviorSectionProps>) {
   const chosen = CHOICES.find((choice) => choice.value === behavior) ?? null;
 
   return (

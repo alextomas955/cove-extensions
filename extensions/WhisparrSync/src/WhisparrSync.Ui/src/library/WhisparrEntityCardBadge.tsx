@@ -7,10 +7,10 @@
  */
 import { CardStatusBadge } from "./CardStatusBadge";
 
-export function WhisparrStudioCardBadge({ studio }: { studio: { id: number } }) {
+export function WhisparrStudioCardBadge({ studio }: Readonly<{ studio: { id: number } }>) {
   return <CardStatusBadge kind="studio" coveId={studio.id} />;
 }
 
-export function WhisparrPerformerCardBadge({ performer }: { performer: { id: number } }) {
+export function WhisparrPerformerCardBadge({ performer }: Readonly<{ performer: { id: number } }>) {
   return <CardStatusBadge kind="performer" coveId={performer.id} />;
 }

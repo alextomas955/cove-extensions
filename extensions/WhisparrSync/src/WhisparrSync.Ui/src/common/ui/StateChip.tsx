@@ -7,7 +7,7 @@ import { StatusPill } from "@cove-extensions/ui-shared";
 import { StateGlyph } from "./StateGlyph";
 import { describeState, type WhisparrEntityState } from "./stateVocabularyLogic";
 
-export function StateChip({ state }: { state: WhisparrEntityState }) {
+export function StateChip({ state }: Readonly<{ state: WhisparrEntityState }>) {
   const description = describeState(state);
   return (
     <StatusPill variant={description.variant} icon={<StateGlyph iconKey={description.iconKey} />}>

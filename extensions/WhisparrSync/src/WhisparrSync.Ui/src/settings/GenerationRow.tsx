@@ -26,7 +26,12 @@ export interface GenerationRowProps {
   onChoose: (generation: CardGeneration) => void;
 }
 
-export function GenerationRow({ settings, drafted, sharedReason, onChoose }: GenerationRowProps) {
+export function GenerationRow({
+  settings,
+  drafted,
+  sharedReason,
+  onChoose,
+}: Readonly<GenerationRowProps>) {
   return (
     <FieldGroup
       label="Whisparr generation"
@@ -64,13 +69,13 @@ function GenerationOption({
   selected,
   reason,
   onChoose,
-}: {
+}: Readonly<{
   generation: CardGeneration;
   stored: WhisparrSyncGenerationSettingsView | null;
   selected: boolean;
   reason: string | null;
   onChoose: () => void;
-}) {
+}>) {
   const label = generationLabel(generation);
   return (
     <div className={`${OPTION_BASE} ${selected ? OPTION_SELECTED : OPTION_UNSELECTED}`}>

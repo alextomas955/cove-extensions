@@ -15,12 +15,12 @@ export function MissingPager({
   perPage,
   lastPage,
   onPage,
-}: {
+}: Readonly<{
   page: number;
   perPage: number;
   lastPage: number;
   onPage: (page: number) => void;
-}) {
+}>) {
   const bounds = { lastPage, perPage };
 
   return (

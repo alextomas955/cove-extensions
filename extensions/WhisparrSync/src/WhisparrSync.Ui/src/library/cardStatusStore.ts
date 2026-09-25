@@ -62,7 +62,7 @@ async function readBatch(
   try {
     const view = await requestJson<LibraryStatusView>(api(`library/${kind}/status`), {
       method: "POST",
-      body: JSON.stringify({ coveIds: keys.map((key) => Number(key)) }),
+      body: JSON.stringify({ coveIds: keys.map(Number) }),
     });
 
     recordRefusal(kind, view.refusal);

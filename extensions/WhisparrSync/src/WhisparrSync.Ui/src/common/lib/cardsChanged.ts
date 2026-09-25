@@ -26,7 +26,12 @@ export function onCardsChanged(listener: Listener): () => void {
   };
 }
 
-/** States that what the instance holds for these cards is no longer what was last read. */
+/**
+ * States that what the instance holds for these cards is no longer what was last read.
+ *
+ * Iterated over a copy: a listener is free to unsubscribe while it is being notified, and removing
+ * from the set being walked skips the listener after it.
+ */
 export function announceCardsChanged(kind: LibraryCardKind, coveIds: readonly number[]): void {
   for (const listener of [...listeners]) listener(kind, coveIds);
 }
