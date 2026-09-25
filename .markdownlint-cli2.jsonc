@@ -7,6 +7,9 @@
     "MD024": { "siblings_only": true }, // duplicate headings OK across sections
   },
   "globs": ["**/*.md"],
+  // Skip whatever git skips, so a local tool's scratch directory is not linted as product docs. CI
+  // checks out clean and sees none of it; this keeps the same command usable locally.
+  "gitignore": true,
   // Lint only user-facing docs. .planning/** and .gsd/** are internal research/spec; CLAUDE.md
   // files are AI-assistant instruction files (managed separately from product docs) - excluded
   // from the CI markdown-lint glob too.
