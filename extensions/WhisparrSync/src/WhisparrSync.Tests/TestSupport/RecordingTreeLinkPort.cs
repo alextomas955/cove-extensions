@@ -57,6 +57,14 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     {
         Calls.Add(new TreeLinkCall("link", newPath, existingPath));
 
+        // Derived from what is there rather than taken, the way the name count is: a name already
+        // held is the answer a second pass over one library turns on, and a test that could state
+        // it could state the case it was written to prove.
+        if (_placed.ContainsKey(Spelled(newPath)))
+        {
+            return LinkOutcome.NameAlreadyThere;
+        }
+
         if (!_linkAnswers.TryGetValue(Spelled(newPath), out var outcome))
         {
             throw new InvalidOperationException($"No link outcome was arranged for {newPath}.");

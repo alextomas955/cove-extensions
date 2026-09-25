@@ -174,6 +174,12 @@ public sealed partial class WhisparrSync
         return EntityAddDefaults.ComposeAsync(
             runWide,
             services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+            target.Binding.Generation,
+
+            // No folder. What this pass registers is a studio or a performer, whose add schema on
+            // one of the two generations declares no path member at all, so an entity monitored
+            // here is registered on its root as it always was.
+            folderFor: null,
             (coveRoot, countCt) => countUnder(files, coveRoot, countCt),
             observe is null
                 ? agreedRoot

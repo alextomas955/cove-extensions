@@ -54,7 +54,7 @@ internal static class V2BodyProjector
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
 
         const bool search = false;
-        return new SeriesResource(
+        return At(defaults, new SeriesResource(
             tvdbId: entityId,
             title: NameFor(entityId),
             titleSlug: null,
@@ -68,7 +68,7 @@ internal static class V2BodyProjector
             addOptions: new AddSeriesOptions(
                 monitor: CatalogueTypeFor(scope),
                 searchForMissingEpisodes: search,
-                searchForCutoffUnmetEpisodes: search));
+                searchForCutoffUnmetEpisodes: search)));
     }
 
     // The instance refuses an add carrying no title and discards the value of the one it is given,
@@ -92,7 +92,7 @@ internal static class V2BodyProjector
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
 
         const bool search = false;
-        return new SeriesResource(
+        return At(defaults, new SeriesResource(
             tvdbId: entityId,
             title: NameFor(entityId),
             titleSlug: null,
@@ -106,7 +106,21 @@ internal static class V2BodyProjector
             addOptions: new AddSeriesOptions(
                 monitor: MonitorTypes.None,
                 searchForMissingEpisodes: search,
-                searchForCutoffUnmetEpisodes: search));
+                searchForCutoffUnmetEpisodes: search)));
+    }
+
+    // The instance refuses a second site at a folder another already holds, so a site whose library
+    // folder is shared registers nowhere without a folder of its own. Set only where the caller
+    // composed one: a body without a folder carries the member no more than it did before this
+    // product built folders, and the instance derives the path from the root as it always has.
+    private static SeriesResource At(AddDefaults defaults, SeriesResource body)
+    {
+        if (defaults.EntityFolderPath is { } folder)
+        {
+            body.Path = folder;
+        }
+
+        return body;
     }
 
     // The resource the instance answered, changed in place: rebuilding would name a fixed member

@@ -113,6 +113,8 @@ public sealed class SiteRootRegistrationTests
         var composed = await EntityAddDefaults.ComposeAsync(
             new AddDefaults(OfferedProfileId, FirstInstanceRoot),
             [FirstCoveRoot, SecondCoveRoot],
+            WhisparrGeneration.V2,
+            SiteRemoteId,
             (coveRoot, _) => Task.FromResult(coveRoot == SecondCoveRoot ? 1562 : 0),
             (coveRoot, _) => Task.FromResult(
                 new AddressedFolder(

@@ -195,6 +195,8 @@ public sealed class RefusalPrecedenceTests
         => (await EntityAddDefaults.ComposeAsync(
             new AddDefaults(4, "/config/library"),
             ["G:/Downloads/P"],
+            WhisparrGeneration.V2,
+            folderFor: null,
             (_, _) => Task.FromResult(1),
             (coveRoot, _) => Task.FromResult(
                 new AddressedFolder(null, FolderAgreementRefusal.NothingResolved, coveRoot, [])),
