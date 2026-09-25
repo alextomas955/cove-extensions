@@ -113,10 +113,10 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Code shape
 
-- Classify every module as one of: feature slice, pure domain logic, data or wire model,
-  infrastructure (I/O), UI primitive, tooling. Dependencies point toward models and to shared code,
-  never the other way and never to a sibling feature. `eslint.config.mjs` enforces the sibling rule
-  for UI code.
+- Dependencies point toward models and to shared code, never the other way and never to a sibling
+  feature. `eslint.config.mjs` enforces the sibling rule for UI code.
+  `website/docs/contributing/authoring-patterns.md` carries the responsibilities to place a module
+  by.
 - C#: capability slices at the project root beside foundation folders (`Api/`, `Contracts/`,
   `Options/`). One rich capability may layer by domain instead, as Renamer's `Engine/`, `Planner/`,
   `Execution/` do. Name folders for what the code does, never for an entity.
