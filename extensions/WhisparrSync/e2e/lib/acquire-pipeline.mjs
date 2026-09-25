@@ -2,7 +2,7 @@
 // would refuse a hermetic fixture.
 //
 // Everything goes through Whisparr's own /api/v3. The indexer and download-client hosts are the
-// container aliases, which is what Whisparr can reach over the shared network — never a mapped host
+// container aliases, which is what Whisparr can reach over the shared network - never a mapped host
 // port, and never host.docker.internal.
 //
 // It also seeds the catalogue entry a grab lands on. A scene is one row on one generation and two

@@ -6,7 +6,7 @@
 // path; what differs is the delivery document the callback parses, and that is taken from the
 // capture for the connected generation.
 //
-// Both refusals are asserted on the COVE side — that no item was created, and what the extension's own
+// Both refusals are asserted on the COVE side - that no item was created, and what the extension's own
 // stored aggregate says afterwards. The callback's status says the request was well formed and nothing
 // about whether anything was registered, so it is a diagnostic here and never the subject.
 //

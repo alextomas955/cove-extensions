@@ -29,7 +29,7 @@ const REGISTRATION_NAME = "Cove Whisparr Sync";
 //
 // Both have to resolve. Whisparr tests a Webhook connection when it saves one and answers 500 when
 // the address does not resolve, so an unreachable second address would measure that refusal rather
-// than the move — which is what a first run of this spec did.
+// than the move - which is what a first run of this spec did.
 const COVE_PORT = 5073;
 
 test.describe.configure({ timeout: SPEC_BUDGET_MS });
@@ -117,7 +117,7 @@ for (const generation of ["v3", "v2"]) {
       expect(addressOf(afterFirst[0])).toBe(`${firstHost}/api/extensions/${EXTENSION_ID}/callback`);
 
       // The registered address carries no secret on either generation, because both can carry one off
-      // the address — one in a custom header, the other as Basic auth.
+      // the address - one in a custom header, the other as Basic auth.
       expect(addressOf(afterFirst[0])).not.toContain("?");
       expect(first.json.secretTravelsOutOfBand).toBe(true);
       expect(first.json.copyableAddress).toContain("?s=");

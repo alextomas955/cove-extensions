@@ -25,7 +25,7 @@ const STASHDB_HOST = "stashdb.org";
  * Port 80, so the configured address carries no port and stays a spelling of the real one.
  *
  * The registrable domain is what this product matches a configured server on, and a port does not
- * change it — but an address a reader has to decode is worse than one they recognise.
+ * change it - but an address a reader has to decode is worse than one they recognise.
  */
 const PORT = 80;
 

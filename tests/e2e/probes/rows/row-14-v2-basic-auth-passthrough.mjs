@@ -6,7 +6,7 @@
 //
 //   1. Does v2, given a webhook whose user and password fields are set, actually send an
 //      authorization header on its delivery? Read off the listener's own capture, never off the
-//      registration's echo — a field a schema declares and a save accepts, but the build then does
+//      registration's echo - a field a schema declares and a save accepts, but the build then does
 //      not send, would answer the echo exactly as a working one does.
 //   2. Does Cove's own request pipeline pass a request carrying an authorization header through to an
 //      extension route that declares the anonymous convention, or does it consume or reject it first?
@@ -208,7 +208,7 @@ async function measurePassthrough(harness, { authEnabled }) {
   // a catch-all; and the answer differs from what the pipeline's own refusal looks like on this
   // instance, read off a permission-gated route of this extension's called the same way. With
   // authentication off that route is answered outright, and with it on it is refused with a body of
-  // its own — either way an answer the callback path does not give is one the pipeline did not give.
+  // its own - either way an answer the callback path does not give is one the pipeline did not give.
   const differsFromThePipelinesOwnRefusal =
     gatedRoute.status !== withoutHeader.status ||
     gatedRoute.contentType !== withoutHeader.contentType ||
