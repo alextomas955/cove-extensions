@@ -21,6 +21,20 @@ const FOCUSABLE =
 
 const DEFAULT_MENU_ITEM_SELECTOR = '[role^="menuitem"]';
 
+/**
+ * The rows under `root` matching `selector` that can take focus.
+ *
+ * The exclusion belongs to the focus logic rather than to the selector, so a caller supplying its
+ * own `itemSelector` gets it too. A disabled button matches a role selector and ignores `focus()`,
+ * so `document.activeElement` never changes, `indexOf` reads the same index back on the next press,
+ * and the roving focus is pinned on that row with no error.
+ */
+function focusableMenuItems(root: HTMLElement | null, selector: string): HTMLElement[] {
+  return Array.from(root?.querySelectorAll<HTMLElement>(selector) ?? []).filter(
+    (item) => !item.hasAttribute("disabled") && item.getAttribute("aria-disabled") !== "true",
+  );
+}
+
 export interface OverlayKeysOptions {
   onClose: () => void;
   /**
@@ -30,7 +44,10 @@ export interface OverlayKeysOptions {
    * the close does not leak to the host page.
    */
   nav: "menu" | "dialog";
-  /** menu mode; default `[role^="menuitem"]` - the prefix form also catches menuitemcheckbox/radio. */
+  /**
+   * menu mode; default `[role^="menuitem"]` - the prefix form also catches menuitemcheckbox/radio.
+   * A matching row that is disabled is skipped by the roving focus.
+   */
   itemSelector?: string;
   /** default true → a capture-phase document pointerdown outside the ref closes the overlay. */
   closeOnOutsideClick?: boolean;
@@ -79,8 +96,11 @@ export function useOverlayKeys(
   // per open (empty deps): re-running on an option change would steal focus back mid-interaction.
   useLayoutEffect(() => {
     const opener = restoreFocus ? (document.activeElement as HTMLElement | null) : null;
-    const sel = nav === "menu" ? itemSelector : FOCUSABLE;
-    ref.current?.querySelector<HTMLElement>(sel)?.focus();
+    if (nav === "menu") {
+      focusableMenuItems(ref.current, itemSelector).at(0)?.focus();
+    } else {
+      ref.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    }
     return () => {
       opener?.focus();
     };
@@ -91,7 +111,7 @@ export function useOverlayKeys(
     const capture = nav === "menu";
 
     function menuItems(): HTMLElement[] {
-      return Array.from(ref.current?.querySelectorAll<HTMLElement>(itemSelector) ?? []);
+      return focusableMenuItems(ref.current, itemSelector);
     }
 
     function closeOnEscape(e: KeyboardEvent) {
@@ -105,12 +125,21 @@ export function useOverlayKeys(
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
       e.preventDefault();
       const list = menuItems();
+      // Empty is every row disabled, which is what an action in flight leaves. Returning leaves
+      // the focus where it is, because there is nothing to move it to.
       if (list.length === 0) return;
+      const down = e.key === "ArrowDown";
       const current = list.indexOf(document.activeElement as HTMLElement);
+      // -1 is focus on nothing in the list, which is the state a settled press leaves: the
+      // pressed row is disabled while its action runs, the browser moves focus off it, and the
+      // rows re-enable. An arrow press from there enters the list at the end it points at, in
+      // both directions; a wrap from inside the list is the modulus below.
       const next =
-        e.key === "ArrowDown"
-          ? (current + 1) % list.length
-          : (current - 1 + list.length) % list.length;
+        current < 0
+          ? down
+            ? 0
+            : list.length - 1
+          : (current + (down ? 1 : list.length - 1)) % list.length;
       list[next]?.focus();
     }
 

@@ -1,0 +1,214 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
+using WhisparrSync.Import;
+using WhisparrSync.Options;
+using WhisparrSync.Tests.TestSupport;
+
+namespace WhisparrSync.Tests.Import;
+
+public sealed class ImportCoreRefusalTests
+{
+    private const string WhisparrRoot = "/whisparr-media";
+    private const string ReportedPath = "/whisparr-media/scene.mp4";
+    private const long ReportedSize = 10;
+
+    [Fact]
+    public async Task ANotFoundResolutionReachesNoHostImportAndOpensTheRootsLine()
+    {
+        var ingest = new Ingest();
+
+        Assert.Equal(ImportOutcome.RefusedNotFound, await ingest.DeliverAsync());
+
+        Assert.Empty(ingest.Library.Imported);
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(WhisparrRoot, entry.Root);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Equal(
+            ImportRefusalCause.NotFoundUnderAnyRoot,
+            Assert.Single(entry.NewestPaths).Cause);
+        Assert.Equal(ReportedPath, entry.NewestPaths[0].Path);
+    }
+
+    [Fact]
+    public async Task AnAmbiguousResolutionReachesNoHostImportAndNamesItsOwnCause()
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        ingest.Paths.Present["/data2/scene.mp4"] = ReportedSize;
+
+        Assert.Equal(ImportOutcome.RefusedAmbiguous, await ingest.DeliverAsync());
+
+        Assert.Empty(ingest.Library.Imported);
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(
+            ImportRefusalCause.AmbiguousCandidates,
+            Assert.Single(entry.NewestPaths).Cause);
+    }
+
+    [Fact]
+    public async Task ASuccessfulImportClearsThatRootsLine()
+    {
+        var ingest = new Ingest();
+        await ingest.DeliverAsync();
+        await ingest.DeliverAsync(root: "/whisparr-other", path: "/whisparr-other/other.mp4");
+        Assert.Equal(2, (await ingest.StoredAsync()).Instance().ImportRefusals.Count);
+
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+
+        Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
+        Assert.Equal(
+            "/whisparr-other",
+            Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals).Root);
+    }
+
+    // A delivery arrives per file, so a save on every one would rewrite the whole blob per file. Its
+    // control is the first delivery, which does write.
+    [Fact]
+    public async Task AnAggregateThatDidNotChangeIsNotWrittenBack()
+    {
+        var ingest = new Ingest();
+
+        await ingest.DeliverAsync();
+        var afterFirst = ingest.Store.SetCallCount;
+        Assert.Equal(1, afterFirst);
+
+        await ingest.DeliverAsync();
+
+        Assert.Equal(afterFirst, ingest.Store.SetCallCount);
+    }
+
+    // One write, not none: an import records that the channel worked. What it must not do is put a line
+    // under a root whose delivery succeeded.
+    [Fact]
+    public async Task ASuccessForARootWithNoLineAddsNoLineAndWritesOnlyTheHealth()
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+
+        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(1, ingest.Store.SetCallCount);
+    }
+
+    // Nothing about that state is a root the user misconfigured, and a line under one sends them to a
+    // folder where there is nothing to change. Asserted on the stored aggregate, because the outcome
+    // value alone says nothing about what the user is shown.
+    [Fact]
+    public async Task ADeliveryWhoseHostImportServiceIsAbsentCountsAgainstNoRoot()
+    {
+        var ingest = new Ingest(hostImportReached: false);
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+
+        Assert.Equal(ImportOutcome.RefusedHostImportUnavailable, await ingest.DeliverAsync());
+
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(0, ingest.Store.SetCallCount);
+    }
+
+    // The control for the test above: the path the host declined came from that root, and it is the one
+    // thing the user can go and look at.
+    [Fact]
+    public async Task ADeliveryTheHostRefusedIsCountedAgainstTheReportingRoot()
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        ingest.Library.ImportFailure = new InvalidOperationException();
+
+        Assert.Equal(ImportOutcome.RefusedHostRefusedFile, await ingest.DeliverAsync());
+
+        var entry = Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(WhisparrRoot, entry.Root);
+        Assert.Equal(ImportRefusalCause.Unreadable, Assert.Single(entry.NewestPaths).Cause);
+        Assert.Equal(ReportedPath, entry.NewestPaths[0].Path);
+    }
+
+    // The fake answers here as the port answers, because the containment is the port's. What this pins
+    // is the half above it: nothing escapes the ingest, and the delivery gets a named outcome rather
+    // than a propagating failure.
+    [Theory]
+    [InlineData(typeof(FileNotFoundException))]
+    [InlineData(typeof(InvalidOperationException))]
+    public async Task AHostImportThatThrowsIsContainedAndReportedRatherThanPropagated(Type raised)
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        ingest.Library.ImportFailure = (Exception)Activator.CreateInstance(raised)!;
+
+        var outcome = await ingest.DeliverAsync();
+
+        Assert.Equal(ImportOutcome.RefusedHostRefusedFile, outcome);
+        Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
+    }
+
+    [Fact]
+    public async Task APathUnderNoReportingRootIsCountedUnderTheStatedPlaceholder()
+    {
+        var ingest = new Ingest();
+
+        Assert.Equal(
+            ImportOutcome.RefusedPathOutsideEveryReportedRoot,
+            await ingest.DeliverAsync(path: "/elsewhere/scene.mp4"));
+
+        Assert.Empty(ingest.Library.Imported);
+        Assert.Equal(
+            ImportRefusalProjector.NoReportedRoot,
+            Assert.Single((await ingest.StoredAsync()).Instance().ImportRefusals).Root);
+    }
+
+    [Fact]
+    public async Task AHostDeclaringNoLibraryPathBlamesNoWhisparrRoot()
+    {
+        var ingest = new Ingest(libraryRoots: []);
+
+        Assert.Equal(ImportOutcome.RefusedNoLibraryRoots, await ingest.DeliverAsync());
+
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
+        Assert.Equal(0, ingest.Store.SetCallCount);
+    }
+
+    private sealed class Ingest(bool hostImportReached = true, IReadOnlyList<string>? libraryRoots = null)
+    {
+        public FakeStore Store { get; } = new();
+
+        public RecordingLibrary Library { get; } =
+            new(hostImportReached, libraryRoots ?? ["/data", "/data2"]);
+
+        public StubPaths Paths { get; } = new();
+
+        public Task<ImportOutcome> DeliverAsync(
+            string root = WhisparrRoot, string path = ReportedPath)
+            => new ImportCore(
+                    new StubReportedRoots(root),
+                    Library,
+                    Paths,
+                    new OptionsWriting(new OptionsStore(Store), new OptionsWriteGate()),
+                    new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    TimeProvider.System,
+                    NullLogger.Instance)
+                .IngestAsync(
+                    new ImportCandidate(WhisparrGeneration.V3, "Download", path, ReportedSize, null),
+                    TestContext.Current.CancellationToken);
+
+        public Task<WhisparrSyncOptions> StoredAsync()
+            => new OptionsStore(Store).LoadAsync(TestContext.Current.CancellationToken);
+    }
+
+    private sealed class StubReportedRoots(params string[] roots) : IReportedRootPort
+    {
+        public Task<IReadOnlyList<string>?> ReadAsync(
+            WhisparrGeneration generation, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<string>?>(roots);
+    }
+
+    private sealed class StubPaths : IImportPathPort
+    {
+        public Dictionary<string, long> Present { get; } = [];
+
+        public ProbedPath Probe(string path)
+            => Present.TryGetValue(path, out var size)
+                ? new ProbedPath(true, size)
+                : new ProbedPath(false, null);
+    }
+}

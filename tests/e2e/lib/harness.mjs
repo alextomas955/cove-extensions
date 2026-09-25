@@ -8,8 +8,18 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { createSharedVolume } from "./shared-volume.mjs";
+
+/**
+ * Where the shared volume is mounted in the Cove container, and a Cove library path.
+ *
+ * Transcribed from docker-compose.yml rather than read out of it. A sibling container mounts the same
+ * volume at its own path, and only the two specs that do that have to agree on anything.
+ */
+const SHARED_PATH = "/shared";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
+import { networkForSlot } from "./global-setup.mjs";
 import { attemptUntil } from "./poll.mjs";
 // Imported rather than re-parsed here: CI resolves the image repository and each extension's floor
 // through these same readers, and a second parse would be free to disagree with it.
@@ -103,6 +113,11 @@ function highestDeclaredFloor() {
  * decides when it is absent.
  */
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
+  // Created before compose, because the compose file declares it external and refuses to come up
+  // without it. Every harness gets one; only a spec that starts a sibling container mounts it
+  // anywhere else. See lib/shared-volume.mjs.
+  const sharedVolume = await createSharedVolume();
+
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
     // Keyed on container names (`<service>-<index>`, the same names getContainer takes below), never
@@ -116,11 +131,24 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   const composeEnv = {
     COVE_E2E_IMAGE: resolveCoveImage(image),
     COVE_E2E_STACK: randomUUID().slice(0, 8),
+    // This slot's own network. The fixtures reach each other by fixed names, so one namespace shared
+    // by every worker made those names ambiguous; global-setup creates one per slot.
+    COVE_E2E_NETWORK: networkForSlot(),
+    COVE_E2E_SHARED_VOLUME: sharedVolume.name,
     ...env,
   };
   environment = environment.withEnvironment(composeEnv);
 
-  const started = await environment.up();
+  let started;
+  try {
+    started = await environment.up();
+  } catch (failure) {
+    // The volume outlives a failed bring-up otherwise, and nothing later in this call will run to
+    // remove it. The bring-up failure is the one worth raising, so a failure to clean up behind it
+    // does not displace it.
+    await sharedVolume.remove();
+    throw failure;
+  }
   const coveContainer = started.getContainer("cove-1");
   // Resolved eagerly, like the Cove container above, so a service name that no longer matches fails
   // at startup rather than part-way through whatever assertion first reached for it.
@@ -147,6 +175,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     get baseUrl() {
       return `http://${coveContainer.getHost()}:${coveContainer.getMappedPort(5073)}`;
+    },
+    /**
+     * The address this stack's Cove answers on from INSIDE the shared network.
+     *
+     * `baseUrl` is a host-published ephemeral port that a sibling container has no route to, and the
+     * bare service name answers for every stack on the network at once. Anything a test asks another
+     * container to call has to use this one.
+     */
+    get internalBaseUrl() {
+      return `http://cove-${composeEnv.COVE_E2E_STACK}:5073`;
     },
     get containerId() {
       return coveContainer.getId();
@@ -267,7 +305,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      */
     async login({ username, password } = credentials ?? {}) {
       if (!username || !password) {
-        throw new Error("login: no credentials — call bootstrapOwner() first, or pass them here");
+        throw new Error("login: no credentials - call bootstrapOwner() first, or pass them here");
       }
       const { response, lastError } = await postUntilSettled(
         anonymous,
@@ -339,7 +377,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
       const role = await asOwner("/api/roles", {
         Name: roleName,
-        Description: "Restricted e2e role — no wildcard, read denied by content rule.",
+        Description: "Restricted e2e role - no wildcard, read denied by content rule.",
         Permissions: permissions,
       });
       const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);
@@ -371,8 +409,27 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return { token, userId, roleId, roleName, username, password };
     },
 
+    /**
+     * The Docker volume this instance mounts at `/shared`, which is also a Cove library path.
+     *
+     * Hand it to a sibling container's own mount so the two see one filesystem. Only a spec that
+     * needs that reaches for it.
+     */
+    get sharedVolume() {
+      return sharedVolume.name;
+    },
+
+    /** Where {@link sharedVolume} is mounted inside the Cove container. */
+    sharedPath: SHARED_PATH,
+
     async stop() {
-      await started.down({ removeVolumes: true });
+      // The containers first: Docker refuses to remove a volume while one still holds it, and
+      // `removeVolumes` covers only the volumes compose itself created.
+      try {
+        await started.down({ removeVolumes: true });
+      } finally {
+        await sharedVolume.remove();
+      }
     },
   };
 
@@ -446,7 +503,7 @@ async function postUntilSettled(
  * the run it is trying to explain is worse than no diagnostic, so every failure mode degrades to a
  * short note.
  */
-async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
+export async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
   try {
     const stream = await container.logs();
     const chunks = [];

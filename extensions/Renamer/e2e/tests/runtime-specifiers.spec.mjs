@@ -63,7 +63,7 @@ test("the bundle the host serves imports extensionFetch by name, and the setting
   expect(served.ok, `GET ${bundleUrl} returned ${served.status}`).toBe(true);
   expect(
     served.text.length,
-    `the bundle served at ${bundleUrl} is empty — an empty body would trivially "contain nothing"`,
+    `the bundle served at ${bundleUrl} is empty - an empty body would trivially "contain nothing"`,
   ).toBeGreaterThan(0);
 
   const match = served.text.match(NAMED_EXTENSION_FETCH_IMPORT);

@@ -123,7 +123,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   // also the only place the driver's handling of the multi-statement migration string is exercised.
   expect(
     await countJournalTables(isolatedHarness),
-    "the host did not create both journal tables — an extension migration that fails is only a host log line, so the extension is enabled either way",
+    "the host did not create both journal tables - an extension migration that fails is only a host log line, so the extension is enabled either way",
   ).toBe("2");
   expect(
     await countMigrationReceipts(isolatedHarness),
@@ -352,7 +352,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   await settingsPage.goto();
   await expect(
     settingsPage.undoLastRenameButton,
-    "a batch with a file still outstanding is not being offered — the gate has stopped keying on what is left",
+    "a batch with a file still outstanding is not being offered - the gate has stopped keying on what is left",
   ).toBeVisible();
   await expect(
     settingsPage.undoLastRenameButton,
@@ -394,7 +394,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   await settingsPage.waitForNoRenameToUndo();
   await expect(
     settingsPage.undoLastRenameButton,
-    "a fully restored batch is still offering its undo — the gate is keying on the batch existing rather than on it having work left",
+    "a fully restored batch is still offering its undo - the gate is keying on the batch existing rather than on it having work left",
   ).toHaveCount(0);
 
   // ── 4. Uninstall, reinstall, and journal a rename on the table that survived ────────────────────
@@ -410,7 +410,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
 
   expect(
     await countJournalTables(isolatedHarness),
-    "uninstall took the journal tables with it — a user's pending undo would be destroyed by an update, which is uninstall-shaped",
+    "uninstall took the journal tables with it - a user's pending undo would be destroyed by an update, which is uninstall-shaped",
   ).toBe("2");
   expect(
     await countMigrationReceipts(isolatedHarness),
@@ -420,7 +420,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   await isolatedHarness.installExtension(RENAMER_EXTENSION);
   expect(
     (await api.get("/api/extensions")).json.find((e) => e.id === EXTENSION_ID)?.enabled,
-    "the reinstalled extension did not load — a stale table plus an applied receipt is the normal reinstall shape",
+    "the reinstalled extension did not load - a stale table plus an applied receipt is the normal reinstall shape",
   ).toBe(true);
 
   const revenantName = `undo-restore-reinstall-${stamp}.mp4`;
@@ -465,6 +465,6 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   );
   expect(
     journalledRows,
-    "the reinstalled extension renamed a file but recorded nothing — a rename it cannot undo",
+    "the reinstalled extension renamed a file but recorded nothing - a rename it cannot undo",
   ).toBe("1");
 });

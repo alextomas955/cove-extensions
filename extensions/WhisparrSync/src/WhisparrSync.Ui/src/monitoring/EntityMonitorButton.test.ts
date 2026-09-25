@@ -1,0 +1,639 @@
+// @vitest-environment jsdom
+// The properties under test are about the rendered element, so a DOM is needed. The shared
+// primitives, the host's authenticated fetch and its POST helper all stand in, because each
+// resolves only inside a consuming bundle.
+import { test, expect, vi, afterEach } from "vitest";
+import { createElement, type ReactNode } from "react";
+
+import { press, render as renderRoot } from "../common/lib/testRender";
+
+vi.mock("@cove-extensions/ui-shared", () => ({
+  // The real primitive draws an SVG, so the stand-in draws one too. One rendering nothing would
+  // make every "no mark yet" assertion below agree with the stand-in rather than with the code.
+  Spinner: () => createElement("svg", { "data-stand-in": "spinner" }),
+  // The real builder, because the route the control asks for is one of the things under test.
+  extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
+}));
+
+interface Sent {
+  path: string;
+  method: string;
+  body: string | undefined;
+}
+
+const sent: Sent[] = [];
+
+// Each answer is a function called at request time, not a promise created ahead of one. A promise
+// that settles before anything reads it is reported as unhandled.
+type Answer = () => Promise<unknown>;
+let readAnswer: Answer = () => Promise.resolve(null);
+let actionAnswer: Answer = () => Promise.resolve({});
+
+vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
+  ApiError: class ApiError extends Error {
+    constructor(
+      public status: number,
+      public body: string,
+    ) {
+      super(`${String(status)} ${body}`);
+    }
+  },
+  requestJson: (route: string) => {
+    sent.push({ path: route, method: "GET", body: undefined });
+    return readAnswer();
+  },
+}));
+
+vi.mock("@cove-extensions/ui-shared/postAction", () => ({
+  postAction: (route: string, body: unknown) => {
+    sent.push({ path: route, method: "POST", body: JSON.stringify(body) });
+    return actionAnswer();
+  },
+}));
+
+// The host dialog resolves only inside a running Cove. The stand-in draws the same two buttons,
+// because what a press of each sends is under test.
+vi.mock("./hostComponents", () => ({
+  ConfirmDialog: ({
+    title,
+    message,
+    confirmLabel,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) =>
+    createElement("div", { role: "dialog", "aria-label": title }, [
+      createElement("p", { key: "message" }, message),
+      createElement("button", { key: "confirm", type: "button", onClick: onConfirm }, confirmLabel),
+      createElement("button", { key: "cancel", type: "button", onClick: onCancel }, "Cancel"),
+    ]),
+}));
+
+const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
+const {
+  ACTION_ADD_ALL_MISSING,
+  ACTION_DID_NOT_REACH_WHISPARR,
+  ACTION_REFLECT_OWNED,
+  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  INSTANCE_OFFERS_NO_QUALITY_PROFILE,
+  INSTANCE_REFUSED,
+  MENU_UNMONITOR,
+  MONITORING_COULD_NOT_BE_READ,
+  REFLECT_OWNED_SKIPPED,
+  SCOPE_ALL_SCENES,
+  WHISPARR_MONITORED,
+  WHISPARR_NOT_MONITORED,
+} = await import("../common/ui/copy");
+
+// Whole-class match. A substring check reports an absent class as present: the host's action-row
+// string already carries `hover:border-accent`, so a substring test for the monitored border
+// passes on the unmonitored control too.
+function hasClass(element: Element | null, cls: string): boolean {
+  return element?.classList.contains(cls) === true;
+}
+
+function view(overrides: Record<string, unknown>) {
+  return {
+    kind: "studio",
+    generation: "v3",
+    monitored: false,
+    refusal: "none",
+    capabilities: ["monitorStudio"],
+    ...overrides,
+  };
+}
+
+afterEach(() => {
+  sent.length = 0;
+  readAnswer = () => Promise.resolve(null);
+  actionAnswer = () => Promise.resolve({});
+});
+
+async function render(node: ReactNode) {
+  const container = await renderRoot(node);
+  return {
+    container,
+    button: container.querySelector("button"),
+    marks: () => container.querySelector("button")?.querySelectorAll("svg").length ?? 0,
+    // Queried from the document: the menu is portaled out of the host page's hero, which clips its
+    // overflow. The dialog is portaled for the same reason.
+    menu: () => document.body.querySelector('[role="menu"]'),
+    rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
+    dialog: () => document.body.querySelector('[role="dialog"]'),
+  };
+}
+
+async function confirm(): Promise<void> {
+  const dialog = document.body.querySelector('[role="dialog"]');
+  await press(dialog?.querySelectorAll("button")[0]);
+}
+
+async function cancelConfirmation(): Promise<void> {
+  const dialog = document.body.querySelector('[role="dialog"]');
+  await press(dialog?.querySelectorAll("button")[1]);
+}
+
+// A read that never settles, which is the frame under test.
+const NEVER: Answer = () =>
+  new Promise(() => {
+    // intentionally never resolved
+  });
+
+test("the first frame is a bordered shell with no mark at all", async () => {
+  readAnswer = NEVER;
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.button).not.toBeNull();
+  expect(rendered.marks()).toBe(0);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_NOT_MONITORED);
+});
+
+test("a read answering not-monitored paints the mark and no tick", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.marks()).toBe(1);
+  expect(hasClass(rendered.button, "border-accent")).toBe(false);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_NOT_MONITORED);
+});
+
+test("the monitored state is a border and a tick, and no accent fill on the control itself", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  // The state lives on the border plus the tick, never on the mark: a filled two-tone disc cannot
+  // inherit a colour.
+  expect(rendered.marks()).toBe(2);
+  expect(hasClass(rendered.button, "border-accent")).toBe(true);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_MONITORED);
+
+  // The tint that lifts the border is a layer behind the mark, which keeps a two-tone disc off a
+  // solid accent field.
+  expect(hasClass(rendered.button, "bg-accent")).toBe(false);
+  expect(hasClass(rendered.button, "bg-accent/10")).toBe(false);
+  const tint = rendered.container.querySelector("span.bg-accent\\/10");
+  expect(tint, "the accent tint is not drawn behind the mark").not.toBeNull();
+  expect(tint?.parentElement).toBe(rendered.button);
+});
+
+test("a failed read says so, and never paints the unmonitored state", async () => {
+  readAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.button).not.toBeNull();
+  expect(rendered.marks()).toBe(0);
+  expect(rendered.button?.disabled).toBe(true);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
+  expect(rendered.button?.getAttribute("title")).toBe(
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
+});
+
+test("the read names the mounted entity and asks for its monitoring", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+
+  expect(sent).toHaveLength(1);
+  expect(sent[0].path).toBe(
+    "/extensions/com.alextomas955.whisparrsync/entity/studio/42/monitoring",
+  );
+  expect(sent[0].method).toBe("GET");
+});
+
+// The host passes its whole entity object, which carries the library's own identity rows. Asserted
+// over everything that left rather than over one forbidden name, so a field nobody thought to
+// forbid fails here too.
+test("nothing but the Cove id off the host object reaches the instance", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const carried = { id: 42, stashId: "9f3c", tvdbId: 551, name: "Some Studio", foreignId: "abc" };
+  await render(createElement(WhisparrStudioActions, { studio: carried }));
+
+  const leaked = Object.entries(carried)
+    .filter(([field]) => field !== "id")
+    .map(([, value]) => String(value))
+    .filter((value) =>
+      sent.some((one) => one.path.includes(value) || (one.body ?? "").includes(value)),
+    );
+
+  expect(leaked, "a host field other than the id reached the instance").toEqual([]);
+  expect(sent[0].path).toContain("/42/");
+});
+
+test("the performer control asks about a performer, on its own page", async () => {
+  readAnswer = () => Promise.resolve(view({ kind: "performer" }));
+
+  await render(createElement(WhisparrPerformerActions, { performer: { id: 7 } }));
+
+  expect(sent).toHaveLength(1);
+  expect(sent[0].path).toBe(
+    "/extensions/com.alextomas955.whisparrsync/entity/performer/7/monitoring",
+  );
+});
+
+test("a press opens the menu and posts nothing, because monitoring lives in the menu", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  expect(rendered.menu()).toBeNull();
+
+  await press(rendered.button);
+
+  expect(rendered.menu()).not.toBeNull();
+  expect(rendered.button?.getAttribute("aria-expanded")).toBe("true");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("choosing a scope posts it, with no identifier of any kind, and reads the state back", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[0]);
+
+  const posted = sent.filter((call) => call.method === "POST");
+  expect(posted).toHaveLength(1);
+  expect(posted[0].path).toBe("/extensions/com.alextomas955.whisparrsync/entity/studio/42/monitor");
+  expect(Object.keys(JSON.parse(posted[0].body ?? "{}") as Record<string, unknown>)).toEqual([
+    "scope",
+  ]);
+  expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("futureScenes");
+
+  // The mount read, then one more after the action settled: what the entity now is comes from the
+  // instance, never from what the browser asked for.
+  expect(sent.filter((call) => call.method === "GET")).toHaveLength(2);
+});
+
+test("an item already on its way is not pressable again", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+  actionAnswer = NEVER;
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[0]);
+
+  expect(rendered.rows().every((row) => row.disabled)).toBe(true);
+  await press(rendered.rows()[1]);
+
+  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
+});
+
+test("a v2 performer keeps its control, disabled, saying what the generation cannot do", async () => {
+  readAnswer = () =>
+    Promise.resolve(
+      view({
+        kind: "performer",
+        generation: "v2",
+        refusal: "capabilityAbsentOnThisGeneration",
+        capabilities: ["outOfBandCallbackSecret", "monitorStudio"],
+      }),
+    );
+
+  const rendered = await render(createElement(WhisparrPerformerActions, { performer: { id: 3 } }));
+
+  expect(rendered.button, "the control is omitted rather than refused").not.toBeNull();
+  expect(rendered.button?.disabled).toBe(true);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${WHISPARR_NOT_MONITORED}, ${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
+  );
+});
+
+test("each verb this build serves posts its own route rather than the monitor one", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await press(rendered.button);
+
+  const rows = rendered.rows();
+  const scope = rows.find((row) => (row.getAttribute("title") ?? "").startsWith(SCOPE_ALL_SCENES));
+  const unmonitor = rows.find((row) =>
+    (row.getAttribute("title") ?? "").startsWith(MENU_UNMONITOR),
+  );
+
+  // A scope change on a monitored entity must not share the monitor route: posting that route here
+  // would re-add an entity the instance already holds. The POSTs alone, because each action is
+  // followed by a read back and the last call recorded is always a GET.
+  const posted = () => sent.filter((call) => call.method === "POST").map((call) => call.path);
+
+  expect(scope?.disabled).toBe(false);
+  await press(scope);
+  // All Scenes marks the back catalogue, so it asks before it sends.
+  await confirm();
+  expect(posted().at(-1)?.endsWith("/scope")).toBe(true);
+
+  expect(unmonitor?.disabled).toBe(false);
+  await press(unmonitor);
+  expect(posted().at(-1)?.endsWith("/unmonitor")).toBe(true);
+  expect(posted()).toHaveLength(2);
+});
+
+// A generation holding the capability the reflect-owned row is gated on.
+const REFLECTING = ["monitorStudio", "reflectOwnedFiles"];
+
+async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
+  await press(rendered.button);
+  const reflect = rendered
+    .rows()
+    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_REFLECT_OWNED));
+  expect(reflect?.disabled).toBe(false);
+  await press(reflect);
+  // Queried from the document for the reason the menu is: the notice leaves the clipping hero too
+  // and is not reachable from the control's own subtree.
+  return document.body.querySelector('[role="status"]');
+}
+
+function occurrencesOf(sentence: string): number {
+  return document.body.textContent.split(sentence).length - 1;
+}
+
+// The subtree inside the host's clipping hero.
+function wrapperOf(rendered: Awaited<ReturnType<typeof render>>): Element {
+  const wrapper = rendered.button?.parentElement ?? null;
+  expect(wrapper).not.toBeNull();
+  return wrapper as Element;
+}
+
+test("an action the server answered and skipped states the reason at the control", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(REFLECT_OWNED_SKIPPED);
+  expect(
+    sent
+      .filter((call) => call.method === "POST")
+      .at(-1)
+      ?.path.endsWith("/reflect-owned"),
+  ).toBe(true);
+});
+
+test("an action that never reached the instance says that instead", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(ACTION_DID_NOT_REACH_WHISPARR);
+});
+
+test("a failure notice leaves the container the menu had to leave", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice).not.toBeNull();
+  expect(wrapperOf(rendered).contains(notice)).toBe(false);
+  expect(document.body.contains(notice)).toBe(true);
+  expect(notice?.getAttribute("role")).toBe("status");
+});
+
+test("a failure notice is anchored to the control, on the menu's own placement", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = (await pressReflectOwned(rendered)) as HTMLElement | null;
+
+  // The menu is still open, so the two share one placed container. Two elements each carrying the
+  // same rectangle is what made the notice cover the menu.
+  const menu = rendered.menu() as HTMLElement;
+  expect(menu).not.toBeNull();
+  const container = menu.parentElement!;
+  expect(container.contains(notice)).toBe(true);
+  expect(container.style.top).not.toBe("");
+  expect(notice?.style.top).toBe("");
+});
+
+// jsdom reports every element rectangle as zeroes, so a geometric assertion would pass on any
+// layout. Document order stands in for it.
+test("with the menu open the notice follows the menu and is not inside it", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = (await pressReflectOwned(rendered)) as HTMLElement;
+  const menu = rendered.menu() as HTMLElement;
+
+  expect(notice).not.toBeNull();
+  expect(menu).not.toBeNull();
+
+  // The two assertions that tell this shape apart from the one that covered the menu. Sharing a
+  // parent and following in document order were both already true of the covering shape, so they
+  // guard nothing on their own.
+  expect(notice.parentElement).not.toBe(document.body);
+  expect(notice.classList.contains("fixed")).toBe(false);
+
+  expect(menu.contains(notice)).toBe(false);
+  expect(notice.parentElement).toBe(menu.parentElement);
+  expect(menu.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeGreaterThan(
+    0,
+  );
+});
+
+test("with the menu closed the notice still renders", async () => {
+  readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
+
+  await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(document.body.querySelector('[role="menu"]')).toBeNull();
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
+});
+
+test("the notice appears exactly once whichever way the menu is", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await pressReflectOwned(rendered);
+
+  expect(rendered.menu()).not.toBeNull();
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
+
+  await press(rendered.button);
+
+  expect(rendered.menu()).toBeNull();
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
+});
+
+test("a skipped action's notice leaves that container too", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(REFLECT_OWNED_SKIPPED);
+  expect(wrapperOf(rendered).contains(notice)).toBe(false);
+  expect(document.body.contains(notice)).toBe(true);
+});
+
+test("nothing pressed at all leaves no notice anywhere in the document", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+
+  await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.querySelector('[role="status"]')).toBeNull();
+});
+
+test("an action that was carried out states nothing at the control", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: null, jobId: "job-1", refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice).toBeNull();
+});
+
+test("a press refused for no quality profile states that beneath the control", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+  actionAnswer = () => Promise.resolve(view({ refusal: "noQualityProfile", scope: null }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[0]);
+
+  expect(document.body.textContent).toContain(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
+  // The retry the refusal must not take away: a reader can add a profile in Whisparr and press again.
+  expect(rendered.button?.disabled).toBe(false);
+});
+
+// The menu is available, so nothing is stated in the control's own name and the reason the read
+// carried would otherwise reach nobody.
+test("a read answering that the instance declined states that beneath the control", async () => {
+  readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.textContent).toContain(INSTANCE_REFUSED);
+  expect(rendered.button?.disabled).toBe(false);
+
+  await press(rendered.button);
+  expect(rendered.menu()).not.toBeNull();
+});
+
+test("a read that failed says only that, with no refusal sentence beside it", async () => {
+  readAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
+  expect(document.body.textContent).not.toContain(INSTANCE_REFUSED);
+});
+
+// The answer that is not an entity view, so the refusal is read off a second route's own type.
+test("a refused add all missing states the reason, on an answer carrying no view at all", async () => {
+  readAnswer = () =>
+    Promise.resolve(
+      view({ monitored: true, capabilities: ["monitorStudio", "registerMissingScenes"] }),
+    );
+  actionAnswer = () => Promise.resolve({ jobId: null, refusal: "instanceRefused" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await press(rendered.button);
+
+  const row = rendered
+    .rows()
+    .find((entry) => (entry.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
+  await press(row);
+
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
+  expect(rendered.button?.disabled).toBe(false);
+});
+
+test("add all missing is pressed at its own route on a generation holding the capability", async () => {
+  readAnswer = () =>
+    Promise.resolve(
+      view({ monitored: true, capabilities: ["monitorStudio", "registerMissingScenes"] }),
+    );
+  actionAnswer = () => Promise.resolve({ jobId: "job-1", refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await press(rendered.button);
+
+  const row = rendered
+    .rows()
+    .find((entry) => (entry.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
+
+  expect(row).toBeDefined();
+  expect(row?.disabled).toBe(false);
+
+  await press(row);
+
+  const posted = sent.filter((call) => call.method === "POST");
+  expect(posted).toHaveLength(1);
+  expect(posted[0].path).toBe(
+    "/extensions/com.alextomas955.whisparrsync/entity/studio/1/add-all-missing",
+  );
+});
+
+test("All Scenes asks before it sends, and a cancel sends nothing", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[1]);
+
+  expect(rendered.dialog()?.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+  expect(rendered.dialog()?.textContent).toContain("1 entity.");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+
+  await cancelConfirmation();
+
+  expect(rendered.dialog()).toBeNull();
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("standing by All Scenes posts the scope the row carries", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[1]);
+  await confirm();
+
+  const posted = sent.filter((call) => call.method === "POST");
+  expect(posted).toHaveLength(1);
+  expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("allScenes");
+  expect(rendered.dialog()).toBeNull();
+});
+
+test("the narrower scope is posted with no confirmation at all", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  await press(rendered.button);
+
+  await press(rendered.rows()[0]);
+
+  expect(rendered.dialog()).toBeNull();
+  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
+});

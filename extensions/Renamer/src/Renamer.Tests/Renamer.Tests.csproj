@@ -18,7 +18,7 @@
     <!--
       CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
       Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
-      C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression on the
+      C#-only test types never consumed from VB, so the rule does not apply - mirror the suppression on the
       Cove.Extensions.Shared(.Testing) projects. Fires here because linked files compile INTO this assembly.
     -->
     <NoWarn>$(NoWarn);CA1716</NoWarn>
@@ -69,7 +69,7 @@
       The two are named for different reasons. Cove.Data is on NO feed and the root
       Directory.Build.targets deliberately does not wire it, so a project wanting a real context has to
       say where Cove is for itself. Cove.Core IS on nuget.org and does reach every project transitively
-      through the Cove.Sdk chain the root targets wires — it is named anyway so the Cove.Core matching
+      through the Cove.Sdk chain the root targets wires - it is named anyway so the Cove.Core matching
       the checkout is what compiles, rather than whatever version the feed last published. A mismatch
       there splits the closure, and MSBuild reports that skew as a warning at most, which
       TreatWarningsAsErrors does not cover because that switch is compiler-only.

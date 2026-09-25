@@ -72,8 +72,9 @@ npm test -- --project=renamer
 ```
 
 Go through `npm test` rather than calling Playwright directly: the publish hook above is a `pretest`
-script, so a direct `npx playwright test` skips it and installs whatever publish output happens to
-be on disk.
+script, so a direct `npx playwright test` skips it and stages whatever publish output happens to be
+on disk. Staging refuses an assembly older than the extension's own project sources and names the
+publish command in the failure, so a stale backend stops the run instead of being installed.
 
 Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` that
 declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
@@ -285,6 +286,30 @@ network there changes none of the host's interfaces or addresses.
   `File.Exists` before doing anything else). `seedVideo()`, `seedImage()` and `seedText()` each copy
   a tiny real fixture (see `lib/fixtures-media/`) into the container and register it through that
   real API, so tests exercise the actual import path, not a shortcut around it.
+- [`lib/whisparr-fixture.mjs`](lib/whisparr-fixture.mjs) - `startWhisparr()` brings Whisparr
+  containers up on the network of an already-started harness Cove. Opt-in, so a suite that never
+  calls it pays neither the image pull nor the boot. Three things the signature cannot show: the two
+  generations take their API key by different mechanisms (one from its environment, the other from a
+  config file that has to be in place before it starts, at a file mode the app can rewrite); an
+  instance whose reported library root Cove cannot resolve is produced by declaring a path rather
+  than by mounting a shared volume, because whether the host can resolve what an instance reports is
+  decided on the strings and a volume no reaper owns would be a cleanup path bought for nothing; and
+  this handle's `stop()` must run before `harness.stop()` - a compose down removes the project
+  network, and the daemon refuses to remove one that a container is still attached to. A caller
+  needing MORE roots than the start declares registers them with the module's own
+  `registerRootFolder()` rather than posting one itself: registration also has to create the
+  directory and hand it to the account the application runs as, and one generation reports a
+  freshly created root as inaccessible in the very response that created it.
+- [`lib/whisparr-images.mjs`](lib/whisparr-images.mjs) - the one site those images are declared, by
+  exact release-channel tag. A floating tag is refused rather than allowed as a convenience:
+  `latest` is a v2 image, so a floating reference can silently select the wrong generation.
+- [`lib/whisparr-seed.mjs`](lib/whisparr-seed.mjs) - the state an instance must already hold before
+  anything can be asked of it. Import history is written straight into the app's own SQLite, through
+  a committed `.py` run inside the container, because no Whisparr route creates history - every one
+  of them reads. Nothing there trusts its own write: the reader inner-joins each history row to its
+  parent library row and answers an orphaned one with an empty page and no error, so a seed is
+  believed only once the app's own API returns the rows, and a seed that produced nothing raises
+  instead of passing.
 - [`lib/poll.mjs`](lib/poll.mjs) - `pollJob()`/`pollUntil()` for polling job status and eventually-
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo

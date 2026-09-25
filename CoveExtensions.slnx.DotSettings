@@ -6,7 +6,7 @@
 
 	  Disabled and why (all are "used" in ways ReSharper's static pass cannot see):
 	    - NotAccessedPositionalProperty.Global : request/response + options records are read via JSON
-	      (System.Text.Json) and IExtensionStore persistence — the reflecting serializer accesses them.
+	      (System.Text.Json) and IExtensionStore persistence - the reflecting serializer accesses them.
 	    - ClassNeverInstantiated.Global        : minimal-API request records are instantiated by the ASP.NET
 	      model binder, never `new`'d in our code.
 	    - UnusedMemberInSuper.Global           : port/adapter interface methods (IRenamerDataPort) are

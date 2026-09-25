@@ -1,0 +1,3625 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "cove extension wire contract",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/extensions/com.alextomas955.whisparrsync/host-configuration": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostConfigurationView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/connection/test": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/settings": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrSyncSettingsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhisparrSyncSettingsSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrSyncSettingsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/import/banner": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBannerView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderAgreementView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMappingSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMappingSaveResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/connection/offer": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrConnectionOffer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorEntityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/unmonitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/search-all-monitored": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/scope": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorEntityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/reflect-owned": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflectOwnedEnqueued"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflectOwnedEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/add-all-missing": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddAllMissingEnqueued"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddAllMissingEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entities/bulk-monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "menusHeld",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingPageView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingCountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/facet/{facetKey}": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "facetKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingFacetSearchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/bulk-monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MissingBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingBulkEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/track": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceCatalogueCache"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingTrackResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/monitor-all": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingBulkEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "providerSceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceCatalogueCache"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/{providerSceneId}/search": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "providerSceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/add": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/unmonitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/exclude": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/remove-exclusion": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/search": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/scenes/batch": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/library/{kind}/status": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryStatusView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/sync/preview": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncEnqueued"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPreviewRead"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/sync/run": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SyncRunRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncEnqueued"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportAcknowledgement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback/register": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback/status": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddAllMissingEnqueued": {
+        "required": [
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MonitorRefusalKind"
+          }
+        }
+      },
+      "BulkJobState": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "BulkJobStatus": {
+        "required": [
+          "id",
+          "status",
+          "progress",
+          "subTask",
+          "error",
+          "summary",
+          "entitiesTotal",
+          "entitiesApplied",
+          "entitiesRefused",
+          "entitiesPassedOver"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BulkJobState"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double"
+          },
+          "subTask": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "entitiesTotal": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "entitiesApplied": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "entitiesRefused": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "entitiesPassedOver": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CallbackSecretPosition": {
+        "enum": [
+          "address",
+          "outOfBand"
+        ]
+      },
+      "CallbackView": {
+        "required": [
+          "generation",
+          "status",
+          "copyableAddress",
+          "registeredAddress",
+          "secretTravelsOutOfBand",
+          "lastEventSecretPosition",
+          "missingSetting",
+          "refusal",
+          "registrationIsSafe"
+        ],
+        "type": "object",
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RegistrationStatus"
+          },
+          "copyableAddress": {
+            "type": "string"
+          },
+          "registeredAddress": {
+            "type": "string"
+          },
+          "secretTravelsOutOfBand": {
+            "type": "boolean"
+          },
+          "lastEventSecretPosition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CallbackSecretPosition"
+              }
+            ]
+          },
+          "missingSetting": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectionSetting"
+              }
+            ]
+          },
+          "refusal": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationIsSafe": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConnectionFailureKind": {
+        "enum": [
+          "connected",
+          "notConfigured",
+          "unreachable",
+          "keyRejected",
+          "notTheWhisparrApi",
+          "versionNotManaged"
+        ]
+      },
+      "ConnectionSetting": {
+        "enum": [
+          "address",
+          "apiKey",
+          null
+        ]
+      },
+      "ConnectionTestRequest": {
+        "required": [
+          "address",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ConnectionTestView": {
+        "required": [
+          "kind",
+          "generation",
+          "capabilities",
+          "version",
+          "branch",
+          "corroborated",
+          "otherApplication",
+          "address",
+          "missingSetting"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ConnectionFailureKind"
+          },
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "capabilities": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "branch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "corroborated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "otherApplication": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "missingSetting": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectionSetting"
+              }
+            ]
+          }
+        }
+      },
+      "EntityMonitoringView": {
+        "required": [
+          "kind",
+          "generation",
+          "present",
+          "monitored",
+          "refusal",
+          "capabilities",
+          "scope",
+          "scopeChangeIsRetroactive"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/WhisparrEntityKind"
+          },
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MonitorRefusalKind"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
+          },
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorScope"
+              }
+            ]
+          },
+          "scopeChangeIsRetroactive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "ErrorCode": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "max": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FolderAgreementRefusal": {
+        "enum": [
+          "instanceDeclaresNoRoot",
+          "noFileToProbeWith",
+          "nothingResolved",
+          "moreThanOneResolved",
+          "probeCouldNotBeRead",
+          "instanceCannotBeAsked",
+          "folderUnderNoLibraryRoot",
+          null
+        ]
+      },
+      "FolderAgreementRootLine": {
+        "required": [
+          "root",
+          "refusal",
+          "pathsTried",
+          "mapping"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "refusal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderAgreementRefusal"
+              }
+            ]
+          },
+          "pathsTried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mapping": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FolderAgreementView": {
+        "required": [
+          "roots"
+        ],
+        "type": "object",
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderAgreementRootLine"
+            }
+          }
+        }
+      },
+      "FolderMappingSaveOutcome": {
+        "enum": [
+          "stored",
+          "removed",
+          "refused",
+          "notALibraryRoot",
+          "notConfigured"
+        ]
+      },
+      "FolderMappingSaveRequest": {
+        "required": [
+          "coveRoot",
+          "instancePath"
+        ],
+        "type": "object",
+        "properties": {
+          "coveRoot": {
+            "type": "string"
+          },
+          "instancePath": {
+            "type": "string"
+          }
+        }
+      },
+      "FolderMappingSaveResult": {
+        "required": [
+          "outcome",
+          "refusal",
+          "tried"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/FolderMappingSaveOutcome"
+          },
+          "refusal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderAgreementRefusal"
+              }
+            ]
+          },
+          "tried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "HostConfigurationView": {
+        "required": [
+          "configurationResolved",
+          "libraryRootCount",
+          "workerStartedAtUtc",
+          "workerCancelledAtUtc",
+          "scanServiceResolved",
+          "metadataServerServiceResolved"
+        ],
+        "type": "object",
+        "properties": {
+          "configurationResolved": {
+            "type": "boolean"
+          },
+          "libraryRootCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "workerStartedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "workerCancelledAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "scanServiceResolved": {
+            "type": "boolean"
+          },
+          "metadataServerServiceResolved": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ImportAcknowledgement": {
+        "required": [
+          "secretPosition",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "secretPosition": {
+            "$ref": "#/components/schemas/CallbackSecretPosition"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ImportEventOutcome"
+          }
+        }
+      },
+      "ImportBannerPathLine": {
+        "required": [
+          "path",
+          "cause"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "cause": {
+            "$ref": "#/components/schemas/ImportRefusalCause"
+          }
+        }
+      },
+      "ImportBannerRootLine": {
+        "required": [
+          "root",
+          "countSinceLastSuccess",
+          "newestPaths"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "countSinceLastSuccess": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newestPaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportBannerPathLine"
+            }
+          }
+        }
+      },
+      "ImportBannerView": {
+        "required": [
+          "roots",
+          "recordsContained",
+          "lastContainedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportBannerRootLine"
+            }
+          },
+          "recordsContained": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastContainedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ImportEventOutcome": {
+        "enum": [
+          "accepted",
+          "ignored"
+        ]
+      },
+      "ImportRefusalCause": {
+        "enum": [
+          "notFoundUnderAnyRoot",
+          "ambiguousCandidates",
+          "unreadable"
+        ]
+      },
+      "InstanceCatalogueCache": {
+        "type": "object"
+      },
+      "JobEnqueued": {
+        "required": [
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          }
+        }
+      },
+      "KeyWriteSignal": {
+        "enum": [
+          "keep",
+          "replace",
+          "clear"
+        ]
+      },
+      "LibraryCardKind": {
+        "enum": [
+          "video",
+          "studio",
+          "performer"
+        ]
+      },
+      "LibraryCardReading": {
+        "required": [
+          "excluded",
+          "present",
+          "monitored"
+        ],
+        "type": "object",
+        "properties": {
+          "excluded": {
+            "type": "boolean"
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "monitored": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "inLibrary": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "LibraryStatusRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "whisparrCannotAnswerForThisKind",
+          "instanceUnreachable"
+        ]
+      },
+      "LibraryStatusRequest": {
+        "required": [
+          "coveIds"
+        ],
+        "type": "object",
+        "properties": {
+          "coveIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "LibraryStatusRow": {
+        "required": [
+          "coveId",
+          "reading"
+        ],
+        "type": "object",
+        "properties": {
+          "coveId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reading": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LibraryCardReading"
+              }
+            ]
+          }
+        }
+      },
+      "LibraryStatusView": {
+        "required": [
+          "kind",
+          "rows",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LibraryCardKind"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryStatusRow"
+            }
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/LibraryStatusRefusalKind"
+          },
+          "moreNotAnswered": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "MissingBulkEnqueued": {
+        "required": [
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingRefusalKind"
+          }
+        }
+      },
+      "MissingBulkRequest": {
+        "required": [
+          "providerSceneIds"
+        ],
+        "type": "object",
+        "properties": {
+          "providerSceneIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verb": {
+            "$ref": "#/components/schemas/MissingBulkVerb"
+          }
+        }
+      },
+      "MissingBulkVerb": {
+        "enum": [
+          "monitor",
+          "unmonitor"
+        ],
+        "default": "monitor"
+      },
+      "MissingCard": {
+        "required": [
+          "providerSceneId",
+          "title",
+          "releaseDate",
+          "coverUrl",
+          "sceneUrl",
+          "studioName",
+          "description",
+          "performers",
+          "tags",
+          "performerCount",
+          "tagCount",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "providerSceneId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "releaseDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sceneUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "studioName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingPerformerChip"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "performerCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tagCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MissingSceneState"
+          }
+        }
+      },
+      "MissingCountView": {
+        "required": [
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MissingFacetMenu": {
+        "required": [
+          "key",
+          "label",
+          "values",
+          "reportedValueCount"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingFacetValue"
+            }
+          },
+          "reportedValueCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MissingFacetSearchOutcome": {
+        "enum": [
+          "matched",
+          "notSearchable",
+          "fragmentTooShort",
+          "noAnswer"
+        ]
+      },
+      "MissingFacetSearchView": {
+        "required": [
+          "values",
+          "reportedValueCount",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingFacetValue"
+            }
+          },
+          "reportedValueCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/MissingFacetSearchOutcome"
+          }
+        }
+      },
+      "MissingFacetValue": {
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "MissingPageView": {
+        "required": [
+          "cards",
+          "catalogueSize",
+          "sizeIsLowerBound",
+          "page",
+          "perPage",
+          "lastPage",
+          "rangeFrom",
+          "rangeTo",
+          "refusal",
+          "facets",
+          "sorts",
+          "sortInForce",
+          "providerName"
+        ],
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingCard"
+            }
+          },
+          "catalogueSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sizeIsLowerBound": {
+            "type": "boolean"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "perPage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastPage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rangeFrom": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rangeTo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingRefusalKind"
+          },
+          "facets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingFacetMenu"
+            }
+          },
+          "sorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingSortOption"
+            }
+          },
+          "sortInForce": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerName": {
+            "type": "string"
+          }
+        }
+      },
+      "MissingPerformerChip": {
+        "required": [
+          "providerPerformerId",
+          "name",
+          "imageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "providerPerformerId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MissingRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "noMetadataProviderConfigured",
+          "noProviderIdForEntity",
+          "providerUnreachable",
+          "entityNotInWhisparr",
+          "whisparrCatalogueNotRead",
+          "whisparrStatusNotRead",
+          "whisparrKeepsNoSceneRecords"
+        ]
+      },
+      "MissingSceneActionRefusal": {
+        "enum": [
+          "none",
+          "didNotReachWhisparr",
+          "instanceRefused",
+          "capabilityAbsentOnThisGeneration",
+          "instanceOffersNoQualityProfile",
+          "instanceOffersNoRootFolder",
+          "noAgreedRootForThisEntity",
+          "whisparrHasNoEntryForScene"
+        ]
+      },
+      "MissingSceneActionResult": {
+        "required": [
+          "state",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/MissingSceneState"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingSceneActionRefusal"
+          }
+        }
+      },
+      "MissingSceneState": {
+        "enum": [
+          "notAdded",
+          "monitored",
+          "unmonitored",
+          "statusUnknown"
+        ]
+      },
+      "MissingSortOption": {
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "MissingTrackOutcome": {
+        "enum": [
+          "added",
+          "noInstanceConnected",
+          "generationCannotTrackThisKind",
+          "noIdentifier",
+          "noAddDefaults",
+          "refused",
+          "notStarted"
+        ]
+      },
+      "MissingTrackResult": {
+        "required": [
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/MissingTrackOutcome"
+          }
+        }
+      },
+      "MonitorBulkRequest": {
+        "required": [
+          "entityType",
+          "verb",
+          "scope",
+          "entityIds"
+        ],
+        "type": "object",
+        "properties": {
+          "entityType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "verb": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorBulkVerb"
+              }
+            ]
+          },
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorScope"
+              }
+            ]
+          },
+          "entityIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "MonitorBulkVerb": {
+        "enum": [
+          "monitor",
+          "unmonitor",
+          "searchAllMonitored",
+          null
+        ]
+      },
+      "MonitorEntityRequest": {
+        "required": [
+          "scope"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorScope"
+              }
+            ]
+          }
+        }
+      },
+      "MonitorRefusalKind": {
+        "enum": [
+          "none",
+          "notConfigured",
+          "noIdentityInThisNamespace",
+          "severalIdentitiesInThisNamespace",
+          "capabilityAbsentOnThisGeneration",
+          "noQualityProfile",
+          "noRootFolder",
+          "noAgreedRootForThisEntity",
+          "instanceRefused",
+          "answerTooLargeToRead",
+          "instanceHoldsNoSuchEntity",
+          "instanceDidNotReportTheChange"
+        ]
+      },
+      "MonitorScope": {
+        "enum": [
+          "futureScenes",
+          "allScenes",
+          null
+        ]
+      },
+      "ReflectOwnedEnqueued": {
+        "required": [
+          "skipped",
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "skipped": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReflectOwnedSkipReason"
+              }
+            ]
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MonitorRefusalKind"
+          }
+        }
+      },
+      "ReflectOwnedSkipReason": {
+        "enum": [
+          "hardLinksOff",
+          "hardLinkSettingUnreadable",
+          null
+        ]
+      },
+      "RegisterCallbackRequest": {
+        "required": [
+          "callbackAddress"
+        ],
+        "type": "object",
+        "properties": {
+          "callbackAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RegistrationStatus": {
+        "enum": [
+          "notCheckedYet",
+          "registered",
+          "notRegistered"
+        ]
+      },
+      "SceneActionResult": {
+        "required": [
+          "refusal",
+          "searchIsWithWhisparr"
+        ],
+        "type": "object",
+        "properties": {
+          "refusal": {
+            "$ref": "#/components/schemas/SceneRefusalKind"
+          },
+          "searchIsWithWhisparr": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SceneBatchRequest": {
+        "required": [
+          "entityType",
+          "verb",
+          "coveIds"
+        ],
+        "type": "object",
+        "properties": {
+          "entityType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "verb": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SceneBatchVerb"
+              }
+            ]
+          },
+          "coveIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "SceneBatchVerb": {
+        "enum": [
+          "add",
+          "monitor",
+          "unmonitor",
+          "search",
+          "exclude",
+          null
+        ]
+      },
+      "SceneDetailView": {
+        "required": [
+          "refusal",
+          "excluded",
+          "present",
+          "monitored",
+          "qualityName",
+          "qualityProfileName",
+          "cutoffName",
+          "profileReadDidNotComplete"
+        ],
+        "type": "object",
+        "properties": {
+          "refusal": {
+            "$ref": "#/components/schemas/SceneRefusalKind"
+          },
+          "excluded": {
+            "type": "boolean"
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "monitored": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "qualityName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "qualityProfileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cutoffName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profileReadDidNotComplete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SceneRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "noIdentityInThisNamespace",
+          "severalIdentitiesInThisNamespace",
+          "capabilityAbsentOnThisGeneration",
+          "didNotReachWhisparr",
+          "instanceRefused",
+          "instanceOffersNoQualityProfile",
+          "instanceOffersNoRootFolder",
+          "noAgreedRootForThisEntity",
+          "whisparrHasNoEntryForScene",
+          "whisparrAlreadyHoldsThisScene",
+          "whisparrIsNotMonitoringThisScene"
+        ]
+      },
+      "SyncEnqueued": {
+        "required": [
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/SyncRefusalKind"
+          }
+        }
+      },
+      "SyncPreviewRead": {
+        "required": [
+          "view",
+          "refusal",
+          "syncRunning"
+        ],
+        "type": "object",
+        "properties": {
+          "view": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncPreviewView"
+              }
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/SyncRefusalKind"
+          },
+          "syncRunning": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SyncPreviewView": {
+        "required": [
+          "notYetThere",
+          "alreadyThere",
+          "skipped",
+          "registers",
+          "countedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "notYetThere": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alreadyThere": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registers": {
+            "$ref": "#/components/schemas/SyncRegisters"
+          },
+          "countedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SyncRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "whisparrKeepsNoSceneRecords",
+          "countFirst",
+          "alreadyRunning"
+        ]
+      },
+      "SyncRegisters": {
+        "enum": [
+          "scenes",
+          "sites"
+        ]
+      },
+      "SyncRunRequest": {
+        "required": [
+          "alsoMonitor"
+        ],
+        "type": "object",
+        "properties": {
+          "alsoMonitor": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpgradeBehavior": {
+        "enum": [
+          "add",
+          "replace"
+        ]
+      },
+      "WhisparrCapability": {
+        "enum": [
+          "outOfBandCallbackSecret",
+          "monitorStudio",
+          "monitorPerformer",
+          "registerMissingScenes",
+          "reflectOwnedFiles",
+          "searchMonitored",
+          "readSceneStatus",
+          "readSceneExclusions",
+          "searchScene",
+          "monitorScene",
+          "excludeScene",
+          "registerOwnedSites",
+          "readSiteSceneRows",
+          "readHeldSites",
+          "readEntityCardsInBatch",
+          "readSceneCardsInBatch",
+          "trackEntityCatalogue",
+          "readEntityCatalogue",
+          "readInstanceFilesystem"
+        ]
+      },
+      "WhisparrConnectionOffer": {
+        "required": [
+          "generation",
+          "capabilities",
+          "configured",
+          "scopeChangeIsRetroactive"
+        ],
+        "type": "object",
+        "properties": {
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "scopeChangeIsRetroactive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "WhisparrEntityKind": {
+        "enum": [
+          "studio",
+          "performer",
+          "tag"
+        ]
+      },
+      "WhisparrGeneration": {
+        "enum": [
+          "v3",
+          "v2",
+          null
+        ]
+      },
+      "WhisparrSyncGenerationSaveRequest": {
+        "required": [
+          "address",
+          "keyWrite",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "keyWrite": {
+            "$ref": "#/components/schemas/KeyWriteSignal"
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WhisparrSyncGenerationSettingsView": {
+        "required": [
+          "address",
+          "keyIsSet",
+          "recordedVersion",
+          "versionVerifiedAtUtc",
+          "lastReachableAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "keyIsSet": {
+            "type": "boolean"
+          },
+          "recordedVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "versionVerifiedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastReachableAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WhisparrSyncSettingsSaveRequest": {
+        "required": [
+          "selectedGeneration",
+          "v3",
+          "v2"
+        ],
+        "type": "object",
+        "properties": {
+          "selectedGeneration": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "v3": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrSyncGenerationSaveRequest"
+              }
+            ]
+          },
+          "v2": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrSyncGenerationSaveRequest"
+              }
+            ]
+          },
+          "upgradeBehavior": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpgradeBehavior"
+              }
+            ]
+          }
+        }
+      },
+      "WhisparrSyncSettingsView": {
+        "required": [
+          "selectedGeneration",
+          "v3",
+          "v2",
+          "upgradeBehavior"
+        ],
+        "type": "object",
+        "properties": {
+          "selectedGeneration": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "v3": {
+            "$ref": "#/components/schemas/WhisparrSyncGenerationSettingsView"
+          },
+          "v2": {
+            "$ref": "#/components/schemas/WhisparrSyncGenerationSettingsView"
+          },
+          "upgradeBehavior": {
+            "$ref": "#/components/schemas/UpgradeBehavior"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "WhisparrSync"
+    }
+  ]
+}

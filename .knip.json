@@ -7,7 +7,21 @@
     },
     "extensions/Renamer/src/Renamer.Ui": {
       "vite": false,
-      "entry": ["src/index.ts", "src/**/*Logic.ts", "src/settings/options.ts"],
+      "entry": ["src/index.ts", "src/settings/options.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
+    },
+    "extensions/WhisparrSync/src/WhisparrSync.Ui": {
+      "vite": false,
+      "entry": [
+        "src/index.ts",
+        "src/common/lib/extension.ts",
+        "src/common/ui/copy.ts",
+        "src/common/ui/AsyncRegion.tsx",
+        "src/common/ui/StateChip.tsx",
+        "src/missing/hostComponents.ts",
+        "src/missing/missingClasses.ts"
+      ],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },
@@ -21,6 +35,7 @@
       "ignoreDependencies": [
         "react",
         "react-dom",
+        "jsdom",
         "@cove/extension-sdk",
         "@cove/runtime",
         "lucide-react",
@@ -29,10 +44,23 @@
       ]
     },
     "tests/e2e": {
-      "entry": ["**/*.spec.mjs", "lib/**/*.mjs"],
-      "project": ["**/*.mjs"]
+      "entry": [
+        "**/*.spec.mjs",
+        "lib/**/*.mjs",
+        "probes/tooltip-capture.mjs",
+        "probes/rows/*.mjs",
+        "probes/support/*.mjs",
+        "probes/lib/*.unit.test.mjs",
+        "probes/lib/check-record-bounds.mjs"
+      ],
+      "project": ["**/*.mjs"],
+      "ignoreBinaries": ["pwsh"]
     },
     "extensions/Renamer/e2e": {
+      "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
+      "project": ["**/*.mjs"]
+    },
+    "extensions/WhisparrSync/e2e": {
       "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
       "project": ["**/*.mjs"]
     }

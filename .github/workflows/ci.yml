@@ -458,6 +458,16 @@ jobs:
         run: node scripts/generate-wire-types.mjs
       - name: ESLint (whole monorepo)
         run: npm run lint
+      # dangerouslySetInnerHTML is the half of this that nothing else catches, and lefthook is the
+      # only other place it ran. A hook is absent with no warning when npm withholds install scripts.
+      - name: check-classes (raw HTML and class discipline)
+        run: |
+          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::check-classes $ui"
+            (cd "$ui" && npm run check-classes)
+            echo "::endgroup::"
+          done
       - name: syncpack (dependency-version drift)
         run: npm run syncpack
       # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test from a workspace.

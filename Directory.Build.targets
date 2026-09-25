@@ -18,7 +18,7 @@
     extensions/<Name>/src/<Name>/ don't each restate the local-vs-package selection or the
     relative-path math back to the sibling ../cove checkout. Cove.Sdk transitively carries
     Cove.Plugins and Cove.Core (Cove.Sdk -> Cove.Plugins -> Cove.Core), so referencing Cove.Sdk
-    alone is sufficient — extension projects should NOT add a direct Cove.Plugins reference.
+    alone is sufficient - extension projects should NOT add a direct Cove.Plugins reference.
 
     Cove.Data is intentionally NOT wired here: it sits outside the Cove.Sdk/Cove.Plugins/Cove.Core
     chain and is consumed test-only (Cove.Extensions.Shared.Testing.Cove's CoveContextFactory). A
@@ -28,7 +28,7 @@
     already receives Cove.Sdk/Cove.Plugins/Cove.Core transitively through its ProjectReference to the
     extension project this wiring targets. Applying this ItemGroup unconditionally to *.Tests projects
     too would add Cove.Sdk as a SECOND, directly-referenced Private=false dependency on the same test
-    project — which (unlike the single-hop transitive reference) MSBuild resolves as non-copy-local,
+    project - which (unlike the single-hop transitive reference) MSBuild resolves as non-copy-local,
     so Cove.Sdk.dll silently drops out of the test project's own bin/ output and xUnit fails at
     reflection time with "Could not load file or assembly 'Cove.Sdk'". Excluding *.Tests here keeps
     each test project's only path to Cove.Sdk the transitive one through its extension ProjectReference,
@@ -50,7 +50,7 @@
     Local-source build only: the Cove.Sdk host-assembly stripping rules ship in the NuGet package's
     buildTransitive/ folder, so they are auto-imported on the PackageReference (publish) path but NOT
     when Cove.Sdk is consumed as a local ProjectReference. Import them explicitly so the local-source
-    publish set is stripped identically to the NuGet path — otherwise the transitive Cove.Core.dll
+    publish set is stripped identically to the NuGet path - otherwise the transitive Cove.Core.dll
     (and friends) leaks into the published output. Excluded for *.Tests projects (see above): a test
     project is never published/deployed, so it must keep its full runtime closure and never import
     the host-provided-assembly strip target at all.
@@ -112,6 +112,11 @@
          pinned the mode (or the older UseLocalCoveSource spelling) said `none` on purpose. -->
     <Error Condition="'$(CoveSourceMode)' == 'none' AND '$(_CoveLocationWasExplicit)' == 'true' AND '$(_CoveModeWasPinned)' != 'true'"
            Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch, because a location was supplied on purpose and the fallback would not use it." />
+
+    <!-- An empty version resolves the newest Cove.Sdk on the feed, so the clean-clone build compiles
+         against a host nobody declared and reports success. Nothing else reports it. -->
+    <Error Condition="'$(CoveSourceMode)' != 'source' AND '$(CoveSdkVersion)' == '' AND !$(MSBuildProjectName.EndsWith('.Tests'))"
+           Text="CoveSdkVersion resolved empty for $(MSBuildProjectName), so its Cove.Sdk reference would take whatever version the feed offers. It derives from the minCoveVersion in '$(ExtensionManifestPath)', falling back to CoveMinVersion; one of the two is missing or unreadable." />
   </Target>
 
 </Project>

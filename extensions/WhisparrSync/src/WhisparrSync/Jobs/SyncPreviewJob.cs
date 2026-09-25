@@ -1,0 +1,287 @@
+using System.Globalization;
+using Cove.Extensions.Shared;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using WhisparrSync.Contracts;
+using WhisparrSync.Library;
+
+namespace WhisparrSync.Jobs;
+
+// Resolved at run start, not at enqueue: which instance is connected is a setting a person edits.
+// Registers decides which count runs. Held and HeldSites are not interchangeable, one asking a
+// batch of scene identifiers and the other stored studio identifiers, and HeldSites raises rather
+// than answering short: an identifier absent from both its sets would land in the not-yet-there
+// column on the strength of nothing.
+internal sealed record SyncPreviewAiming(
+    WhisparrGeneration Generation,
+    SyncRegisters Registers,
+    Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>>? Held,
+    Func<IReadOnlyCollection<string>, CancellationToken, Task<SiteBatchReading>>? HeldSites);
+
+// The two sets are disjoint and neither is the whole batch: an identifier in neither is one the
+// metadata source numbered and the instance holds no site for.
+internal sealed record SiteBatchReading(
+    IReadOnlySet<string> Held,
+    IReadOnlySet<string> NamesNone);
+
+/// <summary>
+/// The count job's id, the batch size its comparison asks in, and the pass one count goes through.
+/// </summary>
+public static class SyncPreviewJob
+{
+    public const string JobId = "sync-preview";
+
+    // The largest batch measured to answer 200 against whisparr:v3-3.3.8-release.1097. It also
+    // keeps a batch's worst-case answer inside WhisparrTransport.MaxResponseBytes, which the
+    // transport refuses outright rather than truncating: about 2.3 MiB against an 8 MiB bound.
+    internal const int ChunkSize = 1000;
+
+    // What one answered entry costs, measured against the same instance and date. A constant so the
+    // bound above is arithmetic a test can re-derive.
+    internal const int MeasuredBytesPerHit = 2370;
+
+    // A pacing bound, not a ceiling on how many reads are issued: every scene the reader owns on
+    // the site is read. One, the instance's request queue being the shared resource. A ceiling
+    // would leave part of the library unmonitored and report a total that reads complete.
+    internal const int SiteSceneReadsInFlight = 1;
+
+    // A pacing bound, not a ceiling: every studio the library yields is resolved. Measured against
+    // a 525-studio library: at four, 522 resolved and none was rate-limited; at eight, 144 were
+    // rejected. Not a second rate bound, ProviderPacer already holding the rate to the host's
+    // setting. What it bounds is how many callers wait: past its queue depth a caller is refused
+    // immediately, which arrives as a source not reached and ends the count.
+    internal const int MetadataResolvesInFlight = 4;
+
+    // Runs as System: the job carries no principal, and Cove's filters answer an anonymous reader
+    // zero rows and no error, so the library would read as empty. Nothing per scene is held, the
+    // only collection alive being one batch bounded by ChunkSize. A batch the instance did not
+    // answer throws and ends the count: the three numbers arrive together or not at all, one
+    // missing reading as a zero.
+    internal static Task<SyncPreviewView?> RunAsync(
+        IServiceScopeFactory scopes,
+        Func<IServiceProvider, CancellationToken, Task<SyncPreviewAiming?>> aiming,
+        ILogger log,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(aiming);
+
+        return RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        {
+            if (await aiming(services, ct).ConfigureAwait(false) is not { } aimed)
+            {
+                return null;
+            }
+
+            var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+            var counted = await CompareAsync(identities, aimed, log, ct).ConfigureAwait(false);
+
+            services.GetRequiredService<SyncPreviewCache>().Hold(aimed.Generation, counted);
+            return counted;
+        });
+    }
+
+    // Counts, never a list of scenes: the line must not grow with the library.
+    internal static string SummaryOf(SyncPreviewView counted)
+    {
+        ArgumentNullException.ThrowIfNull(counted);
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{counted.NotYetThere:N0} not yet in Whisparr, {counted.AlreadyThere:N0} already there, "
+                + $"{counted.Skipped:N0} carrying no metadata id.");
+    }
+
+    private static Task<SyncPreviewView> CompareAsync(
+        ILibrarySceneIdentityPort identities,
+        SyncPreviewAiming aimed,
+        ILogger log,
+        CancellationToken ct)
+        => aimed.Registers switch
+        {
+            SyncRegisters.Scenes => CompareScenesAsync(identities, aimed, log, ct),
+            SyncRegisters.Sites => CompareSitesAsync(identities, aimed, log, ct),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(aimed), aimed.Registers, "This is not a count this product takes."),
+        };
+
+    // Nothing caps how many batches are asked, a cap answering a short pair that reads complete;
+    // what is bounded is MetadataResolvesInFlight. One batch of identifiers is alive at a time,
+    // bounded by ChunkSize whatever the library holds, and the three answers are integers.
+    private static async Task<SyncPreviewView> CompareSitesAsync(
+        ILibrarySceneIdentityPort identities,
+        SyncPreviewAiming aimed,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (aimed.HeldSites is not { } heldSites)
+        {
+            throw new InvalidOperationException(
+                "A site count was aimed with no way to ask which sites are held.");
+        }
+
+        var counted = new SiteTally();
+        var batch = new List<string>(ChunkSize);
+
+        try
+        {
+            await foreach (var site in identities
+                .SiteIdentities(aimed.Generation, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                batch.Add(site.RemoteId);
+                if (batch.Count < ChunkSize)
+                {
+                    continue;
+                }
+
+                await AskAsync().ConfigureAwait(false);
+            }
+
+            if (batch.Count > 0)
+            {
+                await AskAsync().ConfigureAwait(false);
+            }
+        }
+        // Ahead of the containment below, which names a shape a stop also arrives in: a stop read as
+        // a count that did not finish would be reported as this product's own failure.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            WhisparrSyncLog.SyncCountDidNotFinish(log, WhisparrSyncLog.Classify(failure));
+            throw new InvalidOperationException(
+                "The count could not be finished, so no count was held.", failure);
+        }
+
+        if (counted.NamesNone > 0)
+        {
+            WhisparrSyncLog.StudiosTheSourceNamesNoSiteFor(log, counted.NamesNone);
+        }
+
+        return new SyncPreviewView(
+            counted.NotYetThere,
+            counted.AlreadyThere,
+            counted.NamesNone
+                + await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct)
+                    .ConfigureAwait(false),
+            aimed.Registers,
+            DateTimeOffset.UtcNow);
+
+        async Task AskAsync()
+        {
+            counted.Classify(batch, await heldSites(batch, ct).ConfigureAwait(false));
+            batch.Clear();
+        }
+    }
+
+    // Three integers, so nothing here grows with the library.
+    private sealed class SiteTally
+    {
+        internal int NotYetThere { get; private set; }
+
+        internal int AlreadyThere { get; private set; }
+
+        internal int NamesNone { get; private set; }
+
+        // Each offered identifier is classified rather than the answered set counted: two studios
+        // carrying one identifier answer one number, and counting the answer's size would put the
+        // second in the not-yet-there column.
+        internal void Classify(IReadOnlyList<string> offered, SiteBatchReading answered)
+        {
+            foreach (var identity in offered)
+            {
+                if (answered.Held.Contains(identity))
+                {
+                    AlreadyThere++;
+                }
+                else if (answered.NamesNone.Contains(identity))
+                {
+                    // Counted with the studios carrying no identifier at all, a run composing no
+                    // add for either. In the not-yet-there column it would be offered for
+                    // registration and then refused.
+                    NamesNone++;
+                }
+                else
+                {
+                    NotYetThere++;
+                }
+            }
+        }
+    }
+
+    private static async Task<SyncPreviewView> CompareScenesAsync(
+        ILibrarySceneIdentityPort identities,
+        SyncPreviewAiming aimed,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (aimed.Held is not { } held)
+        {
+            throw new InvalidOperationException(
+                "A scene count was aimed with no way to ask which scenes are held.");
+        }
+
+        var notYetThere = 0;
+        var alreadyThere = 0;
+        var batch = new List<string>(ChunkSize);
+
+        try
+        {
+            await foreach (var identity in identities
+                .SceneIdentities(aimed.Generation, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                batch.Add(identity);
+                if (batch.Count < ChunkSize)
+                {
+                    continue;
+                }
+
+                await AskAsync().ConfigureAwait(false);
+            }
+
+            if (batch.Count > 0)
+            {
+                await AskAsync().ConfigureAwait(false);
+            }
+        }
+        // Ahead of the containment below, for the reason the site comparison's own rethrow states.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            WhisparrSyncLog.SyncCountDidNotFinish(log, WhisparrSyncLog.Classify(failure));
+            throw new InvalidOperationException(
+                "The count could not be finished, so no count was held.", failure);
+        }
+
+        return new SyncPreviewView(
+            notYetThere,
+            alreadyThere,
+            await identities.CountUnidentifiedAsync(aimed.Generation, ct).ConfigureAwait(false),
+            aimed.Registers,
+            DateTimeOffset.UtcNow);
+
+        async Task AskAsync()
+        {
+            var answered = await held(batch, ct).ConfigureAwait(false);
+
+            // Each offered identifier is classified rather than the answered set counted: two
+            // spellings of one source yield one identifier twice, and counting the answer's size
+            // would put the second copy of a held scene in the not-yet-there column.
+            var wasHeld = batch.Count(answered.Contains);
+            alreadyThere += wasHeld;
+            notYetThere += batch.Count - wasHeld;
+            batch.Clear();
+        }
+    }
+}

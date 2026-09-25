@@ -91,7 +91,7 @@ test(
     // would otherwise let this spec pass having proved nothing about multi-select.
     expect(
       selected,
-      `asked for ${SELECTED} cards and the grid only had ${selected} to select — nothing below would be about multi-select`,
+      `asked for ${SELECTED} cards and the grid only had ${selected} to select - nothing below would be about multi-select`,
     ).toBe(SELECTED);
 
     const messages = await videosPage.renameSelected();

@@ -1,0 +1,677 @@
+import { describe, expect, it } from "vitest";
+import type {
+  EntityMonitoringView,
+  MonitorRefusalKind,
+  WhisparrCapability,
+  WhisparrEntityKind,
+  WhisparrGeneration,
+} from "../wire/api";
+import {
+  ACTION_DID_NOT_REACH_WHISPARR,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+  INSTANCE_HOLDS_NO_SUCH_ENTRY,
+  MENU_MONITOR,
+  MENU_UNMONITOR,
+  REFLECT_OWNED_SKIPPED,
+  REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
+  SCOPE_ALL_SCENES,
+  SCOPE_FUTURE_SCENES,
+  WAITING_FOR_WHISPARR,
+} from "../common/ui/copy";
+import {
+  allScenesIsAOneWayDoor,
+  bulkMonitorActions,
+  capabilityBehindAction,
+  controlNotice,
+  describeMonitorRefusal,
+  describeReflectOwnedSkip,
+  marksTheBackCatalogue,
+  monitorMenu,
+  monitorRefusalIn,
+  reflectOwnedSkipIn,
+  refusalNoticeFor,
+  routeFor,
+  ENTITY_KINDS,
+  GENERATIONS,
+  MONITOR_REFUSAL_KINDS,
+  SCOPE_ORDER,
+  SECONDARY_ACTIONS,
+  type MonitorMenuItem,
+  type MonitorScopeChoice,
+  type ReflectOwnedSkip,
+  type SecondaryAction,
+} from "./monitorMenuLogic";
+
+// The capabilities these tests grant a healthy entity, which are the ones this menu reads. A gap
+// is asserted by taking a member away from this list, never by adding one to a short list.
+const MENU_CAPABILITIES: WhisparrCapability[] = [
+  "outOfBandCallbackSecret",
+  "monitorStudio",
+  "monitorPerformer",
+  "registerMissingScenes",
+  "reflectOwnedFiles",
+  "searchMonitored",
+];
+
+function view(
+  over: Partial<EntityMonitoringView> & { kind: WhisparrEntityKind },
+): EntityMonitoringView {
+  return {
+    generation: "v3",
+    present: false,
+    monitored: false,
+    refusal: "none",
+    capabilities: MENU_CAPABILITIES,
+    scope: null,
+    scopeChangeIsRetroactive: false,
+    ...over,
+  };
+}
+
+// What the view reports against the door the reader is shown, written out rather than computed from
+// the reported value. A case deriving the expectation would agree with a menu that had dropped the
+// fact altogether.
+const DOOR_BY_REPORTED_SCOPE_BEHAVIOUR: readonly (readonly [boolean | null, boolean])[] = [
+  // The scope change does not carry back, so the wider one cannot be withdrawn.
+  [false, true],
+  [true, false],
+  // The read named no instance, which settles the question neither way.
+  [null, false],
+];
+
+function withoutCapability(absent: WhisparrCapability): WhisparrCapability[] {
+  return MENU_CAPABILITIES.filter((capability) => capability !== absent);
+}
+
+function secondaries(items: readonly MonitorMenuItem[]): readonly SecondaryAction[] {
+  return items.flatMap((item) => (item.item === "secondary" ? [item.action] : []));
+}
+
+function scopeLabels(items: readonly MonitorMenuItem[]): readonly string[] {
+  return items.flatMap((item) => (item.item === "scope" ? [item.label] : []));
+}
+
+function selectedScopes(items: readonly MonitorMenuItem[]): readonly string[] {
+  return items.flatMap((item) => (item.item === "scope" && item.selected ? [item.label] : []));
+}
+
+describe("the item set is written down for every combination the wire enums allow", () => {
+  it("names each wire enum's members against a hand-written count", () => {
+    expect(ENTITY_KINDS).toHaveLength(2);
+    expect(GENERATIONS).toHaveLength(2);
+    expect(SCOPE_ORDER).toHaveLength(2);
+    expect(SECONDARY_ACTIONS).toHaveLength(3);
+  });
+
+  it("offers no secondary action at all until the entity is monitored", () => {
+    for (const generation of GENERATIONS) {
+      for (const kind of ENTITY_KINDS) {
+        const menu = monitorMenu(view({ kind, generation, monitored: false }), false);
+        expect(secondaries(menu.items), `${generation} ${kind}`).toEqual([]);
+      }
+    }
+  });
+
+  it("offers all three secondary actions on every monitored entity", () => {
+    for (const generation of GENERATIONS) {
+      for (const kind of ENTITY_KINDS) {
+        const menu = monitorMenu(view({ kind, generation, monitored: true }), false);
+        expect(secondaries(menu.items), `${generation} ${kind}`).toEqual([
+          "addAllMissing",
+          "reflectOwned",
+          "searchAllMonitored",
+        ]);
+      }
+    }
+  });
+});
+
+describe("the studio menu", () => {
+  it("holds exactly the two scope options while it is not monitored", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: false }), false);
+
+    expect(menu.available).toBe(true);
+    expect(menu.items.map((item) => item.item)).toEqual(["scope", "scope"]);
+  });
+
+  it("holds the scope pair, the unmonitor item and the three actions once it is monitored", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+
+    expect(menu.items.map((item) => item.item)).toEqual([
+      "scope",
+      "scope",
+      "unmonitor",
+      "secondary",
+      "secondary",
+      "secondary",
+    ]);
+  });
+
+  it("names the three actions against hand-written literals", () => {
+    const menu = monitorMenu(view({ kind: "studio", generation: "v3", monitored: true }), false);
+
+    expect(secondaries(menu.items)).toEqual([
+      "addAllMissing",
+      "reflectOwned",
+      "searchAllMonitored",
+    ]);
+    expect(menu.items.flatMap((item) => (item.item === "secondary" ? [item.label] : []))).toEqual([
+      "Add all missing",
+      "Reflect owned",
+      "Search all monitored",
+    ]);
+  });
+
+  it("offers the unmonitor item under the menu's own name for that verb", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+    const unmonitor = menu.items.find((item) => item.item === "unmonitor");
+
+    expect(unmonitor?.label).toBe(MENU_UNMONITOR);
+  });
+});
+
+describe("the scope pair", () => {
+  it("reads the narrower scope first, whatever the generation and the state", () => {
+    for (const generation of GENERATIONS) {
+      for (const monitored of [false, true]) {
+        const menu = monitorMenu(view({ kind: "studio", generation, monitored }), false);
+
+        expect(scopeLabels(menu.items), `${generation} ${String(monitored)}`).toEqual([
+          SCOPE_FUTURE_SCENES,
+          SCOPE_ALL_SCENES,
+        ]);
+      }
+    }
+  });
+
+  it("pre-selects the narrower scope while the entity is not monitored, on both generations", () => {
+    for (const generation of GENERATIONS) {
+      const menu = monitorMenu(
+        view({ kind: "studio", generation, monitored: false, scope: null }),
+        false,
+      );
+
+      expect(selectedScopes(menu.items), generation).toEqual([SCOPE_FUTURE_SCENES]);
+    }
+  });
+
+  it("marks the scope the read reported once the entity is monitored", () => {
+    const marked = (scope: MonitorScopeChoice) =>
+      selectedScopes(monitorMenu(view({ kind: "studio", monitored: true, scope }), false).items);
+
+    expect(marked("allScenes")).toEqual([SCOPE_ALL_SCENES]);
+    expect(marked("futureScenes")).toEqual([SCOPE_FUTURE_SCENES]);
+  });
+
+  it("marks no scope at all on a monitored entity whose read reported none", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true, scope: null }), false);
+
+    expect(selectedScopes(menu.items)).toEqual([]);
+    expect(menu.items.every((item) => item.item !== "scope" || !item.selected)).toBe(true);
+  });
+
+  it("names each option and nothing else, on either generation", () => {
+    for (const generation of GENERATIONS) {
+      const menu = monitorMenu(view({ kind: "studio", generation }), false);
+      const scopes = menu.items.filter((item) => item.item === "scope");
+
+      expect(
+        scopes.map((item) => Object.keys(item).toSorted()),
+        generation,
+      ).toEqual([
+        ["item", "label", "reason", "scope", "selected"],
+        ["item", "label", "reason", "scope", "selected"],
+      ]);
+    }
+  });
+});
+
+describe("a performer", () => {
+  it("is offered one plain monitor item and no scope option at all", () => {
+    const menu = monitorMenu(view({ kind: "performer", monitored: false }), false);
+
+    expect(scopeLabels(menu.items)).toEqual([]);
+    expect(menu.items.map((item) => item.item)).toEqual(["monitor"]);
+  });
+
+  it("names that one item for the verb rather than for a scope it is not offered", () => {
+    const menu = monitorMenu(view({ kind: "performer", monitored: false }), false);
+    const monitor = menu.items.find((item) => item.item === "monitor");
+
+    expect(monitor?.label).toBe(MENU_MONITOR);
+  });
+
+  it("leaves the control itself unavailable, with the menu empty, where the generation cannot monitor one", () => {
+    const menu = monitorMenu(
+      view({
+        kind: "performer",
+        generation: "v2",
+        capabilities: withoutCapability("monitorPerformer"),
+      }),
+      false,
+    );
+
+    expect(menu.available).toBe(false);
+    expect(menu.reason).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+    expect(menu.items).toEqual([]);
+  });
+});
+
+describe("a capability the connected generation does not hold", () => {
+  it("leaves add all missing present, disabled, and saying why", () => {
+    const menu = monitorMenu(
+      view({
+        kind: "studio",
+        monitored: true,
+        capabilities: withoutCapability("registerMissingScenes"),
+      }),
+      false,
+    );
+    const addAllMissing = menu.items.find(
+      (item) => item.item === "secondary" && item.action === "addAllMissing",
+    );
+
+    expect(addAllMissing).toBeDefined();
+    expect(addAllMissing?.reason).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+  });
+
+  it("applies the same rule to every secondary action, one at a time", () => {
+    for (const action of SECONDARY_ACTIONS) {
+      const menu = monitorMenu(
+        view({
+          kind: "studio",
+          monitored: true,
+          capabilities: withoutCapability(capabilityBehindAction(action)),
+        }),
+        false,
+      );
+      const item = menu.items.find(
+        (entry) => entry.item === "secondary" && entry.action === action,
+      );
+
+      expect(item?.reason, action).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+    }
+  });
+});
+
+describe("one refusal, one sentence", () => {
+  it("gives every kind the wire enum carries exactly one sentence, or none for a refusal that is not one", () => {
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      const sentence = describeMonitorRefusal(kind).sentence;
+      if (kind === "none") {
+        expect(sentence).toBeNull();
+      } else {
+        expect(typeof sentence, kind).toBe("string");
+        expect((sentence ?? "").length, kind).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("states the kind the server chose and never a second reason beside it", () => {
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      const menu = monitorMenu(view({ kind: "studio", refusal: kind }), false);
+      expect(menu.reason, kind).toBe(describeMonitorRefusal(kind).sentence);
+    }
+  });
+
+  it("takes the server's kind over the browser's own reading of the held list", () => {
+    const menu = monitorMenu(
+      view({
+        kind: "performer",
+        refusal: "noIdentityInThisNamespace",
+        capabilities: withoutCapability("monitorPerformer"),
+      }),
+      false,
+    );
+
+    expect(menu.reason).toBe(describeMonitorRefusal("noIdentityInThisNamespace").sentence);
+    expect(menu.reason).not.toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+  });
+
+  it("keeps the control usable for a refusal that was one attempt failing", () => {
+    for (const kind of [
+      "noQualityProfile",
+      "noRootFolder",
+      "noAgreedRootForThisEntity",
+      "instanceRefused",
+    ] as const) {
+      const menu = monitorMenu(view({ kind: "studio", refusal: kind }), false);
+      expect(menu.available, kind).toBe(true);
+      expect(menu.items.length, kind).toBeGreaterThan(0);
+    }
+  });
+
+  it("empties the menu for a refusal that means the entity cannot be monitored here", () => {
+    for (const kind of [
+      "notConfigured",
+      "noIdentityInThisNamespace",
+      "capabilityAbsentOnThisGeneration",
+    ] as const satisfies readonly MonitorRefusalKind[]) {
+      const menu = monitorMenu(view({ kind: "studio", refusal: kind }), false);
+      expect(menu.available, kind).toBe(false);
+      expect(menu.items, kind).toEqual([]);
+    }
+  });
+});
+
+// What each kind must state beneath the control, transcribed by hand from `common/ui/copy.ts`.
+// Importing the constants would make this table agree with the record under test.
+//
+// Typed over the wire union, so a kind added to the enum fails the build here.
+const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
+  none: null,
+  notConfigured: null,
+  noIdentityInThisNamespace: null,
+  severalIdentitiesInThisNamespace: null,
+  capabilityAbsentOnThisGeneration: null,
+  noQualityProfile:
+    "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.",
+  noRootFolder:
+    "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
+  noAgreedRootForThisEntity:
+    "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. Set the folder mapping for that library folder on this extension's settings page.",
+  instanceRefused: "Whisparr would not do this. Nothing here was changed.",
+  answerTooLargeToRead:
+    "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.",
+  instanceHoldsNoSuchEntity:
+    "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.",
+  instanceDidNotReportTheChange:
+    "Whisparr accepted the change but does not report it. Reload the page for its current state.",
+};
+
+describe("which refusal speaks beneath the control, and which speaks at it", () => {
+  // The roster is `readonly MonitorRefusalKind[]`, so a subset of the wire enum type-checks and a
+  // kind left out drops silently out of every enumeration below. `EXPECTED_NOTICE` is a record
+  // over the union and cannot be a subset, so it is what the roster is measured against.
+  it("holds every kind the wire enum declares, with nothing named twice", () => {
+    expect([...MONITOR_REFUSAL_KINDS].sort()).toEqual(Object.keys(EXPECTED_NOTICE).sort());
+  });
+
+  it("gives a notice to every kind that leaves something to offer, and to no other", () => {
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      expect(refusalNoticeFor(kind), kind).toBe(EXPECTED_NOTICE[kind]);
+    }
+
+    const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
+    expect(speaking).toHaveLength(7);
+    expect([...speaking].sort()).toEqual([
+      "answerTooLargeToRead",
+      "instanceDidNotReportTheChange",
+      "instanceHoldsNoSuchEntity",
+      "instanceRefused",
+      "noAgreedRootForThisEntity",
+      "noQualityProfile",
+      "noRootFolder",
+    ]);
+  });
+
+  it("speaks this extension's own read bound as this extension's, not as Whisparr declining", () => {
+    expect(describeMonitorRefusal("answerTooLargeToRead").sentence).toBe(
+      INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+    );
+    expect(refusalNoticeFor("answerTooLargeToRead")).toBe(INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ);
+  });
+
+  it("speaks an absent entry as an absence, not as Whisparr declining", () => {
+    expect(describeMonitorRefusal("instanceHoldsNoSuchEntity").sentence).toBe(
+      INSTANCE_HOLDS_NO_SUCH_ENTRY,
+    );
+    expect(refusalNoticeFor("instanceHoldsNoSuchEntity")).toBe(INSTANCE_HOLDS_NO_SUCH_ENTRY);
+  });
+
+  it("reads a failure ahead of a refusal notice, and a refusal notice ahead of a skip", () => {
+    const skips: readonly (ReflectOwnedSkip | null)[] = [
+      "hardLinksOff",
+      "hardLinkSettingUnreadable",
+      null,
+    ];
+
+    for (const failed of [true, false]) {
+      for (const skip of skips) {
+        for (const refusal of [...MONITOR_REFUSAL_KINDS, null]) {
+          const notice = refusal === null ? null : EXPECTED_NOTICE[refusal];
+          const expected = failed
+            ? ACTION_DID_NOT_REACH_WHISPARR
+            : (notice ?? (skip === null ? null : describeReflectOwnedSkip(skip)));
+
+          expect(
+            controlNotice({ failed, refusal, skip }),
+            `${String(failed)} ${String(refusal)} ${String(skip)}`,
+          ).toBe(expected);
+        }
+      }
+    }
+  });
+
+  // The precedence is over the sentences, not over the refusals. An implementation stopping at the
+  // first non-null refusal would silence every skip, because `none` is what a healthy answer
+  // carries.
+  it("falls through to the skip where the refusal's own notice is null", () => {
+    expect(controlNotice({ failed: false, refusal: "none", skip: "hardLinksOff" })).toBe(
+      describeReflectOwnedSkip("hardLinksOff"),
+    );
+    expect(controlNotice({ failed: false, refusal: "notConfigured", skip: "hardLinksOff" })).toBe(
+      describeReflectOwnedSkip("hardLinksOff"),
+    );
+  });
+
+  // The POST helper resolves an empty object for an empty 2xx body and for an unparseable one, so
+  // an answer carrying neither member is a live path.
+  it("answers no refusal and no skip for an answer that carries neither", () => {
+    const answers: readonly unknown[] = [
+      {},
+      null,
+      7,
+      { refusal: "notAKind" },
+      { refusal: 7 },
+      { skipped: "notASkip" },
+    ];
+
+    for (const answer of answers) {
+      expect(monitorRefusalIn(answer), JSON.stringify(answer)).toBeNull();
+      expect(reflectOwnedSkipIn(answer), JSON.stringify(answer)).toBeNull();
+    }
+
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      expect(monitorRefusalIn({ refusal: kind }), kind).toBe(kind);
+    }
+    for (const skip of ["hardLinksOff", "hardLinkSettingUnreadable"] as const) {
+      expect(reflectOwnedSkipIn({ skipped: skip }), skip).toBe(skip);
+    }
+  });
+});
+
+describe("an action already on its way", () => {
+  it("disables every item and says what is being waited for", () => {
+    for (const kind of ENTITY_KINDS) {
+      for (const monitored of [false, true]) {
+        const menu = monitorMenu(view({ kind, monitored }), true);
+
+        expect(menu.items.length, `${kind} ${String(monitored)}`).toBeGreaterThan(0);
+        for (const item of menu.items) {
+          expect(item.reason, `${kind} ${item.label}`).toBe(WAITING_FOR_WHISPARR);
+        }
+      }
+    }
+  });
+
+  it("keeps a permanent reason ahead of the transient one", () => {
+    const menu = monitorMenu(
+      view({
+        kind: "studio",
+        monitored: true,
+        capabilities: withoutCapability("searchMonitored"),
+      }),
+      true,
+    );
+    const search = menu.items.find(
+      (item) => item.item === "secondary" && item.action === "searchAllMonitored",
+    );
+
+    expect(search?.reason).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+  });
+});
+
+describe("the verbs this build carries out", () => {
+  function secondaryItem(
+    action: SecondaryAction,
+    generation: WhisparrGeneration = "v3",
+  ): MonitorMenuItem {
+    const menu = monitorMenu(view({ kind: "studio", generation, monitored: true }), false);
+    const item = menu.items.find((entry) => entry.item === "secondary" && entry.action === action);
+    if (item === undefined) throw new Error(`the menu offers no ${action} row`);
+    return item;
+  }
+
+  it("carries reflect owned out at its own route, on a generation holding the capability", () => {
+    const reflect = secondaryItem("reflectOwned");
+
+    expect(reflect.reason).toBeNull();
+    expect(routeFor(reflect, true)).toBe("reflect-owned");
+  });
+
+  it("carries search all monitored out at its own route, on a generation holding it", () => {
+    for (const generation of GENERATIONS) {
+      const search = secondaryItem("searchAllMonitored", generation);
+
+      expect(search.reason, generation).toBeNull();
+      expect(routeFor(search, true), generation).toBe("search-all-monitored");
+    }
+  });
+
+  it("carries add all missing out at its own route, on a generation holding the capability", () => {
+    const addAllMissing = secondaryItem("addAllMissing");
+
+    expect(addAllMissing.reason).toBeNull();
+    expect(routeFor(addAllMissing, true)).toBe("add-all-missing");
+  });
+
+  // The entity menu can carry the verb out, so the bar leaving it out is not the row being
+  // unavailable. What excludes it is that the bulk route declares no verb reaching it.
+  it("offers add all missing to no selection while carrying it out per entity", () => {
+    for (const kind of ENTITY_KINDS) {
+      const offer = bulkMonitorActions(view({ kind }));
+
+      expect(routeFor(secondaryItem("addAllMissing"), true)).not.toBeNull();
+      expect(
+        offer.actions.filter((action) => action.key.includes("addAllMissing")),
+        kind,
+      ).toEqual([]);
+    }
+  });
+
+  it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
+    const offer = bulkMonitorActions(view({ kind: "studio" }));
+
+    expect(offer.actions.map((action) => action.verb)).toEqual([
+      "monitor",
+      "monitor",
+      "unmonitor",
+      "searchAllMonitored",
+    ]);
+  });
+
+  // The search is the one row here that makes Whisparr download, so it does not sit where the
+  // cursor lands on the way to a cheaper one.
+  it("offers the search verb to a selection, after the rows that only set flags", () => {
+    for (const generation of GENERATIONS) {
+      for (const kind of ENTITY_KINDS) {
+        const offer = bulkMonitorActions(view({ kind, generation }));
+        const keys = offer.actions.map((action) => action.key);
+
+        expect(routeFor(secondaryItem("searchAllMonitored", generation), true)).not.toBeNull();
+        expect(keys.at(-1), `${generation} ${kind}`).toBe("secondary:searchAllMonitored");
+        expect(
+          keys.filter((key) => key === "secondary:searchAllMonitored"),
+          `${generation} ${kind}`,
+        ).toHaveLength(1);
+      }
+    }
+  });
+
+  it("offers the search verb to no selection on a generation holding no search", () => {
+    const offer = bulkMonitorActions(
+      view({ kind: "studio", capabilities: ["monitorStudio", "monitorPerformer"] }),
+    );
+
+    expect(offer.actions.filter((action) => action.verb === "searchAllMonitored")).toEqual([]);
+  });
+
+  it("states one sentence per skip reason", () => {
+    expect(describeReflectOwnedSkip("hardLinksOff")).toBe(REFLECT_OWNED_SKIPPED);
+    expect(describeReflectOwnedSkip("hardLinkSettingUnreadable")).toBe(
+      REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
+    );
+  });
+});
+
+describe("the choice that cannot be taken back", () => {
+  it("is a one-way door only where the view says a scope change leaves what is already monitored", () => {
+    for (const [reported, door] of DOOR_BY_REPORTED_SCOPE_BEHAVIOUR) {
+      expect(
+        allScenesIsAOneWayDoor(view({ kind: "studio", scopeChangeIsRetroactive: reported })),
+        String(reported),
+      ).toBe(door);
+    }
+
+    // No view at all is the control rendered before the first read answered.
+    expect(allScenesIsAOneWayDoor(null)).toBe(false);
+  });
+
+  it("marks the back catalogue at the wider scope and at the performer's one plain item", () => {
+    const studio = monitorMenu(view({ kind: "studio" }), false);
+    const marking = studio.items.filter(marksTheBackCatalogue);
+    expect(marking.map((item) => item.label)).toEqual([SCOPE_ALL_SCENES]);
+
+    const performer = monitorMenu(view({ kind: "performer" }), false);
+    expect(performer.items.filter(marksTheBackCatalogue).map((item) => item.item)).toEqual([
+      "monitor",
+    ]);
+  });
+
+  it("marks neither the narrower scope, the unmonitor item nor a secondary one", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+    const marking = menu.items
+      .filter((item) => item.item !== "scope" || item.scope !== "allScenes")
+      .filter(marksTheBackCatalogue);
+
+    expect(marking).toEqual([]);
+  });
+
+  it("carries the door the view reports onto the offer", () => {
+    for (const [reported, door] of DOOR_BY_REPORTED_SCOPE_BEHAVIOUR) {
+      const offer = bulkMonitorActions(
+        view({ kind: "studio", scopeChangeIsRetroactive: reported }),
+      );
+
+      expect(offer.oneWayDoor, String(reported)).toBe(door);
+    }
+  });
+
+  it("carries the mark on every offered action", () => {
+    for (const generation of GENERATIONS) {
+      const offer = bulkMonitorActions(view({ kind: "studio", generation }));
+
+      expect(
+        offer.actions.map((action) => `${action.key}:${String(action.marksTheBackCatalogue)}`),
+        generation,
+      ).toEqual([
+        "scope:futureScenes:false",
+        "scope:allScenes:true",
+        "unmonitor:false",
+        "secondary:searchAllMonitored:false",
+      ]);
+    }
+  });
+});
+
+describe("no count reaches this layer", () => {
+  it("reads nothing off the view but the five fields the read carries", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+
+    for (const text of menu.items.map((item) => item.label)) {
+      expect(/\d/.test(text), text).toBe(false);
+    }
+  });
+});

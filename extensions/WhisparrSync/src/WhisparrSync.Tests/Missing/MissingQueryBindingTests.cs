@@ -1,0 +1,360 @@
+using Cove.Core.Auth;
+using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Connection;
+using WhisparrSync.Contracts;
+using WhisparrSync.Missing;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Options;
+using WhisparrSync.Providers;
+using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.Missing;
+
+public sealed class MissingQueryBindingTests
+{
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    // The query string is what a shared link carries, so each value has to reach the page a reader
+    // is served. The narrowing is applied over the instance's own list, so it is read off the cards
+    // rather than off a request composed for a source.
+    [Fact]
+    public async Task ThePageNumberReachesThePageServed()
+    {
+        var view = await PlanOverAsync(Listing("a", "b", "c"), page: 2, perPage: 2);
+
+        Assert.Equal(2, view.Page);
+        Assert.Equal(["c"], view.Cards.Select(card => card.ProviderSceneId));
+    }
+
+    [Fact]
+    public async Task TheSortValueReachesTheOrderingApplied()
+    {
+        var view = await PlanOverAsync(
+            Listing(("later", "2024-01-01"), ("earlier", "2020-01-01")),
+            sort: InstanceCatalogueLogic.OldestFirst);
+
+        Assert.Equal(InstanceCatalogueLogic.OldestFirst, view.SortInForce);
+        Assert.Equal(["earlier", "later"], view.Cards.Select(card => card.ProviderSceneId));
+    }
+
+    [Fact]
+    public async Task TheTitleSearchNarrowsThePage()
+    {
+        var view = await PlanOverAsync(Listing("poolside", "kitchen"), q: "pool");
+
+        Assert.Equal(["poolside"], view.Cards.Select(card => card.ProviderSceneId));
+    }
+
+    [Fact]
+    public async Task AFacetSelectionNarrowsThePage()
+    {
+        var view = await PlanOverAsync(WithPerformers(), filters: "performer:mia");
+
+        Assert.Equal(["hers"], view.Cards.Select(card => card.ProviderSceneId));
+    }
+
+    [Theory]
+    [InlineData("year", "2024")]
+    [InlineData("studio", "a,b")]
+    [InlineData("tag", "a:b")]
+    public async Task AValueCarryingASeparatorSurvivesTheRoundTrip(string key, string value)
+    {
+        var written = MissingFilterForm.Write(
+            new Dictionary<string, string>(StringComparer.Ordinal) { [key] = value });
+
+        Assert.Equal(value, MissingFilterForm.Read(written)[key]);
+    }
+
+    [Fact]
+    public async Task AFacetTheCatalogueCarriesNoValueForNarrowsToNothing()
+    {
+        var view = await PlanOverAsync(WithPerformers(), filters: "performer:nobody");
+
+        Assert.Empty(view.Cards);
+        Assert.Equal(0, view.CatalogueSize);
+    }
+
+    [Fact]
+    public async Task TheAnswerCarriesTheMenusTheScenesFillAndTheSortsOffered()
+    {
+        var view = await PlanOverAsync(WithPerformers());
+
+        var menu = Assert.Single(view.Facets);
+        Assert.Equal("performer", menu.Key);
+        Assert.Equal("mia", Assert.Single(menu.Values).Value);
+        Assert.Equal(
+            [.. InstanceCatalogueLogic.Sorts.Select(sort => sort.Value)],
+            view.Sorts.Select(sort => sort.Value));
+    }
+
+    [Fact]
+    public async Task ACatalogueCarryingNoFacetValueAnswersAnEmptyList()
+    {
+        var view = await PlanOverAsync(Listing("a"));
+
+        Assert.Empty(view.Facets);
+    }
+
+    [Theory]
+    [InlineData(41)]
+    [InlineData(1000)]
+    public async Task APageSizeAboveTheBoundIsRefused(int perPage)
+    {
+        var answered = await WhisparrSync.ReadMissingPageAsync(
+            new EntityRoute("studio", 7),
+            new MissingNarrowing(1, perPage, null, null, null, null),
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            WhisparrOver(
+                new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
+            new ProviderEndpointPort(null),
+            PlannerOver(new RecordingCatalogue()),
+            TestCt);
+
+        Assert.IsType<BadRequest>(answered.Result);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task APageBelowOneIsRefused(int page)
+    {
+        var answered = await WhisparrSync.ReadMissingPageAsync(
+            new EntityRoute("studio", 7),
+            new MissingNarrowing(page, 40, null, null, null, null),
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            WhisparrOver(
+                new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
+            new ProviderEndpointPort(null),
+            PlannerOver(new RecordingCatalogue()),
+            TestCt);
+
+        Assert.IsType<BadRequest>(answered.Result);
+    }
+
+    [Fact]
+    public async Task AFacetFragmentReachesTheSourceThroughTheRoute()
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            new EntityRoute("studio", 7),
+            "tags",
+            " ana ",
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            WhisparrOver(null!),
+            PlannerOver(catalogue),
+            TestCt);
+
+        var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
+        Assert.NotNull(view);
+        Assert.Equal(MissingFacetSearchOutcome.Matched, view.Outcome);
+        Assert.Equal("t-1", Assert.Single(view.Values).Value);
+        Assert.Equal(64, view.ReportedValueCount);
+
+        // Trimmed, so a trailing space does not become a fragment the source matches nothing for.
+        Assert.Equal("ana", Assert.Single(catalogue.Fragments));
+    }
+
+    [Theory]
+    [InlineData("a")]
+    [InlineData(" ")]
+    [InlineData("")]
+    public async Task AFragmentBelowTheBoundAsksTheSourceNothing(string fragment)
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            new EntityRoute("studio", 7),
+            "tags",
+            fragment,
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            WhisparrOver(null!),
+            PlannerOver(catalogue),
+            TestCt);
+
+        var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
+        Assert.NotNull(view);
+        Assert.Equal(MissingFacetSearchOutcome.FragmentTooShort, view.Outcome);
+        Assert.Empty(view.Values);
+        Assert.Empty(catalogue.Fragments);
+    }
+
+    [Fact]
+    public async Task AFacetLookupIsRefusedWithoutTheReadPermission()
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            new EntityRoute("studio", 7),
+            "tags",
+            "ana",
+            FakePrincipalAccessor.WithPermissions(),
+            WhisparrOver(null!),
+            PlannerOver(catalogue),
+            TestCt);
+
+        Assert.IsType<ForbiddenCode>(answered.Result);
+        Assert.Empty(catalogue.Fragments);
+    }
+
+    // The bundle a handler reaches the instance through, over a client a case supplies.
+    private static WhisparrAccess WhisparrOver(IWhisparrClient client)
+        => new(
+            new OptionsStore(new FakeStore()),
+            new RecordingCredentialPort(),
+            new FixedInstanceFactory(client),
+            NullLogger.Instance);
+
+    private static StubInstanceCatalogue Listing(params string[] ids)
+        => new(ids);
+
+    private static StubInstanceCatalogue Listing(params (string Id, string Date)[] dated)
+        => new([.. dated.Select(scene => StubInstanceCatalogue.Scene(scene.Id, date: scene.Date))]);
+
+    // One scene a performer is named on and one they are not, so a facet narrowing is observable.
+    private static StubInstanceCatalogue WithPerformers()
+        => new(
+        [
+            new WhisparrCatalogueScene(
+                "hers",
+                "hers",
+                null,
+                null,
+                null,
+                null,
+                [new WhisparrCataloguePerformer("mia", "Mia", null)],
+                [],
+                Monitored: false,
+                HasFile: false),
+            StubInstanceCatalogue.Scene("theirs"),
+        ]);
+
+    // The planner is driven directly rather than through the route, because the route resolves a
+    // connection from stored options and the claim here is about what the query string becomes.
+    private static async Task<MissingPageView> PlanOverAsync(
+        StubInstanceCatalogue instance,
+        int page = 1,
+        int perPage = 40,
+        string? sort = null,
+        string? q = null,
+        string? filters = null)
+    {
+        var catalogue = new RecordingCatalogue();
+        var request = new MissingPageRequest(
+            WhisparrEntityKind.Studio,
+            7,
+            page,
+            perPage,
+            sort,
+            q,
+            MissingFilterForm.Read(filters),
+            MenusAlreadyHeld: false);
+
+        var context = new MissingPageContext(
+            new WhisparrBinding(
+                WhisparrGeneration.V3, new Uri("http://whisparr.invalid:6969"), "0e2e0e2e0e2e0e2e"),
+            new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
+            ExclusionReading: null,
+            instance);
+
+        return await PlannerOver(catalogue).PlanAsync(request, context, NullLogger.Instance, TestCt);
+    }
+
+    private static MissingPagePlanner PlannerOver(RecordingCatalogue catalogue)
+        => new(
+            new MissingIdentityResolver(
+                new StubIdentities(),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
+            new StubOwned(),
+            new InstanceCatalogueCache(TimeProvider.System));
+
+    private sealed class StubIdentities : IEntityIdentityPort
+    {
+        public Task<IdentityResolution> ResolveAsync(
+            WhisparrEntityKind kind, int coveId, WhisparrGeneration generation, CancellationToken ct)
+            => Task.FromResult(IdentityResolution.At("a-studio"));
+    }
+
+    private sealed class StubOwned : IOwnedScenePort
+    {
+        public Task<IReadOnlySet<string>> ReadOwnedAsync(
+            string identityEndpoint, IReadOnlyList<string> providerSceneIds, CancellationToken ct)
+            => Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(StringComparer.Ordinal));
+    }
+
+    private sealed class RecordingCatalogue : IProviderCatalogue
+    {
+        public List<ProviderCatalogueRequest> Requests { get; } = [];
+
+        public List<string> Fragments { get; } = [];
+
+        public List<string> Resolutions { get; } = [];
+
+        public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
+
+        public IReadOnlyList<ProviderSortOption> Sorts { get; } =
+            [new ProviderSortOption("DATE", "Newest first")];
+
+        public string DefaultSort { get; init; } = "DATE";
+
+        public string? SceneAddress(string providerSceneId) => null;
+
+        public string ProviderName => "StashDB";
+
+        public Task<ProviderCatalogueAnswer> ReadPageAsync(
+            ProviderCatalogueRequest request, CancellationToken ct)
+        {
+            Requests.Add(request);
+            return Task.FromResult(
+                ProviderCatalogueAnswer.Answered(
+                    new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0)));
+        }
+
+        public Task<int?> ReadCatalogueSizeAsync(
+            ProviderCatalogueRequest request, CancellationToken ct)
+        {
+            Requests.Add(request);
+            return Task.FromResult<int?>(0);
+        }
+
+        public Task<ProviderIdentityLookup> LookUpByNameAsync(
+            WhisparrEntityKind kind,
+            string name,
+            IReadOnlyList<string> aliases,
+            CancellationToken ct)
+            => Task.FromResult(ProviderIdentityLookup.Unmatched);
+
+        // This stub names itself StashDB, which issues no number of its own for a scene, so the ask
+        // is recorded and answered null rather than answered with a number nothing measured.
+        public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+        {
+            Resolutions.Add(providerSceneId);
+            return Task.FromResult<int?>(null);
+        }
+
+        public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+            string providerSiteId, CancellationToken ct)
+            => Task.FromResult(ProviderSiteNumber.NotReached);
+
+        public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
+            WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
+            => Task.FromResult(Menus);
+
+        public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+            WhisparrEntityKind kind,
+            string providerEntityId,
+            string facetKey,
+            string fragment,
+            CancellationToken ct)
+        {
+            Fragments.Add(fragment);
+            return Task.FromResult(
+                ProviderFacetSearch.Matched([new ProviderFacetValue("t-1", "Anal Sex")], 64));
+        }
+    }
+}

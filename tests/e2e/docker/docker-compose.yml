@@ -1,6 +1,6 @@
-# Shared E2E harness — brings up an isolated, official Cove instance for testing an extension.
+# Shared E2E harness - brings up an isolated, official Cove instance for testing an extension.
 #
-# Never touches the developer's local native Cove install (%LOCALAPPDATA%\cove / COVE_HOME) — all
+# Never touches the developer's local native Cove install (%LOCALAPPDATA%\cove / COVE_HOME) - all
 # state is ephemeral, scoped to this compose project, and removed on teardown.
 #
 # Extension install is NOT a host bind-mount. A bind-mount depends on the host's Docker file-sharing
@@ -10,7 +10,7 @@
 # own container API instead. The on-disk shape is the one Cove's bind-mount install produces
 # (cove/docker/README.md); only the delivery differs.
 #
-# Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
+# Not driven directly via `docker compose` CLI - `lib/harness.mjs`'s `startHarness()` (Testcontainers'
 # DockerComposeEnvironment) is the actual entry point; see tests/e2e/README.md.
 
 # Every stack joins one network that already exists. A network per stack is a bridge per stack, and
@@ -53,7 +53,16 @@ services:
     #
     # The cost: `docker compose up` in this directory starts nothing on its own. Go through the
     # harness (see ../README.md), or name an image in COVE_E2E_IMAGE.
-    image: ${COVE_E2E_IMAGE:?set by tests/e2e/lib/harness.mjs from the catalog floor — this compose file declares no Cove version, so a bare docker compose invocation must name one}
+    image: ${COVE_E2E_IMAGE:?set by tests/e2e/lib/harness.mjs from the catalog floor - this compose file declares no Cove version, so a bare docker compose invocation must name one}
+    # One network is one DNS namespace, and compose answers every stack's Cove to `cove` in it. A
+    # sibling container dialling that name reaches whichever stack's Cove the daemon picks, which is
+    # another worker's for five runs in six. Whisparr then registers its callback against a Cove that
+    # is not the one under test, delivers to it, and the spec waits out its budget on an instance that
+    # was never going to answer. The per-stack name is the one to dial, as it is for the database.
+    networks:
+      default:
+        aliases:
+          - cove-${COVE_E2E_STACK:?set by tests/e2e/lib/harness.mjs, one value per stack}
     depends_on:
       db:
         condition: service_healthy
@@ -68,17 +77,27 @@ services:
       COVE__BackupPath: /backups
       # The two media directories, declared as Cove's own library paths. Cove seeds none by default,
       # and /api/videos/from-file takes an explicit path without consulting this list, so without
-      # these the instance runs with NO library path — which no real install does. An extension
+      # these the instance runs with NO library path - which no real install does. An extension
       # asking which library path holds a file then gets no answer, and behaves as it would for a
       # file genuinely outside the library, a different code path from the one the specs drive.
       # /data2 is listed because the cross-device spec moves files there.
       COVE__CovePaths__0__Path: /data
       COVE__CovePaths__1__Path: /data2
+      # The third library path is the one another container can also write. See the `shared` volume
+      # below for why a spec needs that and why the other two cannot serve.
+      COVE__CovePaths__2__Path: /shared
       # Authentication is OFF by default, which is what every spec but the auth one runs against. A
       # spec needing a real credential flow opts in with
       # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })`. The flip is instance-global, so it
       # belongs to an isolated harness and never to a worker-shared one.
       COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
+      # Read by the Whisparr Sync extension, not by Cove, which is why it carries no COVE__ prefix.
+      # Empty unless that extension's fixtures set it, and the extension honours it downward only, so
+      # an empty or absent value leaves its shipped default standing.
+      WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS: "${WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS:-}"
+    volumes:
+      # Mounted unconditionally, and empty in almost every spec. See the top-level `volumes` block.
+      - shared:/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5073/health"]
       interval: 2s
@@ -88,7 +107,7 @@ services:
     tmpfs:
       # A genuinely separate filesystem, not just a separate directory or named volume. Verified
       # empirically: two named volumes both land on Docker Desktop's single backing block device
-      # (same st_dev), so a move between them succeeds via a normal rename() — it does NOT exercise
+      # (same st_dev), so a move between them succeeds via a normal rename() - it does NOT exercise
       # any cross-device code path. A tmpfs mount is a different filesystem TYPE at the kernel level,
       # so a move from the container's root filesystem into it raises a real EXDEV ("cross-device
       # link not permitted"), the same error a move across two real drives raises. This is the one
@@ -109,3 +128,19 @@ services:
       # spec's first line runs, so the state under test is always the post-restart one. A spec that
       # writes into /data2 must therefore hand the mount over to itself first.
       - /data2
+
+volumes:
+  # The one mount another container in the same spec can also write, so a file Whisparr or a download
+  # client puts down is the same file Cove reads, at the same absolute path and on the same device.
+  # Whisparr imports a completed download by hardlink and a hardlink cannot cross a device, so two
+  # copies of a directory would not do.
+  #
+  # Declared external, and created by `startHarness` through `lib/shared-volume.mjs` rather than by
+  # compose. Compose would name it for the project and scope its life to the project, which is the
+  # wrong life: a sibling container joins it by name from outside the project entirely.
+  #
+  # Every harness gets one whether or not its spec mounts it anywhere else. A conditional mount would
+  # have to be a conditional service, and an empty volume costs nothing.
+  shared:
+    external: true
+    name: ${COVE_E2E_SHARED_VOLUME:?created by tests/e2e/lib/harness.mjs - this compose file creates no volume of its own, so a bare docker compose invocation must name one}

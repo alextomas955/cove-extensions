@@ -145,7 +145,7 @@ function main() {
   // reads as a satisfied prerequisite while providing none.
   if (selected.length === 0) {
     console.error(
-      `publish-extensions: nothing to publish — examined ${entries.length} catalog entries, of which 0 declared both e2ePath and e2eProject.`,
+      `publish-extensions: nothing to publish - examined ${entries.length} catalog entries, of which 0 declared both e2ePath and e2eProject.`,
     );
     return 1;
   }
@@ -156,7 +156,7 @@ function main() {
     // extension named above it and none below.
     const failure = publishEntry(entry, label);
     if (failure) {
-      console.error(`publish-extensions: ${label} FAILED — ${failure}`);
+      console.error(`publish-extensions: ${label} FAILED - ${failure}`);
       return 1;
     }
     console.log(`publish-extensions: ${label} OK`);

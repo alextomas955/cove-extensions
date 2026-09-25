@@ -1,0 +1,33 @@
+{
+  "title": "Adult Time x Vixen",
+  "sortTitle": "adult time x vixen",
+  "foreignId": "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e",
+  "tmdbId": 0,
+  "website": "https://members.adulttime.com/en/channel/vixen",
+  "network": "Adult Time (Network)",
+  "images": [
+    {
+      "coverType": "clearlogo",
+      "url": "/MediaCover/studio/1/clearlogo.png",
+      "remoteUrl": "https://stashdb.org/images/1b43b23d-efb0-4343-807d-7a831ae606a0"
+    }
+  ],
+  "monitored": true,
+  "moviesMonitored": false,
+  "status": "active",
+  "afterDate": "2026-09-02",
+  "rootFolderPath": "/config/library",
+  "qualityProfileId": 0,
+  "searchOnAdd": false,
+  "aliases": [],
+  "tags": [],
+  "hasMovies": false,
+  "hasScenes": false,
+  "totalMovieCount": 0,
+  "totalSceneCount": 0,
+  "movieCount": 0,
+  "sceneCount": 0,
+  "years": [],
+  "sizeOnDisk": 0,
+  "id": 1
+}

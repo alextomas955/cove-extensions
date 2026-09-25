@@ -1,0 +1,168 @@
+import { describe, expect, it } from "vitest";
+
+import type { ImportBannerRootLine, ImportBannerView, ImportRefusalCause } from "../wire/api";
+import {
+  bannerLines,
+  describeCause,
+  hasAnythingToSay,
+  headingFor,
+  IMPORT_REFUSAL_CAUSES,
+  NEWEST_PATHS_SHOWN,
+  NO_REPORTED_ROOT,
+  passedOverLine,
+  pathsShownFor,
+} from "./importBannerLogic";
+
+// Transcribed by hand from the server's enum. A list read off the wire module would always agree.
+const CAUSES: readonly ImportRefusalCause[] = [
+  "notFoundUnderAnyRoot",
+  "ambiguousCandidates",
+  "unreadable",
+];
+
+function lineFor(root: string, count: number, paths: number): ImportBannerRootLine {
+  return {
+    root,
+    countSinceLastSuccess: count,
+    newestPaths: Array.from({ length: paths }, (_, index) => ({
+      path: `${root}/${String(index)}.mp4`,
+      cause: "notFoundUnderAnyRoot" as const,
+    })),
+  };
+}
+
+function viewOf(...roots: ImportBannerRootLine[]): ImportBannerView {
+  return { roots, recordsContained: 0, lastContainedAtUtc: null };
+}
+
+function passedOver(count: number, at: string | null): ImportBannerView {
+  return { roots: [], recordsContained: count, lastContainedAtUtc: at };
+}
+
+const NOW_MS = Date.parse("2026-08-31T09:00:00Z");
+
+describe("the cause vocabulary", () => {
+  it("has exactly the three causes the server emits", () => {
+    expect(IMPORT_REFUSAL_CAUSES).toEqual(CAUSES);
+  });
+
+  it("gives every cause a sentence of its own", () => {
+    const sentences = CAUSES.map((cause) => describeCause(cause));
+
+    for (const [index, sentence] of sentences.entries()) {
+      expect(sentence, CAUSES[index]).not.toBe("");
+    }
+    expect(new Set(sentences).size, "two causes read identically").toBe(CAUSES.length);
+  });
+});
+
+describe("whether there is anything to say", () => {
+  it("says nothing before the read answers", () => {
+    expect(hasAnythingToSay(null)).toBe(false);
+    expect(bannerLines(null)).toEqual([]);
+  });
+
+  it("says nothing for an answer with no roots", () => {
+    expect(hasAnythingToSay(viewOf())).toBe(false);
+  });
+
+  it("says something for one root with one refusal", () => {
+    expect(hasAnythingToSay(viewOf(lineFor("/whisparr-media", 1, 1)))).toBe(true);
+  });
+
+  it("says something for a containment with no root refused at all", () => {
+    expect(hasAnythingToSay(passedOver(1, null))).toBe(true);
+  });
+});
+
+describe("the files the catch-up passed over", () => {
+  it("says nothing while it has passed over none", () => {
+    expect(passedOverLine(viewOf(lineFor("/whisparr-media", 4, 1)), NOW_MS)).toBeNull();
+    expect(passedOverLine(null, NOW_MS)).toBeNull();
+  });
+
+  it("names the count and how long ago the last one was", () => {
+    const line = passedOverLine(passedOver(3, "2026-08-31T08:30:00Z"), NOW_MS);
+
+    expect(line).not.toBeNull();
+    expect(line).toContain("3 files");
+    expect(line).toContain("30 min ago");
+  });
+
+  it("agrees with the count for one file", () => {
+    const line = passedOverLine(passedOver(1, null), NOW_MS) ?? "";
+
+    expect(line).toContain("1 file ");
+    expect(line).not.toContain("1 files");
+  });
+
+  it("says the catch-up will not return to them, because the mark never does", () => {
+    expect(passedOverLine(passedOver(2, null), NOW_MS)).toContain("will not try them again");
+  });
+
+  it("leaves out the age when none was recorded", () => {
+    expect(passedOverLine(passedOver(2, null), NOW_MS)).not.toContain("Most recently");
+  });
+});
+
+describe("the order the roots read in", () => {
+  it("puts named roots in their own order", () => {
+    const lines = bannerLines(
+      viewOf(lineFor("/z-root", 1, 1), lineFor("/a-root", 1, 1), lineFor("/m-root", 1, 1)),
+    );
+
+    expect(lines.map((line) => line.root)).toEqual(["/a-root", "/m-root", "/z-root"]);
+  });
+
+  it("puts the line no root was reported for last, and keeps it", () => {
+    const lines = bannerLines(
+      viewOf(lineFor(NO_REPORTED_ROOT, 2, 1), lineFor("/z-root", 1, 1), lineFor("/a-root", 1, 1)),
+    );
+
+    expect(lines.map((line) => line.root)).toEqual(["/a-root", "/z-root", NO_REPORTED_ROOT]);
+  });
+});
+
+describe("how a root's line is headed", () => {
+  it("names the root and the stored count", () => {
+    const heading = headingFor(lineFor("/whisparr-media", 12, 3));
+
+    expect(heading).toContain("/whisparr-media");
+    expect(heading).toContain("12");
+  });
+
+  it("reads as a sentence for the line no root was reported for", () => {
+    const heading = headingFor(lineFor(NO_REPORTED_ROOT, 4, 1));
+
+    expect(heading.trim(), "the blank key reached the reader as itself").not.toBe("");
+    expect(heading).toContain("4");
+    // A blank key rendered as itself would leave a double space in the heading.
+    expect(heading).not.toContain("  ");
+  });
+
+  it("agrees with the count for one file", () => {
+    expect(headingFor(lineFor("/whisparr-media", 1, 1))).toContain("1 file ");
+    expect(headingFor(lineFor(NO_REPORTED_ROOT, 1, 1))).toContain("1 file ");
+  });
+});
+
+describe("how many paths a line lists", () => {
+  it("lists them all while there are no more than the bound", () => {
+    expect(pathsShownFor(lineFor("/whisparr-media", 2, 2))).toHaveLength(2);
+  });
+
+  it("lists the bound and no more when handed a longer list", () => {
+    const shown = pathsShownFor(lineFor("/whisparr-media", 9, 9));
+
+    expect(shown).toHaveLength(NEWEST_PATHS_SHOWN);
+    expect(shown.map((path) => path.path)).toEqual([
+      "/whisparr-media/0.mp4",
+      "/whisparr-media/1.mp4",
+      "/whisparr-media/2.mp4",
+    ]);
+  });
+
+  it("keeps the bound at the three the stored aggregate holds", () => {
+    expect(NEWEST_PATHS_SHOWN).toBe(3);
+  });
+});

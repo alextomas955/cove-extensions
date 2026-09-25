@@ -81,7 +81,7 @@ public sealed class EmptySourceFolderCleanerTests
     [Fact]
     public void DriveRoot_IsNeverDeleted()
     {
-        string root = Path.GetPathRoot(Path.GetTempPath())!; // e.g. "C:\" — a real, existing root
+        string root = Path.GetPathRoot(Path.GetTempPath())!; // e.g. "C:\" - a real, existing root
         var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(root.Replace('\\', '/'));
 
         Assert.False(removed);
@@ -275,7 +275,7 @@ public sealed class EmptySourceFolderCleanerTests
 
             // The file is never lost: it stays at its verified destination, and the DB still agrees.
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")),
-                "the file remains at the destination — undo did not move it back, but it is not lost");
+                "the file remains at the destination - undo did not move it back, but it is not lost");
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(dstFolder + "/My Film.mkv", path);

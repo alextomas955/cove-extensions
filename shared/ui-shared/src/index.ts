@@ -3,6 +3,7 @@
 // `@cove-extensions/ui-shared` alias. Consumers import from this barrel; intra-module files import each
 // other by relative path so the pure-logic modules stay independently importable.
 export * from "./primitives";
+export * from "./saveBar";
 export * from "./overlay";
 export * from "./entityPickerLogic";
 // `actions` is pure (zero-import), so re-exporting it here costs a consumer nothing. The SDK-touching

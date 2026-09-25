@@ -1,0 +1,156 @@
+using Cove.Core.Auth;
+using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Connection;
+using WhisparrSync.Contracts;
+using WhisparrSync.Library;
+using WhisparrSync.Scene;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync;
+
+public sealed partial class WhisparrSync
+{
+    private void MapSceneEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet(SceneDetailRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SceneDetailAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapPost(SceneAddRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, IServiceScopeFactory scopes,
+             CancellationToken ct)
+                => AddSceneAsync(
+                    coveId, principal, whisparr, sceneCards, scopes, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneMonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => MonitorSceneAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneUnmonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => UnmonitorSceneAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneExcludeRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => ExcludeSceneAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneRemoveExclusionRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => RemoveSceneExclusionAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneSearchRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SearchSceneNowAsync(
+                    coveId, principal, whisparr, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
+    // Nothing is cached, so what the tab states is what the instance held at that moment.
+    // The exclusion list is read as well as the scene, because the state vocabulary tests exclusion
+    // first: an unread list would let an excluded scene read as monitored, so a list that answered
+    // nothing refuses the whole read.
+    internal static async Task<Results<Ok<SceneDetailView>, BadRequest, ForbiddenCode>>
+        SceneDetailAsync(
+            int coveId,
+            ICurrentPrincipalAccessor principal,
+            WhisparrAccess whisparr,
+            ILibraryCardIdentityPort sceneCards,
+            CancellationToken ct)
+    {
+        var (_, _, _, log) = whisparr;
+
+        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
+        // API.
+        if (!HasReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        if (coveId < 1)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        ArgumentNullException.ThrowIfNull(sceneCards);
+
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return TypedResults.Ok(NothingWasSent(SceneRefusalKind.NoInstanceConnected));
+        }
+
+        var identity = await sceneCards.ResolveOneAsync(coveId, target.Binding.Generation, ct)
+            .ConfigureAwait(false);
+        if (identity.RemoteId is not { } remoteId)
+        {
+            return TypedResults.Ok(NothingWasSent(identity.Refusal));
+        }
+
+        if (target.Reads is not IWhisparrSceneStatusReading reading
+            || target.Reads is not IWhisparrSceneExclusionReading exclusions)
+        {
+            return TypedResults.Ok(
+                NothingWasSent(SceneRefusalKind.CapabilityAbsentOnThisGeneration));
+        }
+
+        var answered = await ContainedAsync(
+            () => reading.ReadSceneByRemoteIdAsync(
+                remoteId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        if (answered is null)
+        {
+            return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
+        }
+
+        var excluded = await FindExclusionAsync(
+            exclusions, new SceneVerbTarget(target, remoteId), log, ct).ConfigureAwait(false);
+        if (!excluded.ReadCompleted)
+        {
+            return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
+        }
+
+        // A profile read that answers nothing is not a failed tab: the scene's own facts stand.
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(
+            SceneDetailProjector.Project(
+                answered, profiles, excluded: excluded.ExclusionId is not null));
+    }
+}

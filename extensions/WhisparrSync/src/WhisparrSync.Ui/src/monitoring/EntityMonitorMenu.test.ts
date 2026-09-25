@@ -1,0 +1,554 @@
+// @vitest-environment jsdom
+// The overlay hook is the real one, because the properties under test are the ones it decides:
+// roving focus finds rows only through their role, its Escape must not reach the page underneath,
+// and the trigger must not count as a click outside.
+import { test, expect, afterEach } from "vitest";
+import { act, createElement, type ReactNode } from "react";
+
+import { render } from "../common/lib/testRender";
+
+import { EntityMonitorMenu } from "./EntityMonitorMenu";
+import { monitorMenu } from "./monitorMenuLogic";
+import {
+  ACTION_ADD_ALL_MISSING,
+  ACTION_REFLECT_OWNED,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  MENU_UNMONITOR,
+  SCOPE_ALL_SCENES,
+  SCOPE_FUTURE_SCENES,
+} from "../common/ui/copy";
+import type { EntityMonitoringView } from "../wire/api";
+
+// The text in document order, minus every subtree removed from the accessibility tree.
+function accessibleName(element: Element): string {
+  return [...element.childNodes]
+    .map((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent ?? "";
+      }
+      if (!(node instanceof Element)) {
+        return "";
+      }
+      return node.getAttribute("aria-hidden") === "true" ? "" : accessibleName(node);
+    })
+    .join("");
+}
+
+function viewOf(overrides: Partial<EntityMonitoringView>): EntityMonitoringView {
+  return {
+    kind: "studio",
+    generation: "v3",
+    present: false,
+    monitored: false,
+    refusal: "none",
+    capabilities: ["monitorStudio"],
+    scope: null,
+    scopeChangeIsRetroactive: false,
+    ...overrides,
+  };
+}
+
+interface Mounted {
+  container: HTMLElement;
+  trigger: HTMLButtonElement;
+  panel: () => Element | null;
+  rows: () => HTMLButtonElement[];
+}
+
+// Torn down centrally rather than at the end of each case. A menu left mounted keeps its own
+// document-level key listener, and the next case's arrow keys would then be answered by two menus.
+const teardowns: (() => void)[] = [];
+afterEach(() => {
+  while (teardowns.length > 0) teardowns.pop()?.();
+});
+
+async function mount(
+  node: (trigger: { current: HTMLElement | null }) => ReactNode,
+): Promise<Mounted> {
+  // A real trigger in the document before the render, because two of the properties under test are
+  // about events that start on it and the menu is handed a ref to it.
+  const trigger = document.createElement("button");
+  trigger.textContent = "trigger";
+  document.body.append(trigger);
+  teardowns.push(() => {
+    trigger.remove();
+  });
+
+  const container = await render(node({ current: trigger }));
+
+  return {
+    container,
+    trigger,
+    // Queried from the document: the menu is portaled out of the host page's hero, which clips its
+    // overflow.
+    panel: () => document.body.querySelector('[role="menu"]'),
+    rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
+  };
+}
+
+function press(key: string) {
+  (document.activeElement ?? document.body).dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+}
+
+test("every row carries a menu role, and the scope pair carries the radio role and its state", async () => {
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.length).toBe(2);
+  expect(rows.map((row) => row.getAttribute("role"))).toEqual(["menuitemradio", "menuitemradio"]);
+  expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+});
+
+test("marks no radio at all when the read reported no scope", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true, scope: null }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.map((row) => row.getAttribute("aria-checked"))).not.toContain("true");
+  expect(mounted.panel()?.querySelectorAll('[aria-checked="true"]').length).toBe(0);
+});
+
+test("marks the reported scope", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true, scope: "allScenes" }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const checked = [...(mounted.panel()?.querySelectorAll('[aria-checked="true"]') ?? [])];
+  expect(checked.map((row) => accessibleName(row))).toEqual([SCOPE_ALL_SCENES]);
+});
+
+test("the panel leaves the page's own container, which clips what it holds", async () => {
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const panel = mounted.panel();
+  expect(panel).not.toBeNull();
+  // In the document and positioned against the viewport, so an ancestor hiding its overflow cannot
+  // cut the panel off. The placement is on the container the panel and the notice share, which is
+  // what stops the two stacking on one another.
+  expect(mounted.container.contains(panel)).toBe(false);
+  expect(panel?.parentElement?.classList.contains("fixed")).toBe(true);
+});
+
+test("the first scope option is Future Scenes and it is the one taken", async () => {
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(accessibleName(rows[0])).toBe(SCOPE_FUTURE_SCENES);
+  expect(rows[0].getAttribute("aria-checked")).toBe("true");
+  expect(accessibleName(rows[1])).toBe(SCOPE_ALL_SCENES);
+});
+
+test("every row draws one glyph and its own name, and no paragraph anywhere", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  for (const row of mounted.rows()) {
+    expect(row.querySelectorAll("svg"), accessibleName(row)).toHaveLength(1);
+  }
+  expect(mounted.panel()?.querySelectorAll("p")).toHaveLength(0);
+  expect(accessibleName(mounted.rows()[1])).toBe(SCOPE_ALL_SCENES);
+});
+
+test("a capability the generation does not hold leaves its row present, dimmed and saying why", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const addAllMissing = mounted
+    .rows()
+    .find((row) => row.textContent.startsWith(ACTION_ADD_ALL_MISSING));
+  expect(addAllMissing, "the add-all-missing row is absent rather than dimmed").toBeDefined();
+  expect(addAllMissing?.disabled).toBe(true);
+  expect(accessibleName(addAllMissing!)).toBe(
+    `${ACTION_ADD_ALL_MISSING}${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
+  );
+  expect(addAllMissing?.getAttribute("title")).toBe(
+    `${ACTION_ADD_ALL_MISSING}, ${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
+  );
+});
+
+test("arrow keys walk the rows, so the menu is reachable with no pointer", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.length).toBeGreaterThan(2);
+  // The hook focuses the first row as the menu opens.
+  expect(document.activeElement).toBe(rows[0]);
+
+  press("ArrowDown");
+  expect(document.activeElement).toBe(rows[1]);
+  press("ArrowDown");
+  expect(document.activeElement).toBe(rows[2]);
+  press("ArrowUp");
+  expect(document.activeElement).toBe(rows[1]);
+});
+
+test("Escape closes once, and the page underneath never sees it", async () => {
+  let closes = 0;
+  const hostSaw: string[] = [];
+  const hostHandler = (event: Event) => {
+    hostSaw.push((event as KeyboardEvent).key);
+  };
+  document.addEventListener("keydown", hostHandler);
+
+  const menu = monitorMenu(viewOf({}), false);
+  await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => {
+        closes += 1;
+      },
+    }),
+  );
+
+  press("Escape");
+
+  expect(closes).toBe(1);
+  expect(hostSaw).toEqual([]);
+
+  document.removeEventListener("keydown", hostHandler);
+});
+
+test("a press on the trigger while the menu is open does not count as a click outside", async () => {
+  let closes = 0;
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => {
+        closes += 1;
+      },
+    }),
+  );
+
+  mounted.trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  expect(closes, "the trigger closed the menu, so its own handler would reopen it").toBe(0);
+
+  // A press anywhere else still closes it, so the exclusion is not the whole rule being off.
+  document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  expect(closes).toBe(1);
+});
+
+test("choosing a row hands the caller the item, and the menu decides nothing itself", async () => {
+  const chosen: string[] = [];
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: (item) => {
+        chosen.push(item.item === "scope" ? item.scope : item.item);
+      },
+      onClose: () => undefined,
+    }),
+  );
+
+  mounted.rows()[1].click();
+  expect(chosen).toEqual(["allScenes"]);
+});
+
+test("an action already on its way disables every row and says what is being waited for", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), true);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.every((row) => row.disabled)).toBe(true);
+  expect(rows.every((row) => (row.getAttribute("title") ?? "").includes(", "))).toBe(true);
+});
+
+// The capability set v2 actually holds for a studio: it registers no missing scene, so that one
+// row is dimmed and two pressable rows follow it.
+const V2_STUDIO_CAPABILITIES = [
+  "outOfBandCallbackSecret",
+  "monitorStudio",
+  "reflectOwnedFiles",
+  "searchMonitored",
+] as const;
+
+// A menu whose last row is dimmed. No shipped generation answers with this set: v2 holds the
+// search and v3 holds all three. Written out because the hook under test is shared, and a set the
+// wire admits is a set it will be handed.
+const NO_SEARCH_CAPABILITIES = ["monitorPerformer", "reflectOwnedFiles"] as const;
+
+test("the arrow keys pass a disabled row to reach the one after it", async () => {
+  const menu = monitorMenu(
+    viewOf({ generation: "v2", monitored: true, capabilities: [...V2_STUDIO_CAPABILITIES] }),
+    false,
+  );
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  // Add all missing is the dimmed row and Reflect owned is the one after it. A press that stops on
+  // the dimmed row leaves the focus there for good, because a disabled button ignores focus() and
+  // the next press then reads the same index back.
+  const rows = mounted.rows();
+  expect(rows.map((row) => row.disabled)).toEqual([false, false, false, true, false, false]);
+
+  press("ArrowDown");
+  press("ArrowDown");
+  press("ArrowDown");
+
+  expect(accessibleName(document.activeElement!)).toBe(ACTION_REFLECT_OWNED);
+});
+
+test("the arrow keys wrap past a disabled last row", async () => {
+  const menu = monitorMenu(
+    viewOf({
+      kind: "performer",
+      monitored: true,
+      capabilities: [...NO_SEARCH_CAPABILITIES],
+    }),
+    false,
+  );
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.map((row) => row.disabled)).toEqual([false, true, false, true]);
+
+  press("ArrowDown");
+  expect(accessibleName(document.activeElement!)).toBe(ACTION_REFLECT_OWNED);
+
+  press("ArrowDown");
+  expect(accessibleName(document.activeElement!)).toBe(MENU_UNMONITOR);
+});
+
+test("with every row disabled an arrow press moves nothing and raises nothing", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), true);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  expect(mounted.rows().every((row) => row.disabled)).toBe(true);
+  const before = document.activeElement;
+
+  expect(() => {
+    press("ArrowDown");
+  }).not.toThrow();
+  expect(document.activeElement).toBe(before);
+});
+
+// Focus outside the row list is the state a settled press leaves: the pressed row disables, the
+// browser moves focus to the document, and the rows re-enable. Both directions must enter the list
+// from there.
+test("an arrow press with the focus outside the rows enters the list at its own end", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const pressable = mounted.rows().filter((row) => !row.disabled);
+  expect(pressable.length).toBeGreaterThan(2);
+
+  (document.activeElement as HTMLElement).blur();
+  expect(document.activeElement).toBe(document.body);
+  press("ArrowUp");
+  expect(document.activeElement).toBe(pressable.at(-1));
+
+  (document.activeElement as HTMLElement).blur();
+  press("ArrowDown");
+  expect(document.activeElement).toBe(pressable.at(0));
+});
+
+// The room below the control bounds the overlay. A window short enough to leave almost none of it
+// would bound the panel to a few pixels while the notice keeps its own height, pushing the notice
+// past the bound. The floor is asserted as a lower bound, so raising it does not fail this case.
+test("the room the overlay is given never falls below a readable floor", async () => {
+  const wasInnerHeight = window.innerHeight;
+  teardowns.push(() => {
+    Object.defineProperty(window, "innerHeight", {
+      value: wasInnerHeight,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      notice: "The instance declined the verb.",
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  Object.defineProperty(window, "innerHeight", {
+    value: 120,
+    configurable: true,
+    writable: true,
+  });
+  await act(() => {
+    window.dispatchEvent(new Event("resize"));
+    return Promise.resolve();
+  });
+
+  const container = document.body.querySelector<HTMLElement>('[role="menu"]')!.parentElement!;
+  const bound = Number.parseFloat(container.style.maxHeight);
+  // jsdom measures every rectangle as zero, so the control sits at the very top of this window and
+  // the unfloored room is the whole 120 less the offset and the gutter.
+  expect(bound).toBeGreaterThan(108);
+  expect(bound).toBeGreaterThanOrEqual(160);
+});
+
+test("the menu panel scrolls rather than clipping", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  // A class assertion is weak on its own. The check-classes gate carries the rest of the claim by
+  // rejecting a class the host does not emit.
+  const panel = mounted.panel() as HTMLElement;
+  expect(panel.classList.contains("overflow-y-auto")).toBe(true);
+  expect(panel.classList.contains("overflow-hidden")).toBe(false);
+  expect(panel.parentElement?.style.maxHeight).not.toBe("");
+});
+
+test("the room below the trigger bounds the container, and the notice cannot be squeezed out of it", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      notice: "The instance declined the verb.",
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const panel = document.body.querySelector<HTMLElement>('[role="menu"]')!;
+  const container = panel.parentElement!;
+  const notice = document.body.querySelector<HTMLElement>('[role="status"]')!;
+
+  // jsdom reports every element rectangle as zeroes, so the height the notice keeps out of the room
+  // is not measurable. What is measurable is which element carries the bound and which of the two
+  // children the column may shrink: the panel may, the notice may not.
+  expect(container.style.maxHeight).not.toBe("");
+  expect(panel.style.maxHeight).toBe("");
+  expect(container.classList.contains("flex")).toBe(true);
+  expect(container.classList.contains("flex-col")).toBe(true);
+  expect(panel.classList.contains("min-h-0")).toBe(true);
+  expect(notice.classList.contains("shrink-0")).toBe(true);
+  expect(notice.parentElement).toBe(container);
+});

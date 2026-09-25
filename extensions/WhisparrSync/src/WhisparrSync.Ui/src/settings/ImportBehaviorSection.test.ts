@@ -1,0 +1,97 @@
+// @vitest-environment jsdom
+import { expect, test, vi } from "vitest";
+import { createElement, type ReactNode } from "react";
+import { render as renderNode } from "../common/lib/testRender";
+
+import type { UpgradeBehavior } from "../wire/api";
+import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
+
+vi.mock("@cove-extensions/ui-shared", async () => {
+  const { createElement: h } = await import("react");
+  return {
+    Field: (props: {
+      label: string;
+      labelStyle?: string;
+      children: (controlId: string) => ReactNode;
+    }) =>
+      h(
+        "label",
+        { htmlFor: "control", "data-label-style": props.labelStyle },
+        props.label,
+        props.children("control"),
+      ),
+    Select: (props: {
+      value: string;
+      disabled?: boolean;
+      id?: string;
+      options: readonly { value: string; label: string }[];
+    }) =>
+      h(
+        "select",
+        { id: props.id, value: props.value, disabled: props.disabled, onChange: () => undefined },
+        props.options.map((option) =>
+          h("option", { key: option.value, value: option.value }, option.label),
+        ),
+      ),
+    SectionCard: (props: { title?: string; description?: string; children: ReactNode }) =>
+      h("section", null, props.title, props.description, props.children),
+    StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
+  };
+});
+
+const { ImportBehaviorSection } = await import("./ImportBehaviorSection");
+
+function section(overrides: { behavior?: UpgradeBehavior | null; sharedReason?: string | null }) {
+  return createElement(ImportBehaviorSection, {
+    behavior: overrides.behavior === undefined ? "add" : overrides.behavior,
+    sharedReason: overrides.sharedReason ?? null,
+    onChange: () => undefined,
+  });
+}
+
+test("both choices are offered, whichever one is stored", async () => {
+  const host = await renderNode(section({ behavior: "add" }));
+
+  const offered = [...host.querySelectorAll("option")].map((option) => option.value);
+  expect(offered).toEqual(["add", "replace"]);
+});
+
+// The stub renders the label style rather than the class, because the section's claim is which
+// style it asks the shared field for. What that style draws is pinned where the field is drawn.
+test("the field takes the page's mono micro-label", async () => {
+  const host = await renderNode(section({ behavior: "add" }));
+
+  expect(host.querySelector("label")?.getAttribute("data-label-style")).toBe("mono");
+});
+
+test("the consequence shown is the chosen one's, and the two do not read the same", async () => {
+  const keeping = await renderNode(section({ behavior: "add" }));
+  const replacing = await renderNode(section({ behavior: "replace" }));
+
+  expect(keeping.textContent).toContain(UPGRADE_KEEPS_BOTH_FILES);
+  expect(keeping.textContent).not.toContain(UPGRADE_DROPS_THE_SUPERSEDED_FILE);
+  expect(replacing.textContent).toContain(UPGRADE_DROPS_THE_SUPERSEDED_FILE);
+  expect(replacing.textContent).not.toContain(UPGRADE_KEEPS_BOTH_FILES);
+});
+
+test("the control cannot be used before the stored value has arrived", async () => {
+  const unread = await renderNode(section({ behavior: null }));
+  const read = await renderNode(section({ behavior: "add" }));
+
+  expect(unread.querySelector("select")?.disabled).toBe(true);
+  // The control: without this, the check above would pass for a select that is never enabled.
+  expect(read.querySelector("select")?.disabled).toBe(false);
+});
+
+test("the shared reason takes the control out, and the control says so once", async () => {
+  const reason = "Cove could not read the stored connection.";
+  const host = await renderNode(section({ sharedReason: reason }));
+
+  expect(host.querySelector("select")?.disabled).toBe(true);
+  const named = host.querySelector("label")?.textContent ?? "";
+  expect(named.startsWith("Replacement files"), "the control does not open with its own name").toBe(
+    true,
+  );
+  expect(named.endsWith(reason), "the control does not close with its reason").toBe(true);
+  expect(host.textContent.split(reason).length - 1, "the reason is stated more than once").toBe(1);
+});

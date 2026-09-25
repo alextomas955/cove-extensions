@@ -92,8 +92,19 @@ const identity = (value: string) => value;
 const fold = (value: string) => value.toLowerCase();
 
 const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wide text-muted";
+// The micro-label in the mono face, for a field holding a technical value such as an address or a key.
+const MONO_LABEL_CLASS = `${MICRO_LABEL_CLASS} font-mono`;
 // Names a group of controls, so it stays quieter than the section title containing it.
 const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
+
+/** How a {@link Field} or {@link FieldGroup} draws its label. */
+export type FieldLabelStyle = "micro" | "mono" | "group";
+
+const LABEL_CLASS: Record<FieldLabelStyle, string> = {
+  micro: MICRO_LABEL_CLASS,
+  mono: MONO_LABEL_CLASS,
+  group: GROUP_LABEL_CLASS,
+};
 
 /**
  * Label + one control + optional helper. Matches Cove `SettingsField`.
@@ -111,17 +122,13 @@ export function Field({
 }: {
   label: string;
   helper?: string;
-  labelStyle?: "micro" | "group";
+  labelStyle?: FieldLabelStyle;
   children: (controlId: string) => ReactNode;
 }) {
   const controlId = useId();
   return (
     <label className="block text-sm" htmlFor={controlId} title={helper}>
-      {label ? (
-        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
-          {label}
-        </span>
-      ) : null}
+      {label ? <span className={LABEL_CLASS[labelStyle]}>{label}</span> : null}
       {children(controlId)}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
     </label>
@@ -148,7 +155,7 @@ export function FieldGroup({
 }: {
   label: string;
   helper?: string;
-  labelStyle?: "micro" | "group";
+  labelStyle?: FieldLabelStyle;
   children: ReactNode;
 }) {
   const labelId = useId();
@@ -159,10 +166,7 @@ export function FieldGroup({
       aria-labelledby={label ? labelId : undefined}
     >
       {label ? (
-        <span
-          id={labelId}
-          className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}
-        >
+        <span id={labelId} className={LABEL_CLASS[labelStyle]}>
           {label}
         </span>
       ) : null}
@@ -578,28 +582,38 @@ export function Toggle({
   onChange,
   helper,
   ariaLabel,
+  disabled,
 }: {
-  label: string;
+  label: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
   helper?: string;
   ariaLabel?: string;
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
     <div>
-      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
+      <label
+        htmlFor={id}
+        className={`flex items-center gap-2 text-sm ${disabled === true ? "text-muted" : "text-secondary"}`}
+        // The helper is already on screen as text below, so this title only ever restates it. While
+        // the switch is unavailable that restatement would win the hover over the reason a caller
+        // put on an ancestor, because the nearest titled ancestor is the one the pointer reads.
+        title={disabled === true ? undefined : helper}
+      >
         <button
           id={id}
           type="button"
           role="switch"
           aria-checked={checked}
           aria-label={label ? undefined : ariaLabel}
+          disabled={disabled}
           onClick={() => {
             onChange(!checked);
           }}
-          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-            checked ? "bg-accent" : "border border-border"
+          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent ${
+            checked ? "bg-accent" : "bg-card border border-border"
           }`}
           // The off track has to step away from every container this panel puts a toggle in - card
           // and surface alike - or it reads as a bare knob. Cove's border tone does, and it goes
@@ -896,7 +910,7 @@ export function ChipMultiSelect({
             removeExtra(v);
           }}
           className={`${chipClass(true)} inline-flex items-center gap-1`}
-          title="Not a recognized value — click to remove"
+          title="Not a recognized value - click to remove"
         >
           {v}
           <X className="h-3 w-3" />
@@ -1330,7 +1344,7 @@ export function Badge({ children, mono = false }: { children: ReactNode; mono?: 
   );
 }
 
-export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
+export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "cyan" | "violet" | "gray";
 
 /** A theme color at partial alpha, in the same form the host's own stylesheet emits. */
 const tint = (variable: string, percent: number) =>
@@ -1364,6 +1378,22 @@ const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?
         borderColor: tint("--color-green-500", 40),
         backgroundColor: tint("--color-green-500", 10),
       },
+    },
+    cyan: {
+      className: "text-cyan-400",
+      style: {
+        borderColor: tint("--color-cyan-400", 40),
+        backgroundColor: tint("--color-cyan-400", 10),
+      },
+    },
+    // The host emits no `text-violet-*` utility, so the text color is inlined with the rest.
+    violet: {
+      style: {
+        color: "var(--color-violet-400)",
+        borderColor: tint("--color-violet-400", 40),
+        backgroundColor: tint("--color-violet-400", 10),
+      },
+      className: "",
     },
     gray: { className: "border-border bg-card text-muted" },
   };
@@ -1569,16 +1599,23 @@ export function Button({
   children,
   onClick,
   disabled,
+  fill = false,
 }: {
   variant?: "primary" | "ghost";
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  /** Draw the button as a full-width bar with its contents centred. */
+  fill?: boolean;
 }) {
+  // `focus:` and not `focus-visible:`: the host stylesheet declares no focus-visible ring utility,
+  // so that spelling contributes no declaration and paints nothing at all.
+  const focusRing = "focus:outline-none focus:ring-2 focus:ring-accent";
+  const box = fill ? "flex w-full justify-center" : "inline-flex";
   const className =
     variant === "ghost"
-      ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
-      : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
+      ? `${box} items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60 ${focusRing}`
+      : `${box} items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60 ${focusRing}`;
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}
@@ -1599,8 +1636,9 @@ export function StatusText({ kind, children }: { kind: StatusKind; children: Rea
   return <span className={`text-xs ${STATUS_CLASS[kind]}`}>{children}</span>;
 }
 
-export function Spinner() {
-  return <Loader2 className="h-4 w-4 animate-spin" />;
+/** The one busy mark. `className` sizes it where a chip or a button row needs it smaller. */
+export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
+  return <Loader2 className={`${className} animate-spin`} aria-hidden="true" />;
 }
 
 /**

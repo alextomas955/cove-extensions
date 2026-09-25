@@ -1,0 +1,246 @@
+using System.Text.Json;
+using WhisparrSync.Contracts;
+using WhisparrSync.Import;
+using WhisparrSync.Options;
+
+namespace WhisparrSync.Tests.Import;
+
+public sealed class ImportRefusalProjectorTests
+{
+    private const string Root = "/whisparr-media";
+    private const string Other = "/whisparr-other";
+
+    [Fact]
+    public void TheFirstRefusalForARootOpensThatRootsLine()
+    {
+        var folded = ImportRefusalProjector.Refuse(
+            [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(folded);
+        Assert.Equal(Root, entry.Root);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Equal(
+            [new ImportRefusalEntry
+            {
+                Path = "/whisparr-media/one.mp4",
+                Cause = ImportRefusalCause.NotFoundUnderAnyRoot,
+            }],
+            entry.NewestPaths);
+    }
+
+    [Fact]
+    public void AFourthRefusalDropsTheOldestAndLeadsWithTheNewest()
+    {
+        var folded = Refusals(4);
+
+        var entry = Assert.Single(folded);
+        Assert.Equal(4, entry.CountSinceLastSuccess);
+        Assert.Equal(
+            ["/whisparr-media/4.mp4", "/whisparr-media/3.mp4", "/whisparr-media/2.mp4"],
+            entry.NewestPaths.Select(path => path.Path));
+    }
+
+    // The entry's size is what the aggregate promises: whatever a library throws at it, one root's line
+    // is a count and three paths.
+    [Fact]
+    public void AHundredRefusalsForOneRootStillLeaveThreePathsAndOneCount()
+    {
+        var entry = Assert.Single(Refusals(100));
+
+        Assert.Equal(100, entry.CountSinceLastSuccess);
+        Assert.Equal(ImportRootRefusals.NewestPathsKept, entry.NewestPaths.Count);
+        Assert.Equal(
+            ["/whisparr-media/100.mp4", "/whisparr-media/99.mp4", "/whisparr-media/98.mp4"],
+            entry.NewestPaths.Select(path => path.Path));
+    }
+
+    [Fact]
+    public void ARepeatedPathNeitherLengthensTheListNorCountsTwice()
+    {
+        var once = ImportRefusalProjector.Refuse(
+            [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+        var twice = ImportRefusalProjector.Refuse(
+            once, Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(twice);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Single(entry.NewestPaths);
+
+        // The whole aggregate is unchanged, which is the reading the caller skips a write on.
+        Assert.Equal(once, twice);
+    }
+
+    // Such a path is stored shortened, so a fold comparing the reported path against the stored one
+    // never matches it against itself: one root reporting one path twice would take two of the three
+    // slots its line keeps.
+    [Fact]
+    public void ARepeatedOverLongPathNeitherLengthensTheListNorCountsTwice()
+    {
+        var tooLong = Root + "/" + new string('a', ImportRefusalEntry.PathMaxLength);
+
+        var once = ImportRefusalProjector.Refuse(
+            [], Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
+        var twice = ImportRefusalProjector.Refuse(
+            once, Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(twice);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Single(entry.NewestPaths);
+        Assert.Equal(once, twice);
+    }
+
+    // Still one entry and still one count: the delivery said something new about a path the root
+    // already lists, not that the root failed again.
+    [Fact]
+    public void ARepeatedPathWithANewCauseCarriesTheNewCause()
+    {
+        var once = ImportRefusalProjector.Refuse(
+            [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+        var again = ImportRefusalProjector.Refuse(
+            once, Root, "/whisparr-media/one.mp4", ImportRefusalCause.AmbiguousCandidates);
+
+        var entry = Assert.Single(again);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Equal(
+            ImportRefusalCause.AmbiguousCandidates,
+            Assert.Single(entry.NewestPaths).Cause);
+    }
+
+    [Fact]
+    public void EachListedPathKeepsItsOwnCause()
+    {
+        var folded = ImportRefusalProjector.Refuse(
+            ImportRefusalProjector.Refuse(
+                [], Root, "/whisparr-media/missing.mp4", ImportRefusalCause.NotFoundUnderAnyRoot),
+            Root,
+            "/whisparr-media/twice.mp4",
+            ImportRefusalCause.AmbiguousCandidates);
+
+        Assert.Equal(
+            [ImportRefusalCause.AmbiguousCandidates, ImportRefusalCause.NotFoundUnderAnyRoot],
+            Assert.Single(folded).NewestPaths.Select(path => path.Cause));
+    }
+
+    [Theory]
+    [InlineData("/whisparr-media/")]
+    [InlineData("/whisparr-media\\")]
+    public void TwoSpellingsOfOneRootFoldIntoOneEntry(string trailing)
+    {
+        var folded = ImportRefusalProjector.Refuse(
+            ImportRefusalProjector.Refuse(
+                [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot),
+            trailing,
+            "/whisparr-media/two.mp4",
+            ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(folded);
+        Assert.Equal(Root, entry.Root);
+        Assert.Equal(2, entry.CountSinceLastSuccess);
+    }
+
+    [Fact]
+    public void ADeliveryUnderNoRootLandsUnderTheStatedPlaceholder()
+    {
+        var folded = ImportRefusalProjector.Refuse(
+            [],
+            ImportRefusalProjector.NoReportedRoot,
+            "/elsewhere/one.mp4",
+            ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(folded);
+        Assert.Equal(ImportRefusalProjector.NoReportedRoot, entry.Root);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+    }
+
+    [Fact]
+    public void ASuccessClearsOneRootAndLeavesAnotherIntact()
+    {
+        var before = ImportRefusalProjector.Refuse(
+            Refusals(2), Other, "/whisparr-other/one.mp4", ImportRefusalCause.AmbiguousCandidates);
+
+        var after = ImportRefusalProjector.Succeed(before, Root);
+
+        Assert.Equal(Other, Assert.Single(after).Root);
+        Assert.Equal(before.Single(entry => entry.Root == Other), after[0]);
+    }
+
+    [Fact]
+    public void ASuccessOnOneOfThreeRootsLeavesTheOtherTwoAsTheyWere()
+    {
+        var before = ImportRefusalProjector.Refuse(
+            ImportRefusalProjector.Refuse(
+                Refusals(2), Other, "/whisparr-other/one.mp4", ImportRefusalCause.AmbiguousCandidates),
+            "/whisparr-third",
+            "/whisparr-third/one.mp4",
+            ImportRefusalCause.Unreadable);
+
+        var after = ImportRefusalProjector.Succeed(before, Root);
+
+        Assert.Equal(
+            before.Where(entry => entry.Root != Root),
+            after);
+    }
+
+    [Fact]
+    public void ASuccessForARootWithNoLineChangesNothing()
+    {
+        var before = Refusals(2);
+
+        Assert.Equal(before, ImportRefusalProjector.Succeed(before, Other));
+    }
+
+    // Its control is a count one below the bound, which does move: without it a fold that never counted
+    // at all would satisfy the assertion.
+    [Fact]
+    public void TheCountAtItsBoundDoesNotBecomeNegative()
+    {
+        var atBound = ImportRefusalProjector.Refuse(
+            [new ImportRootRefusals { Root = Root, CountSinceLastSuccess = int.MaxValue }],
+            Root,
+            "/whisparr-media/one.mp4",
+            ImportRefusalCause.NotFoundUnderAnyRoot);
+        Assert.Equal(int.MaxValue, Assert.Single(atBound).CountSinceLastSuccess);
+
+        var belowBound = ImportRefusalProjector.Refuse(
+            [new ImportRootRefusals { Root = Root, CountSinceLastSuccess = int.MaxValue - 1 }],
+            Root,
+            "/whisparr-media/one.mp4",
+            ImportRefusalCause.NotFoundUnderAnyRoot);
+        Assert.Equal(int.MaxValue, Assert.Single(belowBound).CountSinceLastSuccess);
+    }
+
+    // The spelling the stored blob carries, transcribed rather than computed from the model so that it
+    // can disagree with it. A spec that reads the blob out of Cove's own bulk data route has nothing
+    // else to check its field names and its enum spelling against.
+    [Fact]
+    public void TheStoredAggregateCarriesTheSpellingTheBannerIsReadBy()
+    {
+        var stored = JsonSerializer.Serialize(
+            new WhisparrSyncOptions().WithInstance(
+                importRefusals: ImportRefusalProjector.Refuse(
+                    [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot)),
+            WhisparrSyncOptions.JsonOptions);
+
+        Assert.Contains(
+            """
+            "ImportRefusals":[{"Root":"/whisparr-media","CountSinceLastSuccess":1,"NewestPaths":[{"Path":"/whisparr-media/one.mp4","Cause":"notFoundUnderAnyRoot"}]}]
+            """,
+            stored,
+            StringComparison.Ordinal);
+    }
+
+    private static List<ImportRootRefusals> Refusals(int count)
+    {
+        List<ImportRootRefusals> folded = [];
+        for (var refusal = 1; refusal <= count; refusal++)
+        {
+            folded = ImportRefusalProjector.Refuse(
+                folded,
+                Root,
+                $"/whisparr-media/{refusal}.mp4",
+                ImportRefusalCause.NotFoundUnderAnyRoot);
+        }
+
+        return folded;
+    }
+}
