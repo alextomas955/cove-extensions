@@ -33,6 +33,8 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
 
     public string? Folder { get; init; }
 
+    public string? EntityFolder { get; init; }
+
     public JsonNode? Body { get; init; }
 }
 
@@ -307,6 +309,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     public Task<WhisparrResponse> MoveSiteRootAsync(
         int siteId,
         string rootFolderPath,
+        string? entityFolderPath,
         CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(MoveSiteRootAsync), Binding.BaseAddress, Binding.ApiKey)
@@ -315,6 +318,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
                 Generation = WhisparrGeneration.V2,
                 EntityId = siteId,
                 Folder = rootFolderPath,
+                EntityFolder = entityFolderPath,
             });
 
     public Task<WhisparrResponse> RefreshSiteCatalogueAsync(

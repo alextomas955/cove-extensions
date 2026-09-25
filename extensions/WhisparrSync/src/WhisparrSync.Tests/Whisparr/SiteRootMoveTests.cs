@@ -155,7 +155,8 @@ public sealed class SiteRootMoveTests
         HttpStatusCode readStatus = HttpStatusCode.OK,
         HttpStatusCode updateStatus = HttpStatusCode.Accepted,
         string? readAnswer = null,
-        string agreedRoot = AgreedRoot)
+        string agreedRoot = AgreedRoot,
+        string? entityFolder = null)
     {
         var sent = BodyRecordingHandler.AnsweringEach((method, _) => Answer(method));
 
@@ -173,7 +174,7 @@ public sealed class SiteRootMoveTests
 
         var client = (IWhisparrSiteRegistrationActing)TestWhisparrClient.Over(
             sent, generation: WhisparrGeneration.V2);
-        var answered = await client.MoveSiteRootAsync(SiteId, agreedRoot, TestCt);
+        var answered = await client.MoveSiteRootAsync(SiteId, agreedRoot, entityFolder, TestCt);
 
         return (answered, sent);
     }

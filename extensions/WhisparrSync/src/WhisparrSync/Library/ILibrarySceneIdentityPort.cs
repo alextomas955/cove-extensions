@@ -41,6 +41,21 @@ public interface ILibrarySceneIdentityPort
         string coveFolder, WhisparrGeneration generation, CancellationToken ct);
 
     /// <summary>
+    /// Every file the scene <paramref name="remoteId"/> names holds under
+    /// <paramref name="coveRoot"/>, in path order.
+    /// </summary>
+    /// <remarks>
+    /// One row per file of that one scene, streamed, so nothing here grows with the library. A
+    /// scene the library holds several files for answers all of them: they are one scene's files
+    /// and belong in one folder.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="remoteId"/> or <paramref name="coveRoot"/> is blank.
+    /// </exception>
+    IAsyncEnumerable<string> SceneFilePathsUnder(
+        string remoteId, WhisparrGeneration generation, string coveRoot, CancellationToken ct);
+
+    /// <summary>
     /// The same identifiers, each carried under one folder the library holds its files in, with
     /// every folder the library holds appearing whether or not an identifier was placed under it.
     /// </summary>

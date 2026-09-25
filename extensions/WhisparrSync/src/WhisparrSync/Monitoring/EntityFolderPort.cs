@@ -34,6 +34,34 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
         }
     }
 
+    public async IAsyncEnumerable<string> FilePathsUnder(
+        WhisparrEntityKind kind,
+        int coveId,
+        string coveRoot,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var files = FilesOf(kind, coveId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+        if (coveId < 1)
+        {
+            yield break;
+        }
+
+        var prefix = PathCandidateGuard.Normalize(coveRoot).TrimEnd('/') + "/";
+
+        var paths = files
+            .AsNoTracking()
+            .Where(file => file.Path.StartsWith(prefix))
+            .Select(file => file.Path)
+            .OrderBy(path => path)
+            .AsAsyncEnumerable();
+
+        await foreach (var path in paths.WithCancellation(ct).ConfigureAwait(false))
+        {
+            yield return path;
+        }
+    }
+
     public async Task<int> FilesUnderAsync(
         WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
     {

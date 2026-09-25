@@ -262,14 +262,15 @@ public sealed class EntityFolderPortTests
 
     // Read off the source for the same reason as the folder read: a count assembled in memory
     // answers the same number. The narrowing is on the denormalized path column, so no folder row
-    // is loaded.
+    // is loaded. Scoped to the counting member, because the port also has a member whose whole
+    // purpose is to select those paths.
     [Fact]
     public void ThePerRootCountIsTakenAsACount()
     {
-        var source = PortSource();
+        var counting = MemberSource("public async Task<int> FilesUnderAsync");
 
-        Assert.Contains("CountAsync(ct)", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
+        Assert.Contains("CountAsync(ct)", counting, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select(file => file.Path)", counting, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -351,6 +352,17 @@ public sealed class EntityFolderPortTests
 
     // Found by walking up to the extension directory rather than by a counted-out "..": the test
     // assembly's depth below it varies with configuration and target framework.
+    // From the named member's signature to the start of the next one.
+    private static string MemberSource(string signature)
+    {
+        var source = PortSource();
+        var from = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(from >= 0, $"The port declares no member spelled {signature}.");
+
+        var next = source.IndexOf("\n    public ", from + signature.Length, StringComparison.Ordinal);
+        return next < 0 ? source[from..] : source[from..next];
+    }
+
     private static string PortSource()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
