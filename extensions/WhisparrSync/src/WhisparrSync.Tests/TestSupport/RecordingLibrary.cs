@@ -3,11 +3,11 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-// Arguments and not counts: a fake that recorded only how often it was called would pass a test of
-// "the file the extension verified reaches the host" whatever path was handed over. The one count
-// kept is the enrichment call's, because "at most once per scene" is a claim about the count.
-// A false reached is this extension's container not producing the host's import service at all,
-// which is a different answer from a file the host declined.
+// Arguments and not counts: a fake recording only how often it was called would pass a test of "the
+// file the extension verified reaches the host" whatever path was handed over. The one count kept
+// is the enrichment call's, because "at most once per scene" is a claim about the count. A false
+// reached is this extension's container not producing the host's import service at all, which
+// differs from a file the host declined.
 internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots) : ICoveLibraryPort
 {
     public List<(string Path, int? VideoId)> Imported { get; } = [];

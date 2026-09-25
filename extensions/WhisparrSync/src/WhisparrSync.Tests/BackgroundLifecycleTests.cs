@@ -57,10 +57,9 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    // The host's catch for a cancellation is conditioned on the token being cancelled, and it logs
-    // everything else as a fault and does not restart. A worker that swallowed the cancellation and
-    // returned normally would pass a check that only read the task as finished, so the status is
-    // asserted rather than the completion.
+    // The host's catch for a cancellation is conditioned on the token; everything else it logs as a
+    // fault and does not restart. The status is asserted rather than the completion, because a
+    // worker that swallowed the cancellation also finishes.
     [Fact]
     public async Task ACancelledWorkerEndsAsCancelledRatherThanFaulted()
     {
@@ -360,11 +359,10 @@ public sealed class BackgroundLifecycleTests
         Assert.NotNull(ProbeOf(extension).WorkerCancelledAtUtc);
     }
 
-    // An outbound read that times out raises TaskCanceledException, which derives from
-    // OperationCanceledException. The host's catch for a cancellation is conditioned on the token,
-    // so a containment that rethrew this one would end the worker through no handler at all.
-    // The token is left live on purpose: cancelling it first drives the shutdown path and passes
-    // whether or not the containment tells the two apart.
+    // A read that times out raises TaskCanceledException, which derives from
+    // OperationCanceledException, so a containment that rethrew it would end the worker through no
+    // handler at all. The token is left live on purpose: cancelling it first drives the shutdown
+    // path and passes whether or not the two are told apart.
     [Fact]
     public async Task ACancellationArisingWhileTheTokenIsLiveIsContainedRatherThanEndingTheWorker()
     {

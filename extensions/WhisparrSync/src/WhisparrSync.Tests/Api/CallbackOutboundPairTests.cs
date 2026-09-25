@@ -9,10 +9,9 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-// A registration writes this product's callback secret into the instance it reaches. The address and
-// the key are two writes in two stores, so a registration taking one from either side of a save that
-// moved both would plant the secret, and present the key, at the instance the user is moving away
-// from.
+// A registration writes this product's callback secret into the instance it reaches. The address
+// and the key are two writes in two stores, so a registration reading one from either side of a
+// save that moved both would plant the secret at the instance the user is moving away from.
 public sealed class CallbackOutboundPairTests
 {
     private const string StoredAddress = "http://whisparr-v3:6969";

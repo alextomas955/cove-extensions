@@ -6,12 +6,10 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Scene;
 
 // A success status is not the evidence. The command's identifier is taken off the answer to the
-// post and read back off the instance, and only that read licenses the sentence saying the
-// instance holds the search.
-//
-// The command bodies below carry the member set the pinned instance's command resource declares,
-// read from that server's source. Which status a just-posted command reports is not measured, so
-// confirmation is identifier equality alone.
+// post and read back off the instance, and only that read licenses the sentence saying the instance
+// holds the search. The command bodies below carry the member set the pinned instance's command
+// resource declares, read from that server's source. Which status a just-posted command reports is
+// not measured, so confirmation is identifier equality alone.
 public sealed class SceneSearchReadBackTests
 {
     private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";

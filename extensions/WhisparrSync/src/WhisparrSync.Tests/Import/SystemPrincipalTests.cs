@@ -11,16 +11,16 @@ using WhisparrSync.Import;
 namespace WhisparrSync.Tests.Import;
 
 // The host registers its per-principal authorization filters only on the PostgreSQL provider,
-// because the filter's last arm calls a database function that exists only there. So a relational
-// SQLite context carries no filter to bypass, and a read of one succeeds identically whether or not
+// because the filter's last arm calls a database function that exists only there. A relational
+// SQLite context therefore carries no filter to bypass, and a read of one succeeds whether or not
 // the elevation happened. The first test below pins that, so no later reader mistakes a SQLite
 // green for this proof.
-// What the remaining tests observe is the SQL the real provider generates for the same read: which
-// values the filter binds under a real, non-null, under-privileged principal, and which it binds
-// inside the elevation. That the resulting predicate then excludes every row is read off that SQL
-// rather than observed as a row count, because observing the count needs a live PostgreSQL and this
-// suite has none. An absent principal is never used as the control: it bypasses the filters exactly
-// as System does.
+//
+// The remaining tests observe the SQL the real provider generates for the same read: which values
+// the filter binds under a real, under-privileged principal, and which it binds inside the
+// elevation. That the predicate then excludes every row is read off that SQL rather than from a row
+// count, which would need a live PostgreSQL. An absent principal is never the control: it bypasses
+// the filters exactly as System does.
 public sealed class SystemPrincipalTests
 {
     private const string BypassParameter = "@ef_filter__AuthorizationFiltersBypassed2";

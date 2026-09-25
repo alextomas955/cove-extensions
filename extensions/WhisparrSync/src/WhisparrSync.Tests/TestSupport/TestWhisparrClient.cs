@@ -7,12 +7,10 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.TestSupport;
 
 // Each generation's requests are composed by a generated client that stands up an HttpClient of its
-// own, so the handler under test is supplied to all three. A test that supplied it to one would
-// record part of the requests and assert on that part. The bound on one attempt is read off the
-// supplied client for the same reason.
-//
-// The answer is the instance bound to one address and key, because a role member takes neither. A
-// case that asserts on the address it was sent to names its own binding.
+// own, so the handler under test is supplied to all three: supplying it to one would record part of
+// the requests and assert on that part. The bound on one attempt is read off the supplied client
+// for the same reason. The answer is the instance bound to one address and key, because a role
+// member takes neither.
 internal static class TestWhisparrClient
 {
     public static Uri Instance { get; } = new("http://whisparr:6969/");

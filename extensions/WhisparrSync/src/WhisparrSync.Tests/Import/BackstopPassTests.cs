@@ -407,11 +407,10 @@ public sealed class BackstopPassTests
         Assert.Equal(2, result.PagesRead);
     }
 
-    // The across-page order check passes for this shape and no other: a repeated page starts newer than
-    // the previous one ended unless every record on it carries the same instant. These records carry no
-    // id, so the repeat is read off the range the two pages share.
-    // The read count is bounded, so a rule that stops terminating raises here rather than running until
-    // the suite is killed.
+    // A repeated page starts newer than the previous one ended unless every record carries the same
+    // instant, so this shape is the only one the across-page order check passes. These records
+    // carry no id, so the repeat is read off the shared range. The read count is bounded, so a rule
+    // that stops terminating raises rather than running until the suite dies.
     [Fact]
     public async Task ARouteAnsweringOnePageOfOneInstantRefusesRatherThanWalkingForever()
     {
@@ -520,10 +519,9 @@ public sealed class BackstopPassTests
     }
 
     // The mark means history up to here has been read, so a record that could not be taken is not a
-    // page that was not read. A walk that ended in the throw would leave the mark where it was, and
-    // every later pass would read the same page and fail on the same record for ever.
-    // Asserted on the stored mark rather than on a call count: a mark write that ran and wrote nothing
-    // would satisfy a count.
+    // page that was not read. A walk ending in the throw would leave the mark where it was, and
+    // every later pass would fail on the same record for ever. Asserted on the stored mark, not a
+    // call count: a write that ran and wrote nothing would satisfy a count.
     [Fact]
     public async Task ARecordWhoseIngestThrowsDoesNotAbortTheWalkOrFreezeTheMark()
     {
@@ -543,10 +541,9 @@ public sealed class BackstopPassTests
         Assert.NotEqual(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    // The pages were read either way, which is what the mark records. Leaving it behind would make the
-    // next pass re-read exactly the records that already failed.
-    // The stored count and instant are asserted with the mark, because it is the mark moving that puts
-    // those records beyond this channel. Without them the aggregate reports a pass that reached the
+    // The pages were read either way, which is what the mark records; leaving it behind would make
+    // the next pass re-read the records that already failed. The stored count and instant are
+    // asserted with it, because without them the aggregate reports a pass that reached the
     // instance, cleared its failure streak and found nothing to take.
     [Fact]
     public async Task AWalkWhoseEveryRecordFailedStillAdvancesTheMark()

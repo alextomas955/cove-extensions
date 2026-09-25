@@ -5,8 +5,8 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Whisparr;
 
 // Whisparr v2 publishes no API contract, so every fact here is transcribed by hand from what a
-// named build answered. A pin computed from the module it checks agrees with itself forever.
-// No assertion about v2 rests on an HTTP status code, because its statuses are not a published
+// named build answered; a pin computed from the module it checks agrees with itself forever. No
+// assertion about v2 rests on an HTTP status code, because its statuses are not a published
 // contract and reading one has already misreported in this project.
 public sealed class NotificationPinTests
 {

@@ -525,8 +525,7 @@ public sealed class SyncPreviewJobTests
 
     // With waitsForCompany a resolve is held open until as many are outstanding as the bound
     // allows, so what the caller bounds is observable rather than timed. The wait ends on its own
-    // where that never happens, so a caller resolving one at a time fails the assertion rather
-    // than hanging.
+    // where that never happens, so a caller resolving one at a time fails rather than hanging.
     private sealed class SiteNumbers(
         IReadOnlyDictionary<string, WhisparrSiteNumber> answers, bool waitsForCompany = false)
         : ISiteNumberPort

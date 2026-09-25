@@ -222,8 +222,7 @@ public sealed class MissingSceneActionTests
 
     // Measured against Whisparr 3.4.0.1387: MoviesSearch answers 201 and echoes its movieIds
     // member, while SceneSearch, MovieSearch and an unregistered name each answer 400 "Unknown
-    // command type". A wrong id member is accepted and dropped, so the command then runs over
-    // nothing.
+    // command type". A wrong id member is accepted and dropped, so the command runs over nothing.
     [Fact]
     public async Task TheSearchSendsOneCommandNamingTheSceneTheInstanceHolds()
     {

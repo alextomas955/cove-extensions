@@ -6,12 +6,10 @@ using WhisparrSync.Options;
 namespace WhisparrSync.Tests.Options;
 
 // Every member the model declares, enumerated by path, so a setting added later is covered rather
-// than uncovered. Members are read back one at a time: comparing the record that holds one would
-// put both sides of the comparison through the serializer under test, and a member it dropped would
-// be absent from the expected value too.
-//
-// A record inside a list or a dictionary is compared whole here.
-// CollectionElementPersistenceTests reads those members back individually.
+// than missed. Members are read back one at a time: comparing the record that holds one would put
+// both sides of the comparison through the serializer under test, and a member it dropped would be
+// absent from the expected value too. A record inside a list or a dictionary is compared whole
+// here; CollectionElementPersistenceTests reads those members back individually.
 public sealed class OptionsPersistenceTests
 {
     public static TheoryData<string> PersistedMembers()

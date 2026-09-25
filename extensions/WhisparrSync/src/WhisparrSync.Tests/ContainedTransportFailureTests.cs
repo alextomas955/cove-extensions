@@ -6,12 +6,10 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests;
 
-// An instance that answers its headers and then stops sending raises an I/O failure and not a
-// request one, because the client reads the body out of the response stream. Every containment
-// filter has to name both.
-// Driven through the shipped client over a transport double rather than through the recording
-// seam. The seam answers a response object and can express no failure at all, so a case taken
-// there could not tell a contained failure from a refusal the product chose.
+// An instance that answers its headers and then stops sending raises an I/O failure, not a request
+// one, so every containment filter has to name both. Driven through the shipped client over a
+// transport double: the recording seam answers a response object and can express no failure at all,
+// so a case taken there could not tell containment from a refusal the product chose.
 public sealed class ContainedTransportFailureTests
 {
     // A second identifier, so two seeded studios do not share one.
@@ -36,10 +34,9 @@ public sealed class ContainedTransportFailureTests
         Assert.Equal(MonitorRefusalKind.InstanceRefused, view.Refusal);
     }
 
-    // A failure escaping the per-entity containment leaves the run before its closing count is
-    // reported, so a selection loses the record of every entity it had already acted on and the
-    // host marks the whole run failed. Both units are asserted as well, so a run that stopped at
-    // the first entity fails here rather than passing on the count alone.
+    // A failure escaping the per-entity containment leaves the run before its closing count, losing
+    // the record of every entity already acted on. Both units are asserted too, so a run that
+    // stopped at the first entity fails here rather than passing on the count alone.
     [Fact]
     public async Task ABatchWhoseAnswersStopPartWayKeepsEveryUnitAndItsClosingCount()
     {

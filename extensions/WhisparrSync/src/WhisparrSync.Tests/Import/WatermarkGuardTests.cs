@@ -110,10 +110,10 @@ public sealed class WatermarkGuardTests
         Assert.Equal(2, reading.Take);
     }
 
-    // This is the shape a route ignoring its page parameter produces once every record on the page
-    // shares one instant, which is the only repeated shape the across-page order check admits. Refusing
-    // leaves the mark alone, so the history is read again rather than stepped over.
-    // The page carries no id, so this is the rule reading the instants alone.
+    // The shape a route ignoring its page parameter produces once every record shares one instant,
+    // and the only repeated shape the across-page order check admits. Refusing leaves the mark
+    // alone, so the history is read again rather than stepped over. The page carries no id, so this
+    // is the rule reading the instants alone.
     [Fact]
     public void APageRepeatingThePreviousPagesWholeRangeIsRefused()
     {
@@ -166,10 +166,9 @@ public sealed class WatermarkGuardTests
         Assert.True(reading.Continue);
     }
 
-    // Records arriving at the head of an offset-paged history push the window back, so the next page
-    // begins inside the page already read. It starts newer than that page ended, which by the instants
-    // alone is the shape of a route not paging at all. The shared ids are what tell the two apart, and
-    // what say where the walk has not read yet.
+    // Records arriving at the head of an offset-paged history push the window back, so the next
+    // page begins inside the one already read. By the instants alone that is the shape of a route
+    // not paging at all; the shared ids tell the two apart and say where the walk has not read yet.
     [Fact]
     public void APageTheRouteShiftedIsReadOnFromTheFirstUnseenRecord()
     {

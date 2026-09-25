@@ -9,10 +9,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-// Driven through the mapped routes rather than through the port: a handler that read an
-// identifier out of the request body would pass a test that called the port directly.
-// Each identity refusal asserts an empty outbound log, so each is paired with a case that sends
-// through the same double.
+// Driven through the mapped routes rather than the port: a handler that read an identifier out of
+// the request body would pass a test that called the port directly. Each identity refusal asserts
+// an empty outbound log, so each is paired with a case that sends through the same double.
 public sealed class EntityIdentityPortTests
 {
     // The host rule reduces a host name to its last two labels, so this and the stored spelling
@@ -187,10 +186,9 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(IdentityResolution.Ambiguous, resolved);
     }
 
-    // Asserts the projection rather than the row count. A read that loaded every row and filtered
-    // afterwards would be linear in the library and would still pass a count assertion.
-    // Read off the query's translated text through the same base context the port binds, so what is
-    // asserted is what the provider will run.
+    // Asserts the projection rather than the row count: a read that loaded every row and filtered
+    // afterwards would be linear in the library and still pass a count assertion. Read off the
+    // query's translated text through the same base context the port binds.
     [Fact]
     public async Task TheIdentityReadIsNarrowedOnTheEntityAndProjectsOnlyTwoColumns()
     {

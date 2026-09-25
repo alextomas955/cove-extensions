@@ -219,9 +219,9 @@ public sealed class SettingsEndpointTests
     }
 
     // Whether the host locks itself down turns on the address Whisparr calls, where the call comes
-    // from and the host's own trusted-host list, none of which this product can read. So the risk is
-    // reported and the registration still goes ahead: refusing on it blocked the setups the host
-    // would have allowed, including every containerised one.
+    // from and the host's trusted-host list, none of which this product can read. The risk is
+    // reported and the registration goes ahead: refusing on it blocked setups the host would have
+    // allowed, including every containerised one.
     [Fact]
     public async Task ARegistrationGoesAheadAndReportsThatCoveMightLockItselfDown()
     {
@@ -240,9 +240,9 @@ public sealed class SettingsEndpointTests
     }
 
     // A Cove with sign-in off and no owner account yet is one nobody can be locked out of: the host
-    // lets an outside call through untouched so first-run setup can be finished from elsewhere. A
-    // product that refused on the sign-in setting alone would block that Cove for no gain, which is
-    // what the containerised suite runs against.
+    // lets an outside call through so first-run setup can be finished from elsewhere. Refusing on
+    // the sign-in setting alone would block that Cove, which the containerised suite runs against,
+    // for no gain.
     [Fact]
     public async Task ARegistrationGoesAheadWhereNoLockdownWouldFollow()
     {

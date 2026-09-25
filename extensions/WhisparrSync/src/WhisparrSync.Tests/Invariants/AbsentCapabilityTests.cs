@@ -11,9 +11,10 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Invariants;
 
 // These tests state which requests the declared surface can express and which it cannot. They
-// assert on the seam's declared members, the verb-class vocabulary and the declared routes, not on
-// a log of calls: an empty log against a call nobody could place agrees with itself whatever the
-// code does.
+// assert on the seam's declared members, the verb-class vocabulary and the declared routes, never
+// on a log of calls: an empty log against a call nobody could place agrees with itself whatever the
+// code does. For the same reason the sets below are transcribed by hand rather than gathered from
+// the code they check.
 public sealed class AbsentCapabilityTests
 {
     // The routes this product composes itself, transcribed by hand from the seam's own constants.
@@ -27,11 +28,10 @@ public sealed class AbsentCapabilityTests
         "api/v3/exclusions",
     ];
 
-    // The routes the generated client composes on this product's behalf, transcribed by hand. The
-    // generated client declares an operation for every route Whisparr serves, so a gathered set
-    // would name hundreds this product never calls and agree with itself whichever ones it did. Both
-    // generations serve the same route strings, and a recorded path carries no generation, so one
-    // set covers the two.
+    // The routes the generated client composes on this product's behalf. That client declares an
+    // operation for every route Whisparr serves, so a gathered set would name hundreds this product
+    // never calls. Both generations serve the same route strings, and a recorded path carries no
+    // generation, so one set covers the two.
     private static readonly string[] GeneratedRoutes =
     [
         "api/v3/command",
@@ -109,8 +109,7 @@ public sealed class AbsentCapabilityTests
 
     // Driven rather than read off a constant, because the generated client composes the route and
     // only a request it made shows what it composed. The equality runs both directions: a member
-    // reaching a route nobody wrote down fails, and so does a transcribed route no call drives. The
-    // recorded path carries no generation, so this says nothing about which one issued a request.
+    // reaching a route nobody wrote down fails, and so does a transcribed route no call drives.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public async Task EveryRouteTheGeneratedClientSendsOnWasTranscribed()
@@ -141,10 +140,10 @@ public sealed class AbsentCapabilityTests
     private static string AnswerFor(string path)
         => path.EndsWith("/episode", StringComparison.Ordinal) ? "[]" : "{}";
 
-    // A route naming one entity carries its identifier as a further segment, so the transcribed route
-    // is a whole-segment prefix of what was sent. The longest match wins: several transcribed routes
-    // are whole-segment prefixes of other transcribed routes, and a first match would fold them
-    // together. An unmatched path maps to itself, so the equality names it.
+    // A route naming one entity carries its identifier as a further segment, so the transcribed
+    // route is a whole-segment prefix of what was sent. The longest match wins: several transcribed
+    // routes are whole-segment prefixes of others, and a first match would fold them together. An
+    // unmatched path maps to itself, so the equality names it.
     private static string TranscribedRouteFor(string path)
     {
         var sent = path.TrimStart('/');
@@ -228,9 +227,9 @@ public sealed class AbsentCapabilityTests
     }
 
     // The seam's configuring half is the callback registration and nothing else. The types that can
-    // reach an instance are named rather than gathered, because a holder nobody wrote down is a call
-    // site nothing constrains. The registry's own entry type is named too, since it holds the
-    // provider a call is made through.
+    // reach an instance are named because a holder nobody wrote down is a call site nothing
+    // constrains. The registry's own entry type is named too, since it holds the provider a call is
+    // made through.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
     public void TheProductDeclaresNoCapabilityToMutateAnythingOnAnInstance()
@@ -270,20 +269,18 @@ public sealed class AbsentCapabilityTests
         Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(ThePornDbCatalogue)));
     }
 
-    // Every place in this extension that names the library run's job type, transcribed by hand. The
-    // route handler is the only one that enqueues; the in-flight derivation reads the host's job
-    // list for a run already started. A gathered set would agree with itself however many places
-    // acquired the ability to start a run.
+    // Every place in this extension that names the library run's job type. The route handler is the
+    // only one that enqueues; the in-flight derivation reads the host's job list for a run already
+    // started.
     private static readonly string[] NamingTheLibraryRun =
     [
         "WhisparrSync.EnqueueSyncRunAsync",
         "WhisparrSync.SyncRunInFlight",
     ];
 
-    // Enumerated off the compiled call sites rather than driven. A run nobody placed leaves an empty
-    // log either way, so a driven absence agrees with itself whatever the code does. The job id is a
-    // const folded into every use site, so a second enqueue anywhere in this extension appears here
-    // as a third method whichever surface added it.
+    // Enumerated off the compiled call sites rather than driven, because a run nobody placed leaves
+    // an empty log either way. The job id is a const folded into every use site, so a second
+    // enqueue anywhere in this extension appears here as a third method whichever surface added it.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
     public void NothingButTheRunRouteCanStartALibraryRun()
@@ -294,10 +291,10 @@ public sealed class AbsentCapabilityTests
                 .ToList());
 
     // Scans each body for the string-load opcode and resolves the token after it against the
-    // declaring module. A token that resolves to something else, or to nothing, is skipped, so a
-    // byte that only looks like the opcode contributes nothing. Async bodies and lambdas are
-    // reported under the member a reader wrote, so the assertion is about source and not about
-    // compiler output.
+    // declaring module. A token resolving to something else, or to nothing, is skipped, so a byte
+    // that only looks like the opcode contributes nothing. Async bodies and lambdas are reported
+    // under the member a reader wrote, so the assertion is about source rather than compiler
+    // output.
     private static IEnumerable<string> MembersNaming(string literal)
         => typeof(IWhisparrClient).Assembly
             .GetTypes()
@@ -379,8 +376,8 @@ public sealed class AbsentCapabilityTests
 
     // Reachable members only: a private helper taking one of the type's own constants is not a call
     // site a caller reaches, and including one would make this fire on correct code. A parameter
-    // named query is not evidence here, because the provider request is a GraphQL document and
-    // query is that document's own field name rather than a URL query.
+    // named query is not evidence, because the provider request is a GraphQL document and query is
+    // that document's own field name.
     private static IEnumerable<string> MembersTakingAVerbOrARouteOn(Type type)
         => type
             .GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public

@@ -28,9 +28,9 @@ public sealed class CoveLibraryPortTests
     }
 
     // The detached state is produced by the product's own write rather than seeded, so what is read
-    // back is the database state a user reaches under the Replace behaviour. Answering null here would
-    // send the redelivery of that path to the host's import with no item to attach it to, which is the
-    // one input that import answers by throwing.
+    // back is the state a user reaches under the Replace behaviour. Answering null would send the
+    // redelivery to the host's import with no item to attach it to, the one input that import
+    // answers by throwing.
     [Fact]
     public async Task AFileRowThisExtensionDetachedIsStillReadAsHeldByTheLibrary()
     {
@@ -67,11 +67,9 @@ public sealed class CoveLibraryPortTests
         Assert.Single(log.ContainedHostImportLines);
     }
 
-    // FileNotFoundException is one of the two the host's import raises, and its message quotes the file
-    // it could not find. The message is composed by the runtime from the file name, so the value the
-    // assertion searches for is not one this test wrote into it.
-    // The line is read as a sink writes it - the rendered message together with the exception the logger
-    // was handed - because a sink writes both.
+    // FileNotFoundException is one of the two the host's import raises, and the runtime composes
+    // its message from the file name, so the value searched for is not one this test wrote. The
+    // line is read as a sink writes it: the rendered message together with the exception.
     [Fact]
     public async Task AContainedHostImportIsLoggedWithoutThePathTheFailureNames()
     {

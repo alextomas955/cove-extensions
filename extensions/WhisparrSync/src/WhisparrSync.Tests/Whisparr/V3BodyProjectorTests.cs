@@ -8,10 +8,9 @@ namespace WhisparrSync.Tests.Whisparr;
 
 // The editor bodies are asserted on their key set, not only on their values. Every other field of
 // the v3 editor resource is nullable and an omitted one is not applied, so a key present by
-// accident overwrites a value the user chose.
-//
-// Nothing here asserts what happens to a scene released exactly on the add-time boundary date. The
-// instance classifies that date and no behaviour of this product depends on it.
+// accident overwrites a value the user chose. Nothing here asserts what happens to a scene released
+// exactly on the add-time boundary date: the instance classifies that date and no behaviour of this
+// product depends on it.
 public sealed class V3BodyProjectorTests
 {
     private const string StudioForeignId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
