@@ -63,7 +63,7 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
 
   // Catches a run that installs an assembly older than the code it is testing. The publish directory
   // is refreshed only by scripts/publish-extensions.mjs, wired as this package's npm pretest, while
-  // the JS bundle is taken from the UI build output — so invoking Playwright directly stages a fresh
+  // the JS bundle is taken from the UI build output - so invoking Playwright directly stages a fresh
   // bundle on top of whatever assembly was left behind. An old assembly throws nothing. It serves a
   // manifest missing whatever the newer source declares, and the run then reads as a host that does
   // not do something rather than an artifact that is out of date.

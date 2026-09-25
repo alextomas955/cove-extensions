@@ -55,7 +55,7 @@ const test = base.extend({
 // auth-enabled Cove and Postgres pair.
 //
 // The cost is on failure: a serial describe re-runs from its first test, so under `retries: 2` one
-// flaky probe costs three passes over all of them. That is the trade accepted here — a container
+// flaky probe costs three passes over all of them. That is the trade accepted here - a container
 // pair saved on every green run against a longer red one.
 test.describe.configure({ mode: "serial" });
 
@@ -175,7 +175,7 @@ test("the connection test answers a caller holding the configure permission", as
 });
 
 // Refusing an anonymous caller is the host's authentication layer, which answers before this
-// extension's gate is consulted at all — so on its own it is no evidence that the gate exists. A
+// extension's gate is consulted at all - so on its own it is no evidence that the gate exists. A
 // caller who IS authenticated and holds nothing is the one that reaches the gate.
 //
 // The file is serial, and this test and the one after it each write to the shared instance (a role
@@ -241,7 +241,7 @@ test("the connection test refuses an authenticated caller holding only the read 
 
 // The settings routes carry the same gate, on the same instance and with the same control. They are
 // asserted here rather than beside the write-only spec because that one runs with authentication off,
-// where the host resolves every request to a bypass principal holding every permission — a refusal
+// where the host resolves every request to a bypass principal holding every permission - a refusal
 // asserted there would pass against an extension that gated nothing.
 test("the settings routes refuse an authenticated caller holding only the read tier", async ({
   authHarness,

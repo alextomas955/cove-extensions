@@ -1,6 +1,6 @@
 // The one site the Whisparr fixture images are declared. The fixture module, the smoke and any probe
 // all resolve their reference through here, so a version bump is one deliberate edit rather than a
-// search — and a bump is what obliges a re-run of the measurements taken against these builds.
+// search - and a bump is what obliges a re-run of the measurements taken against these builds.
 //
 // A floating tag is refused: `latest` is a v2 image, so a floating reference is free to select the
 // wrong GENERATION, which is the one axis these fixtures exist to tell apart.
@@ -20,7 +20,7 @@ const TAGS = Object.freeze({
  * The user both images run the app as.
  *
  * `exec` runs as ROOT unless told otherwise, so anything a fixture creates inside one of these
- * containers belongs to root by default — and the app then cannot write it, which it reports as a
+ * containers belongs to root by default - and the app then cannot write it, which it reports as a
  * refusal naming a user rather than a permission.
  */
 export const APP_USER = "1000:1000";

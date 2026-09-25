@@ -105,7 +105,7 @@ const V2_CANDIDATES = [
   { verb: "GET", path: "/api/v3/system/task" },
 ];
 
-/** A body's shape and, for a collection, its length — never the body. */
+/** A body's shape and, for a collection, its length - never the body. */
 function bodyShape(response) {
   if (Array.isArray(response.json)) return `array[${response.json.length}]`;
   if (response.json !== null && typeof response.json === "object" && response.json !== undefined) {

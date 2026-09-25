@@ -304,7 +304,7 @@ for (const entry of entries) {
             );
           } else if (currentRow.minCoveVersion !== manifest.minCoveVersion) {
             errors.push(
-              `${entry.id}: registry manifest ${entry.registryManifestPath} versions[] row ${currentRow.version} declares minCoveVersion ${currentRow.minCoveVersion}, but extension.json declares ${manifest.minCoveVersion} — a raised floor reaches the registry by prepending a row for the release being cut. Do not edit an existing row — each one describes an immutable published artifact.`,
+              `${entry.id}: registry manifest ${entry.registryManifestPath} versions[] row ${currentRow.version} declares minCoveVersion ${currentRow.minCoveVersion}, but extension.json declares ${manifest.minCoveVersion} - a raised floor reaches the registry by prepending a row for the release being cut. Do not edit an existing row - each one describes an immutable published artifact.`,
             );
           } else {
             registryFloorComparisons++;

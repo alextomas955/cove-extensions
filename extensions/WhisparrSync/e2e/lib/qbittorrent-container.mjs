@@ -71,7 +71,7 @@ export async function startQBittorrent({
   }
   if (!dataVolume) {
     throw new Error(
-      "startQBittorrent: dataVolume is required — Whisparr imports the completed file by hardlink, which needs one filesystem and not two copies of one.",
+      "startQBittorrent: dataVolume is required - Whisparr imports the completed file by hardlink, which needs one filesystem and not two copies of one.",
     );
   }
 

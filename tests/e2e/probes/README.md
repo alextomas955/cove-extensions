@@ -58,8 +58,8 @@ never widen `servers` back into raw entries.
 
 A row needing some OTHER fact about the machine's own install takes it from `lib/cove-providers.mjs`
 too, which is the one module that opens that file and imports nothing from `node:fs` that could
-write to it. Take the narrowest form of the fact that answers the question — a count rather than the
-values where a count will do — because a record outlives the run and a library path names where
+write to it. Take the narrowest form of the fact that answers the question - a count rather than the
+values where a count will do - because a record outlives the run and a library path names where
 someone keeps their own media. `installConfigFingerprint()` is there so "this run wrote nothing to
 the install" is a comparison a reader can check rather than an assurance.
 
@@ -117,11 +117,11 @@ It is reachable only by its network alias and publishes no host port, since the 
 containers on that network. `waitForCaptures` polls rather than sleeping, and `match` exists because
 every row in a run shares one listener: take the deliveries your row caused and leave the rest. A row
 that asserts anything about what arrived must read it from the capture, never from the registration's
-echo — a field a build accepts and then does not send answers the echo exactly as a working one does.
+echo - a field a build accepts and then does not send answers the echo exactly as a working one does.
 
 A row that ADDS an entity must pick a subject no other row adds. Every selected row shares one
 instance, so the second add of the same subject is refused as a conflict, and a refused add measures
-nothing — the row that runs second silently loses an observation rather than failing. Choose lookup
+nothing - the row that runs second silently loses an observation rather than failing. Choose lookup
 terms the other adding rows do not use, and prefer a candidate the lookup does not already report as
 existing, so the run's order cannot decide the result.
 
@@ -129,7 +129,7 @@ existing, so the run's order cannot decide the result.
 instance reports the path it accepted back on `ctx.whisparr[generation].rootFolder`. A row that adds
 an entity needs one: both generations refuse an add whose destination is not a registered root, and
 the refusal names a validator rather than the missing registration. Registration is more than a
-`POST` — the directory has to exist and belong to the account the application runs as, and one
+`POST` - the directory has to exist and belong to the account the application runs as, and one
 generation reports a freshly created root as inaccessible in the very response that created it, so
 the fixture reads that field back from the listing instead.
 

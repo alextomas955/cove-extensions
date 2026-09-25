@@ -103,14 +103,14 @@ test(
     const secondSourceGone = await container.exec(["test", "-f", second.files[0].path]);
     expect(
       secondSourceGone.exitCode,
-      `Second item's source ${second.files[0].path} still exists — not moved`,
+      `Second item's source ${second.files[0].path} still exists - not moved`,
     ).not.toBe(0);
 
     // Both renamed files must exist on disk - neither was lost, and the second never overwrote the first.
     const firstStillThere = await container.exec(["test", "-f", firstNewPath]);
     expect(
       firstStillThere.exitCode,
-      `First item's renamed file ${firstNewPath} is missing — clobbered`,
+      `First item's renamed file ${firstNewPath} is missing - clobbered`,
     ).toBe(0);
     const secondExists = await container.exec(["test", "-f", secondNewPath]);
     expect(secondExists.exitCode, `Second item's renamed file ${secondNewPath} is missing`).toBe(0);

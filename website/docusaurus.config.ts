@@ -15,15 +15,15 @@ const config: Config = {
   },
 
   // GH-Pages project-subpath values - locked verbatim from content-strategy.md / context.md.
-  url: "https://alextomas955.github.io", // domain ONLY — never put the subpath here
+  url: "https://alextomas955.github.io", // domain ONLY - never put the subpath here
   baseUrl: "/cove-extensions/", // subpath, leading AND trailing slash
 
   // GitHub pages deployment config.
   organizationName: "alextomas955",
   projectName: "cove-extensions",
-  trailingSlash: false, // set explicitly — do not leave undefined
+  trailingSlash: false, // set explicitly - do not leave undefined
 
-  onBrokenLinks: "throw", // scaffold default — keep it; catches dead links in the stub tree
+  onBrokenLinks: "throw", // scaffold default - keep it; catches dead links in the stub tree
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you

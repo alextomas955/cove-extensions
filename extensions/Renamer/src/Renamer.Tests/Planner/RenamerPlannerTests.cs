@@ -125,7 +125,7 @@ public sealed class RenamerPlannerTests
     public async Task PlanLoadedEntity_PerformsZeroLoads()
     {
         var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
-        var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
+        var port = new FakeRenamerDataPort();  // NOT seeded - proves no load is attempted
         var planner = new RenamerPlanner(port);
 
         var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, default);

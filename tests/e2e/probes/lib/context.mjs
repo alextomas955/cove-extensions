@@ -332,9 +332,9 @@ export async function startProbeContext(requirements, { outDir } = {}) {
 /**
  * Runs every one of `stops`, in order, and reports the ones that threw.
  *
- * A stop that throws does not cancel the ones after it. The order is the whole point — the harness
+ * A stop that throws does not cancel the ones after it. The order is the whole point - the harness
  * goes last because the daemon refuses to remove a network an earlier container still holds an
- * endpoint on — so short-circuiting on the first failure is what strands both.
+ * endpoint on - so short-circuiting on the first failure is what strands both.
  *
  * @param {Array<() => Promise<unknown>>} stops
  * @returns {Promise<unknown[]>} what each failing stop threw, in the order they were run

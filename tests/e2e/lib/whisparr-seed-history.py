@@ -1,6 +1,6 @@
 """Writes import history straight into a Whisparr instance's own SQLite database.
 
-Neither generation exposes an API that CREATES history — every route over it reads — so a fixture
+Neither generation exposes an API that CREATES history - every route over it reads - so a fixture
 that needs an instance with a past has no option but the datastore. Run inside the container with
 the app up: both images ship python3 with the stdlib sqlite3 module and no sqlite3 CLI.
 

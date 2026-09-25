@@ -197,7 +197,7 @@ export function DryRunRows({
   return (
     <>
       <div className="overflow-hidden rounded border border-border text-sm">
-        {/* Header — one grid row sharing GRID_TEMPLATE with every body row so the columns
+        {/* Header - one grid row sharing GRID_TEMPLATE with every body row so the columns
             line up. Plain labels: there is no sort to offer, and an affordance that cannot
             act is worse than none. */}
         <div className="grid items-center border-b border-border bg-card" style={GRID_TEMPLATE}>

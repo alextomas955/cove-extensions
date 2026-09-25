@@ -6,7 +6,7 @@ artifacts/
 TestResults/
 *.zip
 # TypeScript build-mode cache. No tsconfig here sets `composite`/`incremental` and the packages' own
-# scripts run `tsc --noEmit`, which writes nothing — but `tsc -b` by hand and some editor TS services
+# scripts run `tsc --noEmit`, which writes nothing - but `tsc -b` by hand and some editor TS services
 # do write it, and it has kept reappearing untracked. Globbed rather than named per package so a
 # second extension needs no edit here.
 *.tsbuildinfo
@@ -18,13 +18,13 @@ coverage/
 .playwright-mcp/
 *.playwright-mcp.yml
 
-# JS workspace installs — the root npm install (workspaces) hoists deps here; also covers any
+# JS workspace installs - the root npm install (workspaces) hoists deps here; also covers any
 # nested node_modules. Node/Playwright test artifacts are additionally ignored in tests/e2e/.gitignore.
 node_modules/
 
-# Local planning / AI-assistant scaffolding — not part of the published extension.
+# Local planning / AI-assistant scaffolding - not part of the published extension.
 .planning/
-# Durable local keepsakes (milestone screenshots, research snapshots) — never published.
+# Durable local keepsakes (milestone screenshots, research snapshots) - never published.
 .archive/
 .claude/*
 !.claude/rules/
@@ -34,7 +34,7 @@ node_modules/
 .serena/
 CLAUDE.local.md
 
-# Docusaurus build output — website/ is a standalone package (see website/package.json);
+# Docusaurus build output - website/ is a standalone package (see website/package.json);
 # node_modules/ is already covered by the existing root rule above.
 website/build/
 
@@ -46,14 +46,14 @@ website/build/
 /*.jpeg
 tests/e2e/docker/shared-media/
 
-# Local scratch/audit directories — never part of a release.
+# Local scratch/audit directories - never part of a release.
 .bg-shell/
 .gsd/
 # Probe records: `tests/e2e/probes/run.mjs --out` writes one file per row here. A record is evidence
 # transcribed into the ledger, not an artefact the repository keeps.
 .probe-out/
 
-# Whisparr API tree/doc dumps from fixture probing — regenerable, never committed.
+# Whisparr API tree/doc dumps from fixture probing - regenerable, never committed.
 /erostree.json
 /v2tree.json
 /wgtree.json

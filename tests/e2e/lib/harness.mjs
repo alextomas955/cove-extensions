@@ -305,7 +305,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      */
     async login({ username, password } = credentials ?? {}) {
       if (!username || !password) {
-        throw new Error("login: no credentials — call bootstrapOwner() first, or pass them here");
+        throw new Error("login: no credentials - call bootstrapOwner() first, or pass them here");
       }
       const { response, lastError } = await postUntilSettled(
         anonymous,
@@ -377,7 +377,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
       const role = await asOwner("/api/roles", {
         Name: roleName,
-        Description: "Restricted e2e role — no wildcard, read denied by content rule.",
+        Description: "Restricted e2e role - no wildcard, read denied by content rule.",
         Permissions: permissions,
       });
       const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);

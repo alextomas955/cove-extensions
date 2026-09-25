@@ -20,7 +20,7 @@ export { createApiClient };
  * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
  * silently alters its behaviour. This costs a container boot per test.
  *
- * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes —
+ * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes -
  * including one an extension reads for itself. An extension passes its own through a wrapper of its
  * own, so the value is decided once rather than at each fixture that names it.
  */
@@ -232,7 +232,7 @@ async function describeHostIfUnreachable(baseUrl) {
     if (response.ok) return null;
     return `the Cove host answered ${response.status} at ${baseUrl}/health, so this failure is the host's, not the extension's`;
   } catch (error) {
-    return `the Cove host did not answer at ${baseUrl}/health (${error instanceof Error ? error.message : String(error)}) — it stopped during the run, so this failure is infrastructure rather than a defect in the page under test`;
+    return `the Cove host did not answer at ${baseUrl}/health (${error instanceof Error ? error.message : String(error)}) - it stopped during the run, so this failure is infrastructure rather than a defect in the page under test`;
   }
 }
 
@@ -277,7 +277,7 @@ export async function loginThroughUi(
   const response = await responsePromise;
   expect(
     response.status(),
-    `POST /api/auth/login answered ${response.status()} — the browser is not authenticated, so anything asserted after this would be measuring the wrong thing`,
+    `POST /api/auth/login answered ${response.status()} - the browser is not authenticated, so anything asserted after this would be measuring the wrong thing`,
   ).toBe(200);
 
   // The form's unmount is what confirms the app rendered in its place.

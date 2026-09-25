@@ -910,7 +910,7 @@ export function ChipMultiSelect({
             removeExtra(v);
           }}
           className={`${chipClass(true)} inline-flex items-center gap-1`}
-          title="Not a recognized value — click to remove"
+          title="Not a recognized value - click to remove"
         >
           {v}
           <X className="h-3 w-3" />

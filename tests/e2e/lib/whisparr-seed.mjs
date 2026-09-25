@@ -118,7 +118,7 @@ ${metadata}</Config>
  * `data` gives the rows a payload: one entry per row from the newest down, each an object of
  * STRING values written into that row's `Data` column. Without it every row carries an empty
  * object, which is enough to prove a reader imported nothing and cannot prove it imported
- * anything — a reported path lives in `Data`.
+ * anything - a reported path lives in `Data`.
  *
  * `eventTypes` names the stored EventType integers to cycle over the rows, and defaults to the
  * pair the seeder declares. The rows descend a minute apart, so a caller that needs a row of one

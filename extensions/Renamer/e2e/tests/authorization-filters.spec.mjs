@@ -97,7 +97,7 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
   );
   expect(
     permissions,
-    "the restricted principal holds the wildcard permission, which bypasses every query filter — nothing below would prove anything",
+    "the restricted principal holds the wildcard permission, which bypasses every query filter - nothing below would prove anything",
   ).not.toContain("*");
 
   // Held, not missing. A zero-row read below has to be the filter answering false, not the endpoint
@@ -122,7 +122,7 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
   ).toBeGreaterThan(0);
   expect(
     restrictedTotal,
-    "the restricted principal can read video rows — Cove's row-level authorization filters did not bite",
+    "the restricted principal can read video rows - Cove's row-level authorization filters did not bite",
   ).toBe(0);
   expect(
     restrictedTotal,

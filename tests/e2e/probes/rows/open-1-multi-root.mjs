@@ -8,11 +8,11 @@
 // someone keeps their own media.
 //
 // Five things are recorded and kept apart, because conflating any two is how this question gets
-// answered wrongly — in particular the remote-path-mapping table, which is Whisparr's answer to a
+// answered wrongly - in particular the remote-path-mapping table, which is Whisparr's answer to a
 // DIFFERENT question (per-download-client path translation) and not to having several root folders.
 //
-// Every observation here is an observation. The correspondence RULE — which root owns a path when
-// more than one could — is a product decision rather than an external fact, so this row records
+// Every observation here is an observation. The correspondence RULE - which root owns a path when
+// more than one could - is a product decision rather than an external fact, so this row records
 // what the two sides do and states plainly that the rule is unsettled. It does not propose one.
 import { createApiClient } from "../../lib/apiClient.mjs";
 import { installConfigFingerprint, liftLibraryPathCount } from "../../lib/cove-providers.mjs";
@@ -274,7 +274,7 @@ export const row = {
             ? nestedResolution.matches[0]
             : null,
         result: nested.coveReportsIt
-          ? "Cove accepts a library root nested inside another and reports both. Containment then matches BOTH, and nothing in either side's data says which of them owns the path — so the resolution is not determined by what was measured. Choosing one is the product decision this row does not make."
+          ? "Cove accepts a library root nested inside another and reports both. Containment then matches BOTH, and nothing in either side's data says which of them owns the path - so the resolution is not determined by what was measured. Choosing one is the product decision this row does not make."
           : "Cove did not report the nested root, so the case could not be built on this build and nothing is concluded from it.",
       },
       twoWhisparrRootsIntoOneCoveRoot: {
@@ -306,7 +306,7 @@ export const row = {
       },
       verdict: VERDICT,
       observed: {
-        verdictVocabulary: `${VERDICT} — and deliberately nothing stronger`,
+        verdictVocabulary: `${VERDICT} - and deliberately nothing stronger`,
         whatIsNotSettled:
           "The correspondence RULE. Which root owns a path when more than one could, and what a Whisparr root with no Cove root above it should do, are product decisions and not facts about either system. This row records what both sides do and leaves the rule open; a later step decides it with the owner.",
         coveLibraryRoots: cove,

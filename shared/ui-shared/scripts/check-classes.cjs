@@ -127,7 +127,7 @@ for (const full of PANEL_FILES) {
     );
     if (hits.length) {
       console.error(
-        `ARBITRARY Tailwind class ${JSON.stringify(hits)} in src/${file} — host JIT won't emit it; use a standard utility.`,
+        `ARBITRARY Tailwind class ${JSON.stringify(hits)} in src/${file} - host JIT won't emit it; use a standard utility.`,
       );
       failed = true;
     }

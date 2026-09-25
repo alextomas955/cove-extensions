@@ -172,7 +172,7 @@ function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failure
     failures.push(
       "UNLOADABLE: artifacts does not declare " +
         manifestName +
-        " — a package with no load manifest cannot be installed.",
+        " - a package with no load manifest cannot be installed.",
     );
   }
 
@@ -244,7 +244,7 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     failures.push(
       "INVALID: package directory is not empty: " +
         absolutePackageDir +
-        " — this packer never deletes, so it must be handed an absent or empty directory. " +
+        " - this packer never deletes, so it must be handed an absent or empty directory. " +
         "Clear it in the caller that owns it.",
     );
     return done();
@@ -292,7 +292,7 @@ function readDeclaredNames(entry, failures) {
     failures.push(
       "MISSING: catalog entry " +
         entry.id +
-        " declares no artifacts array — the shipped file set must be declared.",
+        " declares no artifacts array - the shipped file set must be declared.",
     );
     return null;
   }
@@ -300,7 +300,7 @@ function readDeclaredNames(entry, failures) {
     failures.push(
       "INVALID: catalog entry " +
         entry.id +
-        " declares an empty artifacts array — an assemble that copies nothing inspected nothing.",
+        " declares an empty artifacts array - an assemble that copies nothing inspected nothing.",
     );
     return null;
   }
@@ -509,7 +509,7 @@ function main(argv) {
     // not-empty refusal with no account of what left the files behind.
     console.error(
       result.copied.length === 0
-        ? "Assemble FAILED — nothing was written."
+        ? "Assemble FAILED - nothing was written."
         : "Assemble FAILED after writing " +
             result.copied.length +
             " file(s). " +
@@ -526,7 +526,7 @@ function main(argv) {
       options.get("--version") +
       " into " +
       path.relative(root, packageDir) +
-      " — " +
+      " - " +
       result.copied.length +
       " file(s):",
   );
