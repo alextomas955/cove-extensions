@@ -16,8 +16,6 @@ public sealed partial class WhisparrSync
 {
     private void MapLibraryStatusEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Read tier. The body names the cards, so the route reaches the caller's set and never the
-        // library, and it composes no write.
         endpoints.MapPost(LibraryStatusRoute,
             (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
              WhisparrAccess whisparr,
