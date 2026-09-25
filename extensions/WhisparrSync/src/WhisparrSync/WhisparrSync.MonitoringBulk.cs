@@ -12,8 +12,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
-using WhisparrSync.Whisparr;
 // The SDK declares a job-progress interface of its own, and the one the host's job service hands a
 // work delegate is the core's. An unqualified reference compiles and means the other one.
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
@@ -27,9 +25,8 @@ public sealed partial class WhisparrSync
         // A selection aims the stored credential at a third party once per entity, so it takes the
         // same permission as a single entity.
         endpoints.MapPost(BulkMonitorRoute,
-            (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
-             IServiceScopeFactory scopes)
-                => BulkMonitorEnqueue(request, principal, jobs, scopes))
+            (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, BackgroundWork work)
+                => BulkMonitorEnqueue(request, principal, work))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -53,9 +50,10 @@ public sealed partial class WhisparrSync
     internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> BulkMonitorEnqueue(
         MonitorBulkRequest request,
         ICurrentPrincipalAccessor principal,
-        IJobService jobs,
-        IServiceScopeFactory scopes)
+        BackgroundWork work)
     {
+        var (jobs, scopes) = work;
+
         // The host's permission filter is inert on a minimal-API endpoint, and the manifest's
         // required permission only hides a button, so the gate is re-checked here.
         if (!HasConfigurePermission(principal))
@@ -135,84 +133,51 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
     {
         var batch = MonitoringBulkJob.Decode(parameters);
+        var acting = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
+            ? new BulkVerbs(this, batch, kind, verb)
+            : null;
 
-        MonitoringTarget? target = null;
-        var targetResolved = false;
-
-        ReflectOwnedAiming? linkingThrough = null;
-        ReflectOwnedSkipReason? linkingSkipped = null;
-        var linkingResolved = false;
-        var foldersAttached = 0;
-        var foldersRefused = 0;
-        var entriesLeftUnderAnotherRoot = 0;
-        var linkingReached = false;
-        var rootsCouldNotBeRead = false;
-
-        // One line per library root, not per entity: a per-entity list would grow with the
-        // selection, and every entity under one root reaches the same reason.
-        var addressRefusals = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
-        var addressedRoots = new HashSet<string>(StringComparer.Ordinal);
-
-        var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
-            ? await UnderTheVerbAsync().ConfigureAwait(false)
-            : MonitorBulkRun.NothingSelected;
+        var run = acting is null
+            ? MonitorBulkRun.NothingSelected
+            : await acting.RunAsync(scopes, progress, ct).ConfigureAwait(false);
 
         // The instance the run reached, which is null when nothing resolved. With no instance there
         // is no generation to file readings under, and there are none to file.
-        if (target?.Binding.Generation is { } generation)
+        if (acting?.Target.Resolved?.Binding.Generation is { } generation)
         {
             await RecordRootReadingsAsync(
-                scopes, generation, [.. addressRefusals.Values], [.. addressedRoots])
+                scopes, generation, acting.Linking.AddressRefusals, acting.Linking.AddressedRoots)
                 .ConfigureAwait(false);
         }
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task. Cancellation is rethrown after that write, so the host classifies the
         // run as cancelled and the reader still sees what it managed to do.
-        progress.Report(
-            1d,
-            MonitoringBulkJob.SummaryOf(
-                run,
-                linkingReached
-                    ? new MonitorBulkLinking(
-                        linkingSkipped,
-                        foldersAttached,
-                        foldersRefused,
-                        [.. addressRefusals.Values],
-                        entriesLeftUnderAnotherRoot,
-                        rootsCouldNotBeRead)
-                    : null));
+        progress.Report(1d, MonitoringBulkJob.SummaryOf(run, acting?.Linking.Summary));
         ct.ThrowIfCancellationRequested();
+    }
+
+    // One selection under one verb. Held as a type rather than as closures over the run, so the
+    // target read once for the batch and the linking accumulated across it have an owner.
+    private sealed class BulkVerbs(
+        WhisparrSync owner, MonitorBulkBatch batch, WhisparrEntityKind kind, MonitorBulkVerb verb)
+    {
+        internal BatchTarget Target { get; } = new();
+
+        internal BulkLinking Linking { get; } = new(kind, owner);
 
         // The search command on the instance takes an id array, so the whole selection is one call.
         // Every other verb is one call per entity.
-        Task<MonitorBulkRun> UnderTheVerbAsync()
+        internal Task<MonitorBulkRun> RunAsync(
+            IServiceScopeFactory scopes, CoreJobProgress progress, CancellationToken ct)
             => verb == MonitorBulkVerb.SearchAllMonitored
                 ? MonitoringBulkJob.RunOneCallAsync(
                     batch.EntityIds, scopes, AimOneAsync, SearchNamedAsync, progress, ct)
                 : MonitoringBulkJob.RunAsync(batch.EntityIds, scopes, ActOnOneAsync, progress, ct);
 
-        // Resolved once for the whole batch: it is one stored read and one credential read, and
-        // taking them per entity would be one pair per entity.
-        async Task<MonitoringTarget?> ResolvedAsync(
-            IServiceProvider services, CancellationToken runCt)
-        {
-            if (!targetResolved)
-            {
-                target = await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrInstanceFactory>(),
-                    runCt).ConfigureAwait(false);
-                targetResolved = true;
-            }
-
-            return target;
-        }
-
-        async Task<MonitoringBulkJob.MonitorBulkAim> AimOneAsync(
+        private async Task<MonitoringBulkJob.MonitorBulkAim> AimOneAsync(
             IServiceProvider services, int coveId, CancellationToken entityCt)
-            => await ResolvedAsync(services, entityCt).ConfigureAwait(false) is not { } resolved
+            => await Target.OfAsync(services, entityCt).ConfigureAwait(false) is not { } resolved
                 ? new MonitoringBulkJob.MonitorBulkAim(null, MonitorRefusalKind.NotConfigured)
                 : await AimSearchAsync(
                     kind,
@@ -220,15 +185,15 @@ public sealed partial class WhisparrSync
                     resolved,
                     services.GetRequiredService<IEntityIdentityPort>(),
                     SearchGrabbingOn(resolved) is not null,
-                    _log,
+                    owner._log,
                     entityCt).ConfigureAwait(false);
 
-        // The instance answers the command, not the ids inside it, so its one answer is every
-        // named entity's outcome.
-        async Task<MonitorRefusalKind> SearchNamedAsync(
+        // The instance answers the command, not the ids inside it, so its one answer is every named
+        // entity's outcome.
+        private async Task<MonitorRefusalKind> SearchNamedAsync(
             IServiceProvider services, IReadOnlyList<int> entityIds, CancellationToken runCt)
         {
-            if (await ResolvedAsync(services, runCt).ConfigureAwait(false) is not { } resolved)
+            if (await Target.OfAsync(services, runCt).ConfigureAwait(false) is not { } resolved)
             {
                 return MonitorRefusalKind.NotConfigured;
             }
@@ -239,10 +204,9 @@ public sealed partial class WhisparrSync
             }
 
             var searched = await ContainedAsync(
-                () => grabbing.SearchMonitoredAsync(
-                    kind, entityIds, runCt),
+                () => grabbing.SearchMonitoredAsync(kind, entityIds, runCt),
                 resolved,
-                _log,
+                owner._log,
                 runCt).ConfigureAwait(false);
 
             return searched is null
@@ -250,88 +214,173 @@ public sealed partial class WhisparrSync
                 : MonitoringProjector.Accepted(searched);
         }
 
-        async Task<MonitorRefusalKind> ActOnOneAsync(
+        private async Task<MonitorRefusalKind> ActOnOneAsync(
             IServiceProvider services, int coveId, CancellationToken entityCt)
         {
-            if (await ResolvedAsync(services, entityCt).ConfigureAwait(false) is not { } resolved)
+            if (await Target.OfAsync(services, entityCt).ConfigureAwait(false) is not { } resolved)
             {
                 return MonitorRefusalKind.NotConfigured;
             }
 
-            var identities = services.GetRequiredService<IEntityIdentityPort>();
-
-            // The same path the single-entity route takes, so a selection cannot behave differently
-            // from a click. A verb the connected generation cannot honour is refused per entity
-            // there rather than failing the batch.
-            var view = verb switch
-            {
-                MonitorBulkVerb.Monitor => await MonitorResolvedAsync(
-                    kind,
-                    coveId,
-                    resolved,
-                    identities,
-                    _log,
-                    ActingFor(kind, resolved, batch.Scope ?? resolved.DefaultMonitorScope),
-                    EntityRootIn(services, resolved, FilesOfEntity(kind, coveId)),
-                    entityCt).ConfigureAwait(false),
-                MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
-                    kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
-                _ => throw new InvalidOperationException(
-                    $"{verb} is not a verb the bulk surface carries."),
-            };
+            var view = await ActOnResolvedAsync(services, coveId, resolved, entityCt)
+                .ConfigureAwait(false);
 
             // Inline rather than enqueued: this is already inside a run, and enqueuing per entity
             // would turn one gesture into a run per entity.
             if (verb == MonitorBulkVerb.Monitor
                 && view is { Refusal: MonitorRefusalKind.None, Monitored: true })
             {
-                await LinkOwnedAsync(services, resolved, coveId, entityCt).ConfigureAwait(false);
+                await Linking.LinkAsync(services, resolved, coveId, entityCt).ConfigureAwait(false);
             }
 
             return view.Refusal;
         }
 
-        async Task LinkOwnedAsync(
-            IServiceProvider services, MonitoringTarget resolved, int coveId, CancellationToken entityCt)
+        // The same path the single-entity route takes, so a selection cannot behave differently from
+        // a click. A verb the connected generation cannot honour is refused per entity there rather
+        // than failing the batch.
+        private async Task<EntityMonitoringView> ActOnResolvedAsync(
+            IServiceProvider services,
+            int coveId,
+            MonitoringTarget resolved,
+            CancellationToken entityCt)
         {
-            if (!linkingResolved)
-            {
-                linkingResolved = true;
+            var identities = services.GetRequiredService<IEntityIdentityPort>();
 
-                // The hard-link setting belongs to the instance, so it is resolved once for the
-                // batch rather than once per entity.
-                if (ReflectOwnedActingOn(resolved) is { } acting)
-                {
-                    linkingReached = true;
-                    var decision = await ReflectOwnedDecisionAsync(resolved, acting, entityCt)
-                        .ConfigureAwait(false);
-                    linkingSkipped = decision.Reason;
-                    linkingThrough = decision.Act
-                        ? AimedAt(
-                            resolved, acting, services.GetRequiredService<IFolderAddressPort>())
-                        : null;
-                }
+            return verb switch
+            {
+                MonitorBulkVerb.Monitor => await MonitorResolvedAsync(
+                    new MonitoredEntity(kind, coveId),
+                    resolved,
+                    identities,
+                    owner._log,
+                    ActingFor(kind, resolved, batch.Scope ?? resolved.DefaultMonitorScope),
+                    EntityRootIn(services, resolved, FilesOfEntity(kind, coveId)),
+                    entityCt).ConfigureAwait(false),
+                MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
+                    kind, coveId, resolved, identities, owner._log, entityCt).ConfigureAwait(false),
+                _ => throw new InvalidOperationException(
+                    $"{verb} is not a verb the bulk surface carries."),
+            };
+        }
+    }
+
+    // Resolved once for the whole batch: it is one stored read and one credential read, and taking
+    // them per entity would be one pair per entity.
+    private sealed class BatchTarget
+    {
+        private bool _read;
+
+        internal MonitoringTarget? Resolved { get; private set; }
+
+        internal async Task<MonitoringTarget?> OfAsync(
+            IServiceProvider services, CancellationToken ct)
+        {
+            if (_read)
+            {
+                return Resolved;
             }
 
-            if (linkingThrough is not { } aimed)
+            _read = true;
+            Resolved = await ResolveTargetAsync(
+                services.GetRequiredService<WhisparrAccess>(), ct).ConfigureAwait(false);
+            return Resolved;
+        }
+    }
+
+    // The linking half of a bulk run: aimed once for the batch, then accumulated per entity.
+    //
+    // The refusals are keyed by library root, not per entity: a per-entity list would grow with the
+    // selection, and every entity under one root reaches the same reason.
+    private sealed class BulkLinking(WhisparrEntityKind kind, WhisparrSync owner)
+    {
+        private readonly Dictionary<string, FolderAddressRefusal> _refusalByRoot =
+            new(StringComparer.Ordinal);
+
+        private readonly HashSet<string> _addressedRoots = new(StringComparer.Ordinal);
+
+        private ReflectOwnedAiming? _through;
+        private ReflectOwnedSkipReason? _skipped;
+        private bool _aimed;
+        private bool _reached;
+        private int _foldersAttached;
+        private int _foldersRefused;
+        private int _entriesLeftUnderAnotherRoot;
+        private bool _rootsCouldNotBeRead;
+
+        internal IReadOnlyList<FolderAddressRefusal> AddressRefusals => [.. _refusalByRoot.Values];
+
+        internal IReadOnlyList<string> AddressedRoots => [.. _addressedRoots];
+
+        // Null where no generation offered the linking role at all, which the summary states as an
+        // absence rather than as a run that linked nothing.
+        internal MonitorBulkLinking? Summary => _reached
+            ? new MonitorBulkLinking(
+                _skipped,
+                _foldersAttached,
+                _foldersRefused,
+                AddressRefusals,
+                _entriesLeftUnderAnotherRoot,
+                _rootsCouldNotBeRead)
+            : null;
+
+        internal async Task LinkAsync(
+            IServiceProvider services,
+            MonitoringTarget resolved,
+            int coveId,
+            CancellationToken ct)
+        {
+            await AimAsync(services, resolved, ct).ConfigureAwait(false);
+            if (_through is not { } aimed)
             {
                 return;
             }
 
-            var linked = await ReflectOwnedJob
-                .RunOneAsync(services, aimed, kind, coveId, entityCt).ConfigureAwait(false);
-            foldersAttached += linked.FoldersAttached;
-            foldersRefused += linked.FoldersRefused;
-            entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
-            rootsCouldNotBeRead |= linked.RootsCouldNotBeRead;
+            Add(await ReflectOwnedJob.RunOneAsync(services, aimed, kind, coveId, ct)
+                .ConfigureAwait(false));
+        }
+
+        // The hard-link setting belongs to the instance, so it is read once for the batch rather
+        // than once per entity.
+        private async Task AimAsync(
+            IServiceProvider services, MonitoringTarget resolved, CancellationToken ct)
+        {
+            if (_aimed)
+            {
+                return;
+            }
+
+            _aimed = true;
+            if (ReflectOwnedActingOn(resolved) is not { } acting)
+            {
+                return;
+            }
+
+            _reached = true;
+            var decision = await owner.ReflectOwnedDecisionAsync(resolved, acting, ct)
+                .ConfigureAwait(false);
+            _skipped = decision.Reason;
+            _through = decision.Act
+                ? owner.AimedAt(
+                    resolved, acting, services.GetRequiredService<IFolderAddressPort>())
+                : null;
+        }
+
+        private void Add(ReflectOwnedRun linked)
+        {
+            _foldersAttached += linked.FoldersAttached;
+            _foldersRefused += linked.FoldersRefused;
+            _entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
+            _rootsCouldNotBeRead |= linked.RootsCouldNotBeRead;
+
             foreach (var root in linked.AddressedRoots ?? [])
             {
-                addressedRoots.Add(root);
+                _addressedRoots.Add(root);
             }
 
             foreach (var refusal in linked.AddressRefusals ?? [])
             {
-                addressRefusals.TryAdd(refusal.CoveRoot, refusal);
+                _refusalByRoot.TryAdd(refusal.CoveRoot, refusal);
             }
         }
     }

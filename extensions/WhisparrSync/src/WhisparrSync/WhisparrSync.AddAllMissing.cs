@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +10,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
 
@@ -24,11 +22,10 @@ public sealed partial class WhisparrSync
         // Configure tier: the route reaches one entity's catalogue, named by the route segment, and
         // it aims the stored credential at a third party and creates items in the reader's Whisparr.
         endpoints.MapPost(AddAllMissingRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
-             IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
+             BackgroundWork work, CancellationToken ct)
                 => AddAllMissingEntityAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, jobs, scopes, ct))
+                    route, principal, whisparr, identities, work, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -40,17 +37,17 @@ public sealed partial class WhisparrSync
     // of an entity's catalogue.
     internal async Task<Results<Ok<AddAllMissingEnqueued>, Accepted<AddAllMissingEnqueued>, BadRequest, ForbiddenCode>>
         AddAllMissingEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            IJobService jobs,
-            IServiceScopeFactory scopes,
+            BackgroundWork work,
             CancellationToken ct)
     {
+        var (jobs, scopes) = work;
+
+        var (kind, coveId) = route;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -65,7 +62,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(new AddAllMissingEnqueued(null, MonitorRefusalKind.NotConfigured));
@@ -86,7 +83,7 @@ public sealed partial class WhisparrSync
         return TypedResults.Accepted(
             (string?)null,
             new AddAllMissingEnqueued(
-                EnqueueAddAllMissing(jobs, scopes, entityKind, coveId), MonitorRefusalKind.None));
+                EnqueueAddAllMissing(work, entityKind, coveId), MonitorRefusalKind.None));
     }
 
     // Aiming is null on a refusal, and Refusal then says why.
@@ -183,8 +180,10 @@ public sealed partial class WhisparrSync
     // Exclusive because two entities can name one scene, a video carrying a studio and its
     // performers at once, so overlapping runs would offer the same scene twice.
     private string EnqueueAddAllMissing(
-        IJobService jobs, IServiceScopeFactory scopes, WhisparrEntityKind kind, int coveId)
+        BackgroundWork work, WhisparrEntityKind kind, int coveId)
     {
+        var (jobs, scopes) = work;
+
         var parameters = AddAllMissingJob.Encode(kind, coveId);
 
         return jobs.Enqueue(
@@ -214,9 +213,7 @@ public sealed partial class WhisparrSync
         {
             if (batch.Kind is not { } kind
                 || await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrInstanceFactory>(),
+                    services.GetRequiredService<WhisparrAccess>(),
                     runCt).ConfigureAwait(false) is not { } target)
             {
                 return null;

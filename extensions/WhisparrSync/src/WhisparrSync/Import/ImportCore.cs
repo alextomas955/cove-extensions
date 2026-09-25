@@ -9,8 +9,7 @@ internal sealed class ImportCore(
     IReportedRootPort reportedRoots,
     ICoveLibraryPort library,
     IImportPathPort paths,
-    OptionsStore options,
-    OptionsWriteGate gate,
+    OptionsWriting writing,
     FollowUpScanCoalescer followUp,
     TimeProvider clock,
     ILogger log) : IImportCore
@@ -56,56 +55,17 @@ internal sealed class ImportCore(
         // creates a second item unless the item the identifier named is passed here deliberately.
         var repointedTo = identity?.Resolution.VideoId;
 
-        if (await library.HeldFileAtAsync(path, ct).ConfigureAwait(false) is { } row)
+        if (await AlreadyHeldAsync(candidate, reading, path, identity, repointedTo, ct)
+                .ConfigureAwait(false) is { } settled)
         {
-            if (row.VideoId is { } held)
-            {
-                // The identity is still written where the item carries none: the channel that
-                // arrives first may be the one that reads no identifier.
-                if (identity is { } carried)
-                {
-                    await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
-                }
-
-                // The file came from this root and is in the library, so the root is working. The
-                // follow-up covers the item in case the delivery that registered it was interrupted
-                // after the host committed and before it could be noted.
-                followUp.NoteImported(path, library);
-                await ClearAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
-                return ImportOutcome.AlreadyHeld;
-            }
-
-            // A row the Replace behaviour left behind. The host attaches the row to the item it is
-            // handed; handed none it leaves the key unset and raises, so a delivery with no
-            // resolved identity is refused here.
-            if (repointedTo is null)
-            {
-                return await RefusedAsync(
-                    candidate, reading, ImportOutcome.RefusedDetachedFileWithoutIdentity, null, ct)
-                    .ConfigureAwait(false);
-            }
+            return settled;
         }
 
         var imported = await library.ImportVideoAsync(path, repointedTo, ct).ConfigureAwait(false);
-
-        // An import the container could not produce is counted against no root: nothing about it is
-        // a Whisparr root the user misconfigured. A file the host declined is counted against the
-        // root, because the path came from there.
-        if (imported.Outcome == LibraryImportOutcome.ServiceUnavailable)
+        if (await HostRefusedAsync(candidate, reading, imported, ct).ConfigureAwait(false)
+            is { } declined)
         {
-            return await RefusedAsync(
-                candidate, reading, ImportOutcome.RefusedHostImportUnavailable, null, ct)
-                .ConfigureAwait(false);
-        }
-
-        if (imported.Outcome == LibraryImportOutcome.HostRefused)
-        {
-            return await RefusedAsync(
-                candidate,
-                reading,
-                ImportOutcome.RefusedHostRefusedFile,
-                ImportRefusalCause.Unreadable,
-                ct).ConfigureAwait(false);
+            return declined;
         }
 
         if (repointedTo is { } upgraded)
@@ -127,7 +87,7 @@ internal sealed class ImportCore(
     // Whisparr's to remove.
     private async Task DetachSupersededAsync(int videoId, string keptPath, CancellationToken ct)
     {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var stored = await writing.Store.LoadAsync(ct).ConfigureAwait(false);
         if (stored.UpgradeBehavior != UpgradeBehavior.Replace)
         {
             return;
@@ -146,7 +106,7 @@ internal sealed class ImportCore(
             return null;
         }
 
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var stored = await writing.Store.LoadAsync(ct).ConfigureAwait(false);
         var endpoint = IdentityEndpoint.Resolve(
             candidate.Generation,
             stored.MetadataProviderEndpoints,
@@ -240,6 +200,71 @@ internal sealed class ImportCore(
 
     // Logged where the outcome is decided rather than at each return, so every refusal is reported
     // once. The root is logged and not the offending path, which is a caller-supplied string.
+    // What the library already holds at this path, or null where it holds nothing there and the
+    // ingest carries on.
+    private async Task<ImportOutcome?> AlreadyHeldAsync(
+        ImportCandidate candidate,
+        PathCandidateReading reading,
+        string path,
+        DeliveredIdentity? identity,
+        int? repointedTo,
+        CancellationToken ct)
+    {
+        if (await library.HeldFileAtAsync(path, ct).ConfigureAwait(false) is not { } row)
+        {
+            return null;
+        }
+
+        if (row.VideoId is { } held)
+        {
+            // The identity is still written where the item carries none: the channel that arrives
+            // first may be the one that reads no identifier.
+            if (identity is { } carried)
+            {
+                await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
+            }
+
+            // The file came from this root and is in the library, so the root is working. The
+            // follow-up covers the item in case the delivery that registered it was interrupted
+            // after the host committed and before it could be noted.
+            followUp.NoteImported(path, library);
+            await ClearAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
+            return ImportOutcome.AlreadyHeld;
+        }
+
+        // A row the Replace behaviour left behind. The host attaches the row to the item it is
+        // handed; handed none it leaves the key unset and raises, so a delivery with no resolved
+        // identity is refused here.
+        return repointedTo is null
+            ? await RefusedAsync(
+                    candidate, reading, ImportOutcome.RefusedDetachedFileWithoutIdentity, null, ct)
+                .ConfigureAwait(false)
+            : null;
+    }
+
+    // An import the container could not produce is counted against no root: nothing about it is a
+    // Whisparr root the user misconfigured. A file the host declined is counted against the root,
+    // because the path came from there.
+    private async Task<ImportOutcome?> HostRefusedAsync(
+        ImportCandidate candidate,
+        PathCandidateReading reading,
+        LibraryImport imported,
+        CancellationToken ct)
+        => imported.Outcome switch
+        {
+            LibraryImportOutcome.ServiceUnavailable => await RefusedAsync(
+                    candidate, reading, ImportOutcome.RefusedHostImportUnavailable, null, ct)
+                .ConfigureAwait(false),
+            LibraryImportOutcome.HostRefused => await RefusedAsync(
+                    candidate,
+                    reading,
+                    ImportOutcome.RefusedHostRefusedFile,
+                    ImportRefusalCause.Unreadable,
+                    ct)
+                .ConfigureAwait(false),
+            _ => null,
+        };
+
     private async Task<ImportOutcome> RefusedAsync(
         ImportCandidate candidate,
         PathCandidateReading reading,
@@ -264,8 +289,8 @@ internal sealed class ImportCore(
         string path,
         ImportRefusalCause cause,
         CancellationToken ct)
-        => await gate.MutateAsync(
-            options,
+        => await writing.Gate.MutateAsync(
+            writing.Store,
             stored => WithRefusals(
                 stored,
                 generation,
@@ -277,8 +302,8 @@ internal sealed class ImportCore(
     // file, and a delivery whose file was already there is not an import.
     private async Task ClearAsync(
         WhisparrGeneration generation, string root, CancellationToken ct)
-        => await gate.MutateAsync(
-            options,
+        => await writing.Gate.MutateAsync(
+            writing.Store,
             stored => WithRefusals(
                 stored,
                 generation,
@@ -286,15 +311,15 @@ internal sealed class ImportCore(
                     stored.InstanceSettingsOrEmptyFor(generation).ImportRefusals, root)),
             ct).ConfigureAwait(false);
 
-    // The instant is taken before the gate, so it records when the file was registered rather than
+    // The instant is taken before the writing.Gate, so it records when the file was registered rather than
     // when the lock came free. This is its only writer: the live channel imports with no pass
     // running, so a member the pass wrote would read as never against a working webhook.
     private async Task RecordImportedAsync(
         WhisparrGeneration generation, string root, CancellationToken ct)
     {
         var workedAt = clock.GetUtcNow();
-        await gate.MutateAsync(
-            options,
+        await writing.Gate.MutateAsync(
+            writing.Store,
             stored => WithRefusals(
                 stored,
                 generation,

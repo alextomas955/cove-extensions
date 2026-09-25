@@ -126,9 +126,7 @@ public static class SyncPreviewJob
                 "A site count was aimed with no way to ask which sites are held.");
         }
 
-        var notYetThere = 0;
-        var alreadyThere = 0;
-        var namesNone = 0;
+        var counted = new SiteTally();
         var batch = new List<string>(ChunkSize);
 
         try
@@ -166,15 +164,15 @@ public static class SyncPreviewJob
                 "The count could not be finished, so no count was held.", failure);
         }
 
-        if (namesNone > 0)
+        if (counted.NamesNone > 0)
         {
-            WhisparrSyncLog.StudiosTheSourceNamesNoSiteFor(log, namesNone);
+            WhisparrSyncLog.StudiosTheSourceNamesNoSiteFor(log, counted.NamesNone);
         }
 
         return new SyncPreviewView(
-            notYetThere,
-            alreadyThere,
-            namesNone
+            counted.NotYetThere,
+            counted.AlreadyThere,
+            counted.NamesNone
                 + await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct)
                     .ConfigureAwait(false),
             aimed.Registers,
@@ -182,31 +180,43 @@ public static class SyncPreviewJob
 
         async Task AskAsync()
         {
-            var answered = await heldSites(batch, ct).ConfigureAwait(false);
+            counted.Classify(batch, await heldSites(batch, ct).ConfigureAwait(false));
+            batch.Clear();
+        }
+    }
 
-            // Each offered identifier is classified rather than the answered set being counted. Two
-            // studios carrying one identifier answer one number, and counting the answer's own size
-            // would put the second of them in the not-yet-there column.
-            foreach (var identity in batch)
+    // Three integers, so nothing here grows with the library.
+    private sealed class SiteTally
+    {
+        internal int NotYetThere { get; private set; }
+
+        internal int AlreadyThere { get; private set; }
+
+        internal int NamesNone { get; private set; }
+
+        // Each offered identifier is classified rather than the answered set being counted. Two
+        // studios carrying one identifier answer one number, and counting the answer's own size
+        // would put the second of them in the not-yet-there column.
+        internal void Classify(IReadOnlyList<string> offered, SiteBatchReading answered)
+        {
+            foreach (var identity in offered)
             {
                 if (answered.Held.Contains(identity))
                 {
-                    alreadyThere++;
+                    AlreadyThere++;
                 }
                 else if (answered.NamesNone.Contains(identity))
                 {
                     // Counted with the studios carrying no identifier at all, because a run can
                     // compose no add for either. In the not-yet-there column it would be offered
                     // for registration and the run would then refuse it.
-                    namesNone++;
+                    NamesNone++;
                 }
                 else
                 {
-                    notYetThere++;
+                    NotYetThere++;
                 }
             }
-
-            batch.Clear();
         }
     }
 

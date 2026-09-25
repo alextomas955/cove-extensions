@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -12,7 +11,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Missing;
-using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
@@ -26,12 +24,12 @@ public sealed partial class WhisparrSync
         // Configure tier. The request names no scene: the narrowing rides the query string and the
         // run re-derives its own set, so the reach is one entity's catalogue.
         endpoints.MapPost(MissingMonitorAllRoute,
-            (string kind, int coveId, string? q, string? filters,
-             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+            ([AsParameters] EntityRoute route, string? q, string? filters,
+             ICurrentPrincipalAccessor principal, BackgroundWork work,
+             WhisparrAccess whisparr,
              CancellationToken ct)
                 => EnqueueMissingMonitorAllAsync(
-                    kind, coveId, q, filters, principal, jobs, scopes, options, credentials, instances,
+                    route, q, filters, principal, work, whisparr,
                     ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
@@ -42,18 +40,18 @@ public sealed partial class WhisparrSync
     // catalogue is many requests to a third party.
     internal async Task<Results<Ok<MissingBulkEnqueued>, BadRequest, ForbiddenCode>>
         EnqueueMissingMonitorAllAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             string? q,
             string? filters,
             ICurrentPrincipalAccessor principal,
-            IJobService jobs,
-            IServiceScopeFactory scopes,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            BackgroundWork work,
+            WhisparrAccess whisparr,
             CancellationToken ct)
     {
+        var (jobs, _) = work;
+
+        var (_, coveId) = route;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
@@ -62,13 +60,13 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        if (!TryReadEntity(kind, coveId, out var entityKind)
+        if (!TryReadEntity(route, out var entityKind)
             || entityKind == WhisparrEntityKind.Tag)
         {
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -85,20 +83,21 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             new MissingBulkEnqueued(
-                EnqueueMissingMonitorAll(jobs, scopes, entityKind, coveId, Blank(q), Blank(filters)),
+                EnqueueMissingMonitorAll(work, entityKind, coveId, Blank(q), Blank(filters)),
                 MissingRefusalKind.None));
     }
 
     // Exclusive because one scene can be reached from two entities, a video carrying a studio and
     // its performers at once, so overlapping runs would offer the same scene twice.
     private string EnqueueMissingMonitorAll(
-        IJobService jobs,
-        IServiceScopeFactory scopes,
+        BackgroundWork work,
         WhisparrEntityKind kind,
         int coveId,
         string? titleSearch,
         string? filters)
     {
+        var (jobs, scopes) = work;
+
         var parameters = MissingMonitorAllJob.Encode(kind, coveId, titleSearch, filters);
 
         return jobs.Enqueue(
@@ -161,9 +160,7 @@ public sealed partial class WhisparrSync
         }
 
         var context = await ResolveMissingContextAsync(
-                services.GetRequiredService<OptionsStore>(),
-                services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrInstanceFactory>(),
+                services.GetRequiredService<WhisparrAccess>(),
                 services.GetRequiredService<ProviderEndpointPort>(),
                 ct)
             .ConfigureAwait(false);

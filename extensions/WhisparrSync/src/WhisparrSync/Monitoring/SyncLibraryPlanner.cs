@@ -93,6 +93,40 @@ internal sealed record SyncLibraryRun(
     int WithoutAnAgreedRoot,
     IReadOnlyList<string> RootsLeftBehind);
 
+// What a run walks and what it does with each identifier.
+//
+// identities is a factory rather than one enumerable because it is enumerated twice, once to count
+// and once to offer, and both enumerations must come from the same derivation: the stream applies
+// the host's same-source rule in memory after the query's own distinct, so a cheaper count would
+// disagree with the number of ticks.
+//
+// Monitor is called for an entry the instance already held as well as for one just registered: the
+// choice means monitor what I own, not monitor what I just added. It is handed the offer's own
+// answer, so the instance's numeric id costs no further request, and it answers a tally because one
+// entry can carry any number of scenes.
+internal sealed record SyncLibrarySource<TIdentity>(
+    Func<CancellationToken, IAsyncEnumerable<TIdentity>> Identities,
+    Func<TIdentity, string> Named,
+    Func<TIdentity, CancellationToken, Task<SyncRegistration>> Register,
+    Func<TIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? Monitor = null);
+
+// The linking half, and which rows the walk offers at all. A pass that links nothing passes none of
+// it.
+//
+// A folder is linked once the walk has left it, so the entries its files attach to are already
+// registered. A row carrying nothing to register is a folder the walk placed no identifier under:
+// it takes no unit and is counted in no tally, because a reader is being told about their scenes
+// rather than about the shape of their directories.
+internal sealed record SyncLibraryWalk<TIdentity>(
+    Func<TIdentity, bool>? Offers = null,
+    Func<TIdentity, string?>? FolderOf = null,
+    Func<string, CancellationToken, Task>? LinkFolder = null)
+{
+    internal static SyncLibraryWalk<TIdentity> EveryRow { get; } = new();
+
+    internal bool Offered(TIdentity identity) => Offers is null || Offers(identity);
+}
+
 // Nothing outlives one identifier: each is offered, classified into a count and dropped, so
 // nothing grows with the library.
 //
@@ -118,193 +152,229 @@ internal static class SyncLibraryPlanner
     // A unit is completed and disposed inside one scope. The host removes a completed unit's state
     // only on disposal, so a run that disposed none would leave one entry per scene in a host
     // dictionary.
-    //
-    // identities is a factory rather than one enumerable because it is enumerated twice, once to
-    // count and once to offer, and both enumerations must come from the same derivation: the stream
-    // applies the host's same-source rule in memory after the query's own distinct, so a cheaper
-    // count would disagree with the number of ticks.
-    //
-    // monitor is called for an entry the instance already held as well as for one just registered:
-    // the choice means monitor what I own, not monitor what I just added. It is handed the offer's
-    // own answer, so the instance's numeric id costs no further request, and it answers a tally
-    // because one entry can carry any number of scenes.
-    //
-    // folderOf and linkFolder are the linking half, and a pass that links nothing passes neither.
-    // A folder is linked once the walk has left it, so the entries its files attach to are already
-    // registered. A row carrying nothing to register is a folder the walk placed no identifier
-    // under: it takes no unit and is counted in no tally, because a reader is being told about
-    // their scenes rather than about the shape of their directories.
     internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
         SyncRegisters registers,
-        Func<CancellationToken, IAsyncEnumerable<TIdentity>> identities,
-        Func<TIdentity, string> named,
-        Func<TIdentity, CancellationToken, Task<SyncRegistration>> register,
-        Func<TIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? monitor,
+        SyncLibrarySource<TIdentity> source,
         IJobProgress progress,
         CancellationToken ct,
-        Func<TIdentity, bool>? offers = null,
-        Func<TIdentity, string?>? folderOf = null,
-        Func<string, CancellationToken, Task>? linkFolder = null)
+        SyncLibraryWalk<TIdentity>? walk = null)
     {
-        ArgumentNullException.ThrowIfNull(identities);
-        ArgumentNullException.ThrowIfNull(named);
-        ArgumentNullException.ThrowIfNull(register);
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(progress);
 
-        var registered = 0;
-        var alreadyHeld = 0;
-        var refused = 0;
-        var moved = 0;
-        var splitAcrossRoots = 0;
-        var filesLeftElsewhere = 0;
-        var withoutAnAgreedRoot = 0;
-
-        // Bounded by the configured library root count, which an operator creates by hand. It holds
-        // root names only, never an entry and never a file, so it does not grow with the library.
-        var rootsLeftBehind = new List<string>();
-        var monitoring = SceneMonitorTally.Nothing;
-        var offered = 0;
-
-        // The folder the walk is inside. Linked once the walk leaves it, and once more after the
-        // stream ends, so the last folder is not left out.
-        string? walking = null;
+        var walking = walk ?? SyncLibraryWalk<TIdentity>.EveryRow;
+        var monitors = source.Monitor is not null;
+        var tally = new SyncLibraryTally();
 
         try
         {
             ct.ThrowIfCancellationRequested();
 
-            var total = 0;
-            await foreach (var counting in identities(ct).WithCancellation(ct).ConfigureAwait(false))
-            {
-                if (offers is null || offers(counting))
-                {
-                    total++;
-                }
-            }
+            var total = await CountAsync(source, walking, ct).ConfigureAwait(false);
 
             // Answered before anything is declared. The host returns immediately from its progress
             // refresh at a zero total, so a run declaring zero would never derive a fraction and
             // would never be given an ending at all.
             if (total == 0)
             {
-                return Ending(Nothing, monitor is not null, registers, progress);
+                return Ending(Nothing, monitors, registers, progress);
             }
 
             progress.DeclareUnitCount(total);
-
-            await foreach (var identity in identities(ct).WithCancellation(ct).ConfigureAwait(false))
-            {
-                ct.ThrowIfCancellationRequested();
-
-                // A row naming no folder leaves the walk where it is: it is an identifier the
-                // library holds no file for, so there is nothing to link on its account.
-                if (folderOf is not null && linkFolder is not null && folderOf(identity) is { } arrived)
-                {
-                    if (walking is not null
-                        && !string.Equals(walking, arrived, StringComparison.Ordinal))
-                    {
-                        await linkFolder(walking, ct).ConfigureAwait(false);
-                    }
-
-                    walking = arrived;
-                }
-
-                if (offers is not null && !offers(identity))
-                {
-                    continue;
-                }
-
-                offered++;
-
-                var line = LineFor(offered, total, registers);
-                using var unit = progress.StartUnit(named(identity), line);
-
-                var answered = await register(identity, ct).ConfigureAwait(false);
-                var registration = answered.Registration;
-
-                switch (registration)
-                {
-                    case SceneRegistration.Registered:
-                        registered++;
-                        break;
-                    case SceneRegistration.AlreadyHeld:
-                        alreadyHeld++;
-                        break;
-                    case SceneRegistration.Moved:
-                        moved++;
-                        break;
-                    default:
-                        refused++;
-                        break;
-                }
-
-                if (answered.Root is { } root)
-                {
-                    if (root.Refusal is MonitorRefusalKind.NoAgreedRootForThisEntity)
-                    {
-                        withoutAnAgreedRoot++;
-                    }
-
-                    if (root.RootsLeftBehind.Count > 0)
-                    {
-                        splitAcrossRoots++;
-                        filesLeftElsewhere += root.FilesLeftElsewhere;
-
-                        foreach (var left in root.RootsLeftBehind)
-                        {
-                            if (!rootsLeftBehind.Contains(left, StringComparer.Ordinal))
-                            {
-                                rootsLeftBehind.Add(left);
-                            }
-                        }
-                    }
-                }
-
-                // Skipped only where the offer was refused: there is no entry on the instance there
-                // to set a flag on.
-                if (monitor is not null && registration is not SceneRegistration.Refused)
-                {
-                    monitoring = monitoring.Plus(
-                        await monitor(identity, answered, ct).ConfigureAwait(false));
-                }
-
-                unit.Complete(OutcomeFor(registration), line);
-            }
-
-            // The folder the stream ended inside. Nothing follows it to leave it, so it is linked
-            // here or not at all.
-            if (walking is not null && linkFolder is not null)
-            {
-                await linkFolder(walking, ct).ConfigureAwait(false);
-            }
+            await OfferAsync(registers, source, walking, total, tally, progress, ct)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // Cancelled rather than failed: what was registered before the stop is in the instance's
             // catalogue and there is nothing to undo.
             return Ending(
-                Ended(SyncLibraryRunOutcome.Cancelled), monitor is not null, registers, progress);
+                tally.Ended(SyncLibraryRunOutcome.Cancelled), monitors, registers, progress);
         }
 
         return Ending(
-            Ended(SyncLibraryRunOutcome.Completed), monitor is not null, registers, progress);
+            tally.Ended(SyncLibraryRunOutcome.Completed), monitors, registers, progress);
+    }
 
-        SyncLibraryRun Ended(SyncLibraryRunOutcome outcome)
+    private static async Task<int> CountAsync<TIdentity>(
+        SyncLibrarySource<TIdentity> source, SyncLibraryWalk<TIdentity> walk, CancellationToken ct)
+    {
+        var total = 0;
+        await foreach (var counting in source.Identities(ct).WithCancellation(ct).ConfigureAwait(false))
+        {
+            if (walk.Offered(counting))
+            {
+                total++;
+            }
+        }
+
+        return total;
+    }
+
+    private static async Task OfferAsync<TIdentity>(
+        SyncRegisters registers,
+        SyncLibrarySource<TIdentity> source,
+        SyncLibraryWalk<TIdentity> walk,
+        int total,
+        SyncLibraryTally tally,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        var folders = new FolderWalk<TIdentity>(walk);
+        var offered = 0;
+
+        await foreach (var identity in source.Identities(ct).WithCancellation(ct).ConfigureAwait(false))
+        {
+            ct.ThrowIfCancellationRequested();
+            await folders.ArriveAsync(identity, ct).ConfigureAwait(false);
+
+            if (!walk.Offered(identity))
+            {
+                continue;
+            }
+
+            offered++;
+            var line = LineFor(offered, total, registers);
+            using var unit = progress.StartUnit(source.Named(identity), line);
+
+            var answered = await source.Register(identity, ct).ConfigureAwait(false);
+            tally.Record(answered);
+
+            // Skipped only where the offer was refused: there is no entry on the instance there to
+            // set a flag on.
+            if (source.Monitor is not null
+                && answered.Registration is not SceneRegistration.Refused)
+            {
+                tally.RecordMonitoring(
+                    await source.Monitor(identity, answered, ct).ConfigureAwait(false));
+            }
+
+            unit.Complete(OutcomeFor(answered.Registration), line);
+        }
+
+        tally.Offered = offered;
+        await folders.LeaveAsync(ct).ConfigureAwait(false);
+    }
+
+    // The folder the walk is inside. Linked once the walk leaves it, and once more after the stream
+    // ends, so the last folder is not left out. A row naming no folder leaves the walk where it is:
+    // it is an identifier the library holds no file for, so there is nothing to link on its account.
+    private sealed class FolderWalk<TIdentity>(SyncLibraryWalk<TIdentity> walk)
+    {
+        private string? _inside;
+
+        private bool Links => walk.FolderOf is not null && walk.LinkFolder is not null;
+
+        internal async Task ArriveAsync(TIdentity identity, CancellationToken ct)
+        {
+            if (!Links || walk.FolderOf!(identity) is not { } arrived)
+            {
+                return;
+            }
+
+            if (_inside is not null && !string.Equals(_inside, arrived, StringComparison.Ordinal))
+            {
+                await walk.LinkFolder!(_inside, ct).ConfigureAwait(false);
+            }
+
+            _inside = arrived;
+        }
+
+        internal async Task LeaveAsync(CancellationToken ct)
+        {
+            if (_inside is not null && walk.LinkFolder is not null)
+            {
+                await walk.LinkFolder(_inside, ct).ConfigureAwait(false);
+            }
+        }
+    }
+
+    // The counters one run accumulates. Mutable and private to the run, so the offer loop states
+    // what happened rather than carrying thirteen locals through it.
+    private sealed class SyncLibraryTally
+    {
+        // Bounded by the configured library root count, which an operator creates by hand. It holds
+        // root names only, never an entry and never a file, so it does not grow with the library.
+        private readonly List<string> _rootsLeftBehind = [];
+
+        private SceneMonitorTally _monitoring = SceneMonitorTally.Nothing;
+        private int _registered;
+        private int _alreadyHeld;
+        private int _refused;
+        private int _moved;
+        private int _splitAcrossRoots;
+        private int _filesLeftElsewhere;
+        private int _withoutAnAgreedRoot;
+
+        internal int Offered { get; set; }
+
+        internal void Record(SyncRegistration answered)
+        {
+            switch (answered.Registration)
+            {
+                case SceneRegistration.Registered:
+                    _registered++;
+                    break;
+                case SceneRegistration.AlreadyHeld:
+                    _alreadyHeld++;
+                    break;
+                case SceneRegistration.Moved:
+                    _moved++;
+                    break;
+                default:
+                    _refused++;
+                    break;
+            }
+
+            if (answered.Root is { } root)
+            {
+                RecordRoot(root);
+            }
+        }
+
+        internal void RecordMonitoring(SceneMonitorTally marked)
+            => _monitoring = _monitoring.Plus(marked);
+
+        internal SyncLibraryRun Ended(SyncLibraryRunOutcome outcome)
             => new(
                 outcome,
-                registered,
-                alreadyHeld,
-                refused,
-                monitoring.Monitored,
-                monitoring.Refused,
-                monitoring.Unnumbered,
-                monitoring.Unresolved,
-                offered,
-                moved,
-                splitAcrossRoots,
-                filesLeftElsewhere,
-                withoutAnAgreedRoot,
-                rootsLeftBehind);
+                _registered,
+                _alreadyHeld,
+                _refused,
+                _monitoring.Monitored,
+                _monitoring.Refused,
+                _monitoring.Unnumbered,
+                _monitoring.Unresolved,
+                Offered,
+                _moved,
+                _splitAcrossRoots,
+                _filesLeftElsewhere,
+                _withoutAnAgreedRoot,
+                _rootsLeftBehind);
+
+        private void RecordRoot(EntityRoot root)
+        {
+            if (root.Refusal is MonitorRefusalKind.NoAgreedRootForThisEntity)
+            {
+                _withoutAnAgreedRoot++;
+            }
+
+            if (root.RootsLeftBehind.Count == 0)
+            {
+                return;
+            }
+
+            _splitAcrossRoots++;
+            _filesLeftElsewhere += root.FilesLeftElsewhere;
+
+            foreach (var left in root.RootsLeftBehind)
+            {
+                if (!_rootsLeftBehind.Contains(left, StringComparer.Ordinal))
+                {
+                    _rootsLeftBehind.Add(left);
+                }
+            }
+        }
     }
 
     // Composed under the invariant culture with a grouped format, so the same figure reads the

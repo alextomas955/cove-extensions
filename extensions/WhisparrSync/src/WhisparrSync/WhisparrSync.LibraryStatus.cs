@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
@@ -21,10 +20,10 @@ public sealed partial class WhisparrSync
         // library, and it composes no write.
         endpoints.MapPost(LibraryStatusRoute,
             (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+             WhisparrAccess whisparr,
              LibraryStatusPort cards, ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => ReadLibraryStatusAsync(
-                    kind, request, principal, options, credentials, instances, cards, sceneCards, ct))
+                    kind, request, principal, whisparr, cards, sceneCards, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
@@ -36,9 +35,7 @@ public sealed partial class WhisparrSync
             string kind,
             LibraryStatusRequest request,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             LibraryStatusPort cards,
             ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
@@ -65,7 +62,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(cards);
         ArgumentNullException.ThrowIfNull(sceneCards);
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(

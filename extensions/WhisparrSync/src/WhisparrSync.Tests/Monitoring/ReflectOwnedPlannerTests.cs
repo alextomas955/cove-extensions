@@ -434,14 +434,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V2,
             DeclaredRoots,
             Folders("/library/inbox", "/library/inbox/second"),
-            OnTheInstance,
-            (_, _) => Task.FromResult(
-                ImportableListing.Listed($"[{InboxRowMatchedToRootA},{SecondInboxRowMatchedToRootA}]")),
-            (_, _) =>
-            {
-                attaches++;
-                return Task.FromResult(true);
-            },
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{InboxRowMatchedToRootA},{SecondInboxRowMatchedToRootA}]")),
+                (_, _) => { attaches++; return Task.FromResult(true); }),
             TestCt);
 
         Assert.Equal(0, attaches);
@@ -462,17 +458,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("Vixen", "Tushy"),
-            OnTheInstance,
-            (_, _) =>
-            {
-                reads++;
-                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
-            },
-            (_, _) =>
-            {
-                attaches++;
-                return Task.FromResult(true);
-            },
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => { reads++; return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => { attaches++; return Task.FromResult(true); }),
             cancelled.Token);
 
         Assert.Equal(ReflectOwnedRunOutcome.Cancelled, run.Outcome);
@@ -491,14 +480,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("Vixen", "Tushy", "Blacked"),
-            OnTheInstance,
-            (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
-            (files, _) =>
-            {
-                attached.Add(files);
-                cancellation.Cancel();
-                return Task.FromResult(true);
-            },
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
+                (files, _) => { attached.Add(files); cancellation.Cancel(); return Task.FromResult(true); }),
             cancellation.Token);
 
         Assert.Equal(ReflectOwnedRunOutcome.Cancelled, run.Outcome);
@@ -516,17 +501,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("/config/library/Vixen", "/config/library/Tushy", "/config/library/Empty"),
-            OnTheInstance,
-            (folder, _) => Task.FromResult(
-                ImportableListing.Listed(
-                    folder.EndsWith("Empty", StringComparison.Ordinal)
-                        ? "[]"
-                        : $"[{V3MatchedRow.Replace("/config/library/Vixen", folder, StringComparison.Ordinal)}]")),
-            (files, _) =>
-            {
-                attached.Add(files);
-                return Task.FromResult(attached.Count == 1);
-            },
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (folder, _) => Task.FromResult(ImportableListing.Listed(folder.EndsWith("Empty", StringComparison.Ordinal) ? "[]" : $"[{V3MatchedRow.Replace("/config/library/Vixen", folder, StringComparison.Ordinal)}]")),
+                (files, _) => { attached.Add(files); return Task.FromResult(attached.Count == 1); }),
             TestContext.Current.CancellationToken);
 
         // The read is per folder, so reads are counted from the attach delegate's inputs.
@@ -551,13 +529,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
-            (_, _) => Task.FromResult(Unaddressable),
-            (folder, _) =>
-            {
-                read.Add(folder);
-                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
-            },
-            (_, _) => Task.FromResult(true),
+            new ReflectOwnedSteps(
+                (_, _) => Task.FromResult(Unaddressable),
+                (folder, _) => { read.Add(folder); return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => Task.FromResult(true)),
             TestCt);
 
         Assert.Empty(read);
@@ -573,9 +548,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
-            (_, _) => Task.FromResult(Unaddressable),
-            (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
-            (_, _) => Task.FromResult(true),
+            new ReflectOwnedSteps(
+                (_, _) => Task.FromResult(Unaddressable),
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
+                (_, _) => Task.FromResult(true)),
             TestCt);
 
         var only = Assert.Single(run.AddressRefusals!);
@@ -593,18 +569,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             [],
             Folders("G:/Downloads/P/Vixen"),
-            (folder, _) => Task.FromResult(
-                new AddressedFolder(
-                    folder.Replace("G:/Downloads/P", "/data", StringComparison.Ordinal),
-                    null,
-                    "G:/Downloads/P",
-                    [])),
-            (folder, _) =>
-            {
-                read.Add(folder);
-                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
-            },
-            (_, _) => Task.FromResult(true),
+            new ReflectOwnedSteps(
+                (folder, _) => Task.FromResult(new AddressedFolder(folder.Replace("G:/Downloads/P", "/data", StringComparison.Ordinal), null, "G:/Downloads/P", [])),
+                (folder, _) => { read.Add(folder); return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => Task.FromResult(true)),
             TestCt);
 
         Assert.Equal(["/data/Vixen"], read);

@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -103,15 +104,13 @@ public sealed class MissingQueryBindingTests
     public async Task APageSizeAboveTheBoundIsRefused(int perPage)
     {
         var answered = await WhisparrSync.ReadMissingPageAsync(
-            "studio", 7, 1, perPage, null, null, null, null,
+            new EntityRoute("studio", 7),
+            new MissingNarrowing(1, perPage, null, null, null, null),
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            new OptionsStore(new FakeStore()),
-            new RecordingCredentialPort(),
-            new FixedInstanceFactory(
+            WhisparrOver(
                 new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
-            NullLogger.Instance,
             TestCt);
 
         Assert.IsType<BadRequest>(answered.Result);
@@ -123,15 +122,13 @@ public sealed class MissingQueryBindingTests
     public async Task APageBelowOneIsRefused(int page)
     {
         var answered = await WhisparrSync.ReadMissingPageAsync(
-            "studio", 7, page, 40, null, null, null, null,
+            new EntityRoute("studio", 7),
+            new MissingNarrowing(page, 40, null, null, null, null),
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            new OptionsStore(new FakeStore()),
-            new RecordingCredentialPort(),
-            new FixedInstanceFactory(
+            WhisparrOver(
                 new RecordingWhisparrV3Client(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
-            NullLogger.Instance,
             TestCt);
 
         Assert.IsType<BadRequest>(answered.Result);
@@ -143,11 +140,12 @@ public sealed class MissingQueryBindingTests
         var catalogue = new RecordingCatalogue();
 
         var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
-            "studio", 7, "tags", " ana ",
+            new EntityRoute("studio", 7),
+            "tags",
+            " ana ",
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            new OptionsStore(new FakeStore()),
+            WhisparrOver(null!),
             PlannerOver(catalogue),
-            NullLogger.Instance,
             TestCt);
 
         var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
@@ -169,11 +167,12 @@ public sealed class MissingQueryBindingTests
         var catalogue = new RecordingCatalogue();
 
         var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
-            "studio", 7, "tags", fragment,
+            new EntityRoute("studio", 7),
+            "tags",
+            fragment,
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
-            new OptionsStore(new FakeStore()),
+            WhisparrOver(null!),
             PlannerOver(catalogue),
-            NullLogger.Instance,
             TestCt);
 
         var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
@@ -189,16 +188,25 @@ public sealed class MissingQueryBindingTests
         var catalogue = new RecordingCatalogue();
 
         var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
-            "studio", 7, "tags", "ana",
+            new EntityRoute("studio", 7),
+            "tags",
+            "ana",
             FakePrincipalAccessor.WithPermissions(),
-            new OptionsStore(new FakeStore()),
+            WhisparrOver(null!),
             PlannerOver(catalogue),
-            NullLogger.Instance,
             TestCt);
 
         Assert.IsType<ForbiddenCode>(answered.Result);
         Assert.Empty(catalogue.Fragments);
     }
+
+    // The bundle a handler reaches the instance through, over a client a case supplies.
+    private static WhisparrAccess WhisparrOver(IWhisparrClient client)
+        => new(
+            new OptionsStore(new FakeStore()),
+            new RecordingCredentialPort(),
+            new FixedInstanceFactory(client),
+            NullLogger.Instance);
 
     private static StubInstanceCatalogue Listing(params string[] ids)
         => new(ids);

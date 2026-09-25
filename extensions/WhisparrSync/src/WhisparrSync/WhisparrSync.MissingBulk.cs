@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -12,7 +11,6 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
@@ -26,12 +24,12 @@ public sealed partial class WhisparrSync
         // Configure tier: one gesture aims the stored credential at a third party and creates items
         // in the reader's Whisparr, which a caller who cannot configure the extension may not do.
         endpoints.MapPost(MissingBulkMonitorRoute,
-            (string kind, int coveId, MissingBulkRequest request,
-             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+            ([AsParameters] EntityRoute route, MissingBulkRequest request,
+             ICurrentPrincipalAccessor principal, BackgroundWork work,
+             WhisparrAccess whisparr,
              CancellationToken ct)
                 => EnqueueMissingBulkMonitorAsync(
-                    kind, coveId, request, principal, jobs, scopes, options, credentials, instances, ct))
+                    route, request, principal, work, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -40,17 +38,17 @@ public sealed partial class WhisparrSync
     // third party, so waiting for the run would hold the browser open for its whole length.
     internal async Task<Results<Ok<MissingBulkEnqueued>, BadRequest, ForbiddenCode>>
         EnqueueMissingBulkMonitorAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             MissingBulkRequest request,
             ICurrentPrincipalAccessor principal,
-            IJobService jobs,
-            IServiceScopeFactory scopes,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            BackgroundWork work,
+            WhisparrAccess whisparr,
             CancellationToken ct)
     {
+        var (jobs, _) = work;
+
+        var (_, coveId) = route;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
@@ -61,7 +59,7 @@ public sealed partial class WhisparrSync
 
         // Bounded to one page of scenes: a longer body is one no page of this surface can produce,
         // and the run's cost grows with what it carries.
-        if (!TryReadEntity(kind, coveId, out var entityKind)
+        if (!TryReadEntity(route, out var entityKind)
             || request is not { ProviderSceneIds.Count: > 0 }
             || request.ProviderSceneIds.Count > MissingPerPage
             || !request.ProviderSceneIds.All(IsBoundedSceneId))
@@ -69,7 +67,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -88,7 +86,7 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(
             new MissingBulkEnqueued(
                 EnqueueMissingBulk(
-                    jobs, scopes, entityKind, coveId, request.ProviderSceneIds, request.Verb),
+                    work, entityKind, coveId, request.ProviderSceneIds, request.Verb),
                 MissingRefusalKind.None));
     }
 
@@ -96,13 +94,14 @@ public sealed partial class WhisparrSync
     // list for one gesture. Exclusive because one scene can be reached from two entities, a video
     // carrying a studio and its performers at once, so overlapping runs would offer it twice.
     private string EnqueueMissingBulk(
-        IJobService jobs,
-        IServiceScopeFactory scopes,
+        BackgroundWork work,
         WhisparrEntityKind kind,
         int coveId,
         IReadOnlyList<string> providerSceneIds,
         MissingBulkVerb verb)
     {
+        var (jobs, scopes) = work;
+
         var parameters = MissingBulkJob.Encode(kind, coveId, providerSceneIds, verb);
 
         return jobs.Enqueue(
@@ -154,9 +153,7 @@ public sealed partial class WhisparrSync
             CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
-                services.GetRequiredService<OptionsStore>(),
-                services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrInstanceFactory>(),
+                services.GetRequiredService<WhisparrAccess>(),
                 runCt).ConfigureAwait(false) is not { } target)
         {
             return null;
@@ -256,9 +253,7 @@ public sealed partial class WhisparrSync
             CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
-                services.GetRequiredService<OptionsStore>(),
-                services.GetRequiredService<ICredentialPort>(),
-                services.GetRequiredService<IWhisparrInstanceFactory>(),
+                services.GetRequiredService<WhisparrAccess>(),
                 runCt).ConfigureAwait(false) is not { } target
             || target.Reads is not IWhisparrMissingSceneActing acting)
         {

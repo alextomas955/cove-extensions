@@ -355,14 +355,16 @@ public sealed class SettingsEndpointTests
                 RequestFrom(CoveOrigin),
                 Configure(),
                 ExtensionId,
-                options,
-                gate,
-                credentials,
-                new MintedSecretPort(),
-                notifications,
-                new RegistrationGate(),
-                new Lockdown(wouldLockDown),
-                new FixedClock(Now),
+                new CallbackAddressing(
+                    options,
+                    new MintedSecretPort(),
+                    new Lockdown(wouldLockDown),
+                    new FixedClock(Now)),
+                new CallbackRegistering(
+                    gate,
+                    credentials,
+                    notifications,
+                    new RegistrationGate()),
                 TestCt));
 
     private static DefaultHttpContext RequestFrom(string origin)

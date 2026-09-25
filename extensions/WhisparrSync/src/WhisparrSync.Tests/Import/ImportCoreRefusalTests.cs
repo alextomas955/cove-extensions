@@ -183,8 +183,7 @@ public sealed class ImportCoreRefusalTests
                     new StubReportedRoots(root),
                     Library,
                     Paths,
-                    new OptionsStore(Store),
-                    new OptionsWriteGate(),
+                    new OptionsWriting(new OptionsStore(Store), new OptionsWriteGate()),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     TimeProvider.System,
                     NullLogger.Instance)

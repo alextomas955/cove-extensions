@@ -8,7 +8,6 @@ using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,24 +34,16 @@ public sealed partial class WhisparrSync
 
         endpoints.MapPost(CallbackRegisterRoute,
             (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
-             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
-             ICallbackSecretPort secrets, IWhisparrNotificationPort notifications,
-             RegistrationGate registrations,
-             [FromServices] IHostLockdownPort lockdown,
-             TimeProvider clock, CancellationToken ct)
+             CallbackAddressing addressing, CallbackRegistering registering, CancellationToken ct)
                 => RegisterCallbackAsync(
-                    request, http, principal, Id, options, gate, credentials, secrets, notifications,
-                    registrations, lockdown, clock, ct))
+                    request, http, principal, Id, addressing, registering, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapGet(CallbackStatusRoute,
-            (HttpContext http, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICallbackSecretPort secrets,
-             [FromServices] IHostLockdownPort lockdown,
-             TimeProvider clock, CancellationToken ct)
-                => ReadCallbackStatusAsync(
-                    http, principal, Id, options, secrets, lockdown, clock, ct))
+            (HttpContext http, ICurrentPrincipalAccessor principal,
+             CallbackAddressing addressing, CancellationToken ct)
+                => ReadCallbackStatusAsync(http, principal, Id, addressing, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -238,20 +229,19 @@ public sealed partial class WhisparrSync
         HttpContext http,
         ICurrentPrincipalAccessor principal,
         string extensionId,
-        OptionsStore options,
-        OptionsWriteGate gate,
-        ICredentialPort credentials,
-        ICallbackSecretPort secrets,
-        IWhisparrNotificationPort notifications,
-        RegistrationGate registrations,
-        IHostLockdownPort lockdown,
-        TimeProvider clock,
+        CallbackAddressing addressing,
+        CallbackRegistering registering,
         CancellationToken ct)
     {
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
         }
+
+        ArgumentNullException.ThrowIfNull(addressing);
+        ArgumentNullException.ThrowIfNull(registering);
+        var (options, secrets, lockdown, clock) = addressing;
+        var (gate, credentials, notifications, registrations) = registering;
 
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(http);
@@ -337,16 +327,16 @@ public sealed partial class WhisparrSync
         HttpContext http,
         ICurrentPrincipalAccessor principal,
         string extensionId,
-        OptionsStore options,
-        ICallbackSecretPort secrets,
-        IHostLockdownPort lockdown,
-        TimeProvider clock,
+        CallbackAddressing addressing,
         CancellationToken ct)
     {
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
         }
+
+        ArgumentNullException.ThrowIfNull(addressing);
+        var (options, secrets, lockdown, clock) = addressing;
 
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(options);

@@ -47,10 +47,11 @@ public sealed class SyncLibraryPlannerTests
 
         var run = await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => host.LibraryScenes.SceneIdentities(WhisparrGeneration.V3, ct),
-            identity => identity,
-            instance.RegisterAsync,
-            monitor: null,
+            new SyncLibrarySource<string>(
+                ct => host.LibraryScenes.SceneIdentities(WhisparrGeneration.V3, ct),
+                identity => identity,
+                instance.RegisterAsync,
+                null),
             ordered,
             TestCt);
 
@@ -110,10 +111,11 @@ public sealed class SyncLibraryPlannerTests
         var sites = new RecordingJobProgress();
         await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Sites,
-            ct => Streamed([FirstScene, SecondScene], ct),
-            identity => identity,
-            new Instance(_ => Accepted).RegisterAsync,
-            (_, _, _) => Task.FromResult(new SceneMonitorTally(2, 1, 0, 0)),
+            new SyncLibrarySource<string>(
+                ct => Streamed([FirstScene, SecondScene], ct),
+                identity => identity,
+                new Instance(_ => Accepted).RegisterAsync,
+                (_, _, _) => Task.FromResult(new SceneMonitorTally(2, 1, 0, 0))),
             sites,
             TestCt);
 
@@ -213,10 +215,11 @@ public sealed class SyncLibraryPlannerTests
 
         var run = await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => Streamed([FirstScene, SecondScene, ThirdScene], ct),
-            identity => identity,
-            instance.RegisterAsync,
-            monitor: null,
+            new SyncLibrarySource<string>(
+                ct => Streamed([FirstScene, SecondScene, ThirdScene], ct),
+                identity => identity,
+                instance.RegisterAsync,
+                null),
             ordered,
             stopping.Token);
 
@@ -269,10 +272,11 @@ public sealed class SyncLibraryPlannerTests
 
         var run = await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => Streamed([FirstScene, SecondScene], ct),
-            identity => identity,
-            instance.RegisterAsync,
-            monitor: null,
+            new SyncLibrarySource<string>(
+                ct => Streamed([FirstScene, SecondScene], ct),
+                identity => identity,
+                instance.RegisterAsync,
+                null),
             progress,
             TestCt);
 
@@ -304,10 +308,11 @@ public sealed class SyncLibraryPlannerTests
         var progress = new RecordingJobProgress();
         await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => Streamed([FirstScene], ct),
-            identity => identity,
-            asked.RegisterAsync,
-            asked.MonitorAsync,
+            new SyncLibrarySource<string>(
+                ct => Streamed([FirstScene], ct),
+                identity => identity,
+                asked.RegisterAsync,
+                asked.MonitorAsync),
             progress,
             TestCt);
 
@@ -336,10 +341,11 @@ public sealed class SyncLibraryPlannerTests
 
         var run = await SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => Streamed(identities, ct),
-            identity => identity,
-            new Instance(answers).RegisterAsync,
-            monitor: null,
+            new SyncLibrarySource<string>(
+                ct => Streamed(identities, ct),
+                identity => identity,
+                new Instance(answers).RegisterAsync,
+                null),
             ordered,
             TestCt);
 
@@ -349,10 +355,11 @@ public sealed class SyncLibraryPlannerTests
     private static Task<SyncLibraryRun> RunWith(Instance instance, string[] identities)
         => SyncLibraryPlanner.RunAsync(
             SyncRegisters.Scenes,
-            ct => Streamed(identities, ct),
-            identity => identity,
-            instance.RegisterAsync,
-            instance.MonitorAsync,
+            new SyncLibrarySource<string>(
+                ct => Streamed(identities, ct),
+                identity => identity,
+                instance.RegisterAsync,
+                instance.MonitorAsync),
             new RecordingJobProgress(),
             TestCt);
 

@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -12,7 +11,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
 
@@ -25,11 +23,10 @@ public sealed partial class WhisparrSync
         // The monitor route's tier: it aims the stored credential at a third party, and its reach
         // is the one entity the route segment names, which no lesser tier expresses.
         endpoints.MapPost(ReflectOwnedRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
-             IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
+             BackgroundWork work, CancellationToken ct)
                 => ReflectOwnedEntityAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, jobs, scopes, ct))
+                    route, principal, whisparr, identities, work, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -42,17 +39,17 @@ public sealed partial class WhisparrSync
     // an entity's folder set.
     internal async Task<Results<Ok<ReflectOwnedEnqueued>, Accepted<ReflectOwnedEnqueued>, BadRequest, ForbiddenCode>>
         ReflectOwnedEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            IJobService jobs,
-            IServiceScopeFactory scopes,
+            BackgroundWork work,
             CancellationToken ct)
     {
+        var (jobs, _) = work;
+
+        var (kind, coveId) = route;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -67,7 +64,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(Refusing(MonitorRefusalKind.NotConfigured));
@@ -91,7 +88,7 @@ public sealed partial class WhisparrSync
         return TypedResults.Accepted(
             (string?)null,
             new ReflectOwnedEnqueued(
-                null, EnqueueReflectOwned(jobs, scopes, entityKind, coveId), MonitorRefusalKind.None));
+                null, EnqueueReflectOwned(work, entityKind, coveId), MonitorRefusalKind.None));
 
         static ReflectOwnedEnqueued Refusing(MonitorRefusalKind refusal)
             => new(null, null, refusal);
@@ -100,8 +97,10 @@ public sealed partial class WhisparrSync
     // Exclusive: two entities can hold files in one folder, since a video carries a studio and its
     // performers at once, so overlapping runs would issue overlapping attaches for one directory.
     private string EnqueueReflectOwned(
-        IJobService jobs, IServiceScopeFactory scopes, WhisparrEntityKind kind, int coveId)
+        BackgroundWork work, WhisparrEntityKind kind, int coveId)
     {
+        var (jobs, scopes) = work;
+
         var parameters = ReflectOwnedJob.Encode(kind, coveId);
 
         return jobs.Enqueue(
@@ -143,9 +142,7 @@ public sealed partial class WhisparrSync
         async Task<ReflectOwnedAim> AimAsync(IServiceProvider services, CancellationToken runCt)
         {
             if (await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrInstanceFactory>(),
+                    services.GetRequiredService<WhisparrAccess>(),
                     runCt).ConfigureAwait(false) is not { } target)
             {
                 return new ReflectOwnedAim(null, null);
