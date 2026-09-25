@@ -506,15 +506,11 @@ public sealed class SafetyInvariantTests
         async Task<SyncLibraryRun> RunOnceAsync()
             => await SyncLibraryPlanner.RunAsync(
                 SyncRegisters.Scenes,
-                Streamed,
-                identity => identity,
-                (identity, _) =>
-                {
-                    offered.Add(identity);
-                    return Task.FromResult(SyncRegistration.Offered(
-                        held.Add(identity) ? SceneAccepted : SceneAlreadyHeld));
-                },
-                monitor: null,
+                new SyncLibrarySource<string>(
+                    Streamed,
+                    identity => identity,
+                    (identity, _) => { offered.Add(identity); return Task.FromResult(SyncRegistration.Offered(held.Add(identity) ? SceneAccepted : SceneAlreadyHeld)); },
+                    null),
                 new RecordingJobProgress(),
                 TestCt);
 
@@ -730,15 +726,16 @@ public sealed class SafetyInvariantTests
 
         public Task<BackstopPassResult> BackstopAsync()
             => new BackstopPass(
-                    new FixedInstanceFactory(Client),
-                    _options,
+                    new WhisparrAccess(
+                        _options,
+                        _credentials,
+                        new FixedInstanceFactory(Client),
+                        NullLogger.Instance),
                     Gate,
-                    _credentials,
                     Core(),
                     new FixedClock(Now),
                     _followUp,
-                    Library,
-                    NullLogger.Instance)
+                    Library)
                 .RunAsync(TestCt);
 
         // One page holding one import record, naming a file below the reporting root.
@@ -761,8 +758,7 @@ public sealed class SafetyInvariantTests
                 _reportedRoots,
                 Library,
                 Paths,
-                _options,
-                Gate,
+                new OptionsWriting(_options, Gate),
                 _followUp,
                 new FixedClock(Now),
                 NullLogger.Instance);

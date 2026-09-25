@@ -79,19 +79,30 @@ internal static class SceneCutoffProjector
                 return named;
             }
 
-            if (!item.TryGetProperty("items", out var nested)
-                || nested.ValueKind != JsonValueKind.Array)
+            if (MemberNameIn(item, cutoff) is { } inGroup)
             {
-                continue;
+                return inGroup;
             }
+        }
 
-            foreach (var leaf in nested.EnumerateArray())
+        return null;
+    }
+
+    // A group's own members, where the qualities under it are declared.
+    private static string? MemberNameIn(JsonElement group, int cutoff)
+    {
+        if (!group.TryGetProperty("items", out var members)
+            || members.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var member in members.EnumerateArray())
+        {
+            if (member.ValueKind == JsonValueKind.Object
+                && QualityNameIn(member, cutoff) is { } named)
             {
-                if (leaf.ValueKind == JsonValueKind.Object
-                    && QualityNameIn(leaf, cutoff) is { } nestedName)
-                {
-                    return nestedName;
-                }
+                return named;
             }
         }
 

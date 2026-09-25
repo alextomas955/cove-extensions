@@ -1,17 +1,15 @@
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
@@ -21,11 +19,10 @@ public sealed partial class WhisparrSync
     private void MapMonitoringEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(MonitoringReadRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              CancellationToken ct)
                 => ReadEntityMonitoringAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, _log, ct))
+                    route, principal, whisparr, identities, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
@@ -33,31 +30,26 @@ public sealed partial class WhisparrSync
         // so naming an entity here would cost a read of the instance for facts this answers from
         // stored settings.
         endpoints.MapGet(ConnectionOfferRoute,
-            (ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, CancellationToken ct)
-                => ReadConnectionOfferAsync(principal, options, credentials, instances, ct))
+            (ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, CancellationToken ct)
+                => ReadConnectionOfferAsync(principal, whisparr, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
         endpoints.MapPost(MonitorRoute,
-            (string kind, int coveId, MonitorEntityRequest request,
-             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, IEntityIdentityPort identities, IJobService jobs,
-             IServiceScopeFactory scopes, CancellationToken ct)
+            ([AsParameters] EntityRoute route, MonitorEntityRequest request,
+             ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities, BackgroundWork work, CancellationToken ct)
                 => MonitorEntityAsync(
-                    kind, coveId, request, principal, options, credentials, instances, identities, jobs,
-                    scopes, _log, ct))
+                    route, request, principal, whisparr, identities, work, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         // The same tier as the monitor route, and for the same reason: each aims this extension's
         // stored credential at a third party.
         endpoints.MapPost(UnmonitorRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              CancellationToken ct)
                 => UnmonitorEntityAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, _log, ct))
+                    route, principal, whisparr, identities, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -65,20 +57,18 @@ public sealed partial class WhisparrSync
         // third party, and it spends the reader's bandwidth and disk. Its reach is one Cove entity
         // named by the route segment, so it is neither a whole-library verb nor a body-named one.
         endpoints.MapPost(SearchAllMonitoredRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
+            ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              CancellationToken ct)
                 => SearchAllMonitoredEntityAsync(
-                    kind, coveId, principal, options, credentials, instances, identities, _log, ct))
+                    route, principal, whisparr, identities, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapPost(MonitorScopeRoute,
-            (string kind, int coveId, MonitorEntityRequest request,
-             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, IEntityIdentityPort identities, CancellationToken ct)
+            ([AsParameters] EntityRoute route, MonitorEntityRequest request,
+             ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities, CancellationToken ct)
                 => SetMonitorScopeAsync(
-                    kind, coveId, request, principal, options, credentials, instances, identities, _log, ct))
+                    route, request, principal, whisparr, identities, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -89,16 +79,16 @@ public sealed partial class WhisparrSync
     // The read tier, checked before the store, so a principal without it causes no read.
     internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         ReadEntityMonitoringAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            ILogger log,
             CancellationToken ct)
     {
+        var (kind, coveId) = route;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
@@ -116,7 +106,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(identities);
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
@@ -134,9 +124,7 @@ public sealed partial class WhisparrSync
     internal static async Task<Results<Ok<WhisparrConnectionOffer>, ForbiddenCode>>
         ReadConnectionOfferAsync(
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             CancellationToken ct)
     {
         if (!HasReadPermission(principal))
@@ -144,7 +132,7 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        return await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        return await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target
                 ? TypedResults.Ok(WhisparrConnectionOffer.NotConfigured)
                 : TypedResults.Ok(
@@ -171,19 +159,20 @@ public sealed partial class WhisparrSync
     // folder of the entity at a time, and awaiting it would make the click as long as the entity.
     internal async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         MonitorEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             MonitorEntityRequest request,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            IJobService jobs,
-            IServiceScopeFactory scopes,
-            ILogger log,
+            BackgroundWork work,
             CancellationToken ct)
     {
+        var (_, scopes) = work;
+
+        var (kind, coveId) = route;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -198,7 +187,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
@@ -211,8 +200,7 @@ public sealed partial class WhisparrSync
         // No scope reaches the performer arm: the field a future-only scope is expressed through
         // exists on the studio resource and on no other.
         var monitoring = await MonitorResolvedAsync(
-            entityKind,
-            coveId,
+            new MonitoredEntity(entityKind, coveId),
             target,
             identities,
             log,
@@ -224,7 +212,7 @@ public sealed partial class WhisparrSync
         // thousand entities must not become a thousand background runs.
         if (monitoring is { Refusal: MonitorRefusalKind.None, Monitored: true })
         {
-            EnqueueReflectOwned(jobs, scopes, entityKind, coveId);
+            EnqueueReflectOwned(work, entityKind, coveId);
         }
 
         return TypedResults.Ok(monitoring);
@@ -238,16 +226,16 @@ public sealed partial class WhisparrSync
     // the current state rather than a refusal and nothing is sent.
     internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         UnmonitorEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            ILogger log,
             CancellationToken ct)
     {
+        var (kind, coveId) = route;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -261,7 +249,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
@@ -326,16 +314,16 @@ public sealed partial class WhisparrSync
     // nothing there, so the read turns that into a refusal instead of a request.
     internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         SearchAllMonitoredEntityAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            ILogger log,
             CancellationToken ct)
     {
+        var (kind, coveId) = route;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -349,7 +337,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
@@ -420,17 +408,17 @@ public sealed partial class WhisparrSync
     // that did not happen.
     internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
         SetMonitorScopeAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             MonitorEntityRequest request,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             IEntityIdentityPort identities,
-            ILogger log,
             CancellationToken ct)
     {
+        var (kind, coveId) = route;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -447,7 +435,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));

@@ -4,16 +4,31 @@ using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
-using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
+
+// What a reader asked the catalogue to be narrowed to. Every member travels to the provider
+// unchanged, so it narrows the catalogue rather than the page that happened to load. The count
+// route binds the same shape and reads only the two members a count depends on.
+internal sealed record MissingCountNarrowing(
+    [FromQuery(Name = "q")] string? Q,
+    [FromQuery(Name = "filters")] string? Filters);
+
+// The paging and the sort a page read adds on top of the narrowing a count shares with it.
+internal sealed record MissingNarrowing(
+    [FromQuery(Name = "page")] int? Page,
+    [FromQuery(Name = "perPage")] int? PerPage,
+    [FromQuery(Name = "sort")] string? Sort,
+    [FromQuery(Name = "q")] string? Q,
+    [FromQuery(Name = "filters")] string? Filters,
+    [FromQuery(Name = "menusHeld")] bool? MenusHeld);
 
 public sealed partial class WhisparrSync
 {
@@ -21,35 +36,31 @@ public sealed partial class WhisparrSync
     {
         // Read tier: each reaches the one entity the route segment names.
         endpoints.MapGet(MissingPageRoute,
-            (string kind, int coveId, int? page, int? perPage, string? sort, string? q,
-             string? filters, bool? menusHeld, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
+            ([AsParameters] EntityRoute route, [AsParameters] MissingNarrowing narrowing,
+             ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
              ProviderEndpointPort endpoints, MissingPagePlanner planner, CancellationToken ct)
                 => ReadMissingPageAsync(
-                    kind, coveId, page, perPage, sort, q, filters, menusHeld, principal, options,
-                    credentials, instances, endpoints, planner, _log, ct))
+                    route, narrowing, principal, whisparr, endpoints, planner, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
         endpoints.MapGet(MissingCountRoute,
-            (string kind, int coveId, string? q, string? filters,
-             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, ProviderEndpointPort endpoints, MissingPagePlanner planner,
-             CancellationToken ct)
+            ([AsParameters] EntityRoute route, [AsParameters] MissingCountNarrowing narrowing,
+             ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             ProviderEndpointPort endpoints, MissingPagePlanner planner, CancellationToken ct)
                 => ReadMissingCountAsync(
-                    kind, coveId, q, filters, principal, options, credentials, instances, endpoints,
-                    planner, _log, ct))
+                    route, narrowing, principal, whisparr, endpoints, planner, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
         // Read tier: the same entity reach, and the answer is values the metadata source publishes.
         // It composes no write and asks the connected instance nothing.
         endpoints.MapGet(MissingFacetValuesRoute,
-            (string kind, int coveId, string facetKey, string? q,
-             ICurrentPrincipalAccessor principal, OptionsStore options, MissingPagePlanner planner,
-             CancellationToken ct)
+            ([AsParameters] EntityRoute route, string facetKey, string? q,
+             ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
+             MissingPagePlanner planner, CancellationToken ct)
                 => ReadMissingFacetValuesAsync(
-                    kind, coveId, facetKey, q, principal, options, planner, _log, ct))
+                    route, facetKey, q, principal, whisparr, planner, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
@@ -58,37 +69,34 @@ public sealed partial class WhisparrSync
     // they narrow the catalogue rather than the page that happened to load.
     internal static async Task<Results<Ok<MissingPageView>, BadRequest, ForbiddenCode>>
         ReadMissingPageAsync(
-            string kind,
-            int coveId,
-            int? page,
-            int? perPage,
-            string? sort,
-            string? q,
-            string? filters,
-            bool? menusHeld,
+            EntityRoute route,
+            MissingNarrowing narrowing,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ProviderEndpointPort endpoints,
             MissingPagePlanner planner,
-            ILogger log,
             CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(narrowing);
+        var (_, coveId) = route;
+        var (page, perPage, sort, q, filters, menusHeld) = narrowing;
+
+        var (_, _, _, log) = whisparr;
+
         // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        if (!TryReadEntity(kind, coveId, out var entityKind)
+        if (!TryReadEntity(route, out var entityKind)
             || !TryReadPaging(page, perPage, out var readPage, out var readPerPage))
         {
             return TypedResults.BadRequest();
         }
 
         var context = await ResolveMissingContextAsync(
-                options, credentials, instances, endpoints, ct)
+                whisparr, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -126,31 +134,32 @@ public sealed partial class WhisparrSync
     // so the host draws no badge.
     internal static async Task<Results<Ok<MissingCountView>, BadRequest, ForbiddenCode>>
         ReadMissingCountAsync(
-            string kind,
-            int coveId,
-            string? q,
-            string? filters,
+            EntityRoute route,
+            MissingCountNarrowing narrowing,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ProviderEndpointPort endpoints,
             MissingPagePlanner planner,
-            ILogger log,
             CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(narrowing);
+        var (_, coveId) = route;
+        var (q, filters) = narrowing;
+
+        var (_, _, _, log) = whisparr;
+
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        if (!TryReadEntity(kind, coveId, out var entityKind))
+        if (!TryReadEntity(route, out var entityKind))
         {
             return TypedResults.BadRequest();
         }
 
         var context = await ResolveMissingContextAsync(
-                options, credentials, instances, endpoints, ct)
+                whisparr, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -181,25 +190,25 @@ public sealed partial class WhisparrSync
     // A read of the metadata source alone. It asks the connected instance nothing.
     internal static async Task<Results<Ok<MissingFacetSearchView>, BadRequest, ForbiddenCode>>
         ReadMissingFacetValuesAsync(
-            string kind,
-            int coveId,
+            EntityRoute route,
             string facetKey,
             string? q,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
+            WhisparrAccess whisparr,
             MissingPagePlanner planner,
-            ILogger log,
             CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(whisparr);
         ArgumentNullException.ThrowIfNull(planner);
+        var (_, coveId) = route;
+        var (options, _, _, log) = whisparr;
 
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        if (!TryReadEntity(kind, coveId, out var entityKind) || string.IsNullOrWhiteSpace(facetKey))
+        if (!TryReadEntity(route, out var entityKind) || string.IsNullOrWhiteSpace(facetKey))
         {
             return TypedResults.BadRequest();
         }
@@ -244,12 +253,12 @@ public sealed partial class WhisparrSync
     // gives a null reading, stated downstream as a status no retry can establish. One holding no
     // exclusion role subtracts nothing, because it keeps no scene records and so no exclusions.
     private static async Task<MissingPageContext?> ResolveMissingContextAsync(
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         ProviderEndpointPort endpoints,
         CancellationToken ct)
     {
+        var (options, credentials, instances, _) = whisparr;
+
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(endpoints);
@@ -308,8 +317,8 @@ public sealed partial class WhisparrSync
     // The parse succeeds for an integer that names no member, and every arm reading a kind throws
     // for one it cannot express, so IsDefined is checked too. Without it, route input reaches a
     // throw inside a handler whose declared results hold no failure.
-    private static bool TryReadEntity(string kind, int coveId, out WhisparrEntityKind entityKind)
-        => Enum.TryParse(kind, ignoreCase: true, out entityKind)
+    private static bool TryReadEntity(EntityRoute route, out WhisparrEntityKind entityKind)
+        => Enum.TryParse(route.Kind, ignoreCase: true, out entityKind)
             && Enum.IsDefined(entityKind)
-            && coveId > 0;
+            && route.CoveId > 0;
 }

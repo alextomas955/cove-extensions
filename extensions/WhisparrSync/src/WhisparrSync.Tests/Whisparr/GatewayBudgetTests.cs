@@ -4,6 +4,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 using V2Api = Whisparr2.Net.Api;
+using V3Api = Whisparr3.Net.Api;
 
 namespace WhisparrSync.Tests.Whisparr;
 
@@ -19,23 +20,31 @@ public sealed class GatewayBudgetTests
     private static readonly TimeSpan ShorterThanTheSlowAnswer = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan TheSlowAnswer = TimeSpan.FromMilliseconds(400);
 
-    [Fact]
-    public async Task AnAnswerSlowerThanTheTargetsBudgetIsGivenUpOn()
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    // Both arms, over a gateway built the way ConfigureServices builds one. Driven on one arm alone
+    // this passed while the other discarded the budget and bounded every read at the per-item one.
+    [Theory]
+    [InlineData(WhisparrGeneration.V2)]
+    [InlineData(WhisparrGeneration.V3)]
+    public async Task AnAnswerSlowerThanTheTargetsBudgetIsGivenUpOn(WhisparrGeneration generation)
     {
-        using var gateway = new Whisparr2Gateway(() => new SlowHandler(TheSlowAnswer));
+        using var arm = GatewayArm.For(generation, new SlowHandler(TheSlowAnswer));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => ReadThroughAsync(gateway, ShorterThanTheSlowAnswer));
+            () => arm.ReadAsync(ShorterThanTheSlowAnswer, TestCt));
     }
 
-    [Fact]
-    public async Task TheSameAnswerIsWaitedForWhereTheTargetAsksForLonger()
+    [Theory]
+    [InlineData(WhisparrGeneration.V2)]
+    [InlineData(WhisparrGeneration.V3)]
+    public async Task TheSameAnswerIsWaitedForWhereTheTargetAsksForLonger(
+        WhisparrGeneration generation)
     {
-        using var gateway = new Whisparr2Gateway(() => new SlowHandler(TheSlowAnswer));
+        using var arm = GatewayArm.For(generation, new SlowHandler(TheSlowAnswer));
 
-        var answered = await ReadThroughAsync(gateway, LongerThanTheSlowAnswer);
-
-        Assert.Equal(HttpStatusCode.OK, answered.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK, await arm.ReadAsync(LongerThanTheSlowAnswer, TestCt));
     }
 
     [Fact]
@@ -79,15 +88,6 @@ public sealed class GatewayBudgetTests
         Assert.DoesNotContain(WhisparrTransport.LibraryReadTimeout, builtWith);
     }
 
-    private static async Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
-        Whisparr2Gateway gateway, TimeSpan budget)
-    {
-        using var apis = gateway.For(new Whisparr2Target(SomeAddress, SomeKey, budget));
-        return await apis
-            .Api<V2Api.IHistoryApi>()
-            .GetHistoryAsync(cancellationToken: TestContext.Current.CancellationToken);
-    }
-
     // The budget the v2 arm builds its client with is what a case reads off builtWith.
     private static IWhisparrClient V2Over(
         HttpClient http, HttpMessageHandler handler, List<TimeSpan> builtWith)
@@ -100,6 +100,38 @@ public sealed class GatewayBudgetTests
                 new TestSiteNumbers(),
                 NullLogger.Instance)
             .Bound(new WhisparrBinding(WhisparrGeneration.V2, SomeAddress, SomeKey));
+    }
+
+    // One read per generation through a default-constructed gateway, so what bounds the send is the
+    // target's budget and nothing a case supplied.
+    private sealed class GatewayArm(IDisposable gateway, Func<TimeSpan, CancellationToken, Task<HttpStatusCode>> read)
+        : IDisposable
+    {
+        public static GatewayArm For(WhisparrGeneration generation, HttpMessageHandler handler)
+        {
+            if (generation is WhisparrGeneration.V2)
+            {
+                var v2 = new Whisparr2Gateway(() => handler);
+                return new GatewayArm(v2, async (budget, ct) =>
+                {
+                    using var apis = v2.For(new Whisparr2Target(SomeAddress, SomeKey, budget));
+                    return (await apis.Api<V2Api.IHistoryApi>()
+                        .GetHistoryAsync(cancellationToken: ct)).StatusCode;
+                });
+            }
+
+            var v3 = new Whisparr3Gateway(() => handler);
+            return new GatewayArm(v3, async (budget, ct) =>
+            {
+                using var apis = v3.For(new Whisparr3Target(SomeAddress, SomeKey, budget));
+                return (await apis.Api<V3Api.IRootFolderApi>().GetRootfolderAsync(ct)).StatusCode;
+            });
+        }
+
+        public Task<HttpStatusCode> ReadAsync(TimeSpan budget, CancellationToken ct)
+            => read(budget, ct);
+
+        public void Dispose() => gateway.Dispose();
     }
 
     private sealed class SlowHandler(TimeSpan delay) : HttpMessageHandler

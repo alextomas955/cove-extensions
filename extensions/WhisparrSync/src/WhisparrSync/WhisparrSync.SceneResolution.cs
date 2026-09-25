@@ -4,7 +4,6 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
@@ -58,16 +57,14 @@ public sealed partial class WhisparrSync
         ResolveSceneVerbTargetAsync(
             int coveId,
             MonitoringTarget? known,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sceneCards);
 
         if ((known
-                ?? await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false))
+                ?? await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false))
             is not { } target)
         {
             return (null, SceneRefusalKind.NoInstanceConnected);
@@ -119,15 +116,14 @@ public sealed partial class WhisparrSync
         bool monitored,
         int coveId,
         MonitoringTarget? known,
-        OptionsStore options,
-        ICredentialPort credentials,
-        IWhisparrInstanceFactory instances,
+        WhisparrAccess whisparr,
         ILibraryCardIdentityPort sceneCards,
-        ILogger log,
         CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneMonitorActing>(
-            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -161,16 +157,15 @@ public sealed partial class WhisparrSync
         GroundSceneVerbAsync<TActing>(
             int coveId,
             MonitoringTarget? known,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
         where TActing : class
     {
+        var (_, _, _, log) = whisparr;
+
         var (resolved, refusal) = await ResolveSceneVerbTargetAsync(
-            coveId, known, options, credentials, instances, sceneCards, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (resolved is null)
         {
             return (null, refusal);
@@ -196,15 +191,14 @@ public sealed partial class WhisparrSync
         GroundExclusionVerbAsync(
             int coveId,
             MonitoringTarget? known,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
+            WhisparrAccess whisparr,
             ILibraryCardIdentityPort sceneCards,
-            ILogger log,
             CancellationToken ct)
     {
+        var (_, _, _, log) = whisparr;
+
         var (resolved, refusal) = await ResolveSceneVerbTargetAsync(
-            coveId, known, options, credentials, instances, sceneCards, ct).ConfigureAwait(false);
+            coveId, known, whisparr, sceneCards, ct).ConfigureAwait(false);
         if (resolved is null)
         {
             return (null, refusal);

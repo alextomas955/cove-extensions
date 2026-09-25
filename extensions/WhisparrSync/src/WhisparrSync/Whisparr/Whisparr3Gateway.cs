@@ -9,7 +9,7 @@ namespace WhisparrSync.Whisparr;
 // address and key at registration and both are settings a person edits, so one registration is held
 // per address-and-key pair rather than one per process.
 //
-// The redirect cap, the per-attempt timeout and the read bound are applied to every typed client the
+// The redirect cap, the read bound and the target's budget are applied to every typed client the
 // registration creates. None is the generated client's default; each is stated on WhisparrTransport.
 internal sealed class Whisparr3Gateway : IDisposable
 {
@@ -20,7 +20,10 @@ internal sealed class Whisparr3Gateway : IDisposable
         Action<HttpClient>? configure = null)
     {
         var handler = primaryHandler ?? WhisparrTransport.CreateHandler;
-        var settings = configure ?? WhisparrTransport.Configure;
+
+        // No default settings: the timeout comes from the target's budget below, and a supplied
+        // configure runs after it so a caller can override.
+        var settings = configure ?? (static _ => { });
         _registry = new GeneratedClientRegistry<Whisparr3Target>(
             target => Register(target, handler, settings));
     }

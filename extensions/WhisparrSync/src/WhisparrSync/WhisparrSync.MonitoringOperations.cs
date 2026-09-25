@@ -57,8 +57,7 @@ public sealed partial class WhisparrSync
     // The scope reaches the instance through actingFor and is never answered from here: every
     // branch answers a read, for the reason ScopeHeld states.
     private static async Task<EntityMonitoringView> MonitorResolvedAsync(
-        WhisparrEntityKind kind,
-        int coveId,
+        MonitoredEntity entity,
         MonitoringTarget target,
         IEntityIdentityPort identities,
         ILogger log,
@@ -66,6 +65,7 @@ public sealed partial class WhisparrSync
         Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>> composeAdd,
         CancellationToken ct)
     {
+        var (kind, coveId) = entity;
         var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 

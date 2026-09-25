@@ -32,6 +32,55 @@ internal static class SiteSceneMonitorPass
     // smaller chunk costs more of those whole-list reads.
     internal const int ChunkSize = 500;
 
+    // Null where the provider stopped answering, which the pass counts as unnumbered rather than
+    // propagating: a provider that stopped leaves the rest of the library to offer.
+    private static async Task<int?> NumberForAsync(
+        SiteSceneMonitorPorts ports,
+        string identity,
+        ILogger log,
+        ReportedOnce reported,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await ports.NumberFor(identity, ct).ConfigureAwait(false);
+        }
+        // A stop arrives in one of the shapes the containment below names. Contained, it would end
+        // the run Completed on a tally that reads like a finished pass.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            if (reported.NotYet())
+            {
+                WhisparrSyncLog.SceneNumbersUnreadable(log, WhisparrSyncLog.Classify(failure));
+            }
+
+            return null;
+        }
+    }
+
+    // One line per site: a line per scene would fill the log with the same fact repeated, and the
+    // tally already carries how many.
+    private sealed class ReportedOnce
+    {
+        private bool _fired;
+
+        internal bool NotYet()
+        {
+            if (_fired)
+            {
+                return false;
+            }
+
+            _fired = true;
+            return true;
+        }
+    }
+
     internal static async Task<SceneMonitorTally> MonitorAsync(
         SiteSceneMonitorPorts ports,
         LibrarySiteIdentity site,
@@ -44,8 +93,8 @@ internal static class SiteSceneMonitorPass
 
         var tally = SceneMonitorTally.Nothing;
         var chunk = new List<int>(ChunkSize);
-        var numbersReported = false;
-        var rowsReported = false;
+        var numbersReported = new ReportedOnce();
+        var rowsReported = new ReportedOnce();
 
         await foreach (var identity in ports.OwnedScenes(site.StudioId, ct)
             .WithCancellation(ct)
@@ -53,31 +102,8 @@ internal static class SiteSceneMonitorPass
         {
             ct.ThrowIfCancellationRequested();
 
-            int? number;
-            try
-            {
-                number = await ports.NumberFor(identity, ct).ConfigureAwait(false);
-            }
-            // A stop arrives in one of the shapes the containment below names. Contained, it would
-            // end the run Completed on a tally that reads like a finished pass.
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception failure)
-                when (failure is HttpRequestException or IOException or TaskCanceledException)
-            {
-                // Contained rather than propagated, because a provider that stopped answering leaves
-                // the rest of the library to offer. Reported once per site: one line per scene would
-                // fill the log with the same fact repeated, and the tally already carries how many.
-                if (!numbersReported)
-                {
-                    numbersReported = true;
-                    WhisparrSyncLog.SceneNumbersUnreadable(log, WhisparrSyncLog.Classify(failure));
-                }
-
-                number = null;
-            }
+            var number = await NumberForAsync(ports, identity, log, numbersReported, ct)
+                .ConfigureAwait(false);
 
             if (number is not { } named)
             {
@@ -104,26 +130,13 @@ internal static class SiteSceneMonitorPass
 
         async Task<SceneMonitorTally> FlagAsync()
         {
-            IReadOnlyDictionary<int, int> rows;
-            try
-            {
-                rows = await ports.RowsFor(siteId, chunk, ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception failure)
-                when (failure is HttpRequestException or IOException or TaskCanceledException)
-            {
-                // The read raises rather than answering an empty map, so these scenes are counted as
-                // unresolved rather than reported as scenes the instance holds nothing for.
-                if (!rowsReported)
-                {
-                    rowsReported = true;
-                    WhisparrSyncLog.SiteSceneRowsUnreadable(log, WhisparrSyncLog.Classify(failure));
-                }
+            var rows = await RowsForAsync(ports, siteId, chunk, log, rowsReported, ct)
+                .ConfigureAwait(false);
 
+            // The read raises rather than answering an empty map, so these scenes are counted as
+            // unresolved rather than reported as scenes the instance holds nothing for.
+            if (rows is null)
+            {
                 return new SceneMonitorTally(0, 0, chunk.Count, 0);
             }
 
@@ -143,6 +156,35 @@ internal static class SiteSceneMonitorPass
             }
 
             return flagged;
+        }
+    }
+
+    // Null where the instance stopped answering, which the caller counts as unresolved.
+    private static async Task<IReadOnlyDictionary<int, int>?> RowsForAsync(
+        SiteSceneMonitorPorts ports,
+        int siteId,
+        IReadOnlyList<int> chunk,
+        ILogger log,
+        ReportedOnce reported,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await ports.RowsFor(siteId, chunk, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            if (reported.NotYet())
+            {
+                WhisparrSyncLog.SiteSceneRowsUnreadable(log, WhisparrSyncLog.Classify(failure));
+            }
+
+            return null;
         }
     }
 }

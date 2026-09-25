@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
@@ -8,15 +7,12 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Import;
 
 internal sealed class BackstopPass(
-    IWhisparrInstanceFactory instances,
-    OptionsStore options,
+    WhisparrAccess whisparr,
     OptionsWriteGate gate,
-    ICredentialPort credentials,
     IImportCore core,
     TimeProvider clock,
     FollowUpScanCoalescer followUp,
-    ICoveLibraryPort library,
-    ILogger log) : IBackstopPass
+    ICoveLibraryPort library) : IBackstopPass
 {
     // Caps one response, not the walk. The walk's bound is the stored mark: capping the page count
     // would drop history the mark says is unread and then move the mark past it.
@@ -24,10 +20,10 @@ internal sealed class BackstopPass(
 
     public async Task<BackstopPassResult> RunAsync(CancellationToken ct)
     {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var stored = await whisparr.Options.LoadAsync(ct).ConfigureAwait(false);
         var generation = stored.SelectedGeneration;
         var connection = stored.ConnectionFor(generation);
-        var binding = await OutboundPair.ResolveAsync(stored, credentials, ct).ConfigureAwait(false);
+        var binding = await OutboundPair.ResolveAsync(stored, whisparr.Credentials, ct).ConfigureAwait(false);
         if (binding is null)
         {
             return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
@@ -78,7 +74,7 @@ internal sealed class BackstopPass(
         else if (IsRefusal(walk.Outcome))
         {
             WhisparrSyncLog.BackstopPassRefused(
-                log, generation, walk.Outcome, binding.BaseAddress.Host);
+                whisparr.Log, generation, walk.Outcome, binding.BaseAddress.Host);
             await RecordFailureAsync(walk.Outcome, ct).ConfigureAwait(false);
         }
 
@@ -98,13 +94,9 @@ internal sealed class BackstopPass(
         DateTimeOffset? mark,
         CancellationToken ct)
     {
-        var instance = instances.Bound(binding);
-
+        var instance = whisparr.Instances.Bound(binding);
+        var tally = new WalkTally();
         var page = 1;
-        var taken = 0;
-        var imported = 0;
-        var withoutCandidate = 0;
-        var contained = 0;
         DateTimeOffset? newest = null;
         DateTimeOffset? previousPageOldest = null;
         DateTimeOffset? previousPageNewest = null;
@@ -115,32 +107,10 @@ internal sealed class BackstopPass(
 
         while (true)
         {
-            WhisparrResponse answer;
-            try
+            var read = await ReadHistoryPageAsync(instance, page, ct).ConfigureAwait(false);
+            if (read is not { Records: { } records, Instants: { } instants })
             {
-                answer = await instance.ReadHistoryAsync(page, PageSize, ct)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                // Above the broad catch, so a shutdown classifies as cancelled rather than as a
-                // failed pass.
-                throw;
-            }
-            catch (Exception failure)
-                when (failure is HttpRequestException or IOException or TaskCanceledException)
-            {
-                return Ended(BackstopPassOutcome.RefusedUnreachable);
-            }
-
-            if (HistoryProjector.RecordsIn(answer.Body) is not { } records)
-            {
-                return Ended(BackstopPassOutcome.RefusedUnreadableAnswer);
-            }
-
-            if (HistoryProjector.InstantsIn(records) is not { } instants)
-            {
-                return Ended(BackstopPassOutcome.RefusedUnreadableAnswer);
+                return Ended(read.Refusal ?? BackstopPassOutcome.RefusedUnreadableAnswer);
             }
 
             var ids = HistoryProjector.IdsIn(records);
@@ -152,47 +122,7 @@ internal sealed class BackstopPass(
                 return Ended(BackstopPassOutcome.RefusedPageOrder);
             }
 
-            for (var index = reading.Skip; index < reading.Skip + reading.Take; index++)
-            {
-                taken++;
-                switch (HistoryProjector.Read(binding.Generation, records[index] as JsonObject))
-                {
-                    case { Outcome: HistoryProjectionOutcome.Projected, Candidate: { } candidate }:
-                        // Guarded per record: one record the ingest cannot take must not stop the
-                        // mark being written. A walk that ends in a throw leaves the mark where it
-                        // was, so every later pass reads the same page and throws again.
-                        try
-                        {
-                            if (await core.IngestAsync(candidate, ct).ConfigureAwait(false)
-                                == ImportOutcome.Imported)
-                            {
-                                imported++;
-                            }
-                        }
-                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                        {
-                            // Above the broad catch, so a shutdown classifies as cancelled.
-                            throw;
-                        }
-#pragma warning disable CA1031 // The point of the guard is that no failure ends the walk.
-                        catch (Exception failure)
-                        {
-                            WhisparrSyncLog.BackstopRecordContained(
-                                log, binding.Generation, WhisparrSyncLog.Classify(failure));
-                            contained++;
-                        }
-#pragma warning restore CA1031
-
-                        break;
-
-                    case { Outcome: HistoryProjectionOutcome.NoReadablePath }:
-                        withoutCandidate++;
-                        break;
-
-                    default:
-                        break;
-                }
-            }
+            await IngestPageAsync(binding, records, reading, tally, ct).ConfigureAwait(false);
 
             if (!reading.Continue || records.Count < PageSize)
             {
@@ -211,10 +141,118 @@ internal sealed class BackstopPass(
                 outcome,
                 IsRefusal(outcome) ? null : newest,
                 page,
-                taken,
-                imported,
-                withoutCandidate,
-                contained);
+                tally.Taken,
+                tally.Imported,
+                tally.WithoutCandidate,
+                tally.Contained);
+    }
+
+    // One page of history, or the refusal that stands in its place. Records and Instants are both
+    // set exactly when Refusal is null.
+    private readonly record struct HistoryPage(
+        BackstopPassOutcome? Refusal, JsonArray? Records, IReadOnlyList<DateTimeOffset>? Instants);
+
+    private static async Task<HistoryPage> ReadHistoryPageAsync(
+        IWhisparrClient instance, int page, CancellationToken ct)
+    {
+        if (await ReadPageAsync(instance, page, ct).ConfigureAwait(false) is not { } answer)
+        {
+            return new HistoryPage(BackstopPassOutcome.RefusedUnreachable, null, null);
+        }
+
+        return HistoryProjector.RecordsIn(answer.Body) is { } records
+            && HistoryProjector.InstantsIn(records) is { } instants
+                ? new HistoryPage(null, records, instants)
+                : new HistoryPage(BackstopPassOutcome.RefusedUnreadableAnswer, null, null);
+    }
+
+    // Null where the instance could not be reached, which the walk reports as a refusal rather than
+    // raising: a pass that cannot read is not a pass that failed.
+    private static async Task<WhisparrResponse?> ReadPageAsync(
+        IWhisparrClient instance, int page, CancellationToken ct)
+    {
+        try
+        {
+            return await instance.ReadHistoryAsync(page, PageSize, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Above the broad catch, so a shutdown classifies as cancelled rather than as a failed
+            // pass.
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            return null;
+        }
+    }
+
+    private async Task IngestPageAsync(
+        WhisparrBinding binding,
+        JsonArray records,
+        WatermarkReading reading,
+        WalkTally tally,
+        CancellationToken ct)
+    {
+        for (var index = reading.Skip; index < reading.Skip + reading.Take; index++)
+        {
+            tally.Taken++;
+            switch (HistoryProjector.Read(binding.Generation, records[index] as JsonObject))
+            {
+                case { Outcome: HistoryProjectionOutcome.Projected, Candidate: { } candidate }:
+                    await IngestRecordAsync(binding, candidate, tally, ct).ConfigureAwait(false);
+                    break;
+
+                case { Outcome: HistoryProjectionOutcome.NoReadablePath }:
+                    tally.WithoutCandidate++;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    // Guarded per record: one record the ingest cannot take must not stop the mark being written. A
+    // walk that ends in a throw leaves the mark where it was, so every later pass reads the same
+    // page and throws again.
+    private async Task IngestRecordAsync(
+        WhisparrBinding binding, ImportCandidate candidate, WalkTally tally, CancellationToken ct)
+    {
+        try
+        {
+            if (await core.IngestAsync(candidate, ct).ConfigureAwait(false)
+                == ImportOutcome.Imported)
+            {
+                tally.Imported++;
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Above the broad catch, so a shutdown classifies as cancelled.
+            throw;
+        }
+#pragma warning disable CA1031 // The point of the guard is that no failure ends the walk.
+        catch (Exception failure)
+        {
+            WhisparrSyncLog.BackstopRecordContained(
+                whisparr.Log, binding.Generation, WhisparrSyncLog.Classify(failure));
+            tally.Contained++;
+        }
+#pragma warning restore CA1031
+    }
+
+    // Counters only, so nothing here grows with the walk.
+    private sealed class WalkTally
+    {
+        internal int Taken { get; set; }
+
+        internal int Imported { get; set; }
+
+        internal int WithoutCandidate { get; set; }
+
+        internal int Contained { get; set; }
     }
 
     // One fold, so the mark and the health cannot be written against two readings of the blob, and
@@ -234,7 +272,7 @@ internal sealed class BackstopPass(
     {
         var containedAt = contained == 0 ? null : (DateTimeOffset?)clock.GetUtcNow();
         await gate.MutateAsync(
-            options,
+            whisparr.Options,
             stored => Marked(stored, generation, walkedAddress, mark) with
             {
                 ImportHealth = stored.ImportHealth with
@@ -264,7 +302,7 @@ internal sealed class BackstopPass(
     {
         var failedAt = clock.GetUtcNow();
         await gate.MutateAsync(
-            options,
+            whisparr.Options,
             stored => stored with
             {
                 ImportHealth = stored.ImportHealth with

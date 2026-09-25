@@ -10,7 +10,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
-using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
 
@@ -61,11 +60,10 @@ public sealed partial class WhisparrSync
 
         endpoints.MapPut(FolderMappingsRoute,
             (FolderMappingSaveRequest request, ICurrentPrincipalAccessor principal,
-             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
-             IWhisparrInstanceFactory instances, ICoveLibraryPort library, IFolderAddressPort addressing,
-             CancellationToken ct)
+             WhisparrAccess whisparr, OptionsWriteGate gate, ICoveLibraryPort library,
+             IFolderAddressPort addressing, CancellationToken ct)
                 => SaveFolderMappingAsync(
-                    request, principal, options, gate, credentials, instances, library, addressing, ct))
+                    request, principal, whisparr, gate, library, addressing, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -219,10 +217,8 @@ public sealed partial class WhisparrSync
         SaveFolderMappingAsync(
             FolderMappingSaveRequest request,
             ICurrentPrincipalAccessor principal,
-            OptionsStore options,
+            WhisparrAccess whisparr,
             OptionsWriteGate gate,
-            ICredentialPort credentials,
-            IWhisparrInstanceFactory instances,
             ICoveLibraryPort library,
             IFolderAddressPort addressing,
             CancellationToken ct)
@@ -233,9 +229,10 @@ public sealed partial class WhisparrSync
         }
 
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(whisparr);
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(library);
+        var options = whisparr.Options;
         ArgumentNullException.ThrowIfNull(addressing);
 
         // The host's own spelling of the root, not the caller's: what is stored has to key the same
@@ -252,7 +249,7 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(Answering(FolderMappingSaveOutcome.Removed));
         }
 
-        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(Answering(FolderMappingSaveOutcome.NotConfigured));

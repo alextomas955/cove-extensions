@@ -613,16 +613,11 @@ public sealed class SyncLibrarySitesTests
 
         return SyncLibraryPlanner.RunAsync(
             SyncRegisters.Sites,
-            Streamed,
-            identity => identity,
-            (_, _) =>
-            {
-                var (registration, root) = answers[offered++];
-                return Task.FromResult(
-                    new SyncRegistration(
-                        registration, MonitorHost.Json(202, "{}"), HeldSiteId, root));
-            },
-            monitor: null,
+            new SyncLibrarySource<string>(
+                Streamed,
+                identity => identity,
+                (_, _) => { var (registration, root) = answers[offered++]; return Task.FromResult(new SyncRegistration(registration, MonitorHost.Json(202, "{}"), HeldSiteId, root)); },
+                null),
             progress,
             TestCt);
 
