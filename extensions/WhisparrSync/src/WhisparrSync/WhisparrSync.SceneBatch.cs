@@ -18,8 +18,6 @@ public sealed partial class WhisparrSync
 {
     private void MapSceneBatchEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier: one gesture aims the stored credential at a third party for every scene
-        // in the selection. The reach is what the body names.
         endpoints.MapPost(SceneBatchRoute,
             (SceneBatchRequest request, ICurrentPrincipalAccessor principal, BackgroundWork work)
                 => EnqueueSceneBatch(request, principal, work))

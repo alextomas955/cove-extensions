@@ -20,8 +20,6 @@ public sealed partial class WhisparrSync
 {
     private void MapReflectOwnedEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The monitor route's tier: it aims the stored credential at a third party, and its reach
-        // is the one entity the route segment names, which no lesser tier expresses.
         endpoints.MapPost(ReflectOwnedRoute,
             ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              BackgroundWork work, CancellationToken ct)

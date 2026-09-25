@@ -22,8 +22,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMonitoringBulkEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // A selection aims the stored credential at a third party once per entity, so it takes the
-        // same permission as a single entity.
         endpoints.MapPost(BulkMonitorRoute,
             (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, BackgroundWork work)
                 => BulkMonitorEnqueue(request, principal, work))

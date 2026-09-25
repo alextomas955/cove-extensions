@@ -91,10 +91,17 @@ public sealed partial class WhisparrSync
 
     // One array per tier, read by both the route declaration and the handler check. An endpoint that
     // advertises one gate and enforces another still passes every test that drives the handler.
-    private static readonly string[] ReadPermissions = [Permissions.VideosRead];
-
+    //
+    // A route takes the read tier where it only reports what the library, the connected instance or
+    // the metadata source already holds. It takes the configure tier where it aims the stored
+    // credential outward, writes stored settings, or spends the reader's indexer traffic and disk.
     // No default Viewer or Member role holds the configure tier, which keeps the connection test out
     // of reach of a caller who could aim it at an internal address.
+    //
+    // What a route reaches is the entity its path segment names, or the set a body names. Neither
+    // lowers the tier: one scene is no lesser act than a selection of them.
+    private static readonly string[] ReadPermissions = [Permissions.VideosRead];
+
     private static readonly string[] ConfigurePermissions = [Permissions.ExtensionsConfigure];
 
     private static bool HasReadPermission(ICurrentPrincipalAccessor principal)

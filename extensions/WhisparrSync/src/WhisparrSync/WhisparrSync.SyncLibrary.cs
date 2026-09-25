@@ -28,8 +28,6 @@ public sealed partial class WhisparrSync
 {
     private void MapSyncLibraryEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The configure tier, because this aims the stored credential at a third party and reads
-        // the whole library to do it.
         endpoints.MapPost(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, BackgroundWork work,
              WhisparrAccess whisparr,
@@ -39,8 +37,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier for the read half: it reports how much of the reader's library a third
-        // party holds, which is the same fact whichever route answered it.
         endpoints.MapGet(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
              WhisparrAccess whisparr,
@@ -50,8 +46,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier again: this one writes into a third party's catalogue on behalf of the
-        // whole library.
         endpoints.MapPost(SyncRunRoute,
             (SyncRunRequest? request, ICurrentPrincipalAccessor principal, BackgroundWork work, WhisparrAccess whisparr, CancellationToken ct)
                 => EnqueueSyncRunAsync(

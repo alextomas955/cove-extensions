@@ -18,8 +18,6 @@ public sealed partial class WhisparrSync
 {
     private void MapSceneEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The read tier, not the configure one: the route names one scene as a path segment and
-        // composes no write.
         endpoints.MapGet(SceneDetailRoute,
             (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
@@ -28,9 +26,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
-        // The configure tier for each of the five: each aims the stored credential at a third party
-        // and creates or removes items in the reader's own Whisparr. Which scene a request touches
-        // is a path segment, so a caller cannot name one in a body.
         endpoints.MapPost(SceneAddRoute,
             (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
              ILibraryCardIdentityPort sceneCards, IServiceScopeFactory scopes,
@@ -72,8 +67,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The configure tier for two reasons: the route aims the stored credential at a third party
-        // and it spends the reader's indexer traffic and disk.
         endpoints.MapPost(SceneSearchRoute,
             (int coveId, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
