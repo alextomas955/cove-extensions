@@ -17,9 +17,9 @@ import type {
 } from "../wire/api";
 
 /** Performers beyond this become a count. */
-export const PERFORMER_CHIP_LIMIT = 4;
+const PERFORMER_CHIP_LIMIT = 4;
 
-export interface CardMetaRow {
+interface CardMetaRow {
   readonly releaseDate: string | null;
   readonly studioName: string | null;
 }

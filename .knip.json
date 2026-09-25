@@ -14,7 +14,6 @@
       "vite": false,
       "entry": [
         "src/index.ts",
-        "src/**/*Logic.ts",
         "src/common/lib/extension.ts",
         "src/common/ui/copy.ts",
         "src/common/ui/AsyncRegion.tsx",
