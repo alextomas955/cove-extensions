@@ -13,7 +13,7 @@
 // next delivery for it finds it already there - which must clear that root's line without waiting for
 // a genuinely new file.
 //
-// Every assertion is on the Cove side — what the page draws, and what the extension stored. The
+// Every assertion is on the Cove side - what the page draws, and what the extension stored. The
 // callback's status says the request was well formed and nothing about whether anything was
 // registered, so it is a diagnostic here and never the subject.
 //
@@ -91,7 +91,7 @@ async function openPanel(page, baseUrl) {
   let answered = false;
   for (let attempt = 1; attempt <= PANEL_ATTEMPTS; attempt++) {
     // Registered BEFORE the navigation. The banner's answer can land before the panel's own field is
-    // visible, and a wait started afterwards would never see it — which would let an absent banner
+    // visible, and a wait started afterwards would never see it - which would let an absent banner
     // stand for a read that never ran.
     const bannerRead = page
       .waitForResponse((response) => response.url().includes(BANNER_ROUTE_TAIL), {

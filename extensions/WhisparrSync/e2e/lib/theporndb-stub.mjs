@@ -24,7 +24,7 @@ const IMAGE = process.env.PROVIDER_STUB_IMAGE ?? "node:22-alpine";
 /** The name the service stamps identity under, which is also the alias this container takes. */
 const THEPORNDB_HOST = "theporndb.net";
 
-/** @see provider-stub.mjs — port 80 for the same reason, so the address stays a spelling of the real one. */
+/** @see provider-stub.mjs - port 80 for the same reason, so the address stays a spelling of the real one. */
 const PORT = 80;
 
 const SERVER_SOURCE = join(import.meta.dirname, "theporndb-stub-server.mjs");

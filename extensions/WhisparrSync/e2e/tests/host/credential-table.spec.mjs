@@ -1,10 +1,10 @@
-// The credential table, proven against a real host on real Postgres — the one tier that can.
+// The credential table, proven against a real host on real Postgres - the one tier that can.
 //
 // Every other tier proves the migration STRING or the port behind it. None of them proves that the
 // host ran that string against its own database, and the gap is not academic: a failed extension
 // migration is a host log line and nothing more, so the extension loads, enables and answers every
 // request with no table behind it. "The extension is enabled" is therefore not evidence, and neither
-// is a green unit test — the entity model those tests run against comes from code, so it agrees with
+// is a green unit test - the entity model those tests run against comes from code, so it agrees with
 // the code that produced it whatever the database holds.
 //
 // The answer is read from the database CATALOG rather than from the extension's own API for the same
@@ -123,7 +123,7 @@ test("the host creates the credential table on Postgres and a second load still 
   expect(await readEnabled(isolatedHarness), `${EXTENSION_ID} is not enabled`).toBe(true);
   expect(
     await countCredentialTables(isolatedHarness),
-    `the host did not create ${TABLE_NAME} — an extension migration that fails is only a host log line, so the extension is enabled either way`,
+    `the host did not create ${TABLE_NAME} - an extension migration that fails is only a host log line, so the extension is enabled either way`,
   ).toBe("1");
   expect(
     await readCredentialColumns(isolatedHarness),

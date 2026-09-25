@@ -5,7 +5,7 @@
 // The candidate routes exist on one generation, and that is exactly what makes this question easy
 // to answer backwards. A probe that adds an entity and then reads `/works` sees a 200 and records
 // "enumeration is available". The same route answers 404 for the same entity before it was added,
-// so the 200 says the entity is now in the LOCAL library — not that the route reads the provider's
+// so the 200 says the entity is now in the LOCAL library - not that the route reads the provider's
 // catalogue. Neither observation means anything alone, so both are taken, on the same foreign id,
 // per entity kind, and the verdict is set from the pair.
 //
@@ -57,7 +57,7 @@ const PROFILE_TIMEOUT_MS = 60_000;
 const PROFILE_INTERVAL_MS = 2_000;
 
 const VERDICTS =
-  "local-library-only | catalogue-enumerated | route-absent | inconclusive — per entity kind and per generation";
+  "local-library-only | catalogue-enumerated | route-absent | inconclusive - per entity kind and per generation";
 
 const COUNT_FIELDS = ["movieCount", "sceneCount", "totalMovieCount", "totalSceneCount"];
 
@@ -72,7 +72,7 @@ const describeResponse = (response, extra = {}) => ({
  * A listing's size and the SHAPE of one element, never an element.
  *
  * The works route is unpaged, so its body is unbounded input and cannot enter a record. The key
- * names answer the only question a reader has about an element — whether it is an entity row —
+ * names answer the only question a reader has about an element - whether it is an entity row -
  * without carrying anything the route returned about a real production.
  */
 function describeListing(response) {
@@ -522,7 +522,7 @@ export const row = {
             path: "adding an entity with moviesMonitored: true in order to read its catalogue back",
             prohibition: "P-17",
             reason:
-              "That is the loop-unsafe path the spec forbids — registering something in Whisparr in order to read it back — and the safe path already yields the answer, since a monitored add changes what the LOCAL library holds rather than what the route reads. Its result therefore cannot change the sourcing decision.",
+              "That is the loop-unsafe path the spec forbids - registering something in Whisparr in order to read it back - and the safe path already yields the answer, since a monitored add changes what the LOCAL library holds rather than what the route reads. Its result therefore cannot change the sourcing decision.",
             examined: true,
           },
         ],

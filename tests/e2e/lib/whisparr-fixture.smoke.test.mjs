@@ -21,13 +21,13 @@ const EXPECTED_VERSION_PREFIX = { v3: "3.", v2: "2." };
 // agrees with that module forever and reports nothing.
 const SEEDED_HISTORY_ROWS = 3;
 
-// The history API's own vocabulary, which is NOT the webhook's — the same event is camelCase on one
+// The history API's own vocabulary, which is NOT the webhook's - the same event is camelCase on one
 // surface and PascalCase on the other, so a parser written against either matches nothing on the
 // other without failing anywhere.
 const CAMEL_CASE = /^[a-z][A-Za-z]*$/;
 
 // The two first-run path variants, one per generation so a single bring-up carries both. Which
-// generation holds which is immaterial — containment is decided on the reported strings.
+// generation holds which is immaterial - containment is decided on the reported strings.
 const ROOT_FOLDERS = { v3: "/data", v2: "/media/whisparr" };
 
 // How many of the library roots COVE declares must contain each of those: the aligned one falls

@@ -6,7 +6,7 @@
 //
 // This row asks the vendor's metadata service to enumerate an entity, so it stays off the default
 // path behind `requires.live`. Library-sized input is the standing assumption in this repo, so what
-// is recorded is counts and one listing LENGTH, never a listing — and the subject is bounded by a
+// is recorded is counts and one listing LENGTH, never a listing - and the subject is bounded by a
 // ceiling checked while the refresh runs, since a ceiling applied to a finished result would only
 // say what had already been pulled.
 //

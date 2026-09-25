@@ -3,7 +3,7 @@
 //
 // The SOURCE ADDRESS is the whole subject, so the request has to originate inside the network. The
 // same call issued from the test process arrives through the published port from the daemon's
-// gateway, which is a different source and therefore a different question — it is taken anyway, as
+// gateway, which is a different source and therefore a different question - it is taken anyway, as
 // the comparison the in-network result is read against.
 //
 // A first attempt and a second attempt from the same address are both taken, because "refuses a
@@ -37,7 +37,7 @@ const BODY_HEAD_BYTES = 300;
 
 const AUTH_ENABLED_VARIABLE = "COVE__Auth__Enabled";
 
-// A liveness route, a privileged read, and a read-only POST — enough to show whether the boundary
+// A liveness route, a privileged read, and a read-only POST - enough to show whether the boundary
 // treats a verb or a privilege level differently, without asking the instance to change anything.
 const ROUTES = [
   { verb: "GET", path: "/health", privileged: false },

@@ -17,7 +17,7 @@
     <!--
       CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
       Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. They are
-      C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression the
+      C#-only test types never consumed from VB, so the rule does not apply - mirror the suppression the
       Cove.Extensions.Shared(.Testing) projects already carry. It fires here because a linked file
       compiles INTO this assembly.
     -->

@@ -52,7 +52,7 @@ async function readWebhookSchema(api, generation) {
   return { status: response.status, webhook };
 }
 
-/** A validation response's shape and the fields a caller would branch on — never the whole body. */
+/** A validation response's shape and the fields a caller would branch on - never the whole body. */
 function refusalShape(response) {
   const first = Array.isArray(response.json) ? response.json[0] : null;
   return {

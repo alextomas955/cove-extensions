@@ -83,7 +83,7 @@ export async function seedText({
  * register it. The file is present under a Cove library root and unknown to the host.
  *
  * `seedVideo` above registers what it copies, through the same host call an extension's own import
- * makes — so a spec proving that an extension causes an import cannot use it: the item would exist
+ * makes - so a spec proving that an extension causes an import cannot use it: the item would exist
  * before the extension did anything. This places the file and leaves the registering to whatever is
  * under test.
  *
@@ -132,14 +132,14 @@ const COVE_CONFIG_PATH = "/api/system/config";
  * Cove reports afterwards.
  *
  * Cove takes its library roots from its configuration, so an arrangement where one root sits inside
- * another — which is what makes a single reported file resolvable under two of them — cannot be
+ * another - which is what makes a single reported file resolvable under two of them - cannot be
  * expressed by placing files. This reads the whole configuration, appends one path and writes it
  * back, deriving the new entry's shape from an entry Cove itself returned rather than naming its
  * fields here.
  *
  * `expectedRoots` are the roots the caller knows the instance declares. A principal that may not read
  * the configuration is served the library paths REDACTED, and writing those back would replace the
- * instance's real roots with the redaction marker — so this refuses before the write unless it can
+ * instance's real roots with the redaction marker - so this refuses before the write unless it can
  * see every root it was told to expect.
  *
  * @param {{get: Function, put: Function}} api - a client for the Cove instance, carrying its token
@@ -160,7 +160,7 @@ export async function addCoveLibraryRoot(api, path, expectedRoots) {
   const missing = expectedRoots.filter((root) => !declared.includes(root));
   if (missing.length > 0) {
     throw new Error(
-      `addCoveLibraryRoot: refusing to write. ${COVE_CONFIG_PATH} reported [${declared.join(", ")}], which is missing ${missing.join(", ")} — writing that back would replace the instance's library roots.`,
+      `addCoveLibraryRoot: refusing to write. ${COVE_CONFIG_PATH} reported [${declared.join(", ")}], which is missing ${missing.join(", ")} - writing that back would replace the instance's library roots.`,
     );
   }
 

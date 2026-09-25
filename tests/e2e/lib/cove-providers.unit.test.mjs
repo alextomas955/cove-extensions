@@ -55,7 +55,7 @@ const DOCUMENT = JSON.stringify({
   },
 });
 
-// A drive-letter path, a UNC path, or a rooted POSIX path — the three shapes a data root arrives in.
+// A drive-letter path, a UNC path, or a rooted POSIX path - the three shapes a data root arrives in.
 const ABSOLUTE_PATH = /[A-Za-z]:[\\/]|\\\\[A-Za-z]|(?:^|[\s"'(])\/[\w.]/;
 
 test("coveDataRoot takes COVE_HOME when it is set, trimmed", () => {

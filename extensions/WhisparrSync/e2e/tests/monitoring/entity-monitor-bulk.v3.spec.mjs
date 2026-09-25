@@ -5,7 +5,7 @@
 // this repository can reach: the host matches an action's declared types with a literal
 // `entityTypes.includes(...)` over a value its selection bar normalizes for the two media plurals
 // only. A studio selection arrives as the RAW PLURAL, and a singular registration makes the button
-// simply not appear — with no error anywhere, in the host or in the extension.
+// simply not appear - with no error anywhere, in the host or in the extension.
 //
 // So the button's PRESENCE is asserted explicitly rather than inferred from a click that worked. An
 // inferred assertion cannot tell a missing button from a click that went somewhere else.
@@ -57,7 +57,7 @@ const SEARCH_ALL_MONITORED = "Search all monitored";
 // only observable as a request that was never made.
 const BULK_ROUTE = extensionRoute("entities/bulk-monitor");
 
-// @see entity-monitor.v3.spec.mjs — the same pattern, so this file names no verb that downloads.
+// @see entity-monitor.v3.spec.mjs - the same pattern, so this file names no verb that downloads.
 const SEARCH_COMMAND = /search/i;
 
 // The host's own job list, which an unrestricted account can read. The extension's status route
@@ -105,7 +105,7 @@ const chooserPanel = (page) =>
  *
  * Matched on the anchored pair rather than on "Select item" alone. Playwright's `name` option is a
  * case-insensitive SUBSTRING match unless it is a regular expression, and "Select item" is a
- * substring of the "Deselect item" the same control renames itself to once it is selected — so the
+ * substring of the "Deselect item" the same control renames itself to once it is selected - so the
  * plain-string locator walks back onto an already-selected card and deselects it.
  */
 const cardToggles = (page) => page.getByRole("button", { name: /^(Select|Deselect) item$/ });

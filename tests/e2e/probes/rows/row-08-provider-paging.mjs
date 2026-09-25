@@ -9,7 +9,7 @@
 //
 // Nothing a provider returned is kept as a value. A catalogue here reaches millions of entries, so
 // the record carries counts, the total the provider reported with the field it came from, and the
-// field NAMES of one element — taken from each surface's own schema document, which needs no result
+// field NAMES of one element - taken from each surface's own schema document, which needs no result
 // fetched at all.
 import { liftMetadataServers } from "../../lib/cove-providers.mjs";
 import { writeCompanion } from "../lib/record.mjs";
@@ -41,8 +41,8 @@ const UNSUPPORTED_ORDER_BY = "not_a_valid_order_by";
 // the shape a GraphQL enum name may have before it goes anywhere.
 const GRAPHQL_ENUM_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-// A provider's error text is worth keeping — it is often where a rejected value says what the
-// accepted ones are — but a record is read by a person.
+// A provider's error text is worth keeping - it is often where a rejected value says what the
+// accepted ones are - but a record is read by a person.
 const MAX_MESSAGE_CHARS = 200;
 
 const trimMessage = (text) =>

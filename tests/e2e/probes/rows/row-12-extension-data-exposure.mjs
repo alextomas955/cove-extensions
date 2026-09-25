@@ -2,7 +2,7 @@
 //
 // The route is permission-gated in source, so the question is not what the attribute says but what
 // an instance answers. Two callers are taken against the same store: the bootstrapped owner, and an
-// unauthenticated caller on Cove's own container network — the second one because the permission
+// unauthenticated caller on Cove's own container network - the second one because the permission
 // filter returns early when a deployment has authentication off, which is the fixture's setting and
 // a common self-hosted one.
 //
@@ -14,7 +14,7 @@
 // installed id would be as consistent with a catch-all as with the route.
 //
 // The value planted in the store is synthetic and authorises nothing, and the response body is
-// never carried back through an exec's stdout — only its length, its header names and whether the
+// never carried back through an exec's stdout - only its length, its header names and whether the
 // marker appears in it. A record outlives the run that produced it.
 import { Buffer } from "node:buffer";
 

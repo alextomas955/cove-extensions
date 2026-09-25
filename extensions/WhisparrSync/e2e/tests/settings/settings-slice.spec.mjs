@@ -144,7 +144,7 @@ const plantMarker = (page) => page.evaluate((name) => (window[name] = 1), MARKER
  * The planted value, or undefined once the page has navigated away from the context holding it.
  *
  * A read that lands while the reload is in flight is torn down with the context it was running in,
- * and that teardown is the very event this reads for — so it answers undefined rather than throwing.
+ * and that teardown is the very event this reads for - so it answers undefined rather than throwing.
  * Any other failure still throws: a page that broke some other way must not read as a page that
  * reloaded.
  */

@@ -31,7 +31,7 @@
 
   <!--
     Shared first-party code (the minimal-API permission gate). It ships bundled as
-    Cove.Extensions.Shared.dll — it is NOT Private=false (that is only for the host-provided Cove
+    Cove.Extensions.Shared.dll - it is NOT Private=false (that is only for the host-provided Cove
     refs) and is absent from the host-assembly strip denylist, so it survives the strip.
   -->
   <ItemGroup>
