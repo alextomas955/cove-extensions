@@ -45,7 +45,7 @@ internal sealed class MissingPagePlanner(
     // Named by the catalogue the stored choice points at, so reading the name is the same read as
     // choosing the catalogue.
     internal async Task<string> ProviderNameAsync(CancellationToken ct)
-        => (await catalogues(ct).ConfigureAwait(false)).Capabilities.Provider;
+        => (await catalogues(ct).ConfigureAwait(false)).ProviderName;
 
     internal async Task<MissingPageView> PlanAsync(
         MissingPageRequest request, MissingPageContext context, ILogger log, CancellationToken ct)
@@ -126,7 +126,7 @@ internal sealed class MissingPagePlanner(
             [.. InstanceCatalogueLogic.Sorts.Select(
                 sort => new MissingSortOption(sort.Value, sort.Label))],
             request.Sort is { Length: > 0 } sort ? sort : InstanceCatalogueLogic.NewestFirst,
-            catalogue.Capabilities.Provider);
+            catalogue.ProviderName);
     }
 
     // A card the instance named no cover for takes the source's own picture. The reads are issued
@@ -136,10 +136,7 @@ internal sealed class MissingPagePlanner(
     private static async Task FillCoversAsync(
         List<MissingCard> cards, IProviderCatalogue catalogue, CancellationToken ct)
     {
-        var reading = catalogue.Capabilities
-            .Obtain<IReadsSceneCover>()
-            .Match<IReadsSceneCover?>(role => role, _ => null);
-        if (reading is null)
+        if (catalogue is not IReadsSceneCover reading)
         {
             return;
         }
@@ -367,5 +364,5 @@ internal sealed class MissingPagePlanner(
             [],
             [],
             SortInForce: null,
-            catalogue.Capabilities.Provider);
+            catalogue.ProviderName);
 }

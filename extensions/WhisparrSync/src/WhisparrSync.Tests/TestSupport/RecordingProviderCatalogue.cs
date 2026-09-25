@@ -11,7 +11,7 @@ namespace WhisparrSync.Tests.TestSupport;
 // Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
 // that answered an empty one would let a pass reaching the wrong seam look like one that found
 // nothing.
-internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolvesNumericSceneId
+internal sealed class RecordingProviderCatalogue : IProviderCatalogue
 {
     private readonly Dictionary<string, int?> _numbers;
 
@@ -19,7 +19,6 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
     {
         ArgumentNullException.ThrowIfNull(numbers);
         _numbers = new Dictionary<string, int?>(numbers, StringComparer.Ordinal);
-        Capabilities = ProviderCapabilities.ForThePornDb(this);
     }
 
     public List<string> Resolved { get; } = [];
@@ -30,7 +29,7 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
     // raise the shape that stop arrives in.
     public Func<Exception>? Unreachable { get; set; }
 
-    public ProviderCapabilitySet Capabilities { get; }
+    public string ProviderName => "StashDB";
 
     public IReadOnlyList<ProviderSortOption> Sorts => throw Unasked(nameof(Sorts));
 

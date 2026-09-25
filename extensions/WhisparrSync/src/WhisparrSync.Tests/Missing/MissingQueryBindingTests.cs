@@ -304,8 +304,7 @@ public sealed class MissingQueryBindingTests
 
         public string? SceneAddress(string providerSceneId) => null;
 
-        public ProviderCapabilitySet Capabilities { get; } =
-            ProviderCapabilities.ForStashDb(new object());
+        public string ProviderName => "StashDB";
 
         public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)

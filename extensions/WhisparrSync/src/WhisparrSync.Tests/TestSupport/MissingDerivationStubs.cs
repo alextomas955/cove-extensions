@@ -25,7 +25,7 @@ internal sealed class StubProviderCatalogue(
 
     public string DefaultSort => "DATE";
 
-    public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
+    public string ProviderName => "StashDB";
 
     public string? SceneAddress(string providerSceneId) => null;
 
@@ -97,7 +97,7 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
 
     public string DefaultSort => "DATE";
 
-    public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
+    public string ProviderName => "StashDB";
 
     public string? SceneAddress(string providerSceneId) => null;
 

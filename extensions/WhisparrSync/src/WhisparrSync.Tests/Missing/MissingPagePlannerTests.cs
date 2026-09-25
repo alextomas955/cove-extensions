@@ -303,8 +303,10 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ACardTheInstanceNamedNoCoverForTakesTheSourcesPoster()
     {
-        var catalogue = new RecordingCatalogue([]) { Cover = id => $"https://a.source.invalid/{id}.jpg" }
-            .HoldingThePornDbRoles();
+        var catalogue = new CoverReadingCatalogue([])
+        {
+            Cover = id => $"https://a.source.invalid/{id}.jpg",
+        };
         var instance = new RecordingInstance(ScenesNamed("a", "b"));
 
         var view = await PlannerOver(catalogue)
@@ -318,8 +320,7 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ACardTheInstanceAlreadyCoveredKeepsItAndIsNotAskedAbout()
     {
-        var catalogue = new RecordingCatalogue([]) { Cover = _ => "https://a.source.invalid/other.jpg" }
-            .HoldingThePornDbRoles();
+        var catalogue = new CoverReadingCatalogue([]) { Cover = _ => "https://a.source.invalid/other.jpg" };
         var instance = new RecordingInstance(
         [
             Scene("a", cover: "https://an.instance.invalid/a.jpg"),
@@ -351,10 +352,10 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ASceneTheSourceNamedNoCoverForKeepsNoneWhileTheRestOfThePageFills()
     {
-        var catalogue = new RecordingCatalogue([])
+        var catalogue = new CoverReadingCatalogue([])
         {
             Cover = id => id == "b" ? null : $"https://a.source.invalid/{id}.jpg",
-        }.HoldingThePornDbRoles();
+        };
         var instance = new RecordingInstance(ScenesNamed("a", "b", "c"));
 
         var view = await PlannerOver(catalogue)
@@ -369,8 +370,10 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ThePageCostsOneCoverReadPerCardAndNoneForTheCatalogueBehindIt()
     {
-        var catalogue = new RecordingCatalogue([]) { Cover = id => $"https://a.source.invalid/{id}.jpg" }
-            .HoldingThePornDbRoles();
+        var catalogue = new CoverReadingCatalogue([])
+        {
+            Cover = id => $"https://a.source.invalid/{id}.jpg",
+        };
         var instance = new RecordingInstance(
             ScenesNamed([.. Enumerable.Range(0, 90).Select(index => $"scene-{index}")]));
 
@@ -388,7 +391,7 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task EveryPageNamesTheSourceItWasReadFrom()
     {
-        var catalogue = new RecordingCatalogue([]).HoldingThePornDbRoles();
+        var catalogue = new CoverReadingCatalogue([]) { ProviderName = "ThePornDB" };
         var instance = new RecordingInstance(ScenesNamed("a"));
 
         var answered = await PlannerOver(catalogue)
@@ -516,6 +519,21 @@ public sealed class MissingPagePlannerTests
             HasFile: false);
 
     // Answers one list, or one refusal, and counts what it was asked.
+    // The source that does read a cover, named by the cases about the cover fill.
+    private sealed class CoverReadingCatalogue(
+        List<ProviderScene> scenes,
+        int catalogueSize = 0,
+        int rangeFrom = 1,
+        int rangeTo = 40)
+        : RecordingCatalogue(scenes, catalogueSize, rangeFrom, rangeTo), IReadsSceneCover
+    {
+        public Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct)
+        {
+            CoverReads.Add(providerSceneId);
+            return Task.FromResult(Cover(providerSceneId));
+        }
+    }
+
     private sealed class RecordingInstance : IWhisparrEntityCatalogueReading
     {
         private readonly WhisparrEntityCatalogue _answer;
@@ -556,11 +574,13 @@ public sealed class MissingPagePlannerTests
             => Task.FromResult<IReadOnlySet<string>>(owned.ToHashSet(StringComparer.Ordinal));
     }
 
-    private sealed class RecordingCatalogue(
+    // Reads no cover, which is what a source holding none looks like to the planner. The variant
+    // below is the one that does.
+    private class RecordingCatalogue(
         List<ProviderScene> scenes,
         int catalogueSize = 0,
         int rangeFrom = 1,
-        int rangeTo = 40) : IProviderCatalogue, IReadsSceneCover
+        int rangeTo = 40) : IProviderCatalogue
     {
         public int PageReads { get; private set; }
 
@@ -587,26 +607,11 @@ public sealed class MissingPagePlannerTests
 
         public Func<string, string?> Address { get; init; } = _ => null;
 
-        public ProviderCapabilitySet Capabilities { get; private set; } =
-            ProviderCapabilities.ForStashDb(new object());
+        public string ProviderName { get; init; } = "StashDB";
 
         public Func<string, string?> Cover { get; init; } = _ => null;
 
         public List<string> CoverReads { get; } = [];
-
-        // ThePornDB's set must be built over this instance rather than a placeholder: a role it
-        // holds is cast to the role type when obtained.
-        public RecordingCatalogue HoldingThePornDbRoles()
-        {
-            Capabilities = ProviderCapabilities.ForThePornDb(this);
-            return this;
-        }
-
-        public Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct)
-        {
-            CoverReads.Add(providerSceneId);
-            return Task.FromResult(Cover(providerSceneId));
-        }
 
         public string? SceneAddress(string providerSceneId) => Address(providerSceneId);
 
