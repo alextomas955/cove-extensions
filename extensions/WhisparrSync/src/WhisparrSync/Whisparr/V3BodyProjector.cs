@@ -157,11 +157,15 @@ internal static class V3BodyProjector
     // The title member carries the identifier because a scene add with no title is refused
     // outright. The instance validates it for emptiness and then replaces it with what its metadata
     // provider answers, so no value sent here survives. Both halves are pinned.
+    //
+    // The path is set only where the caller composed one, so a body without a folder carries the
+    // member no more than it did before this product built folders, and the instance derives the
+    // path from the root as it always has.
     internal static MovieResource AddScene(string foreignId, AddDefaults defaults)
     {
         Require(foreignId, defaults);
 
-        return new MovieResource(
+        var body = new MovieResource(
             foreignId: foreignId,
             title: foreignId,
             rootFolderPath: defaults.RootFolderPath,
@@ -172,6 +176,13 @@ internal static class V3BodyProjector
                 monitor: SceneOnlyMonitorType,
                 addMethod: ManualAddMethod,
                 searchForMovie: NoAcquisition));
+
+        if (defaults.EntityFolderPath is { } folder)
+        {
+            body.Path = folder;
+        }
+
+        return body;
     }
 
     // An id array, which is this generation's spelling. v2 names a single scalar id, and a body
