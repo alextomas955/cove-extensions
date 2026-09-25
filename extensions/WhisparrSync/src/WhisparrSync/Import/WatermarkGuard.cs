@@ -9,16 +9,16 @@ namespace WhisparrSync.Import;
 internal sealed record WatermarkReading(
     bool Refused, int Skip, int Take, bool Continue, DateTimeOffset? Newest, DateTimeOffset? PageNewest);
 
-// The stop rule a backstop walk runs on: how far into a page of history it reads, and what the
-// stored mark becomes.
-// A record whose instant equals the mark is taken again rather than skipped, so two records sharing
-// one instant may be read twice. The dedupe downstream is by resolved path.
-// A page is placed against the one before it by the record ids the two share. A page repeating the
-// whole previous page is refused. A page opening on the records the previous page ended with is one
-// the route shifted under the walk, because records arriving at the head of an offset-paged history
-// push the window back, and it is read on from the first record the walk has not seen.
-// A page carrying no id is placed by its instants instead: a page whose records do not descend is
-// refused, and so is one whose whole instant range repeats the previous page's.
+// The stop rule a backstop walk runs on: how far into a page it reads, and what the stored mark
+// becomes. A record whose instant equals the mark is taken again, so two sharing one instant may be
+// read twice; the dedupe downstream is by resolved path.
+//
+// A page is placed against the one before it by the ids they share. One repeating the whole
+// previous page is refused. One opening on the records the previous page ended with is a window the
+// route shifted under the walk, records arriving at the head of an offset-paged history pushing it
+// back, and is read on from the first record not yet seen. A page carrying no id is placed by its
+// instants: refused if its records do not descend, or if its whole range repeats the previous
+// page's.
 internal static class WatermarkGuard
 {
     // A page starting newer than the previous page's oldest instant is refused unless the ids place

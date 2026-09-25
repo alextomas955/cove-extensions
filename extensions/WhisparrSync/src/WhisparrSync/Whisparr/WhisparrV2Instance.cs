@@ -10,17 +10,14 @@ using V2Model = Whisparr2.Net.Model;
 
 namespace WhisparrSync.Whisparr;
 
-// One Whisparr v2 instance, bound to the address and key it answers on. It declares the roles v2
-// holds and no others, so a caller asking it for a role v2 does not hold has nothing to call: there
-// is no performer member here, no per-scene search and no scene record of any kind.
+// One v2 instance, bound to the address and key it answers on. It declares the roles v2 holds and
+// no others, so there is no performer member here, no per-scene search and no scene record. No
+// member takes an address, key or generation: all three arrive on the binding, so a read and the
+// write after it cannot name different instances.
 //
-// No member takes an address, a key or a generation: all three arrive on the binding, so a read and
-// the write after it cannot name different instances.
-//
-// Every request is composed by the Whisparr 2 generated client through Whisparr2Gateway, except the
-// two notification verbs, which are hand-composed and sent through the transport. Both generations
-// serve the v3 route family, so the routes this client names are the ones the other names; the
-// version in a path is not the generation.
+// Requests go through the Whisparr 2 generated client, except the two notification verbs, which are
+// hand-composed. Both generations serve the v3 route family: the version in a path is not the
+// generation.
 internal sealed class WhisparrV2Instance(
     WhisparrBinding binding,
     WhisparrTransport transport,
@@ -283,16 +280,14 @@ internal sealed class WhisparrV2Instance(
             : WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
     }
 
-    // The lookup answers one site by the identifier the library holds, and answers it from the
-    // instance's own row where it holds that site: its search maps each result back through
-    // FindByTvdbId, so the id, the monitored flag and the statistics are the instance's own rather
-    // than the metadata source's. A site it does not hold maps the metadata result instead and
+    // Answers one site by the identifier the library holds, from the instance's own row where it
+    // holds that site: the search maps each result back through FindByTvdbId, so the id, the flag
+    // and the statistics are the instance's. A site it does not hold maps the metadata result and
     // carries no id.
     //
-    // One request per card, deliberately, against this generation's own site list which costs the
-    // whole library: the list route recomputes statistics over every site before it answers, so a
-    // page of forty cards is faster as forty lookups than as one list read. Bounded by the page and
-    // by LookupLanes, so nothing here grows with the library.
+    // One request per card on purpose: the list route recomputes statistics over every site before
+    // answering, so a page of forty is faster as forty lookups. Bounded by the page and by
+    // LookupLanes.
     public async Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
         WhisparrEntityKind kind, IReadOnlyList<string> foreignIds, CancellationToken ct)
     {
