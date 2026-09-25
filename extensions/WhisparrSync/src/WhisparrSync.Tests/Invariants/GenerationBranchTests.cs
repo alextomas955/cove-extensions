@@ -20,10 +20,9 @@ public sealed partial class GenerationBranchTests
     ];
 
     // Which metadata source serves which generation. This is a fact about the provider rather than
-    // about how a Whisparr instance spells a payload, so it belongs to neither instance: a provider
-    // is not something a Whisparr instance serves, and filing this under one would put provider
-    // configuration under a type that has nothing to do with it. Each catalogue also names the
-    // endpoint slot that is its own.
+    // about how a Whisparr instance spells a payload, so it belongs to neither instance: filing it
+    // under one would put provider configuration under a type that has nothing to do with it. Each
+    // catalogue also names the endpoint slot that is its own.
     private static readonly string[] Allowed =
     [
         "Identity/IdentityEndpoint.cs",

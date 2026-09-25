@@ -6,10 +6,9 @@ namespace WhisparrSync.Tests.Monitoring;
 
 // The split ratios come from a measured library: 197 of 199 studios with files sit under exactly
 // one root, and the two that do not split 883 to 2 and 62 to 2. The rule applies whatever the
-// ratio, so the near-even case takes the same path and no threshold exists.
-//
-// The cases also count how often the agreement is asked. Asking about every root would establish
-// one agreement per entity rather than one per root, which answers correctly and does not scale.
+// ratio, so the near-even case takes the same path and no threshold exists. The cases also count
+// how often the agreement is asked: asking about every root would establish one per entity rather
+// than one per root, which answers correctly and does not scale.
 public sealed class EntityRootStepTests
 {
     private const string FirstRoot = "G:/Downloads/P";

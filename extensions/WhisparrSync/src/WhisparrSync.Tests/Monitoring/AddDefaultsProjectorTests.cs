@@ -6,11 +6,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-// Every emptiness assertion here is paired with a case that acts through the same double. Read on
-// its own, an empty log agrees with itself whatever the code does.
-// What is asserted empty is the log filtered to the verbs that change the instance. Both stops
-// happen after the instance has been read, so asserting that nothing at all was sent would fail
-// for a reason unrelated to the stop.
+// Every emptiness assertion here is paired with a case that acts through the same double: read on
+// its own, an empty log agrees with itself whatever the code does. What is asserted empty is the
+// log filtered to the verbs that change the instance, because both stops happen after the instance
+// has been read.
 public sealed class AddDefaultsProjectorTests
 {
     // In id order, so it answers the same id whether the code takes the first offered or the lowest.

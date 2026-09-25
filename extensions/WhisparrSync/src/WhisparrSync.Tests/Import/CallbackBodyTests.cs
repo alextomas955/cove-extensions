@@ -170,10 +170,10 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    // The generation is read off the delivery's own user-agent while the settings page has the other
-    // one selected, which is the ordinary state of a user moving between instances. The selected
-    // generation's connection is asserted untouched, because a write landing on it would tell the page
-    // an instance is delivering that has not.
+    // The generation is read off the delivery's own user-agent while the settings page has the
+    // other one selected, the ordinary state of a user moving between instances. The selected
+    // connection is asserted untouched: a write landing on it would tell the page an instance is
+    // delivering that has not.
     [Fact]
     public async Task ADeliveryFromTheGenerationThatIsNotSelectedRecordsItsPositionOnItsOwnConnection()
     {
@@ -310,10 +310,9 @@ public sealed class CallbackBodyTests
             set => _position = (int)value;
         }
 
-        // Written out rather than derived from MemoryStream, which routes its span read back through
-        // Read(byte[], int, int) on a derived type. Two counted entry points reached by one read
-        // reported twice what was taken, and a bound asserted on that number would have been reading
-        // its own arithmetic.
+        // Written out rather than derived from MemoryStream, which routes its span read back
+        // through Read(byte[], int, int) on a derived type. One read then counted twice, and a
+        // bound asserted on that number would have been reading its own arithmetic.
         public override int Read(byte[] buffer, int offset, int count)
             => Read(buffer.AsSpan(offset, count));
 

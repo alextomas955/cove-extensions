@@ -5,12 +5,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-// v2 publishes no contract document, so every shape asserted here is transcribed from a
-// measurement. The expected values are written out by hand for that reason: one computed from the
-// composer would agree with it whatever either said.
-//
-// Nothing here reads a status. v2 answers a body whose fields it dropped with a created status and
-// an echo, so every case asserts on the parsed shape.
+// v2 publishes no contract document, so every shape asserted here is transcribed from a measurement
+// and every expected value is written out by hand: one computed from the composer would agree with
+// it whatever either said. Nothing here reads a status, because v2 answers a body whose fields it
+// dropped with a created status and an echo.
 public sealed class V2BodyProjectorTests
 {
     // Fields a flag flip leaves alone, because the user owns each of them.

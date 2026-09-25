@@ -41,14 +41,11 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
 #pragma warning disable IDE0060, S1172 // The member this stands in for takes it.
 
 // Stands in for the one seam every outbound request leaves through, so a path that reaches no call
-// here contacted the instance not at all. The arguments are recorded rather than a count: a count
-// answers whether a request was made, and the question a refusal has to answer is what would have
-// been sent. No network and no timing behaviour, so an empty log is a fact about the path under
-// test.
-// Every member of every role lives here and every call is appended to one ordered log, so an
-// assertion that a path issued nothing reads a list that could have held the call in question.
-// Which roles a case can reach is the interface list its generation's type declares below, so a v2
-// path cannot obtain a role v2 does not hold.
+// here contacted the instance not at all. The arguments are recorded rather than a count: the
+// question a refusal has to answer is what would have been sent. Every member of every role lives
+// here and every call is appended to one ordered log, so an assertion that a path issued nothing
+// reads a list that could have held the call. Which roles a case can reach is the interface list
+// its generation's type declares below.
 internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrBinding? binding = null)
     : IWhisparrClient
 {

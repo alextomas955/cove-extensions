@@ -17,12 +17,11 @@ internal sealed record ComposedAdd(
     JsonObject Body,
     IReadOnlyList<string> SuppressionPaths);
 
-// Every add body this product can compose, enumerated from the capability table each generation
-// is built with. The case list is derived from GenerationCapabilities.CapabilitiesOf rather than
-// transcribed: the failure to catch is a generation-and-kind combination that becomes registered
-// and is never covered, and a transcribed list would go on agreeing with itself while that
-// combination composed whatever it liked.
-// A registered capability with no case here throws, and the message says what to add.
+// Every add body this product can compose. The case list is derived from
+// GenerationCapabilities.CapabilitiesOf, so a combination registered later is covered rather than
+// missed; one with no case throws and the message says what to add. The name and path lists below
+// are transcribed by hand instead, because a list read out of the code it checks would agree with
+// that code whatever it said.
 internal static class ComposedAdds
 {
     // Transcribed from the two generations' own interface bundles.
@@ -39,9 +38,8 @@ internal static class ComposedAdds
         "EpisodeSearch",
     ];
 
-    // Subtracted from the mounted set below rather than added to it. A caller asserts the
-    // subtraction has exactly one member, so a second grabbing route mounted later cannot be
-    // absorbed into this list without that assertion failing first.
+    // Subtracted from the mounted set below, and a caller asserts the subtraction has exactly one
+    // member, so a second grabbing route cannot be absorbed here unnoticed.
     public static readonly string[] GrabbingEntityVerbs = ["search-all-monitored"];
 
     // A scene the library holds that an instance's catalogue does not.
@@ -50,9 +48,9 @@ internal static class ComposedAdds
     // The one-entity path every entity verb hangs off, as the emitted document spells it.
     private const string EntityPathPrefix = "/entity/{kind}/{coveId}/";
 
-    // Transcribed rather than derived from a registration. The enumeration below filters on this
-    // rather than on whether a capability is registered: a grabbing capability leaking into a
-    // non-grabbing case list would assert that a grab body is non-grabbing.
+    // The enumeration filters on this rather than on whether a capability is registered: a grabbing
+    // capability leaking into a non-grabbing case list would assert that a grab body is
+    // non-grabbing.
     public static readonly WhisparrCapability[] GrabbingCapabilities =
         [WhisparrCapability.SearchMonitored, WhisparrCapability.SearchScene];
 
@@ -63,10 +61,9 @@ internal static class ComposedAdds
 
     private static readonly DateTimeOffset Now = new(2026, 9, 2, 0, 0, 0, TimeSpan.Zero);
 
-    // Carries both acquisition-suppressing spellings set true, which is what an instance answers
-    // with for a studio a person added in the instance's own interface with search-on-add ticked.
-    // A body composed by cloning this one carries whatever it holds, so a fixture without them
-    // could not fail an assertion about what such a body says.
+    // Both acquisition-suppressing spellings set true, as an instance answers for a studio added in
+    // its own interface with search-on-add ticked. A scope change clones this body, so a fixture
+    // without them could not fail an assertion about what such a body says.
     private const string HeldStudio = """
         {"id":4,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true,
          "afterDate":"2026-09-02","qualityProfileId":4,"rootFolderPath":"/config/library","tags":[7],
@@ -155,43 +152,18 @@ internal static class ComposedAdds
         WhisparrGeneration generation, WhisparrCapability capability)
         => (generation, capability) switch
         {
-            // Carries a secret off the instance's own address and composes no add of any kind.
+            // No catalogue item, so no add to enumerate. The scene monitor and the exclusion do
+            // compose a body; both are covered beside the flag flips above.
             (_, WhisparrCapability.OutOfBandCallbackSecret) => [],
-
-            // Reads what the instance holds for a scene through two gets and composes no body at
-            // all, so it contributes no add to enumerate.
             (_, WhisparrCapability.ReadSceneStatus) => [],
-
-            // Reads the instance's exclusion list through one get and composes no body at all.
             (_, WhisparrCapability.ReadSceneExclusions) => [],
-
-            // Sets one flag on a scene the instance already holds and registers nothing, so it adds
-            // no catalogue item to enumerate. Its own composed body is covered beside the flag flips.
             (_, WhisparrCapability.MonitorScene) => [],
-
-            // Excludes a scene from what the instance would take and adds no catalogue item, so it
-            // contributes no add either. Its own body is covered beside the flag flips.
             (_, WhisparrCapability.ExcludeScene) => [],
-
-            // Reads which of a set of scenes one site already holds a row for, through one get, and
-            // composes no body at all.
             (_, WhisparrCapability.ReadSiteSceneRows) => [],
-
-            // Reads which of a set of sites the instance holds, through one get, and composes no
-            // body at all.
             (_, WhisparrCapability.ReadHeldSites) => [],
-
-            // Read a page of cards in one request. Each sends the identifiers asked about and
-            // nothing else, so neither composes an add to enumerate.
             (_, WhisparrCapability.ReadEntityCardsInBatch) => [],
-
             (_, WhisparrCapability.ReadSceneCardsInBatch) => [],
-
-            // Reads one entity's own scene list through one get and composes no body at all.
             (_, WhisparrCapability.ReadEntityCatalogue) => [],
-
-            // Reads what the instance holds at a path of its own, through one get, and composes no
-            // body at all.
             (_, WhisparrCapability.ReadInstanceFilesystem) => [],
 
             // One body per kind: the add is the same shape for both, and the route it goes to is
@@ -265,9 +237,7 @@ internal static class ComposedAdds
                     [SceneSuppression]),
             ],
 
-            // Attaches files the library already holds and adds no catalogue item of any kind, so it
-            // contributes no add body to enumerate. Registered on both generations, because the two
-            // cases it decides between are identical on each.
+            // Attaches files the library already holds and adds no catalogue item.
             (_, WhisparrCapability.ReflectOwnedFiles) => [],
 
             // Whisparr v2 addresses a studio as a series, and its add is composed from the
@@ -313,10 +283,8 @@ internal static class ComposedAdds
     public static JsonObject Held()
         => (JsonObject)JsonNode.Parse(HeldStudio)!;
 
-    // Read out of the emitted document rather than from a hand-written array, for the same reason
-    // the case list above reads the capability table: the failure to catch is a route mounted
-    // later and never driven through an assertion that it grabs nothing. The document is emitted
-    // from the shipped registrations. It is the same document the browser's own route pin reads.
+    // Read out of the emitted document, so a route mounted later is covered by the never-search
+    // assertions without an edit. The document comes from the shipped registrations.
     public static IReadOnlyList<string> MountedEntityVerbs()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(WireDocument.Path()));
@@ -337,9 +305,8 @@ internal static class ComposedAdds
     // The scene-segment placeholder every per-scene route names its scene in.
     private const string SceneSegment = "{providerSceneId}";
 
-    // A second enumeration because these hang off a scene segment rather than off the entity, so
-    // they never appear in the one-segment set above. Read out of the emitted document for the
-    // same reason that one is: a per-scene route mounted later is covered without an edit.
+    // A second enumeration: these hang off a scene segment rather than off the entity, so they
+    // never appear in the one-segment set above.
     public static IReadOnlyList<string> MountedSceneVerbs()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(WireDocument.Path()));
@@ -356,25 +323,21 @@ internal static class ComposedAdds
         ];
     }
 
-    // Subtracted from the mounted per-scene set, with the subtraction asserted to have exactly
-    // one member.
+    // Subtracted from the mounted per-scene set, which a caller asserts has exactly one member.
     public static readonly string[] GrabbingSceneVerbs = ["search"];
 }
 
-// The behavioural half of the never-search guarantee: what every composed body actually says,
-// over every combination the registered capabilities allow. The type-level half is asserted in
-// the invariant group. Nothing here reads a status or a count.
-// The guarantee is not that no grabbing verb is reachable. It is that exactly one named gesture
-// reaches exactly one, and that every other mounted verb reaches none. The second half is driven
-// over the mounted set read from the emitted document, so a verb mounted later is covered without
-// an edit.
+// The behavioural half of the never-search guarantee, over every combination the registered
+// capabilities allow; the type-level half is in the invariant group. The guarantee is not that no
+// grabbing verb is reachable. It is that exactly one named gesture reaches exactly one, and every
+// other mounted verb reaches none.
 public sealed class NonGrabbingBodyTests
 {
-    // The counts measure how much of the never-search guarantee is behaviourally covered. They are
-    // asserted exactly, so a monitoring capability registered for either generation makes this
-    // false whether or not its case was added, and a case added without a registration does too.
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    // The counts are asserted exactly, so a monitoring capability registered for either generation
+    // fails this whether or not its case was added, and a case added without a registration does
+    // too.
     [Fact]
     public void TheCaseListIsDerivedFromTheRegisteredCapabilityTable()
     {
@@ -420,10 +383,9 @@ public sealed class NonGrabbingBodyTests
 
         Assert.Equal(10, ComposedAdds.All().Count);
 
-        // The filter is on the verb class rather than on the registration, so a grabbing capability a
-        // generation holds contributes no case to a list of bodies asserted non-grabbing. Which
-        // generations hold each one is written out, because the two differ: the entity search is
-        // registered on both and the per-scene search on v3 alone.
+        // The filter is on the verb class rather than on the registration, so a grabbing capability
+        // contributes no case to a list of bodies asserted non-grabbing. The two generations
+        // differ: the entity search is registered on both and the per-scene search on v3 alone.
         Assert.All(
             ComposedAdds.Generations,
             generation => Assert.Contains(
@@ -437,10 +399,8 @@ public sealed class NonGrabbingBodyTests
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
-    // The three resources an add can name declare three different spellings, and v2 declares two
-    // more. A body carrying one its resource does not declare is composed for a schema other than
-    // the one it is being sent to: the instance discards it, so this product would be reading a
-    // suppression it never applied.
+    // A body carrying a spelling its resource does not declare is composed for another schema. The
+    // instance discards it, so this product would be reading a suppression it never applied.
     [Fact]
     public void NoAddCarriesASuppressionSpellingItsResourceDoesNotDeclare()
     {
@@ -502,12 +462,10 @@ public sealed class NonGrabbingBodyTests
                 name => Assert.DoesNotContain(name, body.ToJsonString(), StringComparison.Ordinal)));
     }
 
-    // Absence and false are both admissible here, because the flag flips and the catalogue
-    // refreshes carry no such member at all: what is refused is a member present and true. The
-    // adds are asserted present-and-false separately.
-    // Both generations' spellings are read over every body. A body composed by cloning what an
-    // instance answered carries whatever that instance holds, so the flag reaching a request is
-    // not decided by which generation's projector composed it.
+    // Absence and false are both admissible: the flag flips and the refreshes carry no such member
+    // at all, and what is refused is one present and true. The adds are asserted present-and-false
+    // separately. Both generations' spellings are read over every body, because a body cloned from
+    // what an instance answered carries whatever that instance holds.
     [Fact]
     public void NoNonGrabbingBodyCarriesASuppressionSpellingSetTrue()
     {
@@ -524,23 +482,19 @@ public sealed class NonGrabbingBodyTests
                     true, ComposedAdds.At(body, path)?.GetValue<bool>())));
     }
 
-    // The resource is what the instance answered a read with, so it carries the user's own flags:
-    // an entity added in the instance's interface with search-on-add ticked holds them true, and a
-    // clone that left them alone would re-assert them on a request this product originated.
-    // What the resource carried is asserted first, so a fixture quietly losing either spelling
-    // fails here rather than making the rest vacuous. Overwritten rather than removed, and
-    // presence is asserted apart from the value: removal would rest on the instance defaulting an
-    // absent member to false, which was never measured.
+    // The resource carries the user's own flags, so a clone that left them alone would re-assert
+    // them on a request this product originated. What the resource carried is asserted first, so a
+    // fixture losing either spelling fails here rather than making the rest vacuous. Overwritten
+    // rather than removed: removal would rest on the instance defaulting an absent member to
+    // false, which was never measured.
     [Fact]
     public void AScopeChangeOverwritesBothSuppressionSpellingsOnWhatTheInstanceHeld()
     {
-        // The two v3's resources declare between them, which is what a resource
-        // this product clones back out can be carrying.
+        // What a v3 resource cloned back out can be carrying.
         string[] paths = [ComposedAdds.TopLevelSuppression, ComposedAdds.SceneSuppression];
         var scopeChanges = ComposedAdds.EveryScopeChange();
 
-        // The resource composed over holds both spellings true, which is the case a body carrying
-        // neither cannot be asserted against.
+        // The resource holds both spellings true, so overwriting is what is being asserted.
         Assert.All(
             paths,
             path => Assert.True(ComposedAdds.At(ComposedAdds.Held(), path)!.GetValue<bool>()));
@@ -596,10 +550,7 @@ public sealed class NonGrabbingBodyTests
             path => Assert.Null(ComposedAdds.At(body, path)));
     }
 
-    // Every index rather than the last: a grab issued before the add would be just as acquiring,
-    // and an assertion reading only the final entry would not see it. The class of each recorded
-    // verb is read out of the transcribed table by indexer, so a verb nobody wrote down fails here
-    // too.
+    // Every index rather than the last: a grab issued before the add would be just as acquiring.
     // Paired with an assertion that the log holds an acting verb, so a gesture that reached the
     // instance not at all cannot satisfy this.
     [Fact]
@@ -625,13 +576,9 @@ public sealed class NonGrabbingBodyTests
                 WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[verb]));
     }
 
-    // Every index of each ordered verb log rather than its last entry: a grab issued before an act
-    // would be just as acquiring, and an assertion reading only the final entry would not see it.
-    // The mounted set comes from the emitted document rather than from a list written here, so a
-    // verb mounted later is covered without an edit. The subtraction is asserted to have exactly
-    // one member, so it cannot quietly grow to cover a second grabbing route.
-    // Each verb is driven on its own host and its log is asserted non-empty, so a verb that
-    // reached the instance not at all cannot satisfy this.
+    // Every index rather than the last, for the reason the whole-gesture case above gives. Each
+    // verb is driven on its own host and its log asserted non-empty, so a verb that reached the
+    // instance not at all cannot satisfy this.
     [Fact]
     public async Task EveryMountedEntityVerbButTheSearchReachesNoGrabbingVerb()
     {
@@ -670,8 +617,7 @@ public sealed class NonGrabbingBodyTests
             Assert.True(answered.IsSuccessStatusCode, verb);
 
             // Driven to completion: a verb whose work is enqueued has issued nothing yet, and the
-            // requests that would grab are the ones the run makes rather than the ones the route
-            // does.
+            // requests that would grab are the run's rather than the route's.
             if (host.Jobs.Enqueued.Count > 0)
             {
                 await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
@@ -689,10 +635,9 @@ public sealed class NonGrabbingBodyTests
             recorded, sent => Invariants.OutboundSeam.VerbClassByMember[sent] == WhisparrVerbClass.Act);
     }
 
-    // The enumeration above excludes the grabbing capabilities from the bodies it asserts
-    // non-grabbing. An empty exclusion list would make that filter a no-op and every Assert.All
-    // over it vacuous. Each member is also asserted really held, so a capability nothing registers
-    // cannot stand in for a real one.
+    // An empty exclusion list would make the filter above a no-op and every Assert.All over it
+    // vacuous. Each member is asserted really held, so a capability nothing registers cannot stand
+    // in for a real one.
     [Fact]
     public void TheGrabbingCapabilityFilterIsNonEmptyAndEveryMemberIsReallyHeld()
     {
@@ -707,8 +652,7 @@ public sealed class NonGrabbingBodyTests
     }
 
     // Both instances declare the role, so absence is not what keeps a monitoring path from
-    // grabbing. What does is that the member lives on that role alone and no monitoring path asks
-    // for it, which the whole-gesture case above asserts behaviourally.
+    // grabbing. The member lives on that role alone and no monitoring path asks for it.
     [Fact]
     public void TheGrabbingRoleIsReachedOnlyByAskingForItByName()
     {

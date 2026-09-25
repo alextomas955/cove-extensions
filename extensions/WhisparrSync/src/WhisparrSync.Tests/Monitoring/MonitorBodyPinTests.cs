@@ -6,19 +6,18 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-// The external facts this product's monitoring rests on, pinned against documents the two
-// measured builds produced. The captured documents are inputs. Every expected value below was
-// written out by hand, because one computed from the document it checks would agree with that
-// document whatever it said.
-// Nothing here reads a status. One generation answers an identifier it does not know with a
-// success and an empty list, and answers a body whose fields it dropped with a created status,
-// so a status is not evidence. Every assertion is on the parsed shape or on the content of a
-// document.
-// Whisparr v2 publishes no contract, so every shape it answers with is a hand transcription that
-// survives only here.
+// The external facts this product's monitoring rests on, pinned against documents the two measured
+// builds produced. The captured documents are inputs, and every expected value below was written
+// out by hand: one computed from the document it checks would agree with that document whatever it
+// said. Whisparr v2 publishes no contract, so every shape it answers with is a hand transcription
+// that survives only here.
+//
+// Nothing here reads a status. One generation answers an identifier it does not know with a success
+// and an empty list, and answers a body whose fields it dropped with a created status.
+//
 // A pin that goes red reports that the fact changed. Re-measure it against the new image and
 // re-decide the code; never edit the fixture to match. Every fixture file names the build it came
-// from, so a stale one is visible.
+// from.
 public sealed class MonitorBodyPinTests
 {
     private const string V3Build = "3.3.8.1097";

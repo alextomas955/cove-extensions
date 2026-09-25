@@ -6,7 +6,7 @@ namespace WhisparrSync.Tests.Jobs;
 
 // A run that reached the instance for nothing has both counts at zero, and "0 linked, 0 refused."
 // reads as a clean pass over every folder. This line is the only place the run is reported, so the
-// reason has to be in it. Every expected sentence is transcribed by hand. Composing one from the
+// reason has to be in it. Every expected sentence is transcribed by hand: one composed from the
 // member under test would agree with a sentence that changed underneath it.
 public sealed class ReflectOwnedSummaryTests
 {
@@ -115,10 +115,9 @@ public sealed class ReflectOwnedSummaryTests
     }
 
     // An instance that cannot be asked answers for every folder at once, so there is no one library
-    // root to name.
-    // A library run links most of its folders and still meets folders under no library root. The
-    // refusal names no root, and read as a statement about the run it contradicts the count in front
-    // of it.
+    // root to name. A library run links most of its folders and still meets folders under no
+    // library root, so the refusal names no root: read as a statement about the run it would
+    // contradict the count in front of it.
     [Fact]
     public void ARunThatLinkedFilesDoesNotThenSayNothingCouldBeLinked()
     {

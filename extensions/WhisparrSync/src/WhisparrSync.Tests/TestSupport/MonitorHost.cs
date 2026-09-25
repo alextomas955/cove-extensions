@@ -27,10 +27,10 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.TestSupport;
 
 // The routes are the shipped ones, mapped by the shipped extension: a test calling a handler method
-// directly would agree with a route mounted at the wrong pattern, bound to a body the browser cannot
-// send, or reachable by a caller the declaration excludes.
-// One recorder for the whole outbound surface, so an ordered Verbs list from any case covers every
-// verb this product can issue rather than the ones one seam declares.
+// directly would agree with a route mounted at the wrong pattern, bound to a body the browser
+// cannot send, or reachable by a caller the declaration excludes. One recorder for the whole
+// outbound surface, so an ordered Verbs list from any case covers every verb this product can
+// issue.
 internal sealed class MonitorHost : IAsyncDisposable
 {
     public const string StudioRemoteIdValue = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
@@ -636,10 +636,8 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     // One video across several folders, which the per-file helpers cannot express: each of those
-    // seeds a video of its own, so a case about one video's files would be about several.
-    //
-    // Saved once for the whole set. A save per row makes the context rescan every entity it already
-    // tracks, so a case seeding a few hundred files pays for that walk once per file.
+    // seeds a video of its own. Saved once for the whole set, because a save per row makes the
+    // context rescan every entity it already tracks.
     public async Task<int> SeedVideoWithFilesAsync(int studioId, params string[] folderPaths)
     {
         ArgumentNullException.ThrowIfNull(folderPaths);

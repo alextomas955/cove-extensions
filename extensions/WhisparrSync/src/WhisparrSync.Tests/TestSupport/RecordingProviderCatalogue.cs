@@ -5,12 +5,10 @@ namespace WhisparrSync.Tests.TestSupport;
 
 // An identifier this was not given an answer for throws rather than answering null, so a pass that
 // asked about the wrong scene cannot pass. Null is an answer here and is configured explicitly: it
-// is the provider naming no number for a scene it does know about.
-// The capability set is a real provider's rather than one assembled per case, so a case cannot ask
-// for a combination no provider has.
-// Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
-// that answered an empty one would let a pass reaching the wrong seam look like one that found
-// nothing.
+// is the provider naming no number for a scene it does know about. The capability set is a real
+// provider's, so a case cannot ask for a combination no provider has. Every other member of the
+// seam throws: one answering an empty page would let a pass reaching the wrong seam look like one
+// that found nothing.
 internal sealed class RecordingProviderCatalogue : IProviderCatalogue
 {
     private readonly Dictionary<string, int?> _numbers;

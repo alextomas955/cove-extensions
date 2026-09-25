@@ -154,10 +154,9 @@ public sealed class FollowUpScanCoalescerTests
     }
 
     // The pending batch never reaches the store, so the one blob the host's bulk data route serves
-    // whole is the same size after a burst as after a single import.
-    // Compared against the blob after the first import rather than against the one before it: an import
-    // records that the channel worked, which is a fixed-size instant. What must not grow with the burst
-    // is everything else.
+    // whole is the same size after a burst as after a single import. Compared against the blob
+    // after the first import, not before it: an import records a fixed-size instant, and what must
+    // not grow with the burst is everything else.
     [Fact]
     public async Task ABurstOfImportsLeavesTheStoredBlobByteIdenticalToOneImports()
     {

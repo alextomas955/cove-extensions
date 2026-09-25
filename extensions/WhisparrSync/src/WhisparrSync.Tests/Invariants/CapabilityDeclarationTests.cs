@@ -5,13 +5,11 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Invariants;
 
 // The capability enum is on the wire and the per-generation arrays are what the settings page and
-// the monitor menu render from, so they survive as a declaration. Nothing at run time reads them to
-// decide what a caller may do: a caller tests the bound instance for the role interface it needs.
-//
-// That leaves one thing the compiler cannot catch. A capability named in an array whose instance
-// implements no matching role would offer a control that always refuses, and a role an instance
-// implements that its array does not name would hide a control that works. This states the tie
-// between the two in both directions.
+// the monitor menu render from. Nothing at run time reads them to decide what a caller may do: a
+// caller tests the bound instance for the role interface it needs. That leaves one thing the
+// compiler cannot catch. A capability named in an array whose instance implements no matching role
+// offers a control that always refuses, and a role an instance implements that its array does not
+// name hides a control that works. This states the tie in both directions.
 public sealed class CapabilityDeclarationTests
 {
     // Transcribed by hand, one row per capability, beside the role interface that expresses it. The
@@ -66,10 +64,10 @@ public sealed class CapabilityDeclarationTests
             Enum.GetValues<WhisparrCapability>().Order(),
             RoleByCapability.Keys.Order());
 
-    // Whether a wider scope rewrites what is already monitored is declared beside the arrays and is
-    // answered to the browser on the monitoring view. A generation left out of the declaration
-    // throws where it is read, which is a monitoring read failing rather than a menu quietly
-    // dropping the warning a reader sees before a back catalogue is marked wanted.
+    // Whether a wider scope rewrites what is already monitored is declared beside the arrays and
+    // answered to the browser on the monitoring view. A generation left out throws where it is
+    // read, so a monitoring read fails rather than the menu quietly dropping the warning a reader
+    // sees before a back catalogue is marked wanted.
     [Fact]
     public void EveryGenerationDeclaresWhetherAScopeChangeIsRetroactive()
         => Assert.Equal(

@@ -147,10 +147,9 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal(writes, ingest.Store.SetCallCount);
     }
 
-    // This is the ordinary recovery path. The user adds the root they were missing, Cove's own scan
-    // imports the files, and the next delivery finds them already held. If this branch reported
-    // nothing, the banner would keep naming a root the user had already fixed until a genuinely new
-    // file arrived under it.
+    // The ordinary recovery path: the user adds the missing root, Cove's scan imports the files,
+    // and the next delivery finds them held. A branch reporting nothing would keep the banner
+    // naming a root the user had already fixed until a genuinely new file arrived.
     [Fact]
     public async Task AnAlreadyHeldDeliveryCoversItsPathAndClearsOnlyItsOwnRootsLine()
     {

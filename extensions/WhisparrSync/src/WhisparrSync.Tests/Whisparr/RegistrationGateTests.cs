@@ -2,11 +2,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-// Measured against a real Whisparr v3: two registrations issued without awaiting between them
-// both found no entry under this product's name, both created one, and the instance refused
-// neither, leaving two webhooks delivering every import event.
-// Asserted on the interleaving rather than on a call count, because two calls that both created
-// is also two calls.
+// Measured against a real Whisparr v3: two registrations issued without awaiting between them both
+// found no entry under this product's name, both created one, and the instance refused neither,
+// leaving two webhooks delivering every import event. Asserted on the interleaving rather than on a
+// call count, because two calls that both created is also two calls.
 public sealed class RegistrationGateTests
 {
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);

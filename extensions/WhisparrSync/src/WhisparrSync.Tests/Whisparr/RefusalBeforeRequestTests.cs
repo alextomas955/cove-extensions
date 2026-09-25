@@ -322,9 +322,8 @@ public sealed class RefusalBeforeRequestTests
     }
 
     // The whole runtime the outbound path runs through, with the recording client at the seam every
-    // request would leave by.
-    // The status read the tester makes is composed by the generated client and sent through the
-    // transport, so what a case reads back off it is the request that left rather than a call log.
+    // request would leave by. The status read is composed by the generated client and sent through
+    // the transport, so what a case reads back is the request that left rather than a call log.
     private sealed class StatusRecordingHandler(string statusFixture) : HttpMessageHandler
     {
         public List<(Uri? Target, string? ApiKey)> Calls { get; } = [];

@@ -50,9 +50,11 @@ internal static class SafetyInvariant
     ];
 }
 
-// Every member of the outbound seam and the class of work each does, transcribed by hand. A member
-// added to the seam is absent here until someone writes it down, and
-// TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall refuses the omission.
+// Every member of the outbound seam and the class of work each does, transcribed by hand. A
+// member added to the seam is absent here until someone writes it down, and
+// TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall refuses the omission. The lists
+// further down are transcribed for the same reason. Only the classifications a name does not give
+// away are annotated.
 internal static class OutboundSeam
 {
     public static IReadOnlyDictionary<string, WhisparrVerbClass> VerbClassByMember { get; } =
@@ -75,15 +77,13 @@ internal static class OutboundSeam
             [nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrMissingSceneActing.AddSceneAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync)] = WhisparrVerbClass.Act,
-            // An add, so it is never retried; non-grabbing, because the body it composes sets both
-            // of that generation's search flags false and monitors nothing.
+            // Its body sets both of that generation's search flags false and monitors nothing.
             [nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync)] = WhisparrVerbClass.Act,
-            // Acting, so it is never retried. It adds nothing and it transfers nothing: the request
-            // names no transfer parameter, which is what leaves the library's own files where they
-            // are.
+            // The request names no transfer parameter, which leaves the library's own files where
+            // they are.
             [nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync)] = WhisparrVerbClass.Act,
-            // Acting, and repeatable: it asks the instance to read what is on disk under the path it
-            // already holds. It composes no body, moves no file and changes no registration.
+            // Asks the instance to re-read the path it already holds. No body, no file, no
+            // registration.
             [nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
@@ -92,21 +92,17 @@ internal static class OutboundSeam
             [nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync)] = WhisparrVerbClass.Grab,
             [nameof(IWhisparrSceneStatusReading.ReadEntityPresenceAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync)] = WhisparrVerbClass.Read,
-            // A read, not a grab: it answers only entries the instance already holds, it composes no
-            // command name, and it starts nothing on the instance's side.
+            // Answers only entries the instance holds. It composes no command name and starts
+            // nothing.
             [nameof(IWhisparrSceneStatusReading.ReduceHeldScenesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync)] = WhisparrVerbClass.Act,
-            // A read too, and for the same reasons: it answers only rows the site already holds
-            // under it, it composes no body at all, and it starts nothing on the instance's side.
+            // Answers only rows the site already holds, for the reason above.
             [nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrInstanceFilesystemReading.ReadInstanceFolderAsync)] = WhisparrVerbClass.Read,
         };
 
-    // Transcribed by hand for the same reason the table above is: a seam interface added later and
-    // left out of this list fails TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall rather
-    // than being covered by an assertion nobody wrote.
     public static IReadOnlyList<Type> SeamInterfaces { get; } =
     [
         typeof(IWhisparrClient),
@@ -136,8 +132,8 @@ internal static class OutboundSeam
             .Any(method => string.Equals(method.Name, member, StringComparison.Ordinal)));
 }
 
-// The safety invariants reachable by driving this product, over doubles that record the arguments
-// of every request. The invariants about a capability this product does not hold are in
+// The safety invariants reachable by driving this product, over doubles that record every
+// request's arguments. Those about a capability this product does not hold are in
 // AbsentCapabilityTests, asserted as absence.
 public sealed class SafetyInvariantTests
 {
@@ -171,10 +167,9 @@ public sealed class SafetyInvariantTests
     public void TheInboundPathIsTheCallbackAndNothingElse()
         => Assert.Equal("/api/extensions/com.alextomas955.whisparrsync/callback", InboundRoute);
 
-    // One assertion over a declared union rather than one per interface, so a seam interface added
-    // and left out of OutboundSeam.SeamInterfaces fails the count below instead of slipping past an
-    // assertion nobody wrote for it. No name is duplicated across the union, so two interfaces
-    // declaring one name fail here too.
+    // One assertion over a declared union rather than one per interface, so a seam interface left
+    // out of OutboundSeam.SeamInterfaces fails the count below instead of slipping past. No name is
+    // duplicated across the union, so two interfaces declaring one name fail here too.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
@@ -223,10 +218,9 @@ public sealed class SafetyInvariantTests
         Assert.Single(handler.Requests);
     }
 
-    // The case list is derived from the per-generation capability table rather than transcribed,
-    // so a generation-and-kind combination registered later is covered rather than uncovered.
-    // Presence is asserted apart from the value, because an absent member and a false one read the
-    // same off a value and the instance's default is not this product's to rely on.
+    // The case list is derived from the per-generation capability table, so a combination
+    // registered later is covered. Presence is asserted apart from the value: an absent member and
+    // a false one read the same, and the instance's default is not this product's to rely on.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt()
@@ -275,10 +269,9 @@ public sealed class SafetyInvariantTests
             OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
     }
 
-    // A call site that never obtains one of these two roles cannot express a download, whatever it
-    // intended. The guarantee is not that nothing can grab: two named gestures reach one grabbing
-    // member each, one over an entity's whole monitored catalogue and one over a single scene. Each
-    // role declares exactly one member, so neither can grow a second verb without this failing.
+    // A call site that never obtains one of these two roles cannot express a download. The
+    // guarantee is not that nothing can grab: two named gestures reach one grabbing member each.
+    // Each role declares exactly one member, so neither can grow a second verb unnoticed.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public void TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn()
@@ -427,10 +420,9 @@ public sealed class SafetyInvariantTests
         Assert.True(ingest.Paths.Operations.Count > probesAfterTheFirst);
     }
 
-    // The pass set is asserted exactly, so a third pass added later fails here rather than
-    // travelling under an enumeration written for two. Each pass's body is read for its
-    // generation's suppressing flags and for every grabbing command name, because a run reaching a
-    // whole library is the one gesture whose acquisition cost would be the size of the library.
+    // The pass set is asserted exactly, so a third pass fails here rather than travelling under an
+    // enumeration written for two. A run reaching a whole library is the one gesture whose
+    // acquisition cost would be the size of the library.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void NeitherPassALibraryRunMakesRegistersThroughAnythingButANonGrabbingAdd()
@@ -462,11 +454,9 @@ public sealed class SafetyInvariantTests
             });
     }
 
-    // The composition is compared as text, so a re-run is proved to send what the first run sent
-    // rather than a variant of it. The run is then driven twice against an instance answering a
-    // repeated offer with its own already-held document. The already-held count is the
-    // load-bearing one: a second offer counted as registered would be a duplicate this product
-    // created and then reported as work.
+    // The composition is compared as text, so a re-run is proved to send what the first run sent.
+    // The already-held count is the load-bearing one: a second offer counted as registered would be
+    // a duplicate this product created and then reported as work.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
     public async Task OfferingTheSameLibraryTwiceComposesTheSameRequestAndRegistersNothingAgain()
@@ -504,9 +494,8 @@ public sealed class SafetyInvariantTests
     }
 
     // Asserted on the declared shapes rather than on what one run put in them: a run observed at
-    // one library size says nothing about the next. Each of these travels to a reader whole, and a
-    // library reaches millions of files. A member bounded by something other than the library is
-    // allowed only by naming it below with its bound.
+    // one library size says nothing about the next. A member bounded by something other than the
+    // library is allowed only by naming it below with its bound.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void NeitherTheCountAnswerNorEitherRunsResultCarriesAMemberThatGrowsWithTheLibrary()
@@ -595,8 +584,8 @@ public sealed class SafetyInvariantTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // The whole ingest path over doubles, with one recorder at the outbound seam. The reported-root
-    // read, the ingest core and the backstop pass are the shipped types rather than stand-ins, so
-    // every request any of them makes leaves through the one recorded client.
+    // read, the ingest core and the backstop pass are the shipped types, so every request they make
+    // leaves through the one recorded client.
     private sealed class Ingest
     {
         public const string ApiKey = "5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f";
@@ -740,8 +729,7 @@ public sealed class SafetyInvariantTests
     }
 
     // The host serialises every stored value on one bulk route, so one oversized value breaks the
-    // whole settings page and survives a reinstall. A type that cannot obtain the store cannot
-    // write a page, a catalogue or a library into it. The settings blob is written by the options
+    // whole settings page and survives a reinstall. The settings blob is written by the options
     // slice, which is not in this set and is bounded by its own record.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
@@ -767,8 +755,7 @@ public sealed class SafetyInvariantTests
 
     // Transcribed, so a collection member added without a decision about what bounds it fails here.
     // What each is bounded by is asserted by driving the derivation below: a declared type says
-    // nothing about the count an implementation puts in it. The facet menus are bounded by the
-    // provider's own declared menu size rather than by the page, and are read once for the tab.
+    // nothing about the count an implementation puts in it.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void EveryCollectionACatalogueRouteAnswersWithWasWrittenDown()
@@ -824,10 +811,9 @@ public sealed class SafetyInvariantTests
 
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
-    // A page of cards costs one read of the entity's own list and no per-scene read at all: the
-    // state each card shows is the flag on the row it came from. Neither the planner nor the context
-    // it plans against can reach the per-scene status surface, so a read per card is not a cost the
-    // derivation is able to spend.
+    // A page of cards costs one read of the entity's own list and no per-scene read: each card's
+    // state is the flag on the row it came from. Neither the planner nor the context it plans
+    // against can reach the per-scene status surface.
     public async Task APageCostsOneReadAndNeverOnePerCard()
     {
         var scenes = PageOfScenes(40);
@@ -854,8 +840,7 @@ public sealed class SafetyInvariantTests
             .Select(index => new ProviderScene(
                 $"scene-{index}", $"Scene {index}", null, null, null, null, [], []))];
 
-    // The whole derivation, driven through its real ports rather than a stub of itself, so the counts
-    // a case asserts are the counts the derivation actually spent.
+    // Driven through its real ports, so the counts a case asserts are the ones actually spent.
     private static Task<MissingPageView> DeriveAsync(
         List<ProviderScene> scenes,
         string[] owned,
