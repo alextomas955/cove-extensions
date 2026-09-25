@@ -12,7 +12,7 @@
 // than off the page, because the page is what is under test.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { EXTENSION_ID, SETTINGS_ROUTE } from "../../lib/contract.mjs";
+import { CALLBACK_STATUS_ROUTE, EXTENSION_ID, SETTINGS_ROUTE } from "../../lib/contract.mjs";
 import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 
 const PANEL_PATH = "/settings/whisparr-sync";
@@ -289,11 +289,24 @@ test("both generations are configured independently, and only a generation chang
 
     await panel.callbackField.fill(`${editedCallbackHost}/api/extensions/${EXTENSION_ID}/callback`);
     await panel.registerButton.click();
-    // The registration answers with the address as the server now builds it, so the field settling on
-    // the edited host is the write having landed.
-    await expect(panel.callbackField).toHaveValue(new RegExp(`^${editedCallbackHost}/`), {
-      timeout: ATTEMPT_BUDGET_MS,
-    });
+
+    // Read back through the extension's own route rather than off the field. The hook leaves an
+    // edited field alone until a registration answers, so a field still showing the edited host is
+    // the text this step typed and says nothing about what was stored. A registration that never
+    // answered would pass that reading and fail only at the reload below, naming the reload rather
+    // than the write that did not land.
+    await expect
+      .poll(
+        async () => {
+          const read = await owner.get(CALLBACK_STATUS_ROUTE);
+          return read.status === 200 ? read.json.copyableAddress : `HTTP ${read.status}`;
+        },
+        {
+          message: "the registration did not store the edited callback host",
+          timeout: ATTEMPT_BUDGET_MS,
+        },
+      )
+      .toMatch(new RegExp(`^${editedCallbackHost}/`));
 
     const reloaded = await openPanel(page, baseUrl);
     await expect(
