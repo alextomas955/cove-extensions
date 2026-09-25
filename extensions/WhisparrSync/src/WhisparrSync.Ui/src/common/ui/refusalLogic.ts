@@ -9,7 +9,7 @@ import { membersOf } from "../lib/totalTableLogic";
 
 export type RefusalKind = "notConfigured" | "unreachable" | "versionCapability" | "nothingToDo";
 
-export interface RefusalAffordances {
+interface RefusalAffordances {
   /** Whether asking again could give a different answer. */
   readonly retry: boolean;
   /** Whether a setting would fix it, so the surface may name one. */
