@@ -3,7 +3,7 @@
  * empty, failed.
  */
 
-export type AsyncRegionStatus = "reading" | "content" | "empty" | "failed";
+type AsyncRegionStatus = "reading" | "content" | "empty" | "failed";
 
 export interface AsyncRegionState {
   readonly status: AsyncRegionStatus;

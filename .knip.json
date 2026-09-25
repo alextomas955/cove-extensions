@@ -7,7 +7,7 @@
     },
     "extensions/Renamer/src/Renamer.Ui": {
       "vite": false,
-      "entry": ["src/index.ts", "src/**/*Logic.ts", "src/settings/options.ts"],
+      "entry": ["src/index.ts", "src/settings/options.ts"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },
@@ -15,7 +15,6 @@
       "vite": false,
       "entry": [
         "src/index.ts",
-        "src/**/*Logic.ts",
         "src/common/lib/extension.ts",
         "src/common/ui/copy.ts",
         "src/common/ui/AsyncRegion.tsx",

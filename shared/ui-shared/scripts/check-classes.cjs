@@ -3,10 +3,14 @@
  * Class-discipline + XSS gate for an extension's panel sources - one shared copy for every UI.
  *
  * Fails (exit 1) if any panel .tsx contains:
- *   1. A Tailwind utility class the host does NOT emit - those would silently render unstyled,
- *      because the host's Tailwind JIT never scans this bundle (it only generates classes it sees
- *      in its own source). Arbitrary-value classes (e.g. `w-[123px]`) are the common trap.
- *   2. The raw-HTML React prop (dangerouslySetInnerHTML) - filenames/diff/flags must render as
+ *   1. A class on the FORBIDDEN list below - each one measured absent from a host this extension
+ *      supports. This is a deny list, not a comparison against the host stylesheet: a class nobody
+ *      has measured passes, including one that is simply invented. What a host emits depends on
+ *      what Cove's own source writes, and there is no manifest of it to read.
+ *   2. An arbitrary-value class (`w-[123px]`), which the host's Tailwind JIT never emits for this
+ *      bundle because it only scans its own source. This part IS general: the shape is the
+ *      evidence, so no measurement is needed.
+ *   3. The raw-HTML React prop (dangerouslySetInnerHTML) - filenames/diff/flags must render as
  *      escaped text nodes only, never as raw HTML, to avoid an injection vector.
  *
  * The consuming package's `src/` and the shared UI module's `src/` are both scanned (this bundle
@@ -138,4 +142,7 @@ if (failed) {
   console.error("check-classes: FAILED");
   process.exit(1);
 }
-console.log("check-classes: OK (no host-absent classes, no raw-HTML rendering)");
+console.log(
+  `check-classes: OK (none of the ${FORBIDDEN.length} classes measured absent, ` +
+    "no arbitrary-value class, no raw-HTML rendering)",
+);
