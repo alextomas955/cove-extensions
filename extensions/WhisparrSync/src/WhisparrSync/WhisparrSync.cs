@@ -58,26 +58,20 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddSingleton<Whisparr3Gateway>();
         services.AddSingleton<Whisparr2Gateway>();
 
-        // Resolved off the instance's own lookup rather than the configured metadata source, so a
-        // studio held under a provider's code costs no second request. Singleton like the gateway
-        // it sends through: it holds nothing between calls and takes the instance per call.
+        // The instance's own lookup, so a studio held under a provider's code costs no second
+        // request. Holds nothing between calls and takes the instance per call.
         services.AddSingleton<ISiteNumberPort>(
             provider => new InstanceSiteNumberPort(
                 provider.GetRequiredService<Whisparr2Gateway>()));
 
-        // A typed client rather than a constructed HttpClient, so the handler is pooled and its
-        // lifetime is the factory's. The host stands the AddHttpClient stack up before this call.
+        // The host stands the AddHttpClient stack up before this call.
         services.AddHttpClient<WhisparrTransport>(WhisparrTransport.Configure)
             .ConfigurePrimaryHttpMessageHandler(WhisparrTransport.CreateHandler)
-
-            // Built here rather than from the container, so the transport writes to this extension's
-            // own logger for the same reason every other service constructed above does.
             .AddTypedClient((http, provider) => new WhisparrTransport(
                 http, provider.GetRequiredService<Whisparr3Gateway>(), _log));
 
-        // The factory rather than an instance: which generation is connected is a stored setting
-        // read per request, so an instance registered here would predate the connection it
-        // describes.
+        // Which generation is connected is a stored setting read per request, so an instance
+        // registered here would predate the connection it describes.
         services.AddTransient<IWhisparrInstanceFactory>(services => new WhisparrInstanceFactory(
             services.GetRequiredService<WhisparrTransport>(),
             services.GetRequiredService<Whisparr3Gateway>(),
@@ -87,7 +81,6 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         services.AddSingleton(TimeProvider.System);
 
-        // The three collaborators every verb reaching the instance resolves, as one service.
         services.AddScoped(services => new WhisparrAccess(
             services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<ICredentialPort>(),
@@ -128,18 +121,13 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<DbContext>(),
             services.GetRequiredService<OptionsStore>()));
 
-        // A singleton, so the request scopes and the background worker queue behind one gate. Per
-        // scope it would be a gate per request and would serialise nothing.
+        // Singletons because each holds state spanning more than one request. Per scope the write
+        // gate would serialise nothing, the registration gate would not close a window spanning two
+        // requests, the root cache would take a reading per delivered file, and the preview slot
+        // would be filled by a background run the later reader never sees.
         services.AddSingleton(_ => new OptionsWriteGate(_log));
-
-        // A singleton for the same reason: the window it closes spans two requests.
         services.AddSingleton(_ => new RegistrationGate());
-
-        // A delivery arrives per file, so a reading held per scope would be a reading taken per file.
         services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
-
-        // A singleton for a different reason: the count is taken by a background run and read by a
-        // later request, so a slot held per scope would be a slot the reader never sees.
         services.AddSingleton(services => new SyncPreviewCache(services.GetRequiredService<TimeProvider>()));
         services.AddScoped<IImportPathPort, ImportPathPort>();
         services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
@@ -148,9 +136,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<ReportedRootCache>(),
             _log));
 
-        // Both host-supplied dependencies are optional, matching how the configuration is already
-        // taken: a container that cannot produce one still builds the port, and the ingest reports
-        // the refusal instead of failing to resolve.
+        // Both host services are optional: a container that cannot produce one still builds the
+        // port, and the ingest reports the refusal instead of failing to resolve.
         services.AddScoped<ICoveLibraryPort>(services => new CoveLibraryPort(
             services.GetRequiredService<DbContext>(),
             services.GetService<IScanService>(),
@@ -186,13 +173,9 @@ public sealed partial class WhisparrSync : FullExtensionBase
     public override async Task InitializeAsync(
         IServiceProvider services, CancellationToken ct = default)
     {
-        // Logging first, so the configuration line below has somewhere to go. Optional (GetService,
-        // not GetRequiredService): the host forwards ILogger into the extension scope, but its absence
-        // must not stop the extension loading.
+        // Both are taken with GetService: a host that forwards neither must still load the
+        // extension, and what is missing is reported rather than thrown on.
         _log = services.GetService<ILogger<WhisparrSync>>() ?? _log;
-
-        // Optional for the same reason: a host that registers no configuration must still load the
-        // extension. The cost is reported rather than silent.
         _coveConfig = services.GetService<CoveConfiguration>();
         if (_coveConfig is null)
         {
@@ -216,17 +199,16 @@ public sealed partial class WhisparrSync : FullExtensionBase
         await base.InitializeAsync(services, ct).ConfigureAwait(false);
     }
 
-    // Registered as a factory over this instance because the host hands an extension its store
-    // through IStatefulExtension.SetStore and registers it in no container. Each load publishes
-    // the generation it established, which also covers the host's own extension-data route: the
-    // manifest is built synchronously on a host thread and can only read what a load published.
+    // A factory over this instance: the host hands an extension its store through
+    // IStatefulExtension.SetStore and registers it in no container. Each load publishes the
+    // generation it established, which the manifest reads; it is built synchronously on a host
+    // thread and can read nothing else.
     internal OptionsStore NewOptionsStore()
         => new(Store, _log, generation => _selectedGeneration = generation);
 
-    // Reads the store once at load, so the manifest has a generation to register for. The load
-    // publishes what it established, so nothing is assigned here. A store that could not be read
-    // is reported once and leaves the generation unestablished, so the extension still loads.
-    // Resolved inside a scope for the reason CanObtain records.
+    // Reads the store once at load, so the manifest has a generation to register for. A store
+    // that could not be read leaves the generation unestablished and the extension still loads.
+    // Scoped for the reason CanObtain records.
     private async Task ReadStoredGenerationAsync(IServiceProvider services, CancellationToken ct)
     {
         try
@@ -245,11 +227,10 @@ public sealed partial class WhisparrSync : FullExtensionBase
         }
     }
 
-    // Resolved inside a scope rather than off the provider directly. The host copies its own scoped
-    // registrations into the extension container and builds it with scope validation on, so
-    // resolving one of them from the provider handed to InitializeAsync throws, and a throw there
-    // disables the extension. The instance is discarded because a scoped one kept in a field
-    // outlives its scope, and a construction failure is the answer the caller asked for.
+    // The host copies its own scoped registrations into the extension container and builds it
+    // with scope validation on, so resolving one from the provider handed to InitializeAsync throws
+    // and the throw disables the extension. The instance is discarded: a scoped one kept in a field
+    // outlives its scope.
     private static bool CanObtain<T>(IServiceProvider services)
         where T : class
     {

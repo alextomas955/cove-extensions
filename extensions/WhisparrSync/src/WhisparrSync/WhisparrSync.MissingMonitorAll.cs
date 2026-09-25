@@ -21,8 +21,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingMonitorAllEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier. The request names no scene: the narrowing rides the query string and the
-        // run re-derives its own set, so the reach is one entity's catalogue.
         endpoints.MapPost(MissingMonitorAllRoute,
             ([AsParameters] EntityRoute route, string? q, string? filters,
              ICurrentPrincipalAccessor principal, BackgroundWork work,

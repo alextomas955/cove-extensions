@@ -26,9 +26,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
-        // No entity in the route and none reached: the selection bar's menu follows the connection,
-        // so naming an entity here would cost a read of the instance for facts this answers from
-        // stored settings.
+        // No entity in the route: the selection bar's menu follows the connection, and naming one
+        // would cost a read of the instance for facts this answers from stored settings.
         endpoints.MapGet(ConnectionOfferRoute,
             (ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, CancellationToken ct)
                 => ReadConnectionOfferAsync(principal, whisparr, ct))
@@ -43,8 +42,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier as the monitor route, and for the same reason: each aims this extension's
-        // stored credential at a third party.
         endpoints.MapPost(UnmonitorRoute,
             ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              CancellationToken ct)
@@ -53,9 +50,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The configure tier for two reasons: the route aims this extension's stored credential at a
-        // third party, and it spends the reader's bandwidth and disk. Its reach is one Cove entity
-        // named by the route segment, so it is neither a whole-library verb nor a body-named one.
         endpoints.MapPost(SearchAllMonitoredRoute,
             ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              CancellationToken ct)

@@ -21,8 +21,6 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingBulkEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier: one gesture aims the stored credential at a third party and creates items
-        // in the reader's Whisparr, which a caller who cannot configure the extension may not do.
         endpoints.MapPost(MissingBulkMonitorRoute,
             ([AsParameters] EntityRoute route, MissingBulkRequest request,
              ICurrentPrincipalAccessor principal, BackgroundWork work,

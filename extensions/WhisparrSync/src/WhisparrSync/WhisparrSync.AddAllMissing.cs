@@ -19,8 +19,6 @@ public sealed partial class WhisparrSync
 {
     private void MapAddAllMissingEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Configure tier: the route reaches one entity's catalogue, named by the route segment, and
-        // it aims the stored credential at a third party and creates items in the reader's Whisparr.
         endpoints.MapPost(AddAllMissingRoute,
             ([AsParameters] EntityRoute route, ICurrentPrincipalAccessor principal, WhisparrAccess whisparr, IEntityIdentityPort identities,
              BackgroundWork work, CancellationToken ct)

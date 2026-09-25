@@ -50,8 +50,6 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The settings tier: these read and write stored configuration, and the save aims the
-        // stored credential at a third party.
         endpoints.MapGet(FolderMappingsRoute,
             (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
                 => ReadFolderMappingsAsync(principal, options, ct))
