@@ -58,3 +58,7 @@ tests/e2e/docker/shared-media/
 /v2tree.json
 /wgtree.json
 /wgdocs.json
+
+# Python bytecode from the e2e seeders that run inside the instance containers.
+__pycache__/
+*.pyc

@@ -1,5 +1,5 @@
 /**
- * The host symbols this surface renders through, in one module.
+ * The host symbols this surface renders through.
  *
  * Nothing in this repo can check the hand-transcribed declarations behind
  * `@cove/runtime/components`: a wrong prop shape type-checks, and a wrong export name throws at
