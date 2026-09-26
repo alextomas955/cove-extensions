@@ -503,6 +503,23 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("nothing was copied", summary, StringComparison.Ordinal);
     }
 
+    // The verb follows the count as the noun does. A line reading "1 file were left" is the
+    // product's own ending, which is where a reader meets its account of their library.
+    [Fact]
+    public async Task ARunLeavingOneFileBehindStatesThatFileInTheSingular()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress, (SceneRegistration.Moved, Split(filesLeftElsewhere: 1, LeftBehindRoot)));
+
+        Assert.Equal(1, run.FilesLeftElsewhere);
+        Assert.Contains(
+            "1 file was left where it is under " + LeftBehindRoot,
+            progress.Summaries[^1],
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ARunWithNoSplitStudioSaysNothingAboutSplits()
     {
