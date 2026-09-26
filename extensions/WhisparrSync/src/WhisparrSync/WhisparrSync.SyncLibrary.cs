@@ -476,35 +476,17 @@ public sealed partial class WhisparrSync
             return addressed;
         };
 
-        var tree = new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>());
+        var placing = new SitePlacing(
+            library.LibraryRoots,
+            target.Binding.Generation,
+            files,
+            agreedRoot,
+            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()));
 
         return async (site, siteCt) =>
         {
-            var composed = await EntityAddDefaults.ComposeAsync(
-                composeWith,
-                library.LibraryRoots,
-                target.Binding.Generation,
-                site.RemoteId,
-                (coveRoot, countCt) => files.FilesUnderAsync(
-                    WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
-                agreedRoot,
-                siteCt).ConfigureAwait(false);
-
-            // Before the site is registered at the folder: an entry written to a path nothing holds
-            // is an entry the instance reports a file for that is not there. The files are the ones
-            // the studio owns under its chosen root, streamed one at a time, because a studio's
-            // files reach the size of the library.
-            if (composed.Defaults?.EntityFolderPath is not null
-                && composed.Root.CoveRoot is { } chosen)
-            {
-                await tree.BuildAsync(
-                    chosen,
-                    target.Binding.Generation,
-                    site.RemoteId,
-                    files.FilePathsUnder(
-                        WhisparrEntityKind.Studio, site.StudioId, chosen, siteCt),
-                    siteCt).ConfigureAwait(false);
-            }
+            var composed = await PlacedSiteAsync(composeWith, placing, site, siteCt)
+                .ConfigureAwait(false);
 
             // A refused composition still reaches the step, so the site is read: where the instance
             // holds it, its root need not settle for its scenes to be marked, and stopping short
@@ -565,6 +547,60 @@ public sealed partial class WhisparrSync
                 ? answer.Refusal.ToString()
                 : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
         }
+    }
+
+    // What the site pass needs to settle where one site goes, resolved once for the run rather than
+    // once per site: the roots, the connected generation, the library reads, the agreement and the
+    // step that builds a folder.
+    private sealed record SitePlacing(
+        IReadOnlyList<string> CoveRoots,
+        WhisparrGeneration Generation,
+        IEntityFolderPort Files,
+        Func<string, CancellationToken, Task<AddressedFolder>> AgreedRoot,
+        TreeReconcileStep Tree);
+
+    // The root and the folder one site is registered at, with the folder built before it is sent.
+    //
+    // A folder sent for a path nothing holds leaves the instance recording an entry whose files it
+    // reports and cannot open, which is worse than registering the way it did before this product
+    // built folders. So the folder is dropped where the build made none: a library root this
+    // product cannot write to is the arrangement that reaches here.
+    //
+    // The files are the ones the studio owns under its chosen root, streamed one at a time, because
+    // a studio's files reach the size of the library.
+    private static async Task<EntityAddDefaultsResolution> PlacedSiteAsync(
+        AddDefaults composeWith,
+        SitePlacing placing,
+        LibrarySiteIdentity site,
+        CancellationToken ct)
+    {
+        var (coveRoots, generation, files, agreedRoot, tree) = placing;
+        var composed = await EntityAddDefaults.ComposeAsync(
+            composeWith,
+            coveRoots,
+            generation,
+            site.RemoteId,
+            (coveRoot, countCt) => files.FilesUnderAsync(
+                WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
+            agreedRoot,
+            ct).ConfigureAwait(false);
+
+        if (composed.Defaults is not { EntityFolderPath: not null } wanted
+            || composed.Root.CoveRoot is not { } chosen)
+        {
+            return composed;
+        }
+
+        var built = await tree.BuildAsync(
+            chosen,
+            generation,
+            site.RemoteId,
+            files.FilePathsUnder(WhisparrEntityKind.Studio, site.StudioId, chosen, ct),
+            ct).ConfigureAwait(false);
+
+        return built.EntityFolder is null
+            ? composed with { Defaults = wanted with { EntityFolderPath = null } }
+            : composed;
     }
 
     // A generation this product cannot ask refuses the root rather than composing one, a root

@@ -185,7 +185,7 @@ const SEEDERS = {
             destName: `Cove E2E Owned Scene ${run} 1080p WEBDL.mp4`,
             identity: { endpoint: STASHDB_ENDPOINT, remoteId: sceneRemoteId },
           });
-          return { entryId: scene.id, folder: scene.path };
+          return { entryId: scene.id, folder: scene.path, registeredAs: sceneRemoteId };
         },
       };
     },
@@ -243,7 +243,7 @@ const SEEDERS = {
             destDir: site.path,
             destName: `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} 1080p WEBDL.mp4`,
           });
-          return { entryId: seeded.seriesId, folder: site.path };
+          return { entryId: seeded.seriesId, folder: site.path, registeredAs: String(siteId) };
         },
       };
     },
@@ -391,6 +391,9 @@ export const test = base.extend({
       });
 
       // Before the connection, so the extension's first read of the library already sees it.
+      // `registeredAs` is the identifier of the entity THIS generation registers for that file: a
+      // scene on one, the site above it on the other. A spec addressing what the product built for
+      // that entity needs the identifier the product named it by, and the two differ.
       const owned = ownedMedia
         ? await seeded.ownMedia({ api, isolatedCove, instanceMount, studio })
         : null;
