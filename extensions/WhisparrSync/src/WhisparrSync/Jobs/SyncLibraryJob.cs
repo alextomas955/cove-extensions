@@ -51,7 +51,8 @@ internal sealed record SyncLibraryAiming(
     ReflectOwnedAim? Link = null,
     IReadOnlyList<string>? RootOrder = null,
     IReadOnlyList<string>? OutOfReach = null,
-    TreeAiming? Tree = null);
+    TreeAiming? Tree = null,
+    TreeSweepStep? Sweep = null);
 
 /// <summary>
 /// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
@@ -128,6 +129,16 @@ public static class SyncLibraryJob
             var registered = await RegisterAsync(aimed, identities, linking, rootOrder, progress, ct)
                 .ConfigureAwait(false);
 
+            // Last, and apart from the pass that registers: a name is taken back on the strength
+            // of no library file answering to it, which only a walk that reached the end of the
+            // library establishes. The pass that registers sites links nothing and still builds
+            // folders whose names have to be taken back, so this hangs off neither half.
+            var swept = aimed.Sweep?.Over(
+                services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+                aimed.Generation,
+                registered.Outcome is not SyncLibraryRunOutcome.Cancelled,
+                ct) ?? TreeSweep.Nothing;
+
             if (aimed.Link is not { } link)
             {
                 return registered;
@@ -137,7 +148,8 @@ public static class SyncLibraryJob
                 ' ',
                 SyncLibraryPlanner.SummaryOf(registered, aimed.Monitor is not null, aimed.Registers),
                 ReflectOwnedJob.SummaryOf(
-                    linking?.Total ?? ReflectOwnedJob.Untaken with { Skipped = link.Skipped })));
+                    (linking?.Total ?? ReflectOwnedJob.Untaken with { Skipped = link.Skipped })
+                        .Plus(Reported(swept)))));
 
             return registered;
         });
@@ -242,17 +254,6 @@ public static class SyncLibraryJob
                 tree.FilesOfScene(remoteId, coveRoot, ct),
                 ct).ConfigureAwait(false);
 
-            // Folded in before the folder is checked, because a pass that built no folder still
-            // reports what it found in the one that was already there.
-            if (built.Swept.NotComposedHere > 0)
-            {
-                Total = Total.Plus(
-                    ReflectOwnedJob.Untaken with
-                    {
-                        NamesNotComposedHere = built.Swept.NotComposedHere,
-                    });
-            }
-
             if (built.EntityFolder is not { } entityFolder)
             {
                 return null;
@@ -342,6 +343,17 @@ public static class SyncLibraryJob
         private bool UnderAnUnreachableRoot(string folder)
             => outOfReach.Any(root => PathCandidateGuard.TailBelow(folder, root) is not null);
     }
+
+    // The figures of the pass a reader can act on. What was left still named elsewhere is every
+    // healthy link in the tree, and what the pass could settle nothing about is retried by the next
+    // run, so neither is a line.
+    private static ReflectOwnedRun Reported(TreeSweep swept)
+        => ReflectOwnedJob.Untaken with
+        {
+            NamesNotComposedHere = swept.NotComposedHere,
+            LinksRemoved = swept.Removed,
+            LinksWaiting = swept.WaitingToSettle,
+        };
 
     private static async Task<SyncLibraryRun> RegisterAsync(
         SyncLibraryAiming aimed,

@@ -3,7 +3,9 @@
 // The folder an entity has in the tree holds a second name for each of its library files. This
 // drives the three things that can happen to one of those files - it is renamed, it is moved, it is
 // deleted - and the one thing that can happen to the folder that is nobody's business of this
-// product's: a file it did not put there.
+// product's: a file it did not put there. It ends on the deletion that takes an entity's LAST file,
+// which leaves the entity owning nothing and therefore out of reach of any walk over what the
+// library holds.
 //
 // WHY A RENAME IS DRIVEN AGAINST THE FILESYSTEM. A rename by the reader, a rename by the Renamer
 // and a move within one drive are one act down there: the name changes and the identity does not.
@@ -33,6 +35,7 @@ import {
   linkNameOf,
   mediaUnder,
   namesIn,
+  removeOnDisk,
   renameOnDisk,
   sharedBetweenBothProducts,
 } from "../../lib/tree-steps.mjs";
@@ -138,7 +141,8 @@ for (const generation of ["v3", "v2"]) {
       // A rename the library's record does not follow, which is what a reader renaming a file in a
       // file manager leaves behind.
       const renamed = await fileOf(api, owned.video.id);
-      await renameOnDisk(cove, renamed.path, `${renamed.path.slice(0, -4)} renamed.mp4`);
+      const whereItActuallyIs = `${renamed.path.slice(0, -4)} renamed.mp4`;
+      await renameOnDisk(cove, renamed.path, whereItActuallyIs);
 
       await reconcile(api, "the pass after the rename");
 
@@ -211,6 +215,31 @@ for (const generation of ["v3", "v2"]) {
         await identityOf(cove, left),
         "a file this product did not put in the folder was taken away, and it was the only copy",
       ).not.toBeNull();
+
+      // The reader throws the entity's LAST file away. The entity then owns nothing, so nothing
+      // offers it to a run that walks what the library holds, and the name in its folder is the
+      // only thing left holding the bytes of the file that was deleted.
+      //
+      // The row and the file go separately because Cove's record of this one still names the path
+      // it had before the rename above, which is what a rename the library does not follow leaves.
+      const lastLink = linkNameOf(await identityOf(cove, whereItActuallyIs), ".mp4");
+      const emptied = await api.delete(`/api/videos/${String(owned.video.id)}`);
+      expect(
+        emptied.status,
+        `Cove would not delete the video: ${String(emptied.text).slice(0, 300)}`,
+      ).toBeLessThan(300);
+      await removeOnDisk(cove, whereItActuallyIs);
+      expect(
+        (await identityOf(cove, `${entityFolder}/${lastLink}`))?.names,
+        "the link is not the last name the file has, so removing it would free nothing",
+      ).toBe(1);
+
+      await reconcile(api, "the pass after the entity's last file went");
+
+      expect(
+        await namesIn(cove, entityFolder),
+        "the link to the last file of an entity the library no longer holds anything for is still there, holding every byte of it",
+      ).toEqual([left.slice(left.lastIndexOf("/") + 1)]);
     });
   });
 }

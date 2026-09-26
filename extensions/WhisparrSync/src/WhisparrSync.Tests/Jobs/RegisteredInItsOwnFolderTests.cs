@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Linking;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -162,6 +163,37 @@ public sealed class RegisteredInItsOwnFolderTests
             host.Client.Acting
                 .Where(call => call.Verb == nameof(RecordingWhisparrCore.ListImportableFilesAsync))
                 .Select(call => call.Folder));
+    }
+
+    // The state the walk cannot reach on its own. A reader deleting an entity's last file leaves
+    // that entity owning nothing, so the library offers it to no run and no folder is built for it,
+    // while its link goes on holding every byte of the file that was deleted.
+    [Fact]
+    public async Task ALinkLeftByAnEntityTheLibraryNoLongerHoldsAFileForIsTakenBack()
+    {
+        await using var host = await SceneHostAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await SeedSceneAsync(host, studioId, FirstScene);
+        var stranded = Stranded(host, SecondScene, SharedFolder + "/the deleted scene.mp4");
+
+        await RunAsync(host);
+
+        Assert.Empty(host.TreeLinks.NamesIn(FolderOf(SecondScene)));
+        Assert.DoesNotContain(stranded, host.TreeLinks.Links.Keys);
+        Assert.Single(host.TreeLinks.NamesIn(FolderOf(FirstScene)));
+    }
+
+    // The link a run of this extension's left behind for an entity, and the library file it was
+    // made from taken away underneath it, which is what the deletion leaves on disk.
+    private static string Stranded(MonitorHost host, string remoteId, string libraryFile)
+    {
+        var links = host.TreeLinks;
+        var name = TreePathGuard.LinkPathIn(
+            FolderOf(remoteId), links.Identify(libraryFile)!.Identity, libraryFile)!;
+        Assert.Equal(LinkOutcome.Linked, links.Link(libraryFile, name));
+        links.Forget(libraryFile);
+
+        return PathCandidateGuard.Normalize(name);
     }
 
     private static string FolderOf(string remoteId)

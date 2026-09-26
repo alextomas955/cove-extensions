@@ -111,6 +111,25 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
             .ToList();
     }
 
+    // A folder is one a caller made and one a placed path sits under, because a case states what is
+    // in a tree by placing files in it rather than by making its folders.
+    public IEnumerable<string> FoldersIn(string folder)
+    {
+        Calls.Add(new TreeLinkCall("folders", folder));
+
+        var prefix = Spelled(folder).TrimEnd('/') + "/";
+
+        return _placed.Keys
+            .Select(path => Below(path, prefix))
+            .Where(tail => tail?.Contains('/', StringComparison.Ordinal) is true)
+            .Concat(Folders.Select(made => Below(Spelled(made), prefix)))
+            .OfType<string>()
+            .Select(tail => tail.Split('/', 2)[0])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+    }
+
     public NameRemoval Remove(string treeRoot, string path)
     {
         Calls.Add(new TreeLinkCall("remove", path, treeRoot));
@@ -132,6 +151,11 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     }
 
     private static string Spelled(string path) => PathCandidateGuard.Normalize(path);
+
+    private static string? Below(string path, string prefix)
+        => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? path[prefix.Length..]
+            : null;
 
     private PlacedFile Held(string path, string act)
         => _placed.TryGetValue(Spelled(path), out var file)

@@ -131,6 +131,15 @@ public interface ITreeLinkPort
     /// </remarks>
     IEnumerable<string> NamesIn(string folder);
 
+    /// <summary>The folders directly inside <paramref name="folder"/>.</summary>
+    /// <remarks>
+    /// Leaf names rather than paths, streamed as the platform answers them, and empty for a folder
+    /// that is not there or cannot be read. Folders alone, because a tree root holds the file that
+    /// keeps the host's scan out beside the folders the entities are kept in, and a pass over the
+    /// entities has no business with the file.
+    /// </remarks>
+    IEnumerable<string> FoldersIn(string folder);
+
     /// <summary>Removes the name at <paramref name="path"/>, which must be below <paramref name="treeRoot"/>.</summary>
     /// <remarks>
     /// Removes a name and never a file: the bytes survive as long as another name points at them.

@@ -20,8 +20,8 @@ internal enum TreeNameKept
     /// <summary>Nothing could be read at the name.</summary>
     IdentityCouldNotBeRead,
 
-    /// <summary>The pass never reached the end of the entity's library files.</summary>
-    LibraryFilesNotReadToTheEnd,
+    /// <summary>The run never reached the end of the library.</summary>
+    LibraryNotReadToTheEnd,
 }
 
 /// <summary>What may be done with one name in an entity's folder.</summary>
@@ -81,9 +81,9 @@ internal static class TreeLinkRemovalGuard
     /// <summary>What may be done with <paramref name="namePath"/> in <paramref name="entityFolder"/>.</summary>
     /// <remarks>
     /// <paramref name="read"/> is the identity read at the name itself, null where nothing could be
-    /// read there. <paramref name="libraryFilesReadToTheEnd"/> is whether the pass reached the end
-    /// of the entity's library files: a read that stopped short establishes nothing about the files
-    /// it never reached, so it can say nothing about what has no library file left.
+    /// read there. <paramref name="libraryReadToTheEnd"/> is whether the run reached the end of the
+    /// library: a run that stopped short establishes nothing about the files it never reached, so
+    /// it can say nothing about what has no library file left.
     /// <paramref name="now"/> is the run's own clock reading, taken once for the folder.
     /// </remarks>
     /// <exception cref="ArgumentException">Either path argument is blank.</exception>
@@ -91,15 +91,15 @@ internal static class TreeLinkRemovalGuard
         string entityFolder,
         string namePath,
         ProbedLink? read,
-        bool libraryFilesReadToTheEnd,
+        bool libraryReadToTheEnd,
         DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entityFolder);
         ArgumentException.ThrowIfNullOrWhiteSpace(namePath);
 
-        if (!libraryFilesReadToTheEnd)
+        if (!libraryReadToTheEnd)
         {
-            return TreeNameVerdict.Keep(TreeNameKept.LibraryFilesNotReadToTheEnd);
+            return TreeNameVerdict.Keep(TreeNameKept.LibraryNotReadToTheEnd);
         }
 
         if (NameDirectlyIn(entityFolder, namePath) is not { } name)
