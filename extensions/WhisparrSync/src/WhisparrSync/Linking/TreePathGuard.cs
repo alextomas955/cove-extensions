@@ -105,28 +105,30 @@ public static class TreePathGuard
                 name[..^extension.Length], Spelled(identity), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Whether <paramref name="path"/> sits inside a tree under one of <paramref name="coveRoots"/>.</summary>
+    /// <summary>Which of <paramref name="coveRoots"/> keeps the tree <paramref name="path"/> sits in.</summary>
     /// <remarks>
-    /// A tree is at the top of a library root and nowhere else, so a library folder merely named
-    /// like one is not a tree.
+    /// Null where the path is in no tree. A tree is at the top of a library root and nowhere else,
+    /// so a library folder merely named like one is not a tree, and a root nested inside another
+    /// keeps a tree of its own that the outer root's is not a prefix of.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="coveRoots"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="path"/> is blank.</exception>
-    public static bool IsInsideATree(string path, IReadOnlyList<string> coveRoots)
+    public static string? RootOfTreeHolding(string path, IReadOnlyList<string> coveRoots)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(coveRoots);
 
         return coveRoots
             .Where(root => !string.IsNullOrWhiteSpace(root))
-            .SelectMany(root => new[]
-            {
-                TreeRootUnder(root, WhisparrGeneration.V3),
-                TreeRootUnder(root, WhisparrGeneration.V2),
-            })
-            .OfType<string>()
-            .Any(tree => PathCandidateGuard.TailBelow(path, tree) is not null);
+            .FirstOrDefault(root => TreesUnder(root)
+                .Any(tree => PathCandidateGuard.TailBelow(path, tree) is not null));
     }
+
+    /// <summary>Whether <paramref name="path"/> sits inside a tree under one of <paramref name="coveRoots"/>.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="coveRoots"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> is blank.</exception>
+    public static bool IsInsideATree(string path, IReadOnlyList<string> coveRoots)
+        => RootOfTreeHolding(path, coveRoots) is not null;
 
     /// <summary>Where the file keeping the host's own scan out of <paramref name="treeRoot"/> sits.</summary>
     /// <remarks>Null where the composition would leave the tree.</remarks>
@@ -137,6 +139,14 @@ public static class TreePathGuard
 
         return PathCandidateGuard.CandidateUnder(treeRoot, IgnoreFileName);
     }
+
+    private static IEnumerable<string> TreesUnder(string coveRoot)
+        => new[]
+            {
+                TreeRootUnder(coveRoot, WhisparrGeneration.V3),
+                TreeRootUnder(coveRoot, WhisparrGeneration.V2),
+            }
+            .OfType<string>();
 
     private static string TreeFolderOf(WhisparrGeneration generation)
         => generation is WhisparrGeneration.V2 ? V2TreeFolder : V3TreeFolder;
