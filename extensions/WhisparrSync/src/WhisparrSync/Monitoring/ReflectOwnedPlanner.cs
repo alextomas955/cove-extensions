@@ -509,7 +509,7 @@ internal static class ReflectOwnedPlanner
 
     // What one folder came to. Attached and refused are apart because a folder that sent nothing is
     // neither; the figures beside them add across the walk.
-    private readonly record struct ReflectedFolder(
+    internal readonly record struct ReflectedFolder(
         bool Attached,
         bool Refused,
         int FilesAttached,
@@ -549,7 +549,7 @@ internal static class ReflectOwnedPlanner
     // addressed is a file no entry could be found for, which is the subtraction at the end; a name
     // two identifier spellings both reach is composed under each, so it is floored rather than
     // allowed to run negative.
-    private static async Task<ReflectedFolder> AddressedAsync(
+    internal static async Task<ReflectedFolder> AddressedAsync(
         WhisparrGeneration generation,
         string? listing,
         IReadOnlyList<string> instanceRoots,

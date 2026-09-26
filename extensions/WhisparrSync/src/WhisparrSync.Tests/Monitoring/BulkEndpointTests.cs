@@ -251,7 +251,7 @@ public sealed class BulkEndpointTests
             host.Client.Acting,
             call => call.Verb == nameof(IWhisparrStudioActing.AddMonitoredStudioAsync));
         Assert.Equal(
-            (1d, "1 applied, 0 refused. No files were linked: Whisparr's hard-link setting could not be read."),
+            (1d, "1 applied, 0 refused. No files were handed to Whisparr: its hard-link setting could not be read."),
             Assert.Single(progress.Reports));
     }
 

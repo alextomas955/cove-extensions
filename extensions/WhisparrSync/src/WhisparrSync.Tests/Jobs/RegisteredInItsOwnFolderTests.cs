@@ -272,8 +272,12 @@ public sealed class RegisteredInItsOwnFolderTests
                 nameof(IWhisparrMissingSceneActing.AddSceneAsync),
                 MonitorHost.Json(201, ProbeFixtures.Read(AcceptedFixture))));
 
+    // The studio's own folder holds one link and the instance reads nothing importable in it, so
+    // these cases stop at the folder and the link and say nothing about the hand-over.
     private static Task<MonitorHost> SiteHostAsync()
         => HostAsync(WhisparrGeneration.V2, host => host.Client
+            .Answering(
+                nameof(RecordingWhisparrCore.ListImportableFilesAsync), MonitorHost.Json(200, "[]"))
             .Answering(
                 nameof(IWhisparrStudioActing.ReadStudioAsync), MonitorHost.Json(404, string.Empty))
             .Answering(
