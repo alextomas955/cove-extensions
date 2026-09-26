@@ -29,10 +29,10 @@ internal interface IWhisparrPayloadReading
     JsonObject? MatchedEntry(JsonObject row, JsonObject entry);
 
     /// <summary>
-    /// The entry addressed to the scene the library identified, or null where this generation
-    /// cannot address one by a single id.
+    /// The entry addressed to the scene the library identified, or null where
+    /// <paramref name="address"/> does not name every row this generation attaches by.
     /// </summary>
-    JsonObject? IdentifiedEntry(JsonObject entry, int entityId);
+    JsonObject? IdentifiedEntry(JsonObject entry, EntryAddress address);
 }
 
 // Which monitor scope an instance's answer puts in force. Held by the generation whose resource

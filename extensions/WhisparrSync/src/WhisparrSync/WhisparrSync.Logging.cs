@@ -243,6 +243,18 @@ internal static partial class WhisparrSyncLog
 
     // Type names rather than Exception.Message, which can quote a filesystem path or a configured
     // address. A type name is chosen by whoever wrote the throw, so no part of it comes from a
+    // Once per entity, not once per file: a folder of links reaches this for every file in it.
+    [LoggerMessage(
+        EventId = 2132, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] Whisparr named no row for the site {RemoteId}; the links in its folder were left to Whisparr's own reading of their names, which carry none")]
+    internal static partial void TreeEntriesUnaddressable(ILogger logger, string remoteId);
+
+    [LoggerMessage(
+        EventId = 2133, Level = LogLevel.Information,
+        Message = "[WhisparrSync] the site {RemoteId} addressed {Addressed} scenes; {Unnumbered} carried no number from the metadata provider and {Unresolved} have no row in the site's catalogue")]
+    internal static partial void TreeEntriesAddressed(
+        ILogger logger, string remoteId, int addressed, int unnumbered, int unresolved);
+
     // caller or from a remote instance.
     internal static string Classify(Exception failure)
         => failure.InnerException is { } cause

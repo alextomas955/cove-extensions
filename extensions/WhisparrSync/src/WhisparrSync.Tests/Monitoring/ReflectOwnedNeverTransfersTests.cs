@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Jobs;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -84,7 +85,8 @@ public sealed class ReflectOwnedNeverTransfersTests
     }
 
     // The refused count matters as much as the linked one: counting an unmatched folder as refused
-    // would claim the instance declined something it was never sent.
+    // would claim the instance declined something it was never sent. The reason rides beside the
+    // counts, because two zeros alone read as a folder holding nothing worth linking.
     [Fact]
     public async Task AFolderWhoseRowsCannotBeMatchedSendsNothingAndIsNotCountedEitherWay()
     {
@@ -92,7 +94,15 @@ public sealed class ReflectOwnedNeverTransfersTests
         await using var host = driven;
 
         Assert.Empty(Commands(host));
-        Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 0 refused.");
+        var line = Assert.Single(
+            progress.Reports.Select(report => report.SubTask)
+                .Where(reported => reported is not null)
+                .Distinct());
+
+        // A run that reached the instance for nothing leads with why rather than with its counts,
+        // so the refused count it is not claiming is absent from the line altogether.
+        Assert.Equal(ReflectOwnedJob.WithoutAnEntrySentence, line);
+        Assert.DoesNotContain("refused", line, StringComparison.Ordinal);
     }
 
     [Fact]

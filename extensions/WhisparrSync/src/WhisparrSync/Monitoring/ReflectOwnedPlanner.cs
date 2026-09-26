@@ -62,7 +62,11 @@ internal sealed record ReflectOwnedRun(
     bool RootsCouldNotBeRead = false,
     // The figure a reader compares against the registered count, which is scenes. A folder count
     // beside it reads as files and understates a run by orders of magnitude.
-    int FilesAttached = 0)
+    int FilesAttached = 0,
+    // Files the instance listed that no entry could be addressed to. Counted rather than dropped:
+    // a run that attached none of a folder's files and reported only a zero reads as a folder
+    // holding nothing importable.
+    int FilesWithoutAnEntry = 0)
 {
     // Folds one folder's run into the total a library-wide walk carries. The counts add; the two
     // lists are unioned, because each names a library root and an operator creates those by hand,
@@ -81,7 +85,8 @@ internal sealed record ReflectOwnedRun(
             Union(AddressedRoots, other.AddressedRoots, root => root),
             EntriesLeftUnderAnotherRoot + other.EntriesLeftUnderAnotherRoot,
             RootsCouldNotBeRead || other.RootsCouldNotBeRead,
-            FilesAttached + other.FilesAttached);
+            FilesAttached + other.FilesAttached,
+            FilesWithoutAnEntry + other.FilesWithoutAnEntry);
     }
 
     private static IReadOnlyList<T>? Union<T>(
@@ -107,10 +112,13 @@ internal sealed record ReflectOwnedRun(
     }
 }
 
-// The count travels with the entries because the entries reach the instance through an early
+// Both counts travel with the entries because the entries reach the instance through an early
 // continue when there are none, and a count carried elsewhere would be lost exactly on the folder
-// whose every row was left out.
-internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot)
+// whose every row was left out. WithoutAnEntry is a row naming a file no entry could be addressed
+// to, which is a file the instance will not record; reporting it as nothing found would describe
+// a folder that holds files as one that holds none.
+internal sealed record PlannedFiles(
+    JsonArray? Entries, int LeftUnderAnotherRoot, int WithoutAnEntry = 0)
 {
     internal static PlannedFiles Nothing { get; } = new(null, 0);
 }
@@ -124,7 +132,7 @@ internal sealed record ReflectOwnedSteps(
     Func<string, CancellationToken, Task<AddressedFolder>> Address,
     Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
     Func<JsonArray, CancellationToken, Task<bool>> Attach,
-    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, int>>>? Identify = null);
+    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, EntryAddress>>>? Identify = null);
 
 // Without the hard-link decision every matched file would be copied in full: the import mode that
 // links is labelled a copy, copies when it cannot link, and reports no distinct outcome for it.
@@ -146,8 +154,8 @@ internal static class ReflectOwnedPlanner
 
     // A run given no lookup reads the instance's own match, which is what every caller but the
     // library run does.
-    private static readonly IReadOnlyDictionary<string, int> NothingIdentified =
-        new Dictionary<string, int>(StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, EntryAddress> NothingIdentified =
+        new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
 
     // The import mode that links when it can. The only other mode moves the file out of the
     // library, and is never composed.
@@ -181,7 +189,7 @@ internal static class ReflectOwnedPlanner
         WhisparrGeneration generation,
         string? importable,
         IReadOnlyList<string> instanceRoots,
-        IReadOnlyDictionary<string, int> identified)
+        IReadOnlyDictionary<string, EntryAddress> identified)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
         ArgumentNullException.ThrowIfNull(identified);
@@ -194,10 +202,12 @@ internal static class ReflectOwnedPlanner
         var reading = WhisparrInstanceFactory.ReadingFor(generation);
         var files = new JsonArray();
         var leftUnderAnotherRoot = 0;
+        var withoutAnEntry = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
             if (Entry(reading, row, identified) is not { } entry)
             {
+                withoutAnEntry++;
                 continue;
             }
 
@@ -210,7 +220,8 @@ internal static class ReflectOwnedPlanner
             files.Add(entry);
         }
 
-        return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+        return new PlannedFiles(
+            files.Count == 0 ? null : files, leftUnderAnotherRoot, withoutAnEntry);
     }
 
     // One folder's files, composed from what the library owns rather than from a listing of the
@@ -380,6 +391,7 @@ internal static class ReflectOwnedPlanner
 
         var attached = 0;
         var filesAttached = 0;
+        var withoutAnEntry = 0;
         var refused = 0;
         var unaddressed = 0;
         var leftUnderAnotherRoot = 0;
@@ -415,6 +427,7 @@ internal static class ReflectOwnedPlanner
 
                 var planned = Files(generation, listing.Rows, instanceRoots, identified);
                 leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
+                withoutAnEntry += planned.WithoutAnEntry;
                 if (planned.Entries is not { } files)
                 {
                     continue;
@@ -449,7 +462,8 @@ internal static class ReflectOwnedPlanner
                 [.. addressedRoots],
                 leftUnderAnotherRoot,
                 RootsCouldNotBeRead: false,
-                FilesAttached: filesAttached);
+                FilesAttached: filesAttached,
+                FilesWithoutAnEntry: withoutAnEntry);
     }
 
     // The most specific containing root answers for each path. Roots nest, and an instance
@@ -492,7 +506,9 @@ internal static class ReflectOwnedPlanner
     // The members every generation carries are composed here; the matched entity and its file are
     // the reader's, which answers null for a row it can attach nothing from.
     private static JsonObject? Entry(
-        IWhisparrPayloadReading reading, JsonObject row, IReadOnlyDictionary<string, int> identified)
+        IWhisparrPayloadReading reading,
+        JsonObject row,
+        IReadOnlyDictionary<string, EntryAddress> identified)
     {
         if (row["quality"] is not JsonObject quality
             || row["languages"] is not JsonArray languages
@@ -517,8 +533,8 @@ internal static class ReflectOwnedPlanner
         // file attached however certainly the library knows which scene it is. A name the library
         // holds no identifier for is left for the instance's own reading.
         if (PayloadMember.NameIn(row) is { } name
-            && identified.TryGetValue(name, out var entityId)
-            && reading.IdentifiedEntry(entry, entityId) is { } addressed)
+            && identified.TryGetValue(name, out var address)
+            && reading.IdentifiedEntry(entry, address) is { } addressed)
         {
             return addressed;
         }

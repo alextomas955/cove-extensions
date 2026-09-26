@@ -25,7 +25,8 @@ internal sealed record MonitorBulkLinking(
     int FoldersRefused,
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
     int EntriesLeftUnderAnotherRoot = 0,
-    bool RootsCouldNotBeRead = false);
+    bool RootsCouldNotBeRead = false,
+    int FilesWithoutAnEntry = 0);
 
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
@@ -258,13 +259,15 @@ public static class MonitoringBulkJob
     // different about the same linking work.
     private static string LinkingIn(MonitorBulkLinking linking)
         => ReflectOwnedJob.LineFor(
-            linking.Skipped,
-            linking.FoldersAttached,
-            linking.FoldersRefused,
-            linking.AddressRefusals,
-            linking.EntriesLeftUnderAnotherRoot,
-            cancelled: false,
-            linking.RootsCouldNotBeRead);
+            new LinkedTally(
+                linking.Skipped,
+                linking.FoldersAttached,
+                linking.FoldersRefused,
+                linking.AddressRefusals,
+                linking.EntriesLeftUnderAnotherRoot,
+                linking.RootsCouldNotBeRead,
+                linking.FilesWithoutAnEntry),
+            cancelled: false);
 
     // Every member is named and there is no discard arm, so a refusal kind added later stops the
     // build rather than arriving under whichever outcome a fallthrough chose.

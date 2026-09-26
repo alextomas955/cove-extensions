@@ -27,18 +27,27 @@ internal sealed class V2PayloadReader : IWhisparrPayloadReading
 
     public string MatchedMember => "series";
 
-    // Transcribed from the interface bundle this generation's build ships: a series, and the
-    // episodes matched inside it.
-    // A scene is an episode under a site here, which one id does not name: an entry needs the site
-    // and the episode rows the instance matched. Answering null leaves this generation reading the
-    // instance's own match, which is what it did before an identity could be supplied at all.
-    public JsonObject? IdentifiedEntry(JsonObject entry, int entityId)
+    // A scene is an episode under a site here, so an entry names both rows. The episode row is the
+    // caller's; the site row is the site those episodes are listed under, and an address carrying
+    // no site row is refused rather than attached to whatever the instance last parsed.
+    public JsonObject? IdentifiedEntry(JsonObject entry, EntryAddress address)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        _ = entityId;
-        return null;
+        ArgumentOutOfRangeException.ThrowIfLessThan(address.Row, 1);
+
+        if (address.SiteRow is not (> 0 and var seriesId))
+        {
+            return null;
+        }
+
+        entry["seriesId"] = seriesId;
+        entry["episodeIds"] = new JsonArray(address.Row);
+        return entry;
     }
 
+    // Transcribed from the interface bundle this generation's build ships: a series, and the
+    // episodes matched inside it. A row the instance matched nothing in carries no episode, and
+    // the file it names is attached to nothing.
     public JsonObject? MatchedEntry(JsonObject row, JsonObject entry)
     {
         ArgumentNullException.ThrowIfNull(row);

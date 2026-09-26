@@ -34,6 +34,24 @@ public sealed class ReflectOwnedJobTests
         "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
         + "data could not be checked.";
 
+    // A reader whose files were all left unattached is told so. A bare zero beside no reason reads
+    // as a folder that held nothing worth linking.
+    [Fact]
+    public void ARunThatCouldAddressNoneOfItsFilesSaysWhyRatherThanOnlyZero()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed, 0, 0, FilesWithoutAnEntry: 4));
+
+        Assert.Contains(ReflectOwnedJob.WithoutAnEntrySentence, line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARunThatAddressedEveryFileCarriesNoSuchSentence()
+        => Assert.Equal(
+            AttachedNothing,
+            ReflectOwnedJob.SummaryOf(new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, 0, 0)));
+
     [Fact]
     public async Task ARunTheLinkingSettingStoppedSaysWhichSettingStoppedIt()
     {
