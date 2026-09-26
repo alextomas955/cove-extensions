@@ -85,6 +85,39 @@ export async function siteRow(whisparrApi, seriesId) {
 const studioTitle = (run) => `Cove E2E Studio ${run}`;
 
 /**
+ * How many entities a seeded layout holds, and how many files each of them owns.
+ *
+ * More than one entity, because a layout is about several entities' files sharing one folder. More
+ * than one file each, because an entity owning a single file cannot show that its folder in the
+ * tree holds a name per file it owns.
+ */
+const LAYOUT_ENTITIES = 2;
+const LAYOUT_FILES = 2;
+
+/** One title for a layout's entity, so the Cove studio and the instance's own row name one thing. */
+const layoutTitle = (run, index) => `Cove E2E Layout ${run} ${String(index)}`;
+
+/** Where a layout's files sit, in the spelling of whichever container `root` is read from. */
+const layoutFolderIn = (root, layout) =>
+  layout.folder === null ? `${root}/media` : `${root}/media/${layout.folder}`;
+
+/**
+ * What one seeded file is called: the layout's own name where it states one, and otherwise the
+ * caller's spelling for the generation being seeded.
+ */
+function layoutFileName(layout, index, file, named) {
+  if (layout.names === null) return named;
+
+  const at = index * LAYOUT_FILES + file;
+  if (at >= layout.names.length) {
+    throw new Error(
+      `connected: the layout states ${String(layout.names.length)} file name(s), and seeding ${String(LAYOUT_ENTITIES)} entities holding ${String(LAYOUT_FILES)} files each needs ${String(LAYOUT_ENTITIES * LAYOUT_FILES)}.`,
+    );
+  }
+  return layout.names[at];
+}
+
+/**
  * Registers one file with Cove inside a folder the instance also reaches, and puts it under the
  * studio.
  *
@@ -195,20 +228,93 @@ const SEEDERS = {
             ownAnother: () => own(`Cove E2E Owned Scene ${run} again 720p WEBDL.mp4`),
           };
         },
+
+        // One catalogue row per entity, one studio in Cove naming it, and its files where the
+        // layout puts them. This generation registers the scene rather than the studio above it, so
+        // the identity that decides which entity a file belongs to is the one carried on the file.
+        async ownLayout({ api, isolatedCove, instanceMount, identityEndpoint, layout }) {
+          const onInstance = instanceMount ?? isolatedCove.sharedPath;
+          const folder = layoutFolderIn(isolatedCove.sharedPath, layout);
+          await isolatedCove.container.exec(["mkdir", "-p", folder], { user: "root" });
+
+          const entities = [];
+          for (let index = 0; index < LAYOUT_ENTITIES; index += 1) {
+            const sceneRemoteId = `cove-e2e-layout-scene-${run}-${String(index)}`;
+            const scene = await whisparr.seedEntity("v3", {
+              kind: "scene",
+              foreignId: sceneRemoteId,
+              title: layoutTitle(run, index),
+              monitored: true,
+            });
+            const studio = await seedCoveStudio(api, {
+              name: layoutTitle(run, index),
+              remoteIds: [
+                {
+                  endpoint: identityEndpoint,
+                  remoteId: `cove-e2e-layout-studio-${run}-${String(index)}`,
+                },
+              ],
+            });
+
+            const files = [];
+            for (let file = 0; file < LAYOUT_FILES; file += 1) {
+              const name = layoutFileName(
+                layout,
+                index,
+                file,
+                `${layoutTitle(run, index)} - ${SCENE_RELEASE_DATE} - Owned ${String(file)} 1080p WEBDL.mp4`,
+              );
+              const video = await ownFile({
+                api,
+                isolatedCove,
+                instanceContainer: whisparr.v3.container,
+                instanceMount,
+                studio,
+                destDir: layoutFolderIn(onInstance, layout),
+                destName: name,
+                identity: { endpoint: STASHDB_ENDPOINT, remoteId: sceneRemoteId },
+              });
+              files.push({ name, video });
+            }
+
+            entities.push({
+              entryId: scene.id,
+              registeredAs: sceneRemoteId,
+              studio,
+              files,
+            });
+          }
+
+          return { folder, entities };
+        },
       };
     },
   },
 
   v2: {
-    async seedInstance({ network, run, cleanup, media }) {
+    async seedInstance({ network, run, cleanup, media, layout }) {
       const siteId = randomInt(1, 500_001);
+
+      // A layout's own sites are settled here rather than where its files are seeded, for the same
+      // reason the stub starts first: a site the stub does not carry is one the instance resolves
+      // nothing for, and this generation registers the site rather than the scene under it.
+      const layoutSites =
+        layout === null
+          ? []
+          : Array.from({ length: LAYOUT_ENTITIES }, (_, index) => ({
+              tvdbId: siteId + 1 + index,
+              title: layoutTitle(run, index),
+            }));
 
       // Started before the instance: the element naming it is read out of the config at startup and
       // never again. Without it every identifier resolves against a hosted service no sealed run
       // reaches, and the entity read answers that the instance refused.
       const metadata = await startMetadataStub({
         networkName: network,
-        sites: [{ tvdbId: siteId, title: studioTitle(run), titleSlug: String(siteId) }],
+        sites: [
+          { tvdbId: siteId, title: studioTitle(run), titleSlug: String(siteId) },
+          ...layoutSites.map((site) => ({ ...site, titleSlug: String(site.tvdbId) })),
+        ],
       });
       cleanup.push("the v2 metadata stub", () => metadata.stop());
 
@@ -263,6 +369,61 @@ const SEEDERS = {
             ownAnother: () =>
               own(`${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} again 720p WEBDL.mp4`),
           };
+        },
+
+        // One site per entity, one studio in Cove naming it, and its files where the layout puts
+        // them. This generation registers the site, so the identity that decides which entity a
+        // file belongs to is the one carried on the studio above it.
+        async ownLayout({ api, isolatedCove, instanceMount, identityEndpoint, layout }) {
+          const instance = whisparr.apiFor("v2");
+          const onInstance = instanceMount ?? isolatedCove.sharedPath;
+          const folder = layoutFolderIn(isolatedCove.sharedPath, layout);
+          await isolatedCove.container.exec(["mkdir", "-p", folder], { user: "root" });
+
+          const entities = [];
+          for (const [index, site] of layoutSites.entries()) {
+            const seededSite = await seedV2Scene(whisparr.v2.container, instance, {
+              siteId: site.tvdbId,
+              siteTitle: site.title,
+              rootFolderPath: whisparr.v2.rootFolder,
+              sceneExternalId: randomUUID(),
+              sceneTitle: `${site.title} scene`,
+              monitored: false,
+            });
+            const studio = await seedCoveStudio(api, {
+              name: site.title,
+              remoteIds: [{ endpoint: identityEndpoint, remoteId: String(site.tvdbId) }],
+            });
+
+            const files = [];
+            for (let file = 0; file < LAYOUT_FILES; file += 1) {
+              const name = layoutFileName(
+                layout,
+                index,
+                file,
+                `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${String(file)} 1080p WEBDL.mp4`,
+              );
+              const video = await ownFile({
+                api,
+                isolatedCove,
+                instanceContainer: whisparr.v2.container,
+                instanceMount,
+                studio,
+                destDir: layoutFolderIn(onInstance, layout),
+                destName: name,
+              });
+              files.push({ name, video });
+            }
+
+            entities.push({
+              entryId: seededSite.seriesId,
+              registeredAs: String(site.tvdbId),
+              studio,
+              files,
+            });
+          }
+
+          return { folder, entities };
         },
       };
     },
@@ -326,8 +487,8 @@ async function standInForProviders(names, { api, isolatedCove, cleanup }) {
  * A spec naming both is one measuring the product re-rooting a path it sends: the library owns the
  * file, and the instance reaches that same file somewhere else.
  */
-function mediaFor({ ownedMedia, instanceMount }, isolatedCove) {
-  if (!ownedMedia && instanceMount === null) {
+function mediaFor({ ownedMedia, instanceMount, libraryLayout }, isolatedCove) {
+  if (!ownedMedia && instanceMount === null && libraryLayout === null) {
     return { start: { rootFolder: WHISPARR_ROOT } };
   }
 
@@ -351,6 +512,11 @@ export const test = base.extend({
   // The path the instance mounts the library's own volume at, for a spec whose subject is the
   // re-rooting of a reported path. Null leaves the instance its own catalogue root and no volume.
   instanceMount: [null, { option: true }],
+
+  // How the seeded library's own folders are arranged, for a spec whose subject is that the
+  // arrangement no longer decides what can be linked. Null seeds no layout. LIBRARY_LAYOUTS in
+  // tree-steps.mjs holds the arrangements and what each is for.
+  libraryLayout: [null, { option: true }],
 
   // Empty by default: a spec that reads no catalogue pays for no stub. Named as a list because the
   // element Cove holds is the whole server list, so every wanted source is registered in one call.
@@ -381,7 +547,7 @@ export const test = base.extend({
    * no instance: Playwright builds fixtures lazily, by name.
    */
   connected: async (
-    { isolatedCove, api, generation, ownedMedia, instanceMount, providers },
+    { isolatedCove, api, generation, ownedMedia, instanceMount, libraryLayout, providers },
     use,
   ) => {
     const seeder = SEEDERS[generation];
@@ -399,7 +565,8 @@ export const test = base.extend({
         network: isolatedCove.container.getNetworkNames()[0],
         run,
         cleanup,
-        media: mediaFor({ ownedMedia, instanceMount }, isolatedCove),
+        media: mediaFor({ ownedMedia, instanceMount, libraryLayout }, isolatedCove),
+        layout: libraryLayout,
       });
       const instance = seeded.whisparr.apiFor(generation);
 
@@ -417,6 +584,19 @@ export const test = base.extend({
         ? await seeded.ownMedia({ api, isolatedCove, instanceMount, studio })
         : null;
 
+      // Its own entities and its own studios, seeded beside the pair above rather than out of it:
+      // a layout is about several entities' files sharing one folder, and the pair is one entity.
+      const layout =
+        libraryLayout === null
+          ? null
+          : await seeded.ownLayout({
+              api,
+              isolatedCove,
+              instanceMount,
+              identityEndpoint: adapter.identityEndpoint,
+              layout: libraryLayout,
+            });
+
       await connectWhisparr(api, seeded.whisparr, generation);
 
       await use({
@@ -424,6 +604,7 @@ export const test = base.extend({
         api,
         generation,
         instance,
+        layout,
         metadata: seeded.metadata ?? null,
         owned,
         provider,
