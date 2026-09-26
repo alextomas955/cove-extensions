@@ -137,7 +137,7 @@ for (const generation of ["v3", "v2"]) {
       expect(
         line,
         `the run reported "${String(line)}", which does not say that it could address no folder. A count of zero reads as a clean pass over every folder the entity holds`,
-      ).toMatch(/could be linked: /);
+      ).toMatch(/could be handed to Whisparr: /);
       // The seeded file carries this execution's own id, so a line naming it is a line naming the
       // path the instance was really asked about rather than any path at all.
       expect(

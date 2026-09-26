@@ -132,7 +132,7 @@ for (const generation of ["v3", "v2"]) {
       expect(
         reportedLine(first),
         `the first run reported "${String(reportedLine(first))}", which does not say it could address no folder, so there is nothing for the settings page to ask about`,
-      ).toMatch(/could be linked: /);
+      ).toMatch(/could be handed to Whisparr: /);
 
       const prompt = await visitPrompts(page, baseUrl, COVE_SHARED);
       const asked = await prompt.textContent();
