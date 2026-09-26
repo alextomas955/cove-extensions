@@ -48,6 +48,22 @@ const IGNORE_EVERYTHING = "*";
 
 test.describe.configure({ timeout: SPEC_BUDGET_MS });
 
+/**
+ * The two figures the run's own ending states, or null where it states neither.
+ *
+ * Transcribed from the line the product composes rather than parsed loosely: a pattern that matched
+ * any number would pass on a line that named some other figure.
+ */
+function figuresIn(summary) {
+  const read = /(\d[\d,]*) given a folder of their own, (\d[\d,]*) linked/.exec(summary);
+  if (read === null) return null;
+
+  return {
+    givenAFolder: Number(read[1].replaceAll(",", "")),
+    linked: Number(read[2].replaceAll(",", "")),
+  };
+}
+
 /** Follows one enqueued host job to a settled state, whichever list it is on by then. */
 async function followHostJob(api, jobId, label) {
   const { settled, value, note } = await attemptUntil(
@@ -181,6 +197,27 @@ for (const generation of ["v3", "v2"]) {
         await videoCount(api),
         "the scan discovered something after the tree was built, so the links reached the library",
       ).toBe(videosBefore);
+
+      // The ending a reader is left with. The figures are read out of the line rather than
+      // recomputed: a spec that worked them out the way the product does would agree with the
+      // product however wrong both were. They are compared against what is on disk.
+      //
+      // Which path the instance holds the entity at is not compared here, for the reason at the
+      // top of this file: the entry the run reaches was seeded rather than created, so it stays
+      // where the fixture put it.
+      const reported = figuresIn(String(run?.summary));
+      expect(
+        reported,
+        `the run's ending states neither figure: ${String(run?.summary)}`,
+      ).not.toBeNull();
+      expect(
+        reported?.givenAFolder,
+        "the run says a different number of entities got a folder from the number of folders in the tree",
+      ).toBe((await namesIn(cove, treeRoot)).filter((name) => name !== ".coveignore").length);
+      expect(
+        reported?.linked,
+        "the run says a different number of files were linked from the number of names in the folder",
+      ).toBe(linkNames.length);
     });
   });
 }
