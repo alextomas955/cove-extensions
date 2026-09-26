@@ -68,10 +68,31 @@ describe("the count control's name and its one reason", () => {
   });
 });
 
-const LIBRARY: SyncCounts = { notYetThere: 5894, alreadyThere: 4, skipped: 1648 };
-const ONE_SCENE: SyncCounts = { notYetThere: 1, alreadyThere: 0, skipped: 0 };
-const NOTHING: SyncCounts = { notYetThere: 0, alreadyThere: 0, skipped: 0 };
-const FULLY_HELD: SyncCounts = { notYetThere: 0, alreadyThere: 5898, skipped: 1648 };
+const LIBRARY: SyncCounts = {
+  notYetThere: 5894,
+  alreadyThere: 4,
+  skipped: 1648,
+  withNoFileRecorded: 0,
+};
+const ONE_SCENE: SyncCounts = {
+  notYetThere: 1,
+  alreadyThere: 0,
+  skipped: 0,
+  withNoFileRecorded: 0,
+};
+const NOTHING: SyncCounts = {
+  notYetThere: 0,
+  alreadyThere: 0,
+  skipped: 0,
+  withNoFileRecorded: 0,
+};
+const FULLY_HELD: SyncCounts = {
+  notYetThere: 0,
+  alreadyThere: 5898,
+  skipped: 1648,
+  withNoFileRecorded: 0,
+};
+const FULLY_HELD_WITH_FILES_OUTSTANDING: SyncCounts = { ...FULLY_HELD, withNoFileRecorded: 7 };
 
 const PRESSABLE: SyncControlState = {
   sharedReason: null,
@@ -118,7 +139,13 @@ describe("the confirmation names the figures and the consequence", () => {
   });
 
   it("agrees with a single skipped scene", () => {
-    expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false, SCENES)).toBe(
+    expect(
+      syncConfirmation(
+        { notYetThere: 4, alreadyThere: 0, skipped: 1, withNoFileRecorded: 0 },
+        false,
+        SCENES,
+      ),
+    ).toBe(
       "This offers all 4 scenes you own to Whisparr, and skips 1 that cannot be registered. " +
         "It monitors nothing. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
@@ -141,6 +168,28 @@ describe("the confirmation names the figures and the consequence", () => {
     expect(syncConfirmation(LIBRARY, true, SCENES)).toContain(SYNC_DOWNLOADS_NOTHING);
   });
 
+  // Transcribed by hand, as the pins beside it are.
+  it("names what is still to hand over ahead of what the run does", () => {
+    expect(syncConfirmation(FULLY_HELD_WITH_FILES_OUTSTANDING, false, SCENES)).toBe(
+      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be " +
+        "registered. Whisparr records no file for 7 of them yet. It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
+        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
+        "setting is off or Whisparr is set to rename files. " +
+        "Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+
+  it("reads at one as it does at any other size", () => {
+    expect(syncConfirmation({ ...FULLY_HELD, withNoFileRecorded: 1 }, false, SCENES)).toContain(
+      "Whisparr records no file for 1 of them yet.",
+    );
+  });
+
+  it("leaves the clause out where the instance records a file for everything it holds", () => {
+    expect(syncConfirmation(FULLY_HELD, false, SCENES)).not.toContain("records no file for");
+  });
+
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SCENES)).toBe(
       "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
@@ -152,8 +201,18 @@ describe("the confirmation names the figures and the consequence", () => {
   });
 });
 
-const STUDIOS: SyncCounts = { notYetThere: 405, alreadyThere: 7, skipped: 12 };
-const ONE_STUDIO: SyncCounts = { notYetThere: 1, alreadyThere: 0, skipped: 0 };
+const STUDIOS: SyncCounts = {
+  notYetThere: 405,
+  alreadyThere: 7,
+  skipped: 12,
+  withNoFileRecorded: 0,
+};
+const ONE_STUDIO: SyncCounts = {
+  notYetThere: 1,
+  alreadyThere: 0,
+  skipped: 0,
+  withNoFileRecorded: 0,
+};
 
 describe("the confirmation reads in studios where the run registers studios", () => {
   // Transcribed by hand, as the scene set's own pins are.
@@ -301,6 +360,29 @@ describe("the sync control states one reason at a time", () => {
 
   it("has work to do on the same library with monitoring on", () => {
     expect(syncDisabledReason({ ...PRESSABLE, counts: FULLY_HELD, monitorAlso: true })).toBeNull();
+  });
+
+  // A run registers and then hands the files over, and the second half is outstanding on its own
+  // whenever a studio's catalogue arrived after its add. Reading the registering half alone left
+  // the reader of a half-done library with nothing to press.
+  it("has work to do where every entry is there and files are still to hand over", () => {
+    expect(
+      syncDisabledReason({
+        ...PRESSABLE,
+        counts: FULLY_HELD_WITH_FILES_OUTSTANDING,
+        monitorAlso: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("says the same in studios where the run registers studios", () => {
+    expect(
+      syncDisabledReason({
+        ...PRESSABLE,
+        sentences: SITES,
+        counts: FULLY_HELD_WITH_FILES_OUTSTANDING,
+      }),
+    ).toBeNull();
   });
 
   it("states its reasons in studios where the run registers studios", () => {

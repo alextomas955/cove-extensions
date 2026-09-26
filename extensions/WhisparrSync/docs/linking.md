@@ -105,6 +105,16 @@ against, so that studio's files are handed over on a later run instead. Register
 that read, and on a large studio it runs for hours, so the first run after you register one usually
 records less than it linked.
 
+## Starting the run that finishes the job
+
+Press **Count what would sync** again once the catalogues have loaded, and the **Of those, with no
+file recorded** row says how many entries Whisparr holds no file for. While that row is above zero
+the **Sync library to Whisparr** button stays available, even when there is nothing left to
+register, and its confirmation names the figure. Press it, and the run hands those files over.
+
+Whisparr's catalogue read takes as long as it takes, so a second run may still find some
+outstanding. Count again later and run again.
+
 ## Where it stops short
 
 **A studio whose files sit on two drives is registered on one of them.** Whisparr holds one folder

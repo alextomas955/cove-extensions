@@ -59,18 +59,24 @@ public enum SyncRefusalKind
 /// the instance names entries by, or, on a count of sites, the metadata source names no site for
 /// the identifier they carry. Both are entries a run could compose no add for.
 /// </param>
+/// <param name="WithNoFileRecorded">
+/// How many of the entries the instance already holds it records no file against. A subset of
+/// <paramref name="AlreadyThere"/>, and the figure that says a run still has files to hand over
+/// where there is nothing left to register.
+/// </param>
 /// <param name="Registers">What a run would register in the instance.</param>
 /// <param name="CountedAt">When the count was taken, so the page can state its age.</param>
 public sealed record SyncPreviewView(
     int NotYetThere,
     int AlreadyThere,
     int Skipped,
+    int WithNoFileRecorded,
     SyncRegisters Registers,
     DateTimeOffset CountedAt);
 
 /// <summary>One read of the count slot, and whether a run is in flight behind it.</summary>
 /// <remarks>
-/// The three counts ride one member, so a read cannot answer two of them. A view missing one number
+/// The counts ride one member, so a read cannot answer some of them. A view missing one number
 /// would render as a zero, which is a confident report this product cannot support. <c>View</c> is
 /// null where no counts are in date.
 /// </remarks>
