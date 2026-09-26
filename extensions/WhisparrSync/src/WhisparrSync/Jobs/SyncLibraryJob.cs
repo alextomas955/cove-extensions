@@ -52,7 +52,21 @@ internal sealed record SyncLibraryAiming(
     IReadOnlyList<string>? RootOrder = null,
     IReadOnlyList<string>? OutOfReach = null,
     TreeAiming? Tree = null,
-    TreeSweepStep? Sweep = null);
+    TreeSweepStep? Sweep = null,
+    LinkTally? Tally = null);
+
+/// <summary>The figures a run's linking half gathers, carried across the whole walk.</summary>
+/// <remarks>
+/// One holder per run, written by whichever pass the run makes. Both passes give entities a folder
+/// in the tree and take names back from it, and only one of them also has files recorded by the
+/// instance, so neither pass owns the figures and neither can compose the line alone.
+/// </remarks>
+internal sealed class LinkTally
+{
+    internal ReflectOwnedRun Total { get; private set; } = ReflectOwnedJob.Untaken;
+
+    internal void Add(ReflectOwnedRun part) => Total = Total.Plus(part);
+}
 
 /// <summary>
 /// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
@@ -131,25 +145,28 @@ public static class SyncLibraryJob
 
             // Last, and apart from the pass that registers: a name is taken back on the strength
             // of no library file answering to it, which only a walk that reached the end of the
-            // library establishes. The pass that registers sites links nothing and still builds
-            // folders whose names have to be taken back, so this hangs off neither half.
-            var swept = aimed.Sweep?.Over(
-                services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
-                aimed.Generation,
-                registered.Outcome is not SyncLibraryRunOutcome.Cancelled,
-                ct) ?? TreeSweep.Nothing;
+            // library establishes.
+            if (aimed.Sweep?.Over(
+                    services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+                    aimed.Generation,
+                    registered.Outcome is not SyncLibraryRunOutcome.Cancelled,
+                    ct) is { } swept)
+            {
+                aimed.Tally?.Add(ReportedSweep(swept));
+            }
 
-            if (aimed.Link is not { } link)
+            if (aimed.Tally is not { } tally)
             {
                 return registered;
             }
 
             progress.SetSummary(string.Join(
                 ' ',
-                SyncLibraryPlanner.SummaryOf(registered, aimed.Monitor is not null, aimed.Registers),
+                SyncLibraryPlanner.SummaryOf(registered, Monitors(aimed), aimed.Registers),
                 ReflectOwnedJob.SummaryOf(
-                    (linking?.Total ?? ReflectOwnedJob.Untaken with { Skipped = link.Skipped })
-                        .Plus(ReportedSweep(swept)))));
+                    aimed.Link?.Skipped is { } skipped
+                        ? tally.Total with { Skipped = skipped }
+                        : tally.Total)));
 
             return registered;
         });
@@ -162,7 +179,7 @@ public static class SyncLibraryJob
     private static async Task<FolderLinking?> LinkingThrough(
         IServiceProvider services, SyncLibraryAiming aimed, CancellationToken ct)
     {
-        if (aimed.Link?.Through is not { } aim)
+        if (aimed.Link?.Through is not { } aim || aimed.Tally is not { } tally)
         {
             return null;
         }
@@ -171,14 +188,16 @@ public static class SyncLibraryJob
             .ReadAsync(aimed.Generation, ct).ConfigureAwait(false);
 
         var outOfReach = aimed.OutOfReach ?? [];
+        if (instanceRoots is null)
+        {
+            tally.Add(
+                new ReflectOwnedRun(
+                    ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true));
 
-        return instanceRoots is null
-            ? new FolderLinking(aim, [], outOfReach, acts: false, aimed.Tree)
-            {
-                Total = new ReflectOwnedRun(
-                    ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true),
-            }
-            : new FolderLinking(aim, instanceRoots, outOfReach, acts: true, aimed.Tree);
+            return new FolderLinking(aim, [], outOfReach, acts: false, aimed.Tree, tally);
+        }
+
+        return new FolderLinking(aim, instanceRoots, outOfReach, acts: true, aimed.Tree, tally);
     }
 
     // Carries the total across a walk rather than one per folder, so the run states one line
@@ -190,12 +209,11 @@ public static class SyncLibraryJob
         IReadOnlyList<string> instanceRoots,
         IReadOnlyList<string> outOfReach,
         bool acts,
-        TreeAiming? tree)
+        TreeAiming? tree,
+        LinkTally tally)
     {
         private readonly Dictionary<string, RegisteredScene> _registeredHere =
             new(StringComparer.Ordinal);
-
-        internal ReflectOwnedRun Total { get; set; } = ReflectOwnedJob.Untaken;
 
         // The id the instance answered with, against the identity the offer named. A refusal carries
         // no id and is not held, so a file of that scene is left to the instance's own reading.
@@ -235,19 +253,6 @@ public static class SyncLibraryJob
                 null);
         }
 
-        // What one entity's build did. A build that made no folder names its root once: every entity
-        // under a root nothing can be written inside meets the same refusal, so a line per entity would
-        // say the same thing as many times as the library has entities.
-        private static ReflectOwnedRun ReportedBuild(TreeBuild built, string coveRoot)
-            => ReflectOwnedJob.Untaken with
-            {
-                EntitiesGivenAFolder = built.EntityFolder is null ? 0 : 1,
-                LinksMade = built.Linked,
-                LinksAlreadyThere = built.AlreadyThere,
-                LinksOnAnotherDevice = built.OnAnotherDevice,
-                RootsWithNoTree = built.EntityFolder is null ? [coveRoot] : null,
-            };
-
         // Null where the pass builds no tree, where the folder sits under no library root, where
         // the build produced no folder, or where the instance cannot be told which path that folder
         // is. Each leaves the caller registering the way it did before, rather than at a path one
@@ -269,7 +274,7 @@ public static class SyncLibraryJob
 
             // Folded in as the walk leaves this entity, so a run stopped part way still reports
             // what it did for the entities it reached.
-            Total = Total.Plus(ReportedBuild(built, coveRoot));
+            tally.Add(ReportedBuild(built, coveRoot));
 
             if (built.EntityFolder is not { } entityFolder)
             {
@@ -320,7 +325,7 @@ public static class SyncLibraryJob
                 identified[name] = scene;
             }
 
-            Total = Total.Plus(
+            tally.Add(
                 await ReflectOwnedJob.AttachAsync(
                     aim, instanceRoots, addressed.CoveRoot, addressed.OnInstance, identified, ct)
                     .ConfigureAwait(false));
@@ -351,7 +356,7 @@ public static class SyncLibraryJob
                 return;
             }
 
-            Total = Total.Plus(
+            tally.Add(
                 await ReflectOwnedJob
                     .LinkOneFolderAsync(aim, instanceRoots, folder, registered, ct)
                     .ConfigureAwait(false));
@@ -359,6 +364,33 @@ public static class SyncLibraryJob
 
         private bool UnderAnUnreachableRoot(string folder)
             => outOfReach.Any(root => PathCandidateGuard.TailBelow(folder, root) is not null);
+    }
+
+    // Which slot carries the monitoring depends on the pass: one marks a scene the run registered
+    // and the other marks the scenes of a site. A run whose monitoring was asked for and not stated
+    // reads as one that set no flag.
+    private static bool Monitors(SyncLibraryAiming aimed)
+        => aimed.Monitor is not null || aimed.MonitorSiteScenes is not null;
+
+    /// <summary>What one entity's build did, as the run's own tally carries it.</summary>
+    /// <remarks>
+    /// A build that made no folder names its root once: every entity under a root nothing can be
+    /// written inside meets the same refusal, so a line per entity would say the same thing as many
+    /// times as the library has entities.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="built"/> is null.</exception>
+    internal static ReflectOwnedRun ReportedBuild(TreeBuild built, string coveRoot)
+    {
+        ArgumentNullException.ThrowIfNull(built);
+
+        return ReflectOwnedJob.Untaken with
+        {
+            EntitiesGivenAFolder = built.EntityFolder is null ? 0 : 1,
+            LinksMade = built.Linked,
+            LinksAlreadyThere = built.AlreadyThere,
+            LinksOnAnotherDevice = built.OnAnotherDevice,
+            RootsWithNoTree = built.EntityFolder is null ? [coveRoot] : null,
+        };
     }
 
     // The figures of the pass a reader can act on. What was left still named elsewhere is every
