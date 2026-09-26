@@ -30,9 +30,30 @@ public sealed class ReflectOwnedJobTests
 
     private const string AttachedNothing = "0 linked, 0 refused.";
 
+    private const string NamesNotComposedHere =
+        "Some files in the folders Whisparr was given were not put there by Cove, so they were "
+        + "left alone.";
+
     private const string NoRootToCompare =
         "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
         + "data could not be checked.";
+
+    // A folder holding files this product did not put there is the state a reader may have to act
+    // on: a download it could not place in the library stays there and is reported on every run.
+    // The line says nothing was removed and names no file.
+    [Fact]
+    public void ARunThatFoundFilesItDidNotPutThereSaysSoBesideItsCounts()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed,
+                1,
+                0,
+                FilesAttached: 2,
+                NamesNotComposedHere: 3));
+
+        Assert.Equal("2 linked, 0 refused. " + NamesNotComposedHere, line);
+    }
 
     // A reader whose files were all left unattached is told so. A bare zero beside no reason reads
     // as a folder that held nothing worth linking.

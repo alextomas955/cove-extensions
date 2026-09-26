@@ -418,7 +418,7 @@ public sealed partial class WhisparrSync
 
         return new TreeAiming(
             services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
-            new TreeReconcileStep(links),
+            new TreeReconcileStep(links, services.GetRequiredService<TimeProvider>()),
             links,
             (remoteId, coveRoot, ct) =>
                 identities.SceneFilePathsUnder(remoteId, generation, coveRoot, ct));
@@ -481,7 +481,9 @@ public sealed partial class WhisparrSync
             target.Binding.Generation,
             files,
             agreedRoot,
-            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()));
+            new TreeReconcileStep(
+                services.GetRequiredService<ITreeLinkPort>(),
+                services.GetRequiredService<TimeProvider>()));
 
         return async (site, siteCt) =>
         {
