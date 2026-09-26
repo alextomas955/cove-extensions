@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACTION_REFRESH,
   CONNECT_NOT_CONFIGURED,
+  SYNC_ALSO_LINKS_WHAT_YOU_OWN,
   SYNC_ALREADY_RUNNING,
   SYNC_COUNT,
   SYNC_DOWNLOADS_NOTHING,
@@ -12,6 +13,7 @@ import {
   SYNC_NOTHING_LEFT_TO_SYNC,
   SYNC_REGISTERS_THE_SCENES_YOU_OWN,
   SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN,
   SYNC_SITE_DOWNLOADS_NOTHING,
   SYNC_SITE_NEEDS_A_COUNT_FIRST,
   SYNC_SITE_NOTHING_LEFT_TO_SYNC,
@@ -159,6 +161,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It monitors nothing. " +
+        "It then gives each one a folder in your library and makes a second name in that folder " +
+        "for every file you own for it. A second name costs no extra disk, and your own files " +
+        "stay where they are, under the names you gave them. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -170,6 +175,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It also marks the scenes you own on them monitored. Monitoring a scene " +
         "downloads nothing by itself. " +
+        "It then gives each one a folder in your library and makes a second name in that folder " +
+        "for every file you own for it. A second name costs no extra disk, and your own files " +
+        "stay where they are, under the names you gave them. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -177,6 +185,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("reads as one studio at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_STUDIO, false, SITES)).toBe(
       "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
+        "It then gives each one a folder in your library and makes a second name in that folder " +
+        "for every file you own for it. A second name costs no extra disk, and your own files " +
+        "stay where they are, under the names you gave them. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -184,6 +195,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SITES)).toBe(
       "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
+        "It then gives each one a folder in your library and makes a second name in that folder " +
+        "for every file you own for it. A second name costs no extra disk, and your own files " +
+        "stay where they are, under the names you gave them. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -214,6 +228,13 @@ describe("the set is chosen by what the read says the run registers", () => {
     expect(syncSentences("scenes").skippedRemedy).toBe(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
     expect(syncSentences("scenes").needsACountFirst).toBe(SYNC_NEEDS_A_COUNT_FIRST);
     expect(syncSentences("scenes").nothingLeftToSync).toBe(SYNC_NOTHING_LEFT_TO_SYNC);
+  });
+
+  // Each run does something different with the files, and both sets say what theirs does. An
+  // empty sentence leaves a reader on one generation told nothing about their own files.
+  it("states a linking sentence on both sets, and a different one on each", () => {
+    expect(syncSentences("sites").alsoLinks).toBe(SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN);
+    expect(syncSentences("scenes").alsoLinks).toBe(SYNC_ALSO_LINKS_WHAT_YOU_OWN);
   });
 
   // Before any read has answered there is nothing to choose on, so the scene set stands.

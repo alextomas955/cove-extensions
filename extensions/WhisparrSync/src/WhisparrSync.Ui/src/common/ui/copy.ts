@@ -797,3 +797,16 @@ export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
   "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
   "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
   "setting is off or Whisparr is set to rename files.";
+
+/**
+ * What the run does with the files after it has registered, on the generation that builds the
+ * folders itself.
+ *
+ * Names neither Whisparr setting, because neither is a precondition here. This run makes the
+ * second names through the host's own calls rather than handing the files to Whisparr to take in,
+ * so nothing is copied whatever the instance's hard-link setting says.
+ */
+export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
+  "It then gives each one a folder in your library and makes a second name in that folder for " +
+  "every file you own for it. A second name costs no extra disk, and your own files stay where " +
+  "they are, under the names you gave them.";
