@@ -333,7 +333,7 @@ for (const generation of ["v3", "v2"]) {
         `the linking run faulted: ${String(reflectRun?.error)}`,
       ).toBeNull();
       expect(
-        reportedLine(reflectRun, /\d+ linked, \d+ refused/),
+        reportedLine(reflectRun, /\d+ recorded by Whisparr, \d+ refused/),
         `the run completed and reported no line saying what it linked. A run that reports nothing tells a reader neither what it attached nor that it attached nothing. The whole status was ${JSON.stringify(reflectRun)}`,
       ).toBeTruthy();
 
@@ -355,7 +355,7 @@ for (const generation of ["v3", "v2"]) {
       );
       expect(
         linked,
-        `the run reported "${String(reportedLine(reflectRun, /\d+ linked, \d+ refused/))}" and the instance holds no file for the entry the library named; its file rows last read ${linkedNote}`,
+        `the run reported "${String(reportedLine(reflectRun, /\d+ recorded by Whisparr, \d+ refused/))}" and the instance holds no file for the entry the library named; its file rows last read ${linkedNote}`,
       ).toBe(true);
       const paths = linkedFiles.map((row) => String(row.relativePath ?? row.path));
       expect(
