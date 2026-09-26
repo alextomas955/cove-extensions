@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Linking;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -292,6 +293,34 @@ public sealed class SafetyInvariantTests
 
         Assert.Single(typeof(IWhisparrSearchGrabbing).GetMethods());
         Assert.Single(typeof(IWhisparrSceneSearchGrabbing).GetMethods());
+    }
+
+    // Removing a name frees a file's bytes once it is the last one, so this product does it from
+    // one place, and that place consults TreeLinkRemovalGuard. What each name is decided on is
+    // asserted case by case against the check itself; this is the count of places that can decide
+    // anything at all.
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
+    public void TheOnlyNameThisProductRemovesIsOneTheCheckAllowed()
+    {
+        var slice = LinkingSources();
+
+        // A scan that reached no source would report nothing wrong for the same reason it reported
+        // nothing at all.
+        Assert.NotEmpty(slice);
+
+        Assert.Equal(
+            ["TreeReconcileStep.cs"],
+            slice
+                .Where(source => source.Text.Contains(".Remove(", StringComparison.Ordinal))
+                .Select(source => source.Name)
+                .Order(StringComparer.Ordinal)
+                .ToList());
+
+        Assert.Contains(
+            nameof(TreeLinkRemovalGuard) + "." + nameof(TreeLinkRemovalGuard.Decide),
+            slice.Single(source => source.Name == "TreeReconcileStep.cs").Text,
+            StringComparison.Ordinal);
     }
 
     // Whatever a caller intended, the filesystem seam declares no member that moves, renames,
@@ -922,5 +951,30 @@ public sealed class SafetyInvariantTests
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    // The slice holding the one seam that changes a reader's disk. Found by a committed file rather
+    // than by a counted-out "..": the test assembly's depth below the extension directory varies
+    // with configuration and target framework.
+    private static IReadOnlyList<(string Name, string Text)> LinkingSources()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var slice = Path.Combine(directory.FullName, "src", "WhisparrSync", "Linking");
+            if (Directory.Exists(slice))
+            {
+                return
+                [
+                    .. Directory
+                        .EnumerateFiles(slice, "*.cs", SearchOption.AllDirectories)
+                        .Select(file => (Path.GetFileName(file), File.ReadAllText(file))),
+                ];
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No src/WhisparrSync/Linking above {AppContext.BaseDirectory}.");
     }
 }

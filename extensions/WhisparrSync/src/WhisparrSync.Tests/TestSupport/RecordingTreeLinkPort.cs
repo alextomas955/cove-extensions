@@ -18,6 +18,7 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     private readonly Dictionary<string, PlacedFile> _placed = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LinkOutcome> _linkAnswers = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _unreadable = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _refusedRemovals = new(StringComparer.OrdinalIgnoreCase);
 
     public List<TreeLinkCall> Calls { get; } = [];
 
@@ -39,6 +40,16 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
 
     /// <summary>Makes an identity read at <paramref name="path"/> answer nothing.</summary>
     public void AnswerNothingFor(string path) => _unreadable.Add(Spelled(path));
+
+    /// <summary>Takes the name at <paramref name="path"/> away, as a reader deleting it does.</summary>
+    /// <remarks>
+    /// Not a call through the seam and not recorded as one: it is how a test states what happened
+    /// to a reader's library between two passes.
+    /// </remarks>
+    public void Forget(string path) => _placed.Remove(Spelled(path));
+
+    /// <summary>Makes a removal at <paramref name="path"/> answer that the name is still there.</summary>
+    public void RefuseRemovalOf(string path) => _refusedRemovals.Add(Spelled(path));
 
     public ProbedLink? Identify(string path)
     {
@@ -104,7 +115,8 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     {
         Calls.Add(new TreeLinkCall("remove", path, treeRoot));
 
-        if (PathCandidateGuard.TailBelow(path, treeRoot) is null)
+        if (PathCandidateGuard.TailBelow(path, treeRoot) is null
+            || _refusedRemovals.Contains(Spelled(path)))
         {
             return NameRemoval.Refused;
         }

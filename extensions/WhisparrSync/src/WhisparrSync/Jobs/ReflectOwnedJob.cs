@@ -50,7 +50,8 @@ internal sealed record LinkedTally(
     IReadOnlyList<FolderAddressRefusal>? Unaddressed,
     int LeftUnderAnotherRoot,
     bool RootsCouldNotBeRead = false,
-    int WithoutAnEntry = 0);
+    int WithoutAnEntry = 0,
+    int NamesNotComposedHere = 0);
 
 // A null Through with a Skipped reason means the instance's linking setting stopped the run. A null
 // Through with no reason reports as a completed run that attached nothing.
@@ -84,6 +85,14 @@ public static class ReflectOwnedJob
     internal const string WithoutAnEntrySentence =
         "Some files were not linked: the scenes they belong to could not be matched to Whisparr's "
         + "own catalogue rows.";
+
+    // Names no file and no folder: the line is durable and must not grow with the library. It says
+    // what was not done rather than asking for anything, because the files are the reader's and
+    // this product removes only the names it wrote itself. A download the product could not place
+    // in the library appears here on every run, which is how a reader finds out about it.
+    internal const string NamesNotComposedHereSentence =
+        "Some files in the folders Whisparr was given were not put there by Cove, so they were "
+        + "left alone.";
 
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
@@ -363,7 +372,8 @@ public static class ReflectOwnedJob
                 run.AddressRefusals,
                 run.EntriesLeftUnderAnotherRoot,
                 run.RootsCouldNotBeRead,
-                run.FilesWithoutAnEntry),
+                run.FilesWithoutAnEntry,
+                run.NamesNotComposedHere),
             run.Outcome == ReflectOwnedRunOutcome.Cancelled);
     }
 
@@ -375,7 +385,7 @@ public static class ReflectOwnedJob
     {
         ArgumentNullException.ThrowIfNull(tally);
         var (skipped, filesAttached, foldersRefused, unaddressed, leftUnderAnotherRoot,
-            rootsCouldNotBeRead, withoutAnEntry) = tally;
+            rootsCouldNotBeRead, withoutAnEntry, namesNotComposedHere) = tally;
 
         if (skipped is { } reason)
         {
@@ -389,19 +399,9 @@ public static class ReflectOwnedJob
 
         var reasons = string.Join(
             ' ', (unaddressed ?? []).Select(refusal => SentenceFor(refusal, filesAttached > 0)));
-        if (leftUnderAnotherRoot > 0)
-        {
-            reasons = reasons.Length == 0
-                ? LeftUnderAnotherRootSentence
-                : reasons + " " + LeftUnderAnotherRootSentence;
-        }
-
-        if (withoutAnEntry > 0)
-        {
-            reasons = reasons.Length == 0
-                ? WithoutAnEntrySentence
-                : reasons + " " + WithoutAnEntrySentence;
-        }
+        reasons = Carrying(reasons, leftUnderAnotherRoot, LeftUnderAnotherRootSentence);
+        reasons = Carrying(reasons, withoutAnEntry, WithoutAnEntrySentence);
+        reasons = Carrying(reasons, namesNotComposedHere, NamesNotComposedHereSentence);
 
         if (filesAttached == 0 && foldersRefused == 0 && reasons.Length > 0)
         {
@@ -450,6 +450,18 @@ public static class ReflectOwnedJob
 
         return opening + ": "
             + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
+    }
+
+    // A sentence is carried where its count is not zero, and the run's reasons read as one
+    // paragraph however many of them there are.
+    private static string Carrying(string reasons, int counted, string sentence)
+    {
+        if (counted == 0)
+        {
+            return reasons;
+        }
+
+        return reasons.Length == 0 ? sentence : reasons + " " + sentence;
     }
 
     private static string Because(FolderAgreementRefusal refusal, string? tried)

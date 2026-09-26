@@ -242,6 +242,17 @@ public static class SyncLibraryJob
                 tree.FilesOfScene(remoteId, coveRoot, ct),
                 ct).ConfigureAwait(false);
 
+            // Folded in before the folder is checked, because a pass that built no folder still
+            // reports what it found in the one that was already there.
+            if (built.Swept.NotComposedHere > 0)
+            {
+                Total = Total.Plus(
+                    ReflectOwnedJob.Untaken with
+                    {
+                        NamesNotComposedHere = built.Swept.NotComposedHere,
+                    });
+            }
+
             if (built.EntityFolder is not { } entityFolder)
             {
                 return null;
