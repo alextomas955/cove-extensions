@@ -26,6 +26,10 @@ internal sealed class V3PayloadReader : IWhisparrPayloadReading, IWhisparrScopeR
 
     public string MatchedMember => "movie";
 
+    // Two, because this generation holds two kinds of entry and names each one's renaming
+    // separately. Read off a running instance's own naming resource.
+    public IReadOnlyList<string> RenamingMembers { get; } = ["renameMovies", "renameScenes"];
+
     // Transcribed from the interface bundle this generation's build ships: one scene per matched
     // row.
     // This generation addresses a scene by its own movie id and needs nothing else, so the entry

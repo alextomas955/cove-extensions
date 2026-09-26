@@ -265,6 +265,7 @@ public sealed class BulkEndpointTests
             .Answering(
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""))
+            .AnsweringThatNamesAreLeftAlone()
             .Answering(
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
                 MonitorHost.Json(

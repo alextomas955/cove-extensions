@@ -27,6 +27,10 @@ internal sealed class V2PayloadReader : IWhisparrPayloadReading
 
     public string MatchedMember => "series";
 
+    // One, because a scene is an episode here and this generation names the renaming of episodes
+    // alone. Read off a running instance's own naming resource.
+    public IReadOnlyList<string> RenamingMembers { get; } = ["renameEpisodes"];
+
     // A scene is an episode under a site here, so an entry names both rows. The episode row is the
     // caller's; the site row is the site those episodes are listed under, and an address carrying
     // no site row is refused rather than attached to whatever the instance last parsed.

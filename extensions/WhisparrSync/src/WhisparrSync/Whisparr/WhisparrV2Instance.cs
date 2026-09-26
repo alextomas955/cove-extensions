@@ -510,6 +510,10 @@ internal sealed class WhisparrV2Instance(
         => GeneratedReadAsync(
             api => api.Api<V2Api.IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));
 
+    public Task<WhisparrResponse> ReadNamingSettingsAsync(CancellationToken ct)
+        => GeneratedReadAsync(
+            api => api.Api<V2Api.INamingConfigApi>().GetNamingConfigAsync(ct));
+
     // The instance is asked to include what it already holds, so a file the library holds and the
     // instance has not attached is still answered for.
     public Task<WhisparrResponse> ListImportableFilesAsync(string folder, CancellationToken ct)

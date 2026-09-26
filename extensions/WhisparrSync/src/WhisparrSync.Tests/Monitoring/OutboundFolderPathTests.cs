@@ -73,6 +73,8 @@ public sealed class OutboundFolderPathTests
         {
             var route when route.EndsWith("/config/mediamanagement", StringComparison.Ordinal)
                 => LinksIntoPlace,
+            var route when route.EndsWith("/config/naming", StringComparison.Ordinal)
+                => RecordingWhisparrCore.LeavesNamesAlone,
             var route when route.EndsWith("/rootfolder", StringComparison.Ordinal)
                 => $$"""[{"id":1,"path":"{{InstanceRoot}}","accessible":true}]""",
             var route when route.EndsWith("/filesystem", StringComparison.Ordinal) => listing[0],

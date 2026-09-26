@@ -221,17 +221,30 @@ public sealed partial class WhisparrSync
     private static IWhisparrReflectOwnedActing? ReflectOwnedActingOn(MonitoringTarget target)
         => target.Reads as IWhisparrReflectOwnedActing;
 
-    // Read on the route and again when the run starts. The two are minutes apart, and the value
-    // decides whether every matched file is linked or duplicated in full.
+    // Read on the route and again when the run starts. The two are minutes apart, and the pair
+    // decides whether every matched file is linked, duplicated in full, or renamed out of the
+    // folder it was linked into.
     private async Task<ReflectOwnedDecision> ReflectOwnedDecisionAsync(
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, CancellationToken ct)
     {
-        var setting = await ContainedAsync(
+        var linking = await ContainedAsync(
             () => acting.ReadHardlinkSettingAsync(ct),
             target,
             _log,
             ct).ConfigureAwait(false);
 
-        return ReflectOwnedPlanner.Decide(setting?.Body);
+        if (!ReflectOwnedPlanner.NeedsTheNamingReading(linking?.Body))
+        {
+            return ReflectOwnedPlanner.Decide(target.Binding.Generation, linking?.Body, null);
+        }
+
+        var naming = await ContainedAsync(
+            () => acting.ReadNamingSettingsAsync(ct),
+            target,
+            _log,
+            ct).ConfigureAwait(false);
+
+        return ReflectOwnedPlanner.Decide(
+            target.Binding.Generation, linking?.Body, naming?.Body);
     }
 }

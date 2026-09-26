@@ -606,7 +606,8 @@ public sealed class NonGrabbingBodyTests
                     MonitorHost.Json(200, """{"id":9,"monitored":false}"""))
                 .Answering(
                     nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
-                    MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""));
+                    MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""))
+                .AnsweringThatNamesAreLeftAlone();
 
             var studioId = await host.SeedStudioAsync(
                 MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
