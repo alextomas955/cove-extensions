@@ -182,7 +182,7 @@ public sealed class ImportCoreRefusalTests
             => new ImportCore(
                     new StubReportedRoots(root),
                     Library,
-                    Paths,
+                    new ImportFilesystem(Paths, new RecordingTreeLinkPort()),
                     new OptionsWriting(new OptionsStore(Store), new OptionsWriteGate()),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     TimeProvider.System,

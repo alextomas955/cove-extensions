@@ -18,6 +18,7 @@ const CAUSES: readonly ImportRefusalCause[] = [
   "notFoundUnderAnyRoot",
   "ambiguousCandidates",
   "unreadable",
+  "notPlacedInLibrary",
 ];
 
 function lineFor(root: string, count: number, paths: number): ImportBannerRootLine {
@@ -42,7 +43,7 @@ function passedOver(count: number, at: string | null): ImportBannerView {
 const NOW_MS = Date.parse("2026-08-31T09:00:00Z");
 
 describe("the cause vocabulary", () => {
-  it("has exactly the three causes the server emits", () => {
+  it("has exactly the four causes the server emits", () => {
     expect(IMPORT_REFUSAL_CAUSES).toEqual(CAUSES);
   });
 

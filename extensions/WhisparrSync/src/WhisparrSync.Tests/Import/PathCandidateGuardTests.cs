@@ -185,13 +185,14 @@ public sealed class PathCandidateGuardTests
     // Transcribed by hand rather than counted from the enum, so adding a member fails here and has to
     // be decided rather than absorbed.
     [Fact]
-    public void TheRefusalVocabularyIsTheThreeCausesAndNoMore()
+    public void TheRefusalVocabularyIsTheFourCausesAndNoMore()
         => Assert.Equal(
             new[]
             {
                 ImportRefusalCause.NotFoundUnderAnyRoot,
                 ImportRefusalCause.AmbiguousCandidates,
                 ImportRefusalCause.Unreadable,
+                ImportRefusalCause.NotPlacedInLibrary,
             }.Order(),
             Enum.GetValues<ImportRefusalCause>().Order());
 
