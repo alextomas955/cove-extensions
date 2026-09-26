@@ -49,9 +49,16 @@ public enum ImportRefusalCause
     /// <remarks>
     /// This spelling is persisted in the stored options blob, so it must not change: a value a
     /// later model cannot bind makes the whole blob load as defaults, and the extension runs on
-    /// them, refusing every write, until the stored blob is repaired.
+    /// them, refusing every write, until the stored blob is repaired. A member is added here; none
+    /// is renamed.
     /// </remarks>
     Unreadable,
+
+    /// <summary>
+    /// The downloaded file arrived in the folder this extension keeps for the entity and could not
+    /// be given a name in the library.
+    /// </summary>
+    NotPlacedInLibrary,
 }
 
 /// <summary>One offending path, and why it was not imported.</summary>

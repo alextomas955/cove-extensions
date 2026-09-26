@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Identity;
+using WhisparrSync.Linking;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Import;
@@ -8,7 +9,7 @@ namespace WhisparrSync.Import;
 internal sealed class ImportCore(
     IReportedRootPort reportedRoots,
     ICoveLibraryPort library,
-    IImportPathPort paths,
+    ImportFilesystem filesystem,
     OptionsWriting writing,
     FollowUpScanCoalescer followUp,
     TimeProvider clock,
@@ -30,7 +31,7 @@ internal sealed class ImportCore(
         }
 
         var resolution = PathCandidateGuard.Resolve(
-            [.. reading.Candidates.Select(path => new ProbedCandidate(path, paths.Probe(path)))],
+            [.. reading.Candidates.Select(path => new ProbedCandidate(path, filesystem.Paths.Probe(path)))],
             candidate.ReportedSize);
         if (resolution.Path is not { } path)
         {
@@ -55,13 +56,35 @@ internal sealed class ImportCore(
         // creates a second item unless the item the identifier named is passed here deliberately.
         var repointedTo = identity?.Resolution.VideoId;
 
-        if (await AlreadyHeldAsync(candidate, reading, path, identity, repointedTo, ct)
+        // Before the already-held reading, because that reading asks about the path the library
+        // will hold, which for a file the instance downloaded into the tree is the placed one. It
+        // also keeps the dedupe that makes the two ingest channels register one file once.
+        var placement = await ArrivalPlacementStep.PlaceAsync(
+            path,
+            library.LibraryRoots,
+            token => repointedTo is { } item
+                ? library.HeldFilePathOfAsync(item, token)
+                : Task.FromResult<string?>(null),
+            filesystem.Links,
+            ct).ConfigureAwait(false);
+        if (placement.Path is not { } libraryPath)
+        {
+            return await RefusedAsync(
+                candidate,
+                reading,
+                ImportOutcome.RefusedArrivalNotPlaced,
+                ImportRefusalCause.NotPlacedInLibrary,
+                ct).ConfigureAwait(false);
+        }
+
+        if (await AlreadyHeldAsync(candidate, reading, libraryPath, identity, repointedTo, ct)
                 .ConfigureAwait(false) is { } settled)
         {
             return settled;
         }
 
-        var imported = await library.ImportVideoAsync(path, repointedTo, ct).ConfigureAwait(false);
+        var imported = await library.ImportVideoAsync(libraryPath, repointedTo, ct)
+            .ConfigureAwait(false);
         if (await HostRefusedAsync(candidate, reading, imported, ct).ConfigureAwait(false)
             is { } declined)
         {
@@ -70,7 +93,7 @@ internal sealed class ImportCore(
 
         if (repointedTo is { } upgraded)
         {
-            await DetachSupersededAsync(upgraded, path, ct).ConfigureAwait(false);
+            await DetachSupersededAsync(upgraded, libraryPath, ct).ConfigureAwait(false);
         }
 
         if (identity is { } named && imported.VideoId is { } item)
@@ -78,7 +101,7 @@ internal sealed class ImportCore(
             await StampAndEnrichAsync(named, item, ct).ConfigureAwait(false);
         }
 
-        followUp.NoteImported(path, library);
+        followUp.NoteImported(libraryPath, library);
         await RecordImportedAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
     }
