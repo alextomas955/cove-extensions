@@ -412,12 +412,14 @@ internal static class SyncLibraryPlanner
         var entries = run.SplitAcrossRoots == 1
             ? Singular(registers).ToLowerInvariant() + " has"
             : Plural(registers) + " have";
-        var files = run.FilesLeftElsewhere == 1 ? "file" : "files";
+        var files = run.FilesLeftElsewhere == 1
+            ? "file was left where it is"
+            : "files were left where they are";
 
         return string.Create(
             CultureInfo.InvariantCulture,
             $" {run.SplitAcrossRoots:N0} {entries} files under more than one library root: "
-                + $"{run.FilesLeftElsewhere:N0} {files} were left where they are under "
+                + $"{run.FilesLeftElsewhere:N0} {files} under "
                 + $"{string.Join(", ", run.RootsLeftBehind)}, and nothing was copied.");
     }
 
