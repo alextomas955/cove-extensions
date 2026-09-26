@@ -91,7 +91,7 @@ public sealed class SyncLibrarySitesTests
             host.Client.Verbs,
             verb => Assert.DoesNotContain("Monitor", verb, StringComparison.Ordinal));
         Assert.Equal([2], progress.DeclaredUnitCounts);
-        Assert.Contains("2 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
+        Assert.Contains("2 sites registered", progress.Summaries[^1], StringComparison.Ordinal);
     }
 
     // This is what makes a second pass create no duplicate. The recording client is given no answer
@@ -111,7 +111,7 @@ public sealed class SyncLibrarySitesTests
         Assert.All(progress.Units, unit => Assert.Equal(JobUnitOutcome.Skipped, unit.Outcome));
         Assert.Contains(
             "0 sites registered, 2 already in Whisparr",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 
@@ -268,7 +268,7 @@ public sealed class SyncLibrarySitesTests
         Assert.DoesNotContain(nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync), host.Client.Verbs);
         Assert.DoesNotContain(nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync), host.Client.Verbs);
         Assert.Empty(host.Client.UnexpectedCalls);
-        Assert.Contains("2 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
+        Assert.Contains("2 sites registered", progress.Summaries[^1], StringComparison.Ordinal);
     }
 
     // The site the instance already held is the difference between marking what this run
@@ -297,7 +297,7 @@ public sealed class SyncLibrarySitesTests
             Verb(host, nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)),
             call => Assert.True(call.Monitored));
 
-        var summary = Assert.Single(progress.Summaries);
+        var summary = progress.Summaries[^1];
         Assert.Contains("1 already in Whisparr", summary, StringComparison.Ordinal);
         Assert.Contains("2 scenes monitored", summary, StringComparison.Ordinal);
     }
@@ -473,7 +473,7 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(0, run.Registered);
         Assert.Contains(
             "2 moved to the root holding their files",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 
@@ -489,7 +489,7 @@ public sealed class SyncLibrarySitesTests
             (SceneRegistration.Moved, Split(filesLeftElsewhere: 7, LeftBehindRoot)),
             (SceneRegistration.AlreadyHeld, AtOneRoot));
 
-        var summary = Assert.Single(progress.Summaries);
+        var summary = progress.Summaries[^1];
 
         Assert.Equal(1, run.SplitAcrossRoots);
         Assert.Equal(7, run.FilesLeftElsewhere);
@@ -513,7 +513,7 @@ public sealed class SyncLibrarySitesTests
             (SceneRegistration.Registered, AtOneRoot),
             (SceneRegistration.AlreadyHeld, AtOneRoot));
 
-        var summary = Assert.Single(progress.Summaries);
+        var summary = progress.Summaries[^1];
 
         Assert.Equal(0, run.SplitAcrossRoots);
         Assert.Empty(run.RootsLeftBehind);
@@ -531,7 +531,7 @@ public sealed class SyncLibrarySitesTests
 
         Assert.Contains(
             "2 moved to the root holding their files",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 
@@ -554,7 +554,7 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(2, run.WithoutAnAgreedRoot);
         Assert.Contains(
             "2 refused, 2 with no agreed root",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 
@@ -574,7 +574,7 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal([LeftBehindRoot], run.RootsLeftBehind);
         Assert.Contains(
             "2 sites have files under more than one library root",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 

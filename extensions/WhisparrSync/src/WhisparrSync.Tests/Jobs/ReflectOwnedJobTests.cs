@@ -28,7 +28,7 @@ public sealed class ReflectOwnedJobTests
     private const string SettingUnreadable =
         "No files were linked: Whisparr's hard-link setting could not be read.";
 
-    private const string AttachedNothing = "0 linked, 0 refused.";
+    private const string AttachedNothing = "0 recorded by Whisparr, 0 refused.";
 
     private const string NamesNotComposedHere =
         "Some files in the folders Whisparr was given were not put there by Cove, so they were "
@@ -52,7 +52,7 @@ public sealed class ReflectOwnedJobTests
                 FilesAttached: 2,
                 NamesNotComposedHere: 3));
 
-        Assert.Equal("2 linked, 0 refused. " + NamesNotComposedHere, line);
+        Assert.Equal("2 recorded by Whisparr, 0 refused. " + NamesNotComposedHere, line);
     }
 
     // A reader whose files were all left unattached is told so. A bare zero beside no reason reads
@@ -165,7 +165,7 @@ public sealed class ReflectOwnedJobTests
             "/library/one");
 
         var line = ReflectOwnedJob.SummaryOf(run);
-        Assert.Equal("1 linked, 0 refused.", line);
+        Assert.Equal("1 recorded by Whisparr, 0 refused.", line);
         Assert.DoesNotContain("setting", line, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -189,7 +189,7 @@ public sealed class ReflectOwnedJobTests
             "/library/two");
 
         Assert.Null(run.Skipped);
-        Assert.Equal("1 linked, 0 refused, then stopped.", ReflectOwnedJob.SummaryOf(run));
+        Assert.Equal("1 recorded by Whisparr, 0 refused, then stopped.", ReflectOwnedJob.SummaryOf(run));
     }
 
     private static ReflectOwnedBatch OneStudio => new(WhisparrEntityKind.Studio, 7);

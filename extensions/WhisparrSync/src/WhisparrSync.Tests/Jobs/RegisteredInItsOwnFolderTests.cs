@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using Cove.Core.Interfaces;
@@ -196,6 +197,55 @@ public sealed class RegisteredInItsOwnFolderTests
         return PathCandidateGuard.Normalize(name);
     }
 
+    // The figure the phase is judged on, read off the line a reader is actually left with. It is
+    // asserted against what the tree holds rather than against a number this test also composed.
+    [Fact]
+    public async Task TheSceneRunSaysHowManyGotAFolderAndHowManyFilesWereLinked()
+    {
+        await using var host = await SceneHostAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await SeedSceneAsync(host, studioId, FirstScene);
+        await SeedSceneAsync(host, studioId, SecondScene);
+
+        var ending = await RunAsync(host);
+
+        Assert.Contains(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FoldersInTree(host):N0} given a folder of their own, "
+                    + $"{host.TreeLinks.Links.Count:N0} linked"),
+            ending,
+            StringComparison.Ordinal);
+    }
+
+    // The other generation registers studios, and a run that took names back or gave entities a
+    // folder and said neither is a run whose reader is told nothing about either.
+    [Fact]
+    public async Task TheSiteRunSaysHowManyGotAFolderAndHowManyFilesWereLinked()
+    {
+        await using var host = await SiteHostAsync();
+        var studioId = await host.SeedStudioAsync(V2Endpoint, SiteRemoteId);
+        await host.SeedStudioFileAsync(studioId, SharedFolder);
+
+        var ending = await RunAsync(host);
+
+        Assert.Contains(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FoldersInTree(host):N0} given a folder of their own, "
+                    + $"{host.TreeLinks.Links.Count:N0} linked"),
+            ending,
+            StringComparison.Ordinal);
+    }
+
+    // Read off the tree rather than counted from the seeding, so a run that built fewer folders
+    // than it registered entities is visible.
+    private static int FoldersInTree(MonitorHost host)
+        => host.TreeLinks.Links.Keys
+            .Select(name => name[..name.LastIndexOf('/')])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
     private static string FolderOf(string remoteId)
         => FolderIn(WhisparrGeneration.V3, remoteId);
 
@@ -249,7 +299,8 @@ public sealed class RegisteredInItsOwnFolderTests
         return host;
     }
 
-    private static async Task RunAsync(MonitorHost host)
+    // The ending the host shows, which is the last summary the run set.
+    private static async Task<string> RunAsync(MonitorHost host)
     {
         using var content = new StringContent(
             """{"alsoMonitor":false}""", Encoding.UTF8, "application/json");
@@ -259,6 +310,9 @@ public sealed class RegisteredInItsOwnFolderTests
         answered.EnsureSuccessStatusCode();
         Assert.NotNull(await answered.Content.ReadFromJsonAsync<SyncEnqueued>(TestCt));
 
-        await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
+        var progress = new RecordingJobProgress();
+        await host.RunEnqueuedBatchAsync(progress);
+
+        return progress.Summaries[^1];
     }
 }

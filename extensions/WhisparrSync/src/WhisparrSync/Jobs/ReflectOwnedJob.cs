@@ -53,6 +53,7 @@ internal sealed record LinkedTally(
     int WithoutAnEntry = 0,
     int NamesNotComposedHere = 0,
     int GivenAFolder = 0,
+    int Linked = 0,
     int OnAnotherDevice = 0,
     int Removed = 0,
     int Waiting = 0,
@@ -64,6 +65,7 @@ internal sealed record LinkedTally(
         => FilesAttached == 0
             && FoldersRefused == 0
             && GivenAFolder == 0
+            && Linked == 0
             && Removed == 0
             && Waiting == 0;
 }
@@ -396,6 +398,7 @@ public static class ReflectOwnedJob
                 run.FilesWithoutAnEntry,
                 run.NamesNotComposedHere,
                 run.EntitiesGivenAFolder,
+                run.LinksMade + run.LinksAlreadyThere,
                 run.LinksOnAnotherDevice,
                 run.LinksRemoved,
                 run.LinksWaiting,
@@ -432,16 +435,21 @@ public static class ReflectOwnedJob
         return reasons.Length == 0 ? counts : counts + " " + reasons;
     }
 
-    // Linked and refused are always stated, because a run that reached the instance and did nothing
+    // Linked is a second name in the tree; recorded is Whisparr holding the file against an entry
+    // of its own. They are different acts and a run can do either without the other, so they are
+    // different figures rather than one word covering both.
+    //
+    // The recorded pair is always stated, because a run that reached the instance and did nothing
     // is itself a fact a reader acts on. Every other figure is left out where it is zero: a row of
     // zeros says nothing and buries the one figure that is not.
     private static string CountsIn(LinkedTally tally, bool cancelled)
     {
         var counts = Figured(string.Empty, tally.GivenAFolder, "given a folder of their own");
+        counts = Figured(counts, tally.Linked, "linked");
         counts += counts.Length == 0 ? string.Empty : ", ";
         counts += string.Create(
             CultureInfo.InvariantCulture,
-            $"{tally.FilesAttached:N0} linked, {tally.FoldersRefused:N0} refused");
+            $"{tally.FilesAttached:N0} recorded by Whisparr, {tally.FoldersRefused:N0} refused");
         counts = Figured(counts, tally.Removed, "taken back");
         counts = Figured(counts, tally.Waiting, "left until they settle");
 
@@ -451,7 +459,7 @@ public static class ReflectOwnedJob
     // One paragraph, however many sentences the run carries.
     private static string ReasonsIn(LinkedTally tally)
     {
-        var linked = tally.FilesAttached > 0;
+        var linked = tally.FilesAttached > 0 || tally.Linked > 0;
         var reasons = string.Join(
             ' ', (tally.Unaddressed ?? []).Select(refusal => SentenceFor(refusal, linked)));
 

@@ -235,7 +235,7 @@ public sealed class ReflectOwnedRouteTests
         var progress = new RecordingJobProgress();
         await host.Jobs.RunLastAsync(progress, TestCt);
 
-        Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 1 refused.");
+        Assert.Contains(progress.Reports, report => report.SubTask == "0 recorded by Whisparr, 1 refused.");
         Assert.DoesNotContain(
             nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
     }
@@ -256,7 +256,7 @@ public sealed class ReflectOwnedRouteTests
         var progress = new RecordingJobProgress();
         await host.Jobs.RunLastAsync(progress, TestCt);
 
-        Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 0 refused.");
+        Assert.Contains(progress.Reports, report => report.SubTask == "0 recorded by Whisparr, 0 refused.");
     }
 
     private static async Task<MonitorHost> LinkingHost()
