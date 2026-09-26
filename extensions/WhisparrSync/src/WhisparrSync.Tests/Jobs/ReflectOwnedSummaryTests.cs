@@ -16,7 +16,7 @@ public sealed class ReflectOwnedSummaryTests
 
     private const string Tried = "/data/Blue Harbor/scene 1.mp4";
 
-    private const string Under = "Nothing under " + CoveRoot + " could be linked: ";
+    private const string Under = "Nothing under " + CoveRoot + " could be handed to Whisparr: ";
 
     [Fact]
     public void ARunThatAddressedNothingReportsTheReasonRatherThanACountOfZero()
@@ -96,7 +96,7 @@ public sealed class ReflectOwnedSummaryTests
 
         Assert.Equal(
             Under + "Whisparr holds nothing at " + Tried + ". "
-                + "Nothing under H:/Second could be linked: "
+                + "Nothing under H:/Second could be handed to Whisparr: "
                 + "Whisparr declares no root folder to build a path under.",
             line);
         Assert.DoesNotContain("second.mp4", line, StringComparison.Ordinal);
@@ -154,8 +154,8 @@ public sealed class ReflectOwnedSummaryTests
                 string.Empty, FolderAgreementRefusal.FolderUnderNoLibraryRoot, [])));
 
         Assert.StartsWith("6,015 recorded by Whisparr, 0 refused.", line, StringComparison.Ordinal);
-        Assert.DoesNotContain("Nothing could be linked", line, StringComparison.Ordinal);
-        Assert.Contains("Some folders were not linked", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing could be handed to Whisparr", line, StringComparison.Ordinal);
+        Assert.Contains("Some folders were not handed to Whisparr", line, StringComparison.Ordinal);
     }
 
     // The figure is files. A run linking many files from few folders states the files, because the
@@ -174,7 +174,7 @@ public sealed class ReflectOwnedSummaryTests
             new FolderAddressRefusal(
                 string.Empty, FolderAgreementRefusal.InstanceCannotBeAsked, [])));
 
-        Assert.Equal("Nothing could be linked: Whisparr could not be asked what it holds.", line);
+        Assert.Equal("Nothing could be handed to Whisparr: Whisparr could not be asked what it holds.", line);
     }
 
     [Fact]
@@ -197,8 +197,8 @@ public sealed class ReflectOwnedSummaryTests
         var line = ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(0, 0, 3));
 
         Assert.Equal(
-            "Some files were not linked: Whisparr holds their site under a different root from the "
-                + "files, and nothing was copied.",
+            "Some files were not handed to Whisparr: it holds their site under a different "
+                + "root from the files, and nothing was copied.",
             line);
         Assert.DoesNotContain("0 recorded", line, StringComparison.Ordinal);
     }
@@ -206,8 +206,8 @@ public sealed class ReflectOwnedSummaryTests
     [Fact]
     public void ARunThatLinkedSomeAndLeftOthersUnderAnotherRootReportsBoth()
         => Assert.Equal(
-            "2 recorded by Whisparr, 1 refused. Some files were not linked: Whisparr holds "
-                + "their site under a different root from the files, and nothing was copied.",
+            "2 recorded by Whisparr, 1 refused. Some files were not handed to Whisparr: it "
+                + "holds their site under a different root from the files, and nothing was copied.",
             ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(2, 1, 4)));
 
     [Fact]
@@ -223,8 +223,8 @@ public sealed class ReflectOwnedSummaryTests
     public void ARunWithBothReasonsReportsTheRootItCouldNotAddressAndThenWhatItLeftOut()
         => Assert.Equal(
             Under + "Whisparr holds nothing at " + Tried + ". "
-                + "Some files were not linked: Whisparr holds their site under a different root "
-                + "from the files, and nothing was copied.",
+                + "Some files were not handed to Whisparr: it holds their site under a "
+                + "different root from the files, and nothing was copied.",
             ReflectOwnedJob.SummaryOf(
                 new ReflectOwnedRun(
                     ReflectOwnedRunOutcome.Completed,
