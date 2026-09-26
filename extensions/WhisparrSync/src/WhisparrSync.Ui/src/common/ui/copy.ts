@@ -654,6 +654,14 @@ export const SYNC_ALREADY_IN_WHISPARR = "Already in Whisparr";
 /** @see SYNC_NOT_YET_IN_WHISPARR */
 export const SYNC_SKIPPED_CANNOT_BE_IDENTIFIED = "Skipped, cannot be identified";
 
+/**
+ * The row drawn from the one above it: of what Whisparr already holds, how much it records no file
+ * for. Those are what a run still has to hand over once there is nothing left to register.
+ *
+ * @see SYNC_NOT_YET_IN_WHISPARR
+ */
+export const SYNC_NO_FILE_RECORDED = "Of those, with no file recorded";
+
 /** What the skipped row means, and what a reader can do about it. */
 export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
   "A scene with no metadata id cannot be registered. Identify more of your library and count again.";
@@ -711,9 +719,16 @@ export const SYNC_NEEDS_A_COUNT_FIRST =
 export const SYNC_SITE_NEEDS_A_COUNT_FIRST =
   "Count what would sync first, so this can say how many studios it will offer.";
 
-/** Why there is nothing for the sync control to do. */
+/**
+ * Why there is nothing for the sync control to do.
+ *
+ * A run registers and then hands files over, so both halves have to be spent before there is
+ * nothing left. Naming registration alone left a reader with a half-done library and a control
+ * they could not press.
+ */
 export const SYNC_NOTHING_LEFT_TO_SYNC =
-  "Whisparr already holds every scene in your library that carries a metadata id.";
+  "Whisparr already holds every scene in your library that carries a metadata id, and records a " +
+  "file for each of them.";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
@@ -721,7 +736,8 @@ export const SYNC_NOTHING_LEFT_TO_SYNC =
  * @see SYNC_NOTHING_LEFT_TO_SYNC
  */
 export const SYNC_SITE_NOTHING_LEFT_TO_SYNC =
-  "Whisparr already holds every studio in your library that carries a metadata id.";
+  "Whisparr already holds every studio in your library that carries a metadata id, and records a " +
+  "file for each of them.";
 
 /** Why nothing on the sync side can act while a run is in flight. Points at the progress surface. */
 export const SYNC_ALREADY_RUNNING =
@@ -771,6 +787,18 @@ export function syncOffersScenes(grouped: string): string {
  */
 export function syncOffersSites(grouped: string): string {
   return `This offers all ${grouped} studios in your library to Whisparr`;
+}
+
+/**
+ * What the run still has to hand over, stated where the count found any.
+ *
+ * Reads at one as it does at any other size: the figure carries no noun after it, so there is no
+ * plural to disagree with.
+ *
+ * @param grouped the figure, already grouped
+ */
+export function syncStillToHandOver(grouped: string): string {
+  return `Whisparr records no file for ${grouped} of them yet.`;
 }
 
 /** What the monitor choice adds to the run, where the run registers scenes. */

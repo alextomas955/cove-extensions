@@ -72,6 +72,10 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
     public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    // Held entries the instance records no file against. Empty by default, so a test that says
+    // nothing about files gets an instance recording one for everything it holds.
+    public HashSet<string> ScenesRecordingNoFile { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public List<(int SiteId, IReadOnlyCollection<int> SceneNumbers)> SiteSceneReads { get; } = [];
 
     public Dictionary<int, int> SiteSceneRowIds { get; } = [];
@@ -103,6 +107,9 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     public HashSet<string> BatchCannotSpeakFor { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public HashSet<int> HeldSites { get; } = [];
+
+    /// <inheritdoc cref="ScenesRecordingNoFile"/>
+    public HashSet<int> SitesRecordingNoFile { get; } = [];
 
     public List<string> ExclusionLookups { get; } = [];
 
@@ -494,7 +501,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
             providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
     }
 
-    public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+    public Task<ScenesHeld> ReduceHeldScenesAsync(
         IReadOnlyCollection<string> foreignIds,
         CancellationToken ct)
     {
@@ -507,8 +514,12 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
             throw new HttpRequestException("nothing answered");
         }
 
-        return Task.FromResult<IReadOnlySet<string>>(
-            foreignIds.Where(HeldScenes.Contains).ToHashSet(StringComparer.Ordinal));
+        return Task.FromResult(
+            new ScenesHeld(
+                foreignIds.Where(HeldScenes.Contains).ToHashSet(StringComparer.Ordinal),
+                foreignIds.Where(HeldScenes.Contains)
+                    .Where(ScenesRecordingNoFile.Contains)
+                    .ToHashSet(StringComparer.Ordinal)));
     }
 
     public Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
@@ -619,7 +630,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
                 .ToDictionary(number => number, number => SiteSceneRowIds[number]));
     }
 
-    public Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+    public Task<SitesHeld> ReduceHeldSitesAsync(
         IReadOnlyCollection<int> siteNumbers,
         CancellationToken ct)
     {
@@ -627,7 +638,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
         if (siteNumbers.Count == 0)
         {
-            return Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+            return Task.FromResult(new SitesHeld(new HashSet<int>(), new HashSet<int>()));
         }
 
         HeldSiteReads.Add([.. siteNumbers]);
@@ -638,7 +649,12 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
             throw new HttpRequestException("nothing answered");
         }
 
-        return Task.FromResult<IReadOnlySet<int>>(siteNumbers.Where(HeldSites.Contains).ToHashSet());
+        return Task.FromResult(
+            new SitesHeld(
+                siteNumbers.Where(HeldSites.Contains).ToHashSet(),
+                siteNumbers.Where(HeldSites.Contains)
+                    .Where(SitesRecordingNoFile.Contains)
+                    .ToHashSet()));
     }
 
     public Task<SceneExclusionLookup> FindSceneExclusionAsync(

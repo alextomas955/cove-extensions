@@ -414,7 +414,7 @@ public sealed class LibraryStatusPortTests
                 : Task.FromResult(new WhisparrResponse(status, "application/json", body));
         }
 
-        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        public Task<ScenesHeld> ReduceHeldScenesAsync(
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(

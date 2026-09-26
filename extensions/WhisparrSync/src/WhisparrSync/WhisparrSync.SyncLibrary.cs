@@ -190,7 +190,7 @@ public sealed partial class WhisparrSync
     internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
         ISiteNumberPort siteNumbers,
         WhisparrBinding binding,
-        Func<IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlySet<int>>> heldSites,
+        Func<IReadOnlyCollection<int>, CancellationToken, Task<SitesHeld>> heldSites,
         IReadOnlyCollection<string> asked,
         CancellationToken ct)
     {
@@ -228,10 +228,13 @@ public sealed partial class WhisparrSync
             .ConfigureAwait(false);
 
         return new SiteBatchReading(
-            numbered.Where(pair => held.Contains(pair.Number))
+            numbered.Where(pair => held.Held.Contains(pair.Number))
                 .Select(pair => pair.Identity)
                 .ToHashSet(StringComparer.Ordinal),
-            namesNone);
+            namesNone,
+            numbered.Where(pair => held.WithNoFileRecorded.Contains(pair.Number))
+                .Select(pair => pair.Identity)
+                .ToHashSet(StringComparer.Ordinal));
 
         async Task<(string Identity, WhisparrSiteNumber Resolved)> ResolveAsync(string identity)
         {

@@ -83,6 +83,35 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V3));
     }
 
+    /// <inheritdoc cref="AFullyRegisteredLibraryStillCountsTheStudiosRecordingNoFile"/>
+    [Fact]
+    public async Task AFullyRegisteredLibraryStillCountsTheScenesRecordingNoFile()
+    {
+        var identifiers = Identifiers(5);
+        var instance = new HeldScenes(identifiers, recordingNoFile: identifiers.Take(2));
+
+        var counted = await RunAsync(identifiers, instance);
+
+        Assert.NotNull(counted);
+        Assert.Equal(0, counted.NotYetThere);
+        Assert.Equal(5, counted.AlreadyThere);
+        Assert.Equal(2, counted.WithNoFileRecorded);
+    }
+
+    /// <inheritdoc cref="AStudioTheInstanceDoesNotHoldIsNotCountedAsRecordingNoFile"/>
+    [Fact]
+    public async Task ASceneTheInstanceDoesNotHoldIsNotCountedAsRecordingNoFile()
+    {
+        var identifiers = Identifiers(5);
+        var instance = new HeldScenes(identifiers.Take(1), recordingNoFile: identifiers);
+
+        var counted = await RunAsync(identifiers, instance);
+
+        Assert.NotNull(counted);
+        Assert.Equal(1, counted.AlreadyThere);
+        Assert.Equal(1, counted.WithNoFileRecorded);
+    }
+
     // A count derived from Cove's own rows would report the same figure after a run as before it,
     // and the reader could not tell a sync that worked from one that did nothing.
     [Fact]
@@ -143,6 +172,41 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(1, counted.NotYetThere);
         Assert.Equal(3, Assert.Single(instance.Asked).Count);
         Assert.Equal(3, source.Resolved.Count);
+    }
+
+    // The registering half of a run can have nothing left to do while its hand-over half has every
+    // file still to give. A count answering only what is not yet there would report that state as
+    // one with no work in it.
+    [Fact]
+    public async Task AFullyRegisteredLibraryStillCountsTheStudiosRecordingNoFile()
+    {
+        var studios = Studios(3);
+        var source = new SiteNumbers(NumbersFor(studios));
+        var instance = new HeldSites(
+            Enumerable.Range(1, 3).Select(NumberOf),
+            recordingNoFile: [NumberOf(1), NumberOf(3)]);
+
+        var counted = await RunSitesAsync(studios, source, instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(0, counted.NotYetThere);
+        Assert.Equal(3, counted.AlreadyThere);
+        Assert.Equal(2, counted.WithNoFileRecorded);
+    }
+
+    // The figure counts held studios alone, so it can never exceed the column it is drawn from.
+    [Fact]
+    public async Task AStudioTheInstanceDoesNotHoldIsNotCountedAsRecordingNoFile()
+    {
+        var studios = Studios(3);
+        var source = new SiteNumbers(NumbersFor(studios));
+        var instance = new HeldSites([NumberOf(1)], recordingNoFile: [NumberOf(1), NumberOf(2)]);
+
+        var counted = await RunSitesAsync(studios, source, instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(1, counted.AlreadyThere);
+        Assert.Equal(1, counted.WithNoFileRecorded);
     }
 
     // Seeded past the batch size, so the flush of the final partial batch is exercised. A count
@@ -333,6 +397,19 @@ public sealed class SyncPreviewJobTests
 
     private const int NamesNoSiteEventId = 2129;
 
+    // Transcribed by hand. A line composed from the job's own clauses would agree with itself and
+    // report nothing. The count is what a reader reads in the job list, so it states the figure
+    // that says a run still has files to hand over.
+    [Fact]
+    public void TheJobLineStatesEachFigureAndTheOneDrawnFromAnother()
+    {
+        Assert.Equal(
+            "1,200 not yet in Whisparr, 3,400 already there with no file recorded for 56 of them, "
+                + "7 carrying no metadata id.",
+            SyncPreviewJob.SummaryOf(
+                new SyncPreviewView(1200, 3400, 7, 56, SyncRegisters.Sites, DateTimeOffset.UtcNow)));
+    }
+
     private const int CountDidNotFinishEventId = 2126;
 
     private static List<string> Identifiers(int count)
@@ -370,13 +447,16 @@ public sealed class SyncPreviewJobTests
                 : StubLibraryIdentities.OfScenes(Identifiers(seeded), UnidentifiedScenes),
             cache);
 
-        Task<IReadOnlySet<string>> HeldAsync(
+        Task<ScenesHeld> HeldAsync(
             IReadOnlyCollection<string> asked, CancellationToken batchCt)
         {
             stopping?.Cancel();
             return failure is null
-                ? Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(StringComparer.Ordinal))
-                : Task.FromException<IReadOnlySet<string>>(failure);
+                ? Task.FromResult(
+                    new ScenesHeld(
+                        new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal)))
+                : Task.FromException<ScenesHeld>(failure);
         }
 
         Task<SiteBatchReading> HeldSitesAsync(
@@ -386,6 +466,7 @@ public sealed class SyncPreviewJobTests
             return failure is null
                 ? Task.FromResult(
                     new SiteBatchReading(
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal)))
                 : Task.FromException<SiteBatchReading>(failure);
@@ -483,34 +564,49 @@ public sealed class SyncPreviewJobTests
         }
     }
 
-    private sealed class HeldScenes(IEnumerable<string> held, int? failOnCall = null)
+    private sealed class HeldScenes(
+        IEnumerable<string> held,
+        int? failOnCall = null,
+        IEnumerable<string>? recordingNoFile = null)
     {
         private readonly HashSet<string> _held = new(held, StringComparer.OrdinalIgnoreCase);
+
+        private readonly HashSet<string> _recordingNoFile =
+            new(recordingNoFile ?? [], StringComparer.OrdinalIgnoreCase);
 
         public List<IReadOnlyCollection<string>> Asked { get; } = [];
 
         public void NowHolds(IEnumerable<string> more) => _held.UnionWith(more);
 
-        public Task<IReadOnlySet<string>> AskAsync(
+        public Task<ScenesHeld> AskAsync(
             IReadOnlyCollection<string> foreignIds, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             Asked.Add([.. foreignIds]);
             return Asked.Count == failOnCall
                 ? throw new HttpRequestException("nothing answered")
-                : Task.FromResult<IReadOnlySet<string>>(
-                    foreignIds.Where(_held.Contains).ToHashSet(StringComparer.Ordinal));
+                : Task.FromResult(
+                    new ScenesHeld(
+                        foreignIds.Where(_held.Contains).ToHashSet(StringComparer.Ordinal),
+                        foreignIds.Where(_held.Contains)
+                            .Where(_recordingNoFile.Contains)
+                            .ToHashSet(StringComparer.Ordinal)));
         }
     }
 
     private sealed class HeldSites(
-        IEnumerable<int> held, int? failOnCall = null, Action? onAsk = null)
+        IEnumerable<int> held,
+        int? failOnCall = null,
+        Action? onAsk = null,
+        IEnumerable<int>? recordingNoFile = null)
     {
         private readonly HashSet<int> _held = [.. held];
 
+        private readonly HashSet<int> _recordingNoFile = [.. recordingNoFile ?? []];
+
         public List<IReadOnlyCollection<int>> Asked { get; } = [];
 
-        public Task<IReadOnlySet<int>> AskAsync(
+        public Task<SitesHeld> AskAsync(
             IReadOnlyCollection<int> siteNumbers, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -519,7 +615,12 @@ public sealed class SyncPreviewJobTests
 
             return Asked.Count == failOnCall
                 ? throw new HttpRequestException("nothing answered")
-                : Task.FromResult<IReadOnlySet<int>>(siteNumbers.Where(_held.Contains).ToHashSet());
+                : Task.FromResult(
+                    new SitesHeld(
+                        siteNumbers.Where(_held.Contains).ToHashSet(),
+                        siteNumbers.Where(_held.Contains)
+                            .Where(_recordingNoFile.Contains)
+                            .ToHashSet()));
         }
     }
 

@@ -189,6 +189,7 @@ public sealed class SyncLibrarySitesTests
                 return Task.FromResult(
                     new SiteBatchReading(
                         batch.Where((_, index) => index % 2 == 1).ToHashSet(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal)));
             });
 
@@ -222,6 +223,7 @@ public sealed class SyncLibrarySitesTests
                 ? throw new HttpRequestException("nothing answered")
                 : Task.FromResult(
                     new SiteBatchReading(
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal)));
         }

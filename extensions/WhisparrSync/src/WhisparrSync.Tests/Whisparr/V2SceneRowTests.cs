@@ -213,7 +213,7 @@ public sealed class V2SceneRowTests
 
         var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId, SecondSiteNumber], TestCt);
 
-        Assert.Equal([SecondSiteNumber, SiteId], held.Order());
+        Assert.Equal([SecondSiteNumber, SiteId], held.Held.Order());
         Assert.Single(handler.Requests);
     }
 
@@ -225,7 +225,7 @@ public sealed class V2SceneRowTests
 
         var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId, UnheldSiteNumber], TestCt);
 
-        Assert.Equal([SiteId], held);
+        Assert.Equal([SiteId], held.Held);
     }
 
     [Fact]
@@ -236,7 +236,8 @@ public sealed class V2SceneRowTests
 
         var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([], TestCt);
 
-        Assert.Empty(held);
+        Assert.Empty(held.Held);
+        Assert.Empty(held.WithNoFileRecorded);
         Assert.Empty(handler.Requests);
     }
 
@@ -253,6 +254,86 @@ public sealed class V2SceneRowTests
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId], TestCt));
+    }
+
+    // The figures are the ones measured against whisparr:v2-2.2.0-release.231, where a handed-over
+    // file was recorded under a site whose own catalogue carries no row for it: the file count read
+    // zero and the size carried the file's bytes. A site read off the file count alone would be
+    // reported as holding nothing, and the run offering it would already have handed its file over.
+    [Fact]
+    public async Task ASiteWhoseFileCountIsZeroButWhoseSizeIsNotRecordsAFile()
+    {
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK,
+            new JsonArray
+            {
+                SiteRow(11, SiteId, episodeFileCount: 0, sizeOnDisk: 142195),
+                SiteRow(12, SecondSiteNumber, episodeFileCount: 0, sizeOnDisk: 0),
+            }.ToJsonString());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client)
+            .ReduceHeldSitesAsync([SiteId, SecondSiteNumber], TestCt);
+
+        Assert.Equal([SecondSiteNumber, SiteId], held.Held.Order());
+        Assert.Equal([SecondSiteNumber], held.WithNoFileRecorded);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ASiteCarryingAFileCountRecordsAFile()
+    {
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK,
+            new JsonArray { SiteRow(11, SiteId, episodeFileCount: 3, sizeOnDisk: 0) }.ToJsonString());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId], TestCt);
+
+        Assert.Empty(held.WithNoFileRecorded);
+    }
+
+    // An answer stating no figures at all is the instance claiming no file, not this product
+    // claiming one on its behalf.
+    [Fact]
+    public async Task ASiteRowCarryingNoStatisticsRecordsNoFile()
+    {
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK, new JsonArray { Row(11, SiteId) }.ToJsonString());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId], TestCt);
+
+        Assert.Equal([SiteId], held.Held);
+        Assert.Equal([SiteId], held.WithNoFileRecorded);
+    }
+
+    // A site the instance holds no row for is absent from both sets: naming it in the second would
+    // count it once as not yet there and once as recording no file.
+    [Fact]
+    public async Task ASiteTheInstanceHoldsNoRowForIsInNeitherSet()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client)
+            .ReduceHeldSitesAsync([SiteId, UnheldSiteNumber], TestCt);
+
+        Assert.DoesNotContain(UnheldSiteNumber, held.Held);
+        Assert.DoesNotContain(UnheldSiteNumber, held.WithNoFileRecorded);
+    }
+
+    private static JsonObject SiteRow(
+        int rowId, int siteNumber, int episodeFileCount, long sizeOnDisk)
+    {
+        var row = Row(rowId, siteNumber);
+        row["statistics"] = new JsonObject
+        {
+            ["episodeFileCount"] = episodeFileCount,
+            ["sizeOnDisk"] = sizeOnDisk,
+        };
+
+        return row;
     }
 
     // Holds more rows than any case asks about, so a read answering the whole list rather than the

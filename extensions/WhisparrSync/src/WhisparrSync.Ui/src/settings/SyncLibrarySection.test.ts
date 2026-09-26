@@ -14,6 +14,7 @@ import {
   SYNC_ALSO_MONITOR,
   SYNC_IS_STARTING,
   SYNC_LIBRARY,
+  SYNC_NO_FILE_RECORDED,
   SYNC_NEEDS_A_COUNT_FIRST,
   SYNC_NOTHING_LEFT_TO_SYNC,
   SYNC_RUNS_IN_THE_JOB_DRAWER,
@@ -101,6 +102,7 @@ const COUNTS: SyncPreviewView = {
   notYetThere: 5898,
   alreadyThere: 0,
   skipped: 1648,
+  withNoFileRecorded: 0,
   registers: "scenes",
   countedAt: new Date(NOW - 30 * 60_000).toISOString(),
 };
@@ -168,7 +170,7 @@ describe("the preview's four slots", () => {
     expect(countRows(host)).toEqual([]);
   });
 
-  test("a finished count renders three rows, its age and what the skipped row means", async () => {
+  test("a finished count renders four rows, its age and what the skipped row means", async () => {
     const host = await renderNode(
       section({ counts: COUNTS, preview: { status: "content", outage: false } }),
     );
@@ -177,6 +179,7 @@ describe("the preview's four slots", () => {
       { label: SYNC_NOT_YET_IN_WHISPARR, value: "5,898" },
       // A zero still renders its own label, so the reader is not left to infer which row is missing.
       { label: SYNC_ALREADY_IN_WHISPARR, value: "0" },
+      { label: SYNC_NO_FILE_RECORDED, value: "0" },
       { label: SYNC_SKIPPED_CANNOT_BE_IDENTIFIED, value: "1,648" },
     ]);
     expect(host.textContent).toContain("Counted 30 min ago.");
@@ -543,7 +546,7 @@ describe("the sync control states one reason at a time", () => {
     expect(reasonsStated(host)).toEqual([SYNC_NEEDS_A_COUNT_FIRST]);
   });
 
-  test("a fully held library states only that there is nothing left", async () => {
+  test("a fully held library Whisparr records every file for states only that there is nothing left", async () => {
     const host = await renderNode(
       section({
         counts: { ...COUNTS, notYetThere: 0, alreadyThere: 5898 },
@@ -552,6 +555,20 @@ describe("the sync control states one reason at a time", () => {
     );
 
     expect(reasonsStated(host)).toEqual([SYNC_NOTHING_LEFT_TO_SYNC]);
+  });
+
+  // The state a reader reaches on a first run: every entry registered, and the files still to hand
+  // over because the instance had no entry to record them against when the run reached them.
+  test("a fully held library with files still to hand over is pressable", async () => {
+    const host = await renderNode(
+      section({
+        counts: { ...COUNTS, notYetThere: 0, alreadyThere: 5898, withNoFileRecorded: 7 },
+        preview: CONTENT,
+      }),
+    );
+
+    expect(reasonsStated(host)).toEqual([]);
+    expect(syncButton(host).disabled).toBe(false);
   });
 
   test("a refused enqueue leaves it pressable, with the refusal beneath it", async () => {
@@ -771,7 +788,7 @@ describe("the section reads in the noun the run registers", () => {
     expect(opened?.textContent).not.toContain("scenes you own to Whisparr");
   });
 
-  test("the three count rows carry the same labels whichever the read answers", async () => {
+  test("the four count rows carry the same labels whichever the read answers", async () => {
     const scenes = await renderNode(section({ counts: COUNTS, preview: CONTENT }));
     const sites = await renderNode(
       section({ counts: COUNTS_ON_THE_OTHER_GENERATION, preview: CONTENT }),
@@ -784,6 +801,7 @@ describe("the section reads in the noun the run registers", () => {
     expect(countRows(sites).map((row) => row.label)).toEqual([
       SYNC_NOT_YET_IN_WHISPARR,
       SYNC_ALREADY_IN_WHISPARR,
+      SYNC_NO_FILE_RECORDED,
       SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
     ]);
   });

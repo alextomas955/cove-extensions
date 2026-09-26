@@ -62,9 +62,10 @@ internal sealed class WhisparrV3Instance(
 
     private static readonly JsonSerializerOptions HeldSceneRowShape = new(JsonSerializerDefaults.Web);
 
-    // The two members of an answered entry that are read. Declared with no others so a chunk's
+    // The members of an answered entry that are read. Declared with no others so a chunk's
     // answer costs one small object per hit rather than the whole resource the instance sent.
-    private sealed record HeldSceneRow(string? StashId, string? ForeignId);
+    // Whether the instance records a file rides this same answer, so asking costs no request.
+    private sealed record HeldSceneRow(string? StashId, string? ForeignId, bool HasFile);
 
     public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
         => GeneratedReadAsync(api => api.Api<V3Api.INotificationApi>().GetNotificationSchemaAsync(ct));
@@ -439,7 +440,7 @@ internal sealed class WhisparrV3Instance(
     // never the instance's, and there is no row cap for the reason the exclusion reduce has none.
     // The body is a bare JSON array of identifier strings; an object naming the ids as a member is
     // answered 400, measured against whisparr:v3-3.3.8-release.1097.
-    public async Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+    public async Task<ScenesHeld> ReduceHeldScenesAsync(
         IReadOnlyCollection<string> foreignIds, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(foreignIds);
@@ -455,10 +456,11 @@ internal sealed class WhisparrV3Instance(
             }
         }
 
-        var held = new HashSet<string>(StringComparer.Ordinal);
         if (asked.Count == 0)
         {
-            return held;
+            return new ScenesHeld(
+                new HashSet<string>(StringComparer.Ordinal),
+                new HashSet<string>(StringComparer.Ordinal));
         }
 
         List<string> wanted = [.. asked.Values];
@@ -486,18 +488,39 @@ internal sealed class WhisparrV3Instance(
                 "The instance's answer could not be read as the entries it holds.", failure);
         }
 
+        return ReducedTo(rows, asked);
+    }
+
+    // Each answered row reduced to the two questions the caller asked, and dropped. A row naming an
+    // identifier nobody asked about is skipped, so both sets stay bounded by the caller's own batch.
+    private static ScenesHeld ReducedTo(
+        List<HeldSceneRow?>? rows, Dictionary<string, string> asked)
+    {
+        var held = new HashSet<string>(StringComparer.Ordinal);
+        var recordingNoFile = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var row in rows ?? [])
         {
             // The identifier is read off the row's stash id, falling back to its foreign id: both
             // carry the same uuid and which one an instance fills in varies.
             var named = row?.StashId is { Length: > 0 } stashed ? stashed : row?.ForeignId;
-            if (named is { Length: > 0 } spelled && asked.TryGetValue(spelled, out var asAsked))
+            if (named is not { Length: > 0 } spelled || !asked.TryGetValue(spelled, out var asAsked))
             {
-                held.Add(asAsked);
+                continue;
+            }
+
+            held.Add(asAsked);
+
+            // A row carrying no member for it reads as one recording no file: the instance stating
+            // nothing is the same fact to a reader as it stating a no, and the other reading would
+            // report a file it never claimed.
+            if (row?.HasFile != true)
+            {
+                recordingNoFile.Add(asAsked);
             }
         }
 
-        return held;
+        return new ScenesHeld(held, recordingNoFile);
     }
 
     public async Task<SceneExclusionLookup> FindSceneExclusionAsync(

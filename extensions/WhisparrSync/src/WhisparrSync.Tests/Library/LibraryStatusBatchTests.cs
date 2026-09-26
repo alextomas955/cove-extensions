@@ -219,7 +219,7 @@ public sealed class LibraryStatusBatchTests
             => throw new InvalidOperationException(
                 "The batch answered for this page, so no scene is read on its own.");
 
-        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        public Task<ScenesHeld> ReduceHeldScenesAsync(
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(
