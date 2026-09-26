@@ -14,7 +14,7 @@ public sealed partial class WhisparrSync
     // Null where the connected generation names a scene by a row of its own: it needs no site to
     // find one, so its entries are addressed without any of the resolution below.
     private Func<WhisparrEntityKind, int, EntityTreeFolder, CancellationToken,
-        Task<IReadOnlyDictionary<string, EntryAddress>>>? SupplyingEntries(
+        IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>>? SupplyingEntries(
             MonitoringTarget target, IServiceProvider services)
     {
         if (target.Reads is not IWhisparrSiteSceneReading rows
@@ -29,19 +29,25 @@ public sealed partial class WhisparrSync
         var links = services.GetRequiredService<ITreeLinkPort>();
         var catalogues = services.GetRequiredService<ProviderCatalogueSource>();
 
-        return async (kind, coveId, inTree, ct) =>
+        return AddressingAsync;
+
+        async IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>> AddressingAsync(
+            WhisparrEntityKind kind,
+            int coveId,
+            EntityTreeFolder inTree,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
         {
             var held = await ContainedAsync(
                 () => studios.ReadStudioAsync(inTree.RemoteId, ct), target, _log, ct)
                 .ConfigureAwait(false);
 
-            // Without the site's own row nothing in the folder can be addressed. Answering an empty
-            // map leaves every file to the instance's own reading of its name, which is what a
-            // folder of links carries none of.
+            // Without the site's own row nothing in the folder can be addressed. Handing over a
+            // chunk that addresses nothing leaves every file where it is, which is what a folder of
+            // links the instance parses nothing out of needs.
             if (held is null || MonitoringProjector.EntityIdIn(held.Body) is not { } siteRow)
             {
                 WhisparrSyncLog.TreeEntriesUnaddressable(_log, inTree.RemoteId);
-                return new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+                yield break;
             }
 
             var ports = new TreeEntryPorts(
@@ -54,14 +60,20 @@ public sealed partial class WhisparrSync
                 (identity, nameCt) => LinkNamesOfAsync(
                     library, links, generation, inTree, identity, nameCt));
 
-            var (byName, tally) = await TreeEntryPass
-                .AddressedAsync(ports, siteRow, ct).ConfigureAwait(false);
+            // Counters, never the chunks themselves: the line names how many scenes the pass
+            // reached, and an entity reaches the size of the library.
+            var tally = TreeEntryTally.Nothing;
+            await foreach (var batch in TreeEntryPass.AddressedAsync(ports, siteRow, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                tally = tally.Plus(batch.Tally);
+                yield return batch.ByName;
+            }
 
             WhisparrSyncLog.TreeEntriesAddressed(
                 _log, inTree.RemoteId, tally.Addressed, tally.Unnumbered, tally.Unresolved);
-
-            return byName;
-        };
+        }
     }
 
     // The name a scene's file carries in the entity's folder, computed from the file rather than

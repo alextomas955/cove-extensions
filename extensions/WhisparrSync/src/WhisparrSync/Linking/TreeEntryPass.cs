@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Linking;
@@ -29,16 +30,26 @@ internal sealed record TreeEntryPorts(
     Func<IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyDictionary<int, int>>> RowsFor,
     Func<string, CancellationToken, IAsyncEnumerable<string>> LinkNamesOf);
 
+/// <summary>One chunk of an entity's names, paired with the rows their files belong to.</summary>
+/// <remarks>
+/// The map is the chunk's own. The caller acts on it and lets it go, and the tally is that chunk's
+/// share of the pass's own figures.
+/// </remarks>
+internal readonly record struct TreeEntryBatch(
+    IReadOnlyDictionary<string, EntryAddress> ByName, TreeEntryTally Tally);
+
 /// <summary>
-/// Pairs the names in one entity's folder with the instance rows their files belong to.
+/// Pairs the names in one entity's folder with the instance rows their files belong to, a chunk at
+/// a time.
 /// </summary>
 /// <remarks>
 /// A link is named after the identity of the file it points at, so a name carries nothing an
 /// instance can parse a scene out of. This is what supplies that answer instead, for a generation
 /// that holds a scene as a row under a site.
 /// <para>
-/// Nothing here grows with the library. The scenes walked are the entity's own, the numbers held at
-/// once are one chunk, and each scene's names are paired and dropped as it is reached.
+/// An entity reaches the size of the library, so the pairs are handed over a chunk at a time and
+/// nothing is remembered across chunks. A name reached under two identifier spellings is carried in
+/// each chunk that reaches it.
 /// </para>
 /// </remarks>
 internal static class TreeEntryPass
@@ -48,18 +59,26 @@ internal static class TreeEntryPass
     // few numbers were asked about: a smaller chunk costs more of those whole-list reads.
     internal const int ChunkSize = 500;
 
-    internal static async Task<(IReadOnlyDictionary<string, EntryAddress> ByName, TreeEntryTally Tally)>
-        AddressedAsync(TreeEntryPorts ports, int siteRow, CancellationToken ct)
+    // A chunk whose every scene went unnumbered still carries that fact to the caller.
+    private static readonly IReadOnlyDictionary<string, EntryAddress> NoNames =
+        new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+
+    internal static IAsyncEnumerable<TreeEntryBatch> AddressedAsync(
+        TreeEntryPorts ports, int siteRow, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(ports);
         ArgumentOutOfRangeException.ThrowIfLessThan(siteRow, 1);
 
-        var byName = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
-        var tally = TreeEntryTally.Nothing;
+        return AddressingAsync(ports, siteRow, ct);
+    }
 
+    private static async IAsyncEnumerable<TreeEntryBatch> AddressingAsync(
+        TreeEntryPorts ports, int siteRow, [EnumeratorCancellation] CancellationToken ct)
+    {
         // One chunk's scenes, each with the names its files carry in the folder. The rows arrive
         // for the whole chunk at once, so a scene's names wait for its number to be answered.
         var chunk = new Dictionary<int, List<string>>();
+        var unnumbered = 0;
 
         await foreach (var identity in ports.OwnedScenes(ct).WithCancellation(ct).ConfigureAwait(false))
         {
@@ -67,11 +86,18 @@ internal static class TreeEntryPass
 
             if (await ports.NumberFor(identity, ct).ConfigureAwait(false) is not { } number)
             {
-                tally = tally with { Unnumbered = tally.Unnumbered + 1 };
+                unnumbered++;
                 continue;
             }
 
-            var names = new List<string>();
+            // Two identifiers for one scene are two spellings of one source, so their names join
+            // rather than replace: dropping the first would leave its files unaddressed.
+            if (!chunk.TryGetValue(number, out var names))
+            {
+                names = [];
+                chunk[number] = names;
+            }
+
             await foreach (var name in ports.LinkNamesOf(identity, ct)
                 .WithCancellation(ct)
                 .ConfigureAwait(false))
@@ -79,57 +105,60 @@ internal static class TreeEntryPass
                 names.Add(name);
             }
 
-            // Two identifiers for one scene are two spellings of one source, so their names join
-            // rather than replace: dropping the first would leave its files unaddressed.
-            if (chunk.TryGetValue(number, out var held))
-            {
-                held.AddRange(names);
-            }
-            else
-            {
-                chunk[number] = names;
-            }
-
             if (chunk.Count < ChunkSize)
             {
                 continue;
             }
 
-            tally = tally.Plus(await PairAsync().ConfigureAwait(false));
+            yield return await PairedAsync(ports, chunk, siteRow, unnumbered, ct)
+                .ConfigureAwait(false);
             chunk.Clear();
+            unnumbered = 0;
         }
 
-        if (chunk.Count > 0)
+        if (chunk.Count > 0 || unnumbered > 0)
         {
-            tally = tally.Plus(await PairAsync().ConfigureAwait(false));
+            yield return await PairedAsync(ports, chunk, siteRow, unnumbered, ct)
+                .ConfigureAwait(false);
+        }
+    }
+
+    // One chunk's numbers reduced to the rows the instance holds for them, and every name under a
+    // resolved number addressed to its row.
+    private static async Task<TreeEntryBatch> PairedAsync(
+        TreeEntryPorts ports,
+        Dictionary<int, List<string>> chunk,
+        int siteRow,
+        int scenesWithNoNumber,
+        CancellationToken ct)
+    {
+        var tally = TreeEntryTally.Nothing with { Unnumbered = scenesWithNoNumber };
+        if (chunk.Count == 0)
+        {
+            return new TreeEntryBatch(NoNames, tally);
         }
 
-        return (byName, tally);
+        var rows = await ports.RowsFor(chunk.Keys, ct).ConfigureAwait(false);
+        var byName = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
 
-        async Task<TreeEntryTally> PairAsync()
+        foreach (var (number, names) in chunk)
         {
-            var rows = await ports.RowsFor(chunk.Keys, ct).ConfigureAwait(false);
-            var paired = TreeEntryTally.Nothing;
+            ct.ThrowIfCancellationRequested();
 
-            foreach (var (number, names) in chunk)
+            if (!rows.TryGetValue(number, out var row))
             {
-                ct.ThrowIfCancellationRequested();
-
-                if (!rows.TryGetValue(number, out var row))
-                {
-                    paired = paired with { Unresolved = paired.Unresolved + 1 };
-                    continue;
-                }
-
-                foreach (var name in names)
-                {
-                    byName[name] = new EntryAddress(row, siteRow);
-                }
-
-                paired = paired with { Addressed = paired.Addressed + 1 };
+                tally = tally with { Unresolved = tally.Unresolved + 1 };
+                continue;
             }
 
-            return paired;
+            foreach (var name in names)
+            {
+                byName[name] = new EntryAddress(row, siteRow);
+            }
+
+            tally = tally with { Addressed = tally.Addressed + 1 };
         }
+
+        return new TreeEntryBatch(byName, tally);
     }
 }

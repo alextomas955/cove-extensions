@@ -32,7 +32,7 @@ public class TreeEntryPassTests
     [Fact]
     public async Task EveryNameOfAnAddressedSceneCarriesThatScenesRowAndTheSite()
     {
-        var (byName, tally) = await TreeEntryPass.AddressedAsync(
+        var (byName, tally) = await Addressed(
             Ports(
                 ["scene-a"],
                 new Dictionary<string, int> { ["scene-a"] = 900 },
@@ -55,7 +55,7 @@ public class TreeEntryPassTests
     [Fact]
     public async Task ASceneWithNoNumberAndOneWithNoRowAreCountedApart()
     {
-        var (byName, tally) = await TreeEntryPass.AddressedAsync(
+        var (byName, tally) = await Addressed(
             Ports(
                 ["numbered-and-held", "unnumbered", "numbered-not-held"],
                 new Dictionary<string, int>
@@ -82,7 +82,7 @@ public class TreeEntryPassTests
     [Fact]
     public async Task TwoIdentifiersResolvingToOneNumberKeepBothTheirNames()
     {
-        var (byName, _) = await TreeEntryPass.AddressedAsync(
+        var (byName, _) = await Addressed(
             Ports(
                 ["spelling-one", "spelling-two"],
                 new Dictionary<string, int> { ["spelling-one"] = 900, ["spelling-two"] = 900 },
@@ -99,16 +99,18 @@ public class TreeEntryPassTests
     }
 
     // The instance answers its whole list however few numbers are asked about, so what is bounded
-    // is what the pass holds at once, not how many scenes it reaches.
+    // is what the pass holds at once, not how many scenes it reaches. An entity reaches the size of
+    // the library, so no chunk may hold more than a chunk and none may be held after it is handed
+    // over.
     [Fact]
-    public async Task MoreScenesThanOneChunkAreAskedAboutInSeveralReads()
+    public async Task MoreScenesThanOneChunkAreHandedOverAChunkAtATimeAndNeverAsOne()
     {
         var scenes = Enumerable.Range(1, TreeEntryPass.ChunkSize + 3)
             .Select(number => $"scene-{number}")
             .ToArray();
         var asked = new List<IReadOnlyCollection<int>>();
 
-        var (byName, tally) = await TreeEntryPass.AddressedAsync(
+        var batches = await Batches(
             Ports(
                 scenes,
                 scenes.Select((identity, index) => (identity, index))
@@ -124,8 +126,9 @@ public class TreeEntryPassTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal([TreeEntryPass.ChunkSize, 3], asked.Select(chunk => chunk.Count));
-        Assert.Equal(scenes.Length, tally.Addressed);
-        Assert.Equal(scenes.Length, byName.Count);
+        Assert.Equal(
+            [TreeEntryPass.ChunkSize, 3], batches.Select(batch => batch.ByName.Count));
+        Assert.Equal(scenes.Length, batches.Sum(batch => batch.Tally.Addressed));
     }
 
     [Fact]
@@ -133,14 +136,47 @@ public class TreeEntryPassTests
     {
         var asked = new List<IReadOnlyCollection<int>>();
 
-        var (byName, tally) = await TreeEntryPass.AddressedAsync(
+        var batches = await Batches(
             Ports([], new Dictionary<string, int>(), new Dictionary<int, int>(),
                 new Dictionary<string, IReadOnlyList<string>>(), asked),
             SiteRow,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(asked);
-        Assert.Empty(byName);
-        Assert.Equal(TreeEntryTally.Nothing, tally);
+        Assert.Empty(batches);
+    }
+
+    private static async Task<List<TreeEntryBatch>> Batches(
+        TreeEntryPorts ports, int siteRow, CancellationToken ct)
+    {
+        var batches = new List<TreeEntryBatch>();
+        await foreach (var batch in TreeEntryPass.AddressedAsync(ports, siteRow, ct)
+            .WithCancellation(ct)
+            .ConfigureAwait(false))
+        {
+            batches.Add(batch);
+        }
+
+        return batches;
+    }
+
+    // The pass hands over a chunk at a time. These cases are about what it pairs rather than about
+    // how it is delivered, so the chunks are folded back into one answer here.
+    private static async Task<(Dictionary<string, EntryAddress> ByName, TreeEntryTally Tally)>
+        Addressed(TreeEntryPorts ports, int siteRow, CancellationToken ct)
+    {
+        var byName = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+        var tally = TreeEntryTally.Nothing;
+        foreach (var batch in await Batches(ports, siteRow, ct).ConfigureAwait(false))
+        {
+            foreach (var (name, address) in batch.ByName)
+            {
+                byName[name] = address;
+            }
+
+            tally = tally.Plus(batch.Tally);
+        }
+
+        return (byName, tally);
     }
 }

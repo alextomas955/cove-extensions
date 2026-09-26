@@ -29,7 +29,7 @@ internal sealed record ReflectOwnedAiming(
         Task<IReadOnlyDictionary<string, RegisteredScene>>>? Identify = null,
     Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadFile = null,
     Func<WhisparrEntityKind, int, EntityTreeFolder, CancellationToken,
-        Task<IReadOnlyDictionary<string, EntryAddress>>>? SupplyEntries = null);
+        IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>>? SupplyEntries = null);
 
 /// <summary>One entity's own folder in the tree, and the library root the tree sits under.</summary>
 /// <remarks>
@@ -215,7 +215,7 @@ public static class ReflectOwnedJob
             ? (string _, CancellationToken identifyCt)
                 => supply(kind, coveId, inTree, identifyCt)
             : (Func<string, CancellationToken,
-                Task<IReadOnlyDictionary<string, EntryAddress>>>?)null;
+                IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>>?)null;
 
         return await ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
