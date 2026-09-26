@@ -114,6 +114,13 @@ public interface ICoveLibraryPort
     /// </returns>
     Task<HeldFile?> HeldFileAtAsync(string path, CancellationToken ct);
 
+    /// <summary>Where the library keeps the file <paramref name="videoId"/> holds.</summary>
+    /// <returns>
+    /// Null where the item holds no file. One row whatever the item holds, ordered by path, so two
+    /// readings of one item answer the same file.
+    /// </returns>
+    Task<string?> HeldFilePathOfAsync(int videoId, CancellationToken ct);
+
     /// <summary>
     /// Clears the video key on every file row of <paramref name="videoId"/> except the row at
     /// <paramref name="keptPath"/>.
