@@ -62,7 +62,15 @@ const GENERATIONS = {
     identityEndpoint: STASHDB_ENDPOINT,
     storedKey: "V3",
 
+    // What the folder at the top of a library root holding this generation's tree is called.
+    // Transcribed rather than imported: a spec reading it off the product would find whatever the
+    // product built, wherever it built it.
+    treeFolder: ".wsync-v3",
+
     ownedFileRows: (api, entryId) => listRows(api, `/api/v3/moviefile?movieId=${String(entryId)}`),
+
+    entryPath: async (api, entryId) =>
+      (await api.get(`/api/v3/movie/${String(entryId)}`)).json?.path,
 
     // The entry's own account of what it holds is the size it reports on disk. This build's
     // catalogue resource carries no held-a-file flag, and a size it reports is a read of the file
@@ -90,10 +98,14 @@ const GENERATIONS = {
 
   v2: {
     identityEndpoint: THEPORNDB_ENDPOINT,
+    treeFolder: ".wsync-v2",
     storedKey: "V2",
 
     ownedFileRows: (api, entryId) =>
       listRows(api, `/api/v3/episodefile?seriesId=${String(entryId)}`),
+
+    entryPath: async (api, entryId) =>
+      (await api.get(`/api/v3/series/${String(entryId)}`)).json?.path,
 
     // A scene is an episode of a site here, so the entry a file attaches to is one of the rows the
     // site holds rather than the site itself.
@@ -135,6 +147,12 @@ export function adapterFor(generation) {
   return {
     /** The source this generation stamps an imported item's identity under. */
     identityEndpoint: own.identityEndpoint,
+
+    /** What this generation's tree at the top of a library root is called. */
+    treeFolder: own.treeFolder,
+
+    /** Where the instance itself says it keeps the entity, read off its own row. */
+    entryPath: (api, entryId) => own.entryPath(api, entryId),
 
     /** The scene identifier the captured delivery for this generation names. */
     deliveredIdentity: deliveredRemoteId(generation),
