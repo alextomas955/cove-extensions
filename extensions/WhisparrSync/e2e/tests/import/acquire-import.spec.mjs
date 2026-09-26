@@ -25,8 +25,20 @@
 // /shared/media is added as a Cove library path because it names the same directory as Whisparr's own
 // root.
 //
+// WHERE THE DOWNLOAD LANDS, and why it must not stay there. The entry is registered at the folder
+// this extension keeps for it, so Whisparr imports the completed download into that folder, which is
+// inside the tree. The tree is invisible to Cove's own scan by design, so an item whose only file
+// sits there is outside the reader's layout and beyond anything a rescan would find again. The
+// extension gives the same bytes a second name under the library root and registers that one.
+//
+// WHY BOTH PRODUCTS ARE GIVEN THE ROOT. Whisparr owns what it downloads and Cove makes the second
+// name, so both write the same directory. The fixture hands the volume to the instance's user, which
+// leaves Cove unable to create anything and the placement refused for a reason that has nothing to
+// do with the product.
+//
 // IF THIS GOES RED, read the diagnostics it prints before failing. They name which link broke: the
-// indexer answering, the engine downloading, Whisparr importing, or Cove opening.
+// indexer answering, the engine downloading, Whisparr importing, the extension placing, or Cove
+// opening.
 import { WHISPARR_APP_USER, WHISPARR_DATA_MOUNT } from "@cove-extensions/e2e/whisparr";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { addCoveLibraryRoot } from "@cove-extensions/e2e/seed-media";
@@ -35,6 +47,7 @@ import { provisionAcquirePipeline, seedAcquirableScene } from "../../lib/acquire
 import { cleanupStack, expect, extensionRoute, test } from "../../lib/connected-fixture.mjs";
 import { startFakeIndexer } from "../../lib/fake-indexer.mjs";
 import { startQBittorrent } from "../../lib/qbittorrent-container.mjs";
+import { identityOf, sharedBetweenBothProducts } from "../../lib/tree-steps.mjs";
 
 const SPEC_BUDGET_MS = 1_800_000;
 
@@ -88,6 +101,7 @@ for (const generation of ["v3", "v2"]) {
     }) => {
       const { adapter, api, instance, run, whisparr } = connected;
       const container = whisparr[generation].container;
+      const cove = isolatedCove.container;
 
       // The indexer and the engine hold endpoints on the installation's network, so they stop
       // before it does: this stack unwinds when the body leaves, and the fixture's own unwinds
@@ -124,20 +138,30 @@ for (const generation of ["v3", "v2"]) {
           `the callback did not register: ${registered.status} ${registered.text?.slice(0, 300)}`,
         ).toBe("registered");
 
+        // The tree, made before the entry is moved into it: the instance refuses a root folder that
+        // is not there, and a folder the instance cannot write is an import that reports success and
+        // attaches no file.
+        const treeRoot = `${WHISPARR_ROOT}/${adapter.treeFolder}`;
+        await container.exec(["mkdir", "-p", treeRoot], { user: "root" });
+        await container.exec(["chown", "-R", WHISPARR_APP_USER, WHISPARR_DATA_MOUNT], {
+          user: "root",
+        });
+
         const target = await seedAcquirableScene({
           generation,
           whisparr,
           rootFolder: WHISPARR_ROOT,
+          treeRoot,
           run,
         });
 
-        // The folder the catalogue row names, which the seed writes as a column and nothing creates.
-        // Whisparr imports into it, and a destination that is missing or root-owned gives an import
-        // that reports success and attaches no file.
+        // The folder the catalogue row names, which is a column and not a directory until now.
         await container.exec(["mkdir", "-p", target.folder], { user: "root" });
         await container.exec(["chown", "-R", WHISPARR_APP_USER, WHISPARR_DATA_MOUNT], {
           user: "root",
         });
+        // After the ownership pass, which would otherwise take the root back off Cove.
+        await sharedBetweenBothProducts(isolatedCove.container, COVE_ROOT);
 
         // Cove is deliberately left holding nothing for this scene, so a video it holds at the end
         // can only have come from the file it opened.
@@ -145,6 +169,15 @@ for (const generation of ["v3", "v2"]) {
           await videoFilePaths(api),
           "Cove already held a video before anything was downloaded",
         ).toEqual([]);
+
+        // The premise of everything below: the instance imports a completed download under the
+        // folder its entry names, so an entry that is no longer in the tree measures the ordinary
+        // import path and says nothing about a placement. Under the tree rather than at one exact
+        // folder, because one generation composes a folder of its own below the root it is given.
+        expect(
+          await adapter.entryPath(instance, target.entryId),
+          "the instance no longer holds the entry inside the tree",
+        ).toContain(`/${adapter.treeFolder}/`);
 
         // The interactive release list, then a grab of one row from it. The automatic search is not
         // used: it applies match and quality gates a synthetic release cannot satisfy, and reports
@@ -249,9 +282,12 @@ for (const generation of ["v3", "v2"]) {
           `Whisparr reports no file for the catalogue entry: ${JSON.stringify(importedRows).slice(0, 300)}`,
         ).toBeDefined();
 
-        // The same file as Cove reaches it. Composed here rather than read back from the extension,
-        // so this is an expectation and not a restatement of whatever it happened to resolve.
-        const expectedCovePath = whisparrPath.replace(WHISPARR_DATA_MOUNT, COVE_SHARED);
+        // The two names the same bytes end up under, composed here rather than read back from the
+        // extension, so these are expectations and not restatements of whatever it resolved to. The
+        // first is the tree path the instance goes on recording; the second is where the reader
+        // keeps their files, which is the top of the library root the tree sits under.
+        const arrivalAsCoveReachesIt = whisparrPath.replace(WHISPARR_DATA_MOUNT, COVE_SHARED);
+        const expectedCovePath = `${COVE_ROOT}/${arrivalAsCoveReachesIt.split("/").pop()}`;
 
         // The claim this spec exists for. Whisparr raised its own notification, Cove received it,
         // resolved the path it named under a library root of its own, and opened the file that was
@@ -271,9 +307,33 @@ for (const generation of ["v3", "v2"]) {
             held.length,
             `Cove holds more than the one imported file: ${held.join(", ")}`,
           ).toBe(1);
-          expect(held[0], "Cove registered a file other than the one Whisparr imported").toBe(
+          expect(held[0], "Cove registered a file other than the one it placed").toBe(
             expectedCovePath,
           );
+          expect(
+            held[0],
+            "Cove registered the file inside the tree, where no rescan would find it again",
+          ).not.toContain(`/${adapter.treeFolder}/`);
+
+          // One file under two names. The instance goes on recording the arrival where it put it,
+          // so that name has to still be there, and a second copy of the bytes would read as a
+          // different file rather than as a second name for this one.
+          const arrival = await identityOf(cove, arrivalAsCoveReachesIt);
+          const placed = await identityOf(cove, held[0]);
+          expect(
+            arrival,
+            `the path the instance recorded resolves to nothing: ${arrivalAsCoveReachesIt}`,
+          ).not.toBeNull();
+          expect(
+            { device: placed?.device, number: placed?.number },
+            "the file Cove registered is a different file from the one Whisparr imported, so the bytes were copied",
+          ).toEqual({ device: arrival?.device, number: arrival?.number });
+          // At least two, because the download client's own name for the completed download is
+          // still there: the instance's import is itself a hard link.
+          expect(
+            placed?.names,
+            "the download carries one name, so the placement replaced a name rather than adding one",
+          ).toBeGreaterThanOrEqual(2);
 
           // Tied to the delivery, not merely to the file being there. Cove scans its own library
           // paths, so a video at that path is on its own consistent with a scan having found it and
@@ -304,6 +364,18 @@ for (const generation of ["v3", "v2"]) {
           ]);
           console.error("ACQUIRE DIAGNOSTIC files:", where.output.trim());
           console.error("ACQUIRE DIAGNOSTIC imported path:", whisparrPath);
+
+          // The two links this journey added: the arrival as Cove reaches it, and the name the
+          // placement was to make. A null on the first is an import that landed somewhere else; a
+          // null on the second with the first there is a placement that was refused.
+          console.error(
+            "ACQUIRE DIAGNOSTIC placement:",
+            JSON.stringify({
+              registeredAt: await adapter.entryPath(instance, target.entryId),
+              arrival: await identityOf(cove, arrivalAsCoveReachesIt),
+              placed: await identityOf(cove, expectedCovePath),
+            }),
+          );
 
           const owners = await container.exec([
             "sh",
