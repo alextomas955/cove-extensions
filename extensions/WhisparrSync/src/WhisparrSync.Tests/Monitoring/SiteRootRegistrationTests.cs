@@ -81,7 +81,7 @@ public sealed class SiteRootRegistrationTests
             sent => sent.Method == HttpMethod.Post
                 && sent.Path.EndsWith("/series", StringComparison.Ordinal));
         Assert.Contains(
-            "0 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
+            "0 sites registered", progress.Summaries[^1], StringComparison.Ordinal);
     }
 
     // The read is what decides whether the site is already there, and a site already there has its
@@ -100,7 +100,7 @@ public sealed class SiteRootRegistrationTests
                 && sent.Path.EndsWith("/series/lookup", StringComparison.Ordinal));
         Assert.Contains(
             "1 with no agreed root",
-            Assert.Single(progress.Summaries),
+            progress.Summaries[^1],
             StringComparison.Ordinal);
     }
 

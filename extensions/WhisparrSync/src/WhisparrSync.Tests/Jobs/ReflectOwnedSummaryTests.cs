@@ -4,7 +4,7 @@ using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Tests.Jobs;
 
-// A run that reached the instance for nothing has both counts at zero, and "0 linked, 0 refused."
+// A run that reached the instance for nothing has both counts at zero, and "0 recorded by Whisparr, 0 refused."
 // reads as a clean pass over every folder. This line is the only place the run is reported, so the
 // reason has to be in it. Every expected sentence is transcribed by hand: one composed from the
 // member under test would agree with a sentence that changed underneath it.
@@ -25,7 +25,7 @@ public sealed class ReflectOwnedSummaryTests
             Run(0, 0, Refused(FolderAgreementRefusal.NothingResolved)));
 
         Assert.Equal(Under + "Whisparr holds nothing at " + Tried + ".", line);
-        Assert.DoesNotContain("0 linked", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("0 recorded", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -35,12 +35,12 @@ public sealed class ReflectOwnedSummaryTests
             Run(2, 1, Refused(FolderAgreementRefusal.NothingResolved)));
 
         Assert.Equal(
-            "2 linked, 1 refused. " + Under + "Whisparr holds nothing at " + Tried + ".", line);
+            "2 recorded by Whisparr, 1 refused. " + Under + "Whisparr holds nothing at " + Tried + ".", line);
     }
 
     [Fact]
     public void ARunThatAddressedEveryFolderKeepsItsCounts()
-        => Assert.Equal("0 linked, 0 refused.", ReflectOwnedJob.SummaryOf(Run(0, 0)));
+        => Assert.Equal("0 recorded by Whisparr, 0 refused.", ReflectOwnedJob.SummaryOf(Run(0, 0)));
 
     [Fact]
     public void ARunStoppedByTheInstancesLinkingSettingKeepsItsOwnSentence()
@@ -127,7 +127,7 @@ public sealed class ReflectOwnedSummaryTests
             new FolderAddressRefusal(
                 string.Empty, FolderAgreementRefusal.FolderUnderNoLibraryRoot, [])));
 
-        Assert.StartsWith("6,015 linked, 0 refused.", line, StringComparison.Ordinal);
+        Assert.StartsWith("6,015 recorded by Whisparr, 0 refused.", line, StringComparison.Ordinal);
         Assert.DoesNotContain("Nothing could be linked", line, StringComparison.Ordinal);
         Assert.Contains("Some folders were not linked", line, StringComparison.Ordinal);
     }
@@ -137,7 +137,7 @@ public sealed class ReflectOwnedSummaryTests
     [Fact]
     public void TheCountStatesFilesRatherThanTheFoldersTheyCameFrom()
         => Assert.StartsWith(
-            "2 linked,", ReflectOwnedJob.SummaryOf(Run(2, 0)), StringComparison.Ordinal);
+            "2 recorded by Whisparr,", ReflectOwnedJob.SummaryOf(Run(2, 0)), StringComparison.Ordinal);
 
     [Fact]
     public void ARunOnAnInstanceThatCannotBeAskedNamesNoLibraryRoot()
@@ -174,14 +174,14 @@ public sealed class ReflectOwnedSummaryTests
             "Some files were not linked: Whisparr holds their site under a different root from the "
                 + "files, and nothing was copied.",
             line);
-        Assert.DoesNotContain("0 linked", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("0 recorded", line, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ARunThatLinkedSomeAndLeftOthersUnderAnotherRootReportsBoth()
         => Assert.Equal(
-            "2 linked, 1 refused. Some files were not linked: Whisparr holds their site under a "
-                + "different root from the files, and nothing was copied.",
+            "2 recorded by Whisparr, 1 refused. Some files were not linked: Whisparr holds "
+                + "their site under a different root from the files, and nothing was copied.",
             ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(2, 1, 4)));
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class ReflectOwnedSummaryTests
     {
         var line = ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(0, 0, 0));
 
-        Assert.Equal("0 linked, 0 refused.", line);
+        Assert.Equal("0 recorded by Whisparr, 0 refused.", line);
         Assert.DoesNotContain("different root", line, StringComparison.Ordinal);
     }
 
@@ -215,22 +215,24 @@ public sealed class ReflectOwnedSummaryTests
     public void ARunStatesHowManyEntitiesGotAFolderAndHowManyFilesWereLinked()
     {
         var line = ReflectOwnedJob.SummaryOf(
-            Completed with { EntitiesGivenAFolder = 12, FilesAttached = 31 });
+            Completed with { EntitiesGivenAFolder = 12, LinksMade = 31, FilesAttached = 31 });
 
-        Assert.Equal("12 given a folder of their own, 31 linked, 0 refused.", line);
+        Assert.Equal(
+            "12 given a folder of their own, 31 linked, 31 recorded by Whisparr, 0 refused.",
+            line);
     }
 
     // A name taken back freed a file's bytes, so it is stated whatever else the run did.
     [Fact]
     public void ARunThatTookNamesBackSaysHowMany()
         => Assert.Equal(
-            "0 linked, 0 refused, 4 taken back.",
+            "0 recorded by Whisparr, 0 refused, 4 taken back.",
             ReflectOwnedJob.SummaryOf(Completed with { LinksRemoved = 4 }));
 
     [Fact]
     public void ARunThatLeftNamesWaitingSaysHowMany()
         => Assert.Equal(
-            "0 linked, 0 refused, 2 left until they settle.",
+            "0 recorded by Whisparr, 0 refused, 2 left until they settle.",
             ReflectOwnedJob.SummaryOf(Completed with { LinksWaiting = 2 }));
 
     // What was linked before the stop stays linked, so the line reports it and reads as stopped
@@ -243,10 +245,14 @@ public sealed class ReflectOwnedSummaryTests
             {
                 Outcome = ReflectOwnedRunOutcome.Cancelled,
                 EntitiesGivenAFolder = 1,
+                LinksMade = 2,
                 FilesAttached = 2,
             });
 
-        Assert.Equal("1 given a folder of their own, 2 linked, 0 refused, then stopped.", line);
+        Assert.Equal(
+            "1 given a folder of their own, 2 linked, 2 recorded by Whisparr, 0 refused, "
+                + "then stopped.",
+            line);
     }
 
     // One line per library root however many entities sat under it, and each root is named: which
@@ -271,13 +277,15 @@ public sealed class ReflectOwnedSummaryTests
             Completed with
             {
                 EntitiesGivenAFolder = 1,
+                LinksMade = 3,
                 FilesAttached = 3,
                 RootsWithNoTree = ["/data2"],
             });
 
         Assert.Equal(
-            "1 given a folder of their own, 3 linked, 0 refused. Nothing under /data2 was given a "
-                + "folder of its own: Cove could not write inside that library path.",
+            "1 given a folder of their own, 3 linked, 3 recorded by Whisparr, 0 refused. "
+                + "Nothing under /data2 was given a folder of its own: Cove could not write "
+                + "inside that library path.",
             line);
     }
 
@@ -286,10 +294,16 @@ public sealed class ReflectOwnedSummaryTests
     [Fact]
     public void ARunThatMetFilesOnAnotherDriveSaysSoAndSaysNothingWasCopied()
         => Assert.Equal(
-            "1 linked, 0 refused. Some files were not linked: they are not on the drive Cove keeps "
-                + "their entity's folder on, and nothing was copied.",
+            "1 linked, 1 recorded by Whisparr, 0 refused. Some files were not linked: they "
+                + "are not on the drive Cove keeps their entity's folder on, and nothing was "
+                + "copied.",
             ReflectOwnedJob.SummaryOf(
-                Completed with { FilesAttached = 1, LinksOnAnotherDevice = 2 }));
+                Completed with
+                {
+                    LinksMade = 1,
+                    FilesAttached = 1,
+                    LinksOnAnotherDevice = 2,
+                }));
 
     private static ReflectOwnedRun Completed { get; } =
         new(ReflectOwnedRunOutcome.Completed, 0, 0);

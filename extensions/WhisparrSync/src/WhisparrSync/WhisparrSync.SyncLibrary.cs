@@ -357,6 +357,10 @@ public sealed partial class WhisparrSync
             // every root under none and the ranking collapses.
             var ranked = await RankedRootsAsync(target, services, runCt).ConfigureAwait(false);
 
+            // One holder for the run, whichever pass it makes: both give entities a folder in the
+            // tree and take names back from it, and the line is composed from what it gathered.
+            var siteTally = new LinkTally();
+
             return SyncPassFor(target) switch
             {
                 // Scenes only: the generation that keeps them creates a scene's studio and
@@ -377,13 +381,14 @@ public sealed partial class WhisparrSync
                             RootOrder: ranked.Order,
                             OutOfReach: ranked.OutOfReach,
                             Tree: TreeFor(services, target.Binding.Generation),
-                            Sweep: SweepFor(services))
+                            Sweep: SweepFor(services),
+                            Tally: new LinkTally())
                         : null,
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
                 // so the monitor slot here marks those.
                 SyncRegisters.Sites =>
-                    await ComposeSiteRegistrationAsync(services, readings, runCt)
+                    await ComposeSiteRegistrationAsync(services, readings, siteTally, runCt)
                             .ConfigureAwait(false)
                         is { } registerSite
                         ? new SyncLibraryAiming(
@@ -393,7 +398,8 @@ public sealed partial class WhisparrSync
                             registerSite,
                             Monitor: null,
                             ComposeSiteSceneMonitor(services, batch, target),
-                            Sweep: SweepFor(services))
+                            Sweep: SweepFor(services),
+                            Tally: siteTally)
                         : null,
 
                 _ => null,
@@ -438,6 +444,7 @@ public sealed partial class WhisparrSync
         ComposeSiteRegistrationAsync(
             IServiceProvider services,
             ConcurrentDictionary<string, AddressedFolder> readings,
+            LinkTally tally,
             CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
@@ -490,7 +497,8 @@ public sealed partial class WhisparrSync
             target.Binding.Generation,
             files,
             agreedRoot,
-            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()));
+            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()),
+            tally);
 
         return async (site, siteCt) =>
         {
@@ -566,7 +574,8 @@ public sealed partial class WhisparrSync
         WhisparrGeneration Generation,
         IEntityFolderPort Files,
         Func<string, CancellationToken, Task<AddressedFolder>> AgreedRoot,
-        TreeReconcileStep Tree);
+        TreeReconcileStep Tree,
+        LinkTally Tally);
 
     // The root and the folder one site is registered at, with the folder built before it is sent.
     //
@@ -583,7 +592,7 @@ public sealed partial class WhisparrSync
         LibrarySiteIdentity site,
         CancellationToken ct)
     {
-        var (coveRoots, generation, files, agreedRoot, tree) = placing;
+        var (coveRoots, generation, files, agreedRoot, tree, tally) = placing;
         var composed = await EntityAddDefaults.ComposeAsync(
             composeWith,
             coveRoots,
@@ -606,6 +615,8 @@ public sealed partial class WhisparrSync
             site.RemoteId,
             files.FilePathsUnder(WhisparrEntityKind.Studio, site.StudioId, chosen, ct),
             ct).ConfigureAwait(false);
+
+        tally.Add(SyncLibraryJob.ReportedBuild(built, chosen));
 
         return built.EntityFolder is null
             ? composed with { Defaults = wanted with { EntityFolderPath = null } }

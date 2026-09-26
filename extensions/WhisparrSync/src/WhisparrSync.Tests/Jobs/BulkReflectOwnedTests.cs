@@ -148,7 +148,7 @@ public sealed class BulkReflectOwnedTests
         await host.PostBulkAsync(MonitorBody(seeded.Ids));
         await host.RunEnqueuedBatchAsync(progress);
 
-        Assert.Equal((1d, "3 applied, 0 refused. 3 linked, 0 refused."), Assert.Single(progress.Reports));
+        Assert.Equal((1d, "3 applied, 0 refused. 3 recorded by Whisparr, 0 refused."), Assert.Single(progress.Reports));
     }
 
     [Fact]
