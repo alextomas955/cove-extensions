@@ -376,7 +376,8 @@ public sealed partial class WhisparrSync
                                 .ConfigureAwait(false),
                             RootOrder: ranked.Order,
                             OutOfReach: ranked.OutOfReach,
-                            Tree: TreeFor(services, target.Binding.Generation))
+                            Tree: TreeFor(services, target.Binding.Generation),
+                            Sweep: SweepFor(services))
                         : null,
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
@@ -391,7 +392,8 @@ public sealed partial class WhisparrSync
                             RegisterScene: null,
                             registerSite,
                             Monitor: null,
-                            ComposeSiteSceneMonitor(services, batch, target))
+                            ComposeSiteSceneMonitor(services, batch, target),
+                            Sweep: SweepFor(services))
                         : null,
 
                 _ => null,
@@ -408,6 +410,13 @@ public sealed partial class WhisparrSync
         => SyncRegistration.Offered(
             await register(identity, placement, ct).ConfigureAwait(false));
 
+    // Both passes take one, because both build folders in a tree and the names in one have to be
+    // taken back whichever pass wrote them.
+    private static TreeSweepStep SweepFor(IServiceProvider services)
+        => new(
+            services.GetRequiredService<ITreeLinkPort>(),
+            services.GetRequiredService<TimeProvider>());
+
     // Resolved out of the run's elevated services, and one step per run: it remembers which library
     // roots it has already written the host's ignore file at, so a run over a library of scenes
     // writes one per root rather than one per scene.
@@ -418,7 +427,7 @@ public sealed partial class WhisparrSync
 
         return new TreeAiming(
             services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
-            new TreeReconcileStep(links, services.GetRequiredService<TimeProvider>()),
+            new TreeReconcileStep(links),
             links,
             (remoteId, coveRoot, ct) =>
                 identities.SceneFilePathsUnder(remoteId, generation, coveRoot, ct));
@@ -481,9 +490,7 @@ public sealed partial class WhisparrSync
             target.Binding.Generation,
             files,
             agreedRoot,
-            new TreeReconcileStep(
-                services.GetRequiredService<ITreeLinkPort>(),
-                services.GetRequiredService<TimeProvider>()));
+            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()));
 
         return async (site, siteCt) =>
         {

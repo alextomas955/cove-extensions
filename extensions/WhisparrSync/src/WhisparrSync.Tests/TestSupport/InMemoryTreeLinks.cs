@@ -15,6 +15,7 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
     private readonly Dictionary<string, string> _links = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _folders = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _ignoreFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The tree roots an ignore file was written at, and what it says.</summary>
     internal IReadOnlyDictionary<string, string> IgnoreFiles => _ignoreFiles;
@@ -22,12 +23,19 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
     /// <summary>Every name this run put in a tree, against the file it points at.</summary>
     internal IReadOnlyDictionary<string, string> Links => _links;
 
+    /// <summary>Takes the library's own name for <paramref name="path"/> away.</summary>
+    /// <remarks>
+    /// What a reader deleting a file leaves behind: a link in the tree is then the only name the
+    /// file has, which is the one state a name may be taken back in.
+    /// </remarks>
+    internal void Forget(string path) => _deleted.Add(PathCandidateGuard.Normalize(path));
+
     public ProbedLink? Identify(string path)
     {
         var spelled = PathCandidateGuard.Normalize(path);
         if (_links.TryGetValue(spelled, out var pointsAt))
         {
-            return Reading(pointsAt, names: 2);
+            return Reading(pointsAt, _deleted.Contains(pointsAt) ? 1 : 2);
         }
 
         return InATree(spelled) ? null : Reading(spelled, names: 1);
@@ -71,6 +79,21 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
             .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(path => path[prefix.Length..])
             .Where(name => !name.Contains('/', StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)];
+    }
+
+    public IEnumerable<string> FoldersIn(string folder)
+    {
+        var prefix = PathCandidateGuard.Normalize(folder).TrimEnd('/') + "/";
+
+        return [.. _folders
+            .Concat(_links.Keys)
+            .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(path => path[prefix.Length..])
+            .Where(tail => tail.Contains('/', StringComparison.Ordinal)
+                || _folders.Contains(prefix + tail))
+            .Select(tail => tail.Split('/', 2)[0])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.Ordinal)];
     }
 

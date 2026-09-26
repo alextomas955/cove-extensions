@@ -70,7 +70,12 @@ internal sealed record ReflectOwnedRun(
     // Names in an entity's own folder that this product did not put there, which it therefore
     // leaves alone. A count rather than a list: a reader is told the folder holds them and the log
     // carries the rest.
-    int NamesNotComposedHere = 0)
+    int NamesNotComposedHere = 0,
+    // Names this product wrote and has taken back, because no library file answers to them any
+    // more. Each one freed a file's bytes, so a reader is told the figure whatever else the run did.
+    int LinksRemoved = 0,
+    // Names whose file changed too recently to decide about, left where they are for the next run.
+    int LinksWaiting = 0)
 {
     // Folds one folder's run into the total a library-wide walk carries. The counts add; the two
     // lists are unioned, because each names a library root and an operator creates those by hand,
@@ -91,7 +96,9 @@ internal sealed record ReflectOwnedRun(
             RootsCouldNotBeRead || other.RootsCouldNotBeRead,
             FilesAttached + other.FilesAttached,
             FilesWithoutAnEntry + other.FilesWithoutAnEntry,
-            NamesNotComposedHere + other.NamesNotComposedHere);
+            NamesNotComposedHere + other.NamesNotComposedHere,
+            LinksRemoved + other.LinksRemoved,
+            LinksWaiting + other.LinksWaiting);
     }
 
     private static IReadOnlyList<T>? Union<T>(

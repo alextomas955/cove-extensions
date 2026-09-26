@@ -43,7 +43,7 @@ public sealed class TreeLinkRemovalGuardTests
             EntityFolder,
             EntityFolder + "/Studio.Name.-.2025-01-01.-.Scene.XXX.1080p.WEBDL.mp4",
             Read(names: 1),
-            libraryFilesReadToTheEnd: true,
+            libraryReadToTheEnd: true,
             Now);
 
         Assert.False(verdict.Removable);
@@ -69,7 +69,7 @@ public sealed class TreeLinkRemovalGuardTests
     public void ANameThatIsNotDirectlyInsideTheEntitysFolderIsKept(string path)
     {
         var verdict = TreeLinkRemovalGuard.Decide(
-            EntityFolder, path, Read(names: 1), libraryFilesReadToTheEnd: true, Now);
+            EntityFolder, path, Read(names: 1), libraryReadToTheEnd: true, Now);
 
         Assert.False(verdict.Removable);
         Assert.Equal(TreeNameKept.OutsideTheEntityFolder, verdict.Kept);
@@ -87,7 +87,7 @@ public sealed class TreeLinkRemovalGuardTests
             EntityFolder,
             TreePathGuard.LinkPathIn(beside, Identity, LibraryFile)!,
             Read(names: 1),
-            libraryFilesReadToTheEnd: true,
+            libraryReadToTheEnd: true,
             Now);
 
         Assert.False(verdict.Removable);
@@ -100,10 +100,10 @@ public sealed class TreeLinkRemovalGuardTests
     public void NothingIsRemovedWhereTheEntitysLibraryFilesWereNotReadToTheEnd()
     {
         var verdict = TreeLinkRemovalGuard.Decide(
-            EntityFolder, ComposedName, Read(names: 1), libraryFilesReadToTheEnd: false, Now);
+            EntityFolder, ComposedName, Read(names: 1), libraryReadToTheEnd: false, Now);
 
         Assert.False(verdict.Removable);
-        Assert.Equal(TreeNameKept.LibraryFilesNotReadToTheEnd, verdict.Kept);
+        Assert.Equal(TreeNameKept.LibraryNotReadToTheEnd, verdict.Kept);
     }
 
     [Fact]
@@ -136,5 +136,5 @@ public sealed class TreeLinkRemovalGuardTests
 
     private static TreeNameVerdict Decide(ProbedLink? read)
         => TreeLinkRemovalGuard.Decide(
-            EntityFolder, ComposedName, read, libraryFilesReadToTheEnd: true, Now);
+            EntityFolder, ComposedName, read, libraryReadToTheEnd: true, Now);
 }

@@ -86,7 +86,14 @@ internal sealed partial class TreeLinkPort : ITreeLinkPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
 
-        return Streamed(folder);
+        return Streamed(() => Directory.EnumerateFileSystemEntries(folder));
+    }
+
+    public IEnumerable<string> FoldersIn(string folder)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+
+        return Streamed(() => Directory.EnumerateDirectories(folder));
     }
 
     public NameRemoval Remove(string treeRoot, string path)
@@ -145,9 +152,9 @@ internal sealed partial class TreeLinkPort : ITreeLinkPort
     // A folder that cannot be read raises at the call that opens the walk, and one that goes away
     // part way through raises on a later step, so both are caught. Ending the stream answers what
     // an absent folder answers, which is what every caller here acts on.
-    private static IEnumerable<string> Streamed(string folder)
+    private static IEnumerable<string> Streamed(Func<IEnumerable<string>> entries)
     {
-        var walk = Opened(folder);
+        var walk = Opened(entries);
         if (walk is null)
         {
             yield break;
@@ -162,11 +169,11 @@ internal sealed partial class TreeLinkPort : ITreeLinkPort
         }
     }
 
-    private static IEnumerator<string>? Opened(string folder)
+    private static IEnumerator<string>? Opened(Func<IEnumerable<string>> entries)
     {
         try
         {
-            return Directory.EnumerateFileSystemEntries(folder).GetEnumerator();
+            return entries().GetEnumerator();
         }
         catch (Exception ex) when (Unreadable(ex))
         {

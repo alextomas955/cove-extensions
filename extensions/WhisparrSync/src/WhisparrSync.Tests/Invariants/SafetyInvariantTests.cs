@@ -310,7 +310,7 @@ public sealed class SafetyInvariantTests
         Assert.NotEmpty(slice);
 
         Assert.Equal(
-            ["TreeReconcileStep.cs"],
+            ["TreeSweepStep.cs"],
             slice
                 .Where(source => source.Text.Contains(".Remove(", StringComparison.Ordinal))
                 .Select(source => source.Name)
@@ -319,7 +319,7 @@ public sealed class SafetyInvariantTests
 
         Assert.Contains(
             nameof(TreeLinkRemovalGuard) + "." + nameof(TreeLinkRemovalGuard.Decide),
-            slice.Single(source => source.Name == "TreeReconcileStep.cs").Text,
+            slice.Single(source => source.Name == "TreeSweepStep.cs").Text,
             StringComparison.Ordinal);
     }
 
