@@ -102,6 +102,14 @@ export const REFLECT_OWNED_SKIPPED =
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
   "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
 
+/** Why nothing was linked. Names where to turn renaming off, because that is what changes the answer. */
+export const REFLECT_OWNED_SKIPPED_RENAMING_ON =
+  "Skipped: Whisparr is set to rename files, and linking works only while Whisparr leaves a file where it found it. Turn renaming off in Whisparr's Settings, Media Management.";
+
+/** Why nothing was linked when the rename setting itself could not be read. */
+export const REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE =
+  "Skipped: Cove could not read Whisparr's rename setting, so it could not establish that Whisparr would leave these files where they are.";
+
 /**
  * The same scene tab control once the instance monitors the scene. Named for what it does, not for
  * the flag it writes.
