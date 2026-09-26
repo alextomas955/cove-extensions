@@ -514,6 +514,11 @@ public static class ReflectOwnedJob
                 => "No files were linked: Whisparr's hard-link setting is off.",
             ReflectOwnedSkipReason.HardLinkSettingUnreadable
                 => "No files were linked: Whisparr's hard-link setting could not be read.",
+            ReflectOwnedSkipReason.RenamingOn
+                => "No files were linked: Whisparr is set to rename files. Turn renaming off in "
+                    + "Whisparr's Settings, Media Management.",
+            ReflectOwnedSkipReason.RenameSettingUnreadable
+                => "No files were linked: Whisparr's rename setting could not be read.",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(reason),
                 reason,
