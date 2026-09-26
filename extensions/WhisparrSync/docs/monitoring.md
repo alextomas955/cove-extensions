@@ -108,8 +108,8 @@ Once Whisparr monitors the entity, three more items appear in the menu, in the o
 the three is the only thing in Whisparr Sync that downloads, and it says so on its own row.
 
 **A refused press states its reason beneath the control.** Nothing is sent, nothing is changed and
-no background job starts. A press of **Reflect owned** that skips because of Whisparr's hard-link
-setting states its own reason in the same place. See [What a refused press states](#what-a-refused-press-states).
+no background job starts. A press of **Reflect owned** that skips because of one of the two Whisparr
+settings it reads states its own reason in the same place. See [What a refused press states](#what-a-refused-press-states).
 
 ### Add all missing
 
@@ -141,38 +141,37 @@ disabled there and says so.
 
 ### Reflect owned
 
-Whisparr links each file you already own into its scene's folder. This costs no extra disk while
-Whisparr's hard-link setting is on. The behaviour is the same on both generations, because neither
-offers an import mode that only links. Whisparr's hard-link setting lives in its own media
-management configuration and is on by default.
-
-Whisparr takes charge of each file it links and names it by its own rules. Cove and Whisparr read the
-same library folders, so a later rename inside Whisparr can reach a file Cove holds. Whether such a
-rename changes the library's own entry, or only Whisparr's own link to that file, is not known. Do
-not assume it cannot.
+Cove gives each file you already own a second name in a folder it keeps for that entry, inside your
+own library folders, and tells Whisparr the entry lives there. Nothing is copied, nothing of yours
+is renamed, and none of your files move. [Link the files you already own](./linking.md) has what
+appears in those folders and what Whisparr's own file list shows afterwards.
 
 **It runs by itself when you turn monitoring on**, so turning monitoring on is one press and no
 dialog. Press the item to run it again at any time. Monitoring a whole selection runs it too, once
-per entity, on the same hard-link condition and inside the selection's own background job. When the
-run that started by itself has nothing to do because of the hard-link setting, its own line in Cove's
-job list says which of the two readings stopped it.
+per entity, on the same two conditions and inside the selection's own background job. When the run
+that started by itself has nothing to do because of one of them, its own line in Cove's job list
+says which reading stopped it.
 
 The work runs in the background. Its progress and its result appear in Cove's job list, and nothing
 on the entity page changes while it runs.
 
-Before anything is sent, Cove reads Whisparr's hard-link setting:
+Before anything is sent, Cove reads two Whisparr settings: its hard-link setting, and whether it
+renames what it takes in. Both live under Whisparr's **Settings → Media Management**, and a fresh
+Whisparr has hard links on and renaming off.
 
-- With the setting **on**, Whisparr is asked to link the files, one of the entity's folders at a
-  time.
-- With the setting **off**, nothing is sent. Where you are told depends on which path ran it. A press
-  of **Reflect owned** states the reason beneath the control. A run that started by itself with
-  monitoring states it on that run's own line in Cove's job list. Over a selection the reason is not
-  reported, for the reason [Monitor a whole selection](#monitor-a-whole-selection) gives. Every
-  matched file would otherwise be copied in full and use disk twice, and neither Whisparr generation
-  offers a mode that only links.
-- When the setting **cannot be read**, nothing is sent either. A press states that reason beneath the
-  control, a run that started by itself states it on its own line in Cove's job list, and a selection
-  does not report it.
+- With hard links **on** and renaming **off**, Whisparr is asked to take the files in, one of the
+  entity's folders at a time.
+- With the hard-link setting **off**, nothing is sent. Every matched file would otherwise be copied
+  in full and use disk twice, and neither Whisparr generation offers a mode that only links.
+- With renaming **on**, nothing is sent either. Whisparr moves what it takes in out of the folder it
+  was handed and names it by its own rules, which would undo the linking as it went.
+- When either setting **cannot be read**, nothing is sent, and the reason names which of the two it
+  was.
+
+Where you are told depends on which path ran it. A press of **Reflect owned** states the reason
+beneath the control. A run that started by itself with monitoring states it on that run's own line
+in Cove's job list. Over a selection the reason is not reported, for the reason
+[Monitor a whole selection](#monitor-a-whole-selection) gives.
 
 ### Search all monitored
 
@@ -303,8 +302,8 @@ An entity counts as succeeded only when Whisparr, read again after the change, s
 An accepted request that left the entity unmonitored counts as failed.
 
 **Monitoring a selection also links the files Cove already holds**, for every entity in it, on the
-same condition [Reflect owned](#reflect-owned) states: Cove reads Whisparr's hard-link setting once
-for the whole run, and with that setting off, or unreadable, it links nothing.
+same two conditions [Reflect owned](#reflect-owned) states: Cove reads both settings once for the
+whole run, and links nothing while either of them refuses.
 
 **The job list does not tell you whether anything was linked.** Cove computes a run's closing line
 from the per-entity counts alone, so the line Whisparr Sync composes about the linking step never

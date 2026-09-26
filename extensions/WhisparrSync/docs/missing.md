@@ -1,7 +1,7 @@
 ---
 id: missing
 title: Browse what you do not own
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 Whisparr Sync adds a **Missing** tab to a studio page in Cove, and to a performer page where the

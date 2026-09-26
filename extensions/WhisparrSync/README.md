@@ -8,8 +8,9 @@ answered, keeps each generation's connection separately, and registers Cove's im
 instance; the import path behind that callback, which brings a delivered file into the Cove library;
 and a Whisparr control on studio and performer pages and in their selection bars that monitors and
 unmonitors an entity on the connected instance, registers the scenes Cove holds that the instance's
-catalogue does not, asks Whisparr to link the files Cove already holds for it into place, and asks
-Whisparr to search for what a monitored entity wants; and a Missing tab on studio and performer
+catalogue does not, links the files Cove already holds for it into place by giving each one a second
+name in a folder this extension owns inside the user's own library folders and registering the entity
+there, and asks Whisparr to search for what a monitored entity wants; and a Missing tab on studio and performer
 pages that lists what the configured metadata source knows about and the library does not hold, says
 whether Whisparr holds each scene, and marks one scene or a page of scenes wanted; and a button in
 the videos, studios and performers list toolbars that puts a badge on every card on the page saying
@@ -32,6 +33,7 @@ straight from that source.
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** - overview and index
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
+- **[Link the files you already own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/linking)** - what appears in the library folders, what Whisparr's file list shows, and the two Whisparr settings it needs
 - **[Browse what you do not own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/missing)** - the Missing tab and what its number counts
 - **[Show Whisparr status on library cards](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/library-status)** - the toolbar button, the card badge and what one press costs
 - **[Control one scene, or a selection of scenes](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/scenes)** - the scene tab, its four controls and the selection bar's five rows

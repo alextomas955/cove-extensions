@@ -1,7 +1,7 @@
 ---
 id: scenes
 title: Control one scene, or a selection of scenes
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 Whisparr Sync adds a **Whisparr** tab to a scene's page in Cove. The tab says what your Whisparr

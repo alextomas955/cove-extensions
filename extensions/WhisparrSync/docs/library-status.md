@@ -1,7 +1,7 @@
 ---
 id: library-status
 title: Show Whisparr status on library cards
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 Whisparr Sync adds a button to the toolbar of Cove's videos, studios and performers lists. Press it
