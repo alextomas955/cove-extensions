@@ -30,12 +30,12 @@ internal sealed class V3PayloadReader : IWhisparrPayloadReading, IWhisparrScopeR
     // row.
     // This generation addresses a scene by its own movie id and needs nothing else, so the entry
     // the library identified is complete without anything the instance matched.
-    public JsonObject? IdentifiedEntry(JsonObject entry, int entityId)
+    public JsonObject? IdentifiedEntry(JsonObject entry, EntryAddress address)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(address.Row, 1);
 
-        entry["movieId"] = entityId;
+        entry["movieId"] = address.Row;
         return entry;
     }
 

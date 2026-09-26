@@ -10,8 +10,8 @@ namespace WhisparrSync.Tests.Monitoring;
 public sealed class ReflectOwnedPlannerTests
 {
     // These cases are about what the instance itself matched, so they supply no identity of Cove's.
-    private static readonly IReadOnlyDictionary<string, int> NoIdentities =
-        new Dictionary<string, int>(StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, EntryAddress> NoIdentities =
+        new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
 
     // The linking import mode copies the whole file whenever the file and the entry it is written to
     // are not on one filesystem, and reports it as a successful import. The composed path guards that
@@ -91,13 +91,35 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             unmatched,
             ["/data"],
-            new Dictionary<string, int>(StringComparer.Ordinal)
+            new Dictionary<string, EntryAddress>(StringComparer.Ordinal)
             {
-                ["a name it cannot parse.mp4"] = 4242,
+                ["a name it cannot parse.mp4"] = new(4242),
             });
 
         var entry = Assert.IsType<JsonObject>(Assert.Single(planned.Entries!));
         Assert.Equal(4242, entry["movieId"]!.GetValue<int>());
+    }
+
+    // A folder of links carries names the instance parses nothing out of, so a run that supplied no
+    // address for them attaches none of them. Reported as nothing found, that reads as a folder
+    // holding nothing importable rather than as files nobody could address.
+    [Fact]
+    public void ARowNoEntryCouldBeAddressedToIsCountedRatherThanDropped()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/deadbeef-1234.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]},
+             {"path":"/data/one/deadbeef-5678.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, unmatched, ["/data"], NoIdentities);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(2, planned.WithoutAnEntry);
     }
 
     // The identity is the library's, so a name it holds nothing for is left to the instance rather
@@ -115,7 +137,10 @@ public sealed class ReflectOwnedPlannerTests
             WhisparrGeneration.V3,
             unmatched,
             ["/data"],
-            new Dictionary<string, int>(StringComparer.Ordinal) { ["another file.mp4"] = 4242 });
+            new Dictionary<string, EntryAddress>(StringComparer.Ordinal)
+            {
+                ["another file.mp4"] = new(4242),
+            });
 
         Assert.Null(planned.Entries);
     }
