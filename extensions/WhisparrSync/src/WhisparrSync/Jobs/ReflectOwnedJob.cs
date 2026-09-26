@@ -85,8 +85,8 @@ public static class ReflectOwnedJob
 
     // Names no file, folder or site: the line is durable and must not grow with the library.
     internal const string LeftUnderAnotherRootSentence =
-        "Some files were not linked: Whisparr holds their site under a different root from the "
-        + "files, and nothing was copied.";
+        "Some files were not handed to Whisparr: it holds their site under a different root from "
+        + "the files, and nothing was copied.";
 
     // States that the check was not made, not that nothing was found to hand over. An instance that
     // could not be asked answers the same empty root list as one declaring none, and an import
@@ -100,8 +100,8 @@ public static class ReflectOwnedJob
     // holds a row for it alike, and blaming one of them would send a reader to the wrong settings
     // page half the time. The log carries which of the two it was.
     internal const string WithoutAnEntrySentence =
-        "Some files were not linked: the scenes they belong to could not be matched to Whisparr's "
-        + "own catalogue rows.";
+        "Some files were not handed to Whisparr: the scenes they belong to could not be matched "
+        + "to its own catalogue rows.";
 
     // Names no file and no folder: the line is durable and must not grow with the library. It says
     // what was not done rather than asking for anything, because the files are the reader's and
@@ -589,11 +589,13 @@ public static class ReflectOwnedJob
 
         if (!string.IsNullOrWhiteSpace(refusal.CoveRoot))
         {
-            return "Nothing under " + refusal.CoveRoot + " could be linked: "
+            return "Nothing under " + refusal.CoveRoot + " could be handed to Whisparr: "
                 + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
         }
 
-        var opening = anythingLinked ? "Some folders were not linked" : "Nothing could be linked";
+        var opening = anythingLinked
+            ? "Some folders were not handed to Whisparr"
+            : "Nothing could be handed to Whisparr";
 
         return opening + ": "
             + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
