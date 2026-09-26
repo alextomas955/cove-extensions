@@ -175,17 +175,25 @@ const SEEDERS = {
             title: `Cove E2E Owned Scene ${run}`,
             monitored: true,
           });
-          await ownFile({
-            api,
-            isolatedCove,
-            instanceContainer: whisparr.v3.container,
-            instanceMount,
-            studio,
-            destDir: scene.path,
-            destName: `Cove E2E Owned Scene ${run} 1080p WEBDL.mp4`,
-            identity: { endpoint: STASHDB_ENDPOINT, remoteId: sceneRemoteId },
-          });
-          return { entryId: scene.id, folder: scene.path, registeredAs: sceneRemoteId };
+          const own = (destName) =>
+            ownFile({
+              api,
+              isolatedCove,
+              instanceContainer: whisparr.v3.container,
+              instanceMount,
+              studio,
+              destDir: scene.path,
+              destName,
+              identity: { endpoint: STASHDB_ENDPOINT, remoteId: sceneRemoteId },
+            });
+          const video = await own(`Cove E2E Owned Scene ${run} 1080p WEBDL.mp4`);
+          return {
+            entryId: scene.id,
+            folder: scene.path,
+            registeredAs: sceneRemoteId,
+            video,
+            ownAnother: () => own(`Cove E2E Owned Scene ${run} again 720p WEBDL.mp4`),
+          };
         },
       };
     },
@@ -234,16 +242,27 @@ const SEEDERS = {
         async ownMedia({ api, isolatedCove, instanceMount, studio }) {
           const instance = whisparr.apiFor("v2");
           const site = await siteRow(instance, seeded.seriesId);
-          await ownFile({
-            api,
-            isolatedCove,
-            instanceContainer: whisparr.v2.container,
-            instanceMount,
-            studio,
-            destDir: site.path,
-            destName: `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} 1080p WEBDL.mp4`,
-          });
-          return { entryId: seeded.seriesId, folder: site.path, registeredAs: String(siteId) };
+          const own = (destName) =>
+            ownFile({
+              api,
+              isolatedCove,
+              instanceContainer: whisparr.v2.container,
+              instanceMount,
+              studio,
+              destDir: site.path,
+              destName,
+            });
+          const video = await own(
+            `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} 1080p WEBDL.mp4`,
+          );
+          return {
+            entryId: seeded.seriesId,
+            folder: site.path,
+            registeredAs: String(siteId),
+            video,
+            ownAnother: () =>
+              own(`${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} again 720p WEBDL.mp4`),
+          };
         },
       };
     },

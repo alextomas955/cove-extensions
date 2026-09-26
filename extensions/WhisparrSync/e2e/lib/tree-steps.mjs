@@ -30,6 +30,34 @@ export async function sharedBetweenBothProducts(container, root) {
   await shell(container, `chmod a+rwx '${root}'`);
 }
 
+/**
+ * Renames `path` to `to` on the container's own filesystem.
+ *
+ * A rename by the reader, a rename by the Renamer and a move within one drive are one act to the
+ * filesystem: the name changes and the identity does not. Driving it here tests the same thing as
+ * driving the Renamer, and needs no second extension installed.
+ */
+export async function renameOnDisk(container, path, to) {
+  await shell(container, `mv '${path}' '${to}'`);
+}
+
+/** Puts `path`'s last-changed time far enough back that no settle window can cover it. */
+export async function changedLongAgo(container, path) {
+  await shell(container, `touch -d '2020-01-01 00:00:00' '${path}'`);
+}
+
+/**
+ * Leaves a file in `folder` under a name nothing derived from the file, as a refused arrival does.
+ *
+ * Its last-changed time is put well back, so what keeps it is the name rather than the clock.
+ */
+export async function leaveAFileIn(container, folder, name) {
+  const path = `${folder}/${name}`;
+  await shell(container, `head -c 65536 /dev/urandom > '${path}'`);
+  await changedLongAgo(container, path);
+  return path;
+}
+
 /** The names directly inside `folder`, or an empty list where nothing is there. */
 export async function namesIn(container, folder) {
   const listed = await shell(container, `ls -1A '${folder}' 2>/dev/null || true`);
@@ -47,6 +75,17 @@ export async function identityOf(container, path) {
 
   const [device, number, names] = line.split(/\s+/);
   return { device, number, names: Number(names) };
+}
+
+/**
+ * What this extension calls a link to the file `identity` describes.
+ *
+ * Transcribed from the rule the product writes by, not computed from the product: the spelling is
+ * the volume and the file number in hexadecimal, and it is what makes "did this extension write
+ * this name?" answerable from the name alone.
+ */
+export function linkNameOf(identity, extension) {
+  return `${BigInt(identity.device).toString(16)}-${BigInt(identity.number).toString(16)}${extension}`;
 }
 
 /** What the ignore file at `treeRoot` says, or null where there is none. */
