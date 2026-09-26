@@ -51,7 +51,22 @@ internal sealed record LinkedTally(
     int LeftUnderAnotherRoot,
     bool RootsCouldNotBeRead = false,
     int WithoutAnEntry = 0,
-    int NamesNotComposedHere = 0);
+    int NamesNotComposedHere = 0,
+    int GivenAFolder = 0,
+    int OnAnotherDevice = 0,
+    int Removed = 0,
+    int Waiting = 0,
+    IReadOnlyList<string>? RootsWithNoTree = null)
+{
+    // A run that did none of these reached the instance for nothing, and its line leads with why
+    // instead of a row of zeros.
+    internal bool DidNothing
+        => FilesAttached == 0
+            && FoldersRefused == 0
+            && GivenAFolder == 0
+            && Removed == 0
+            && Waiting == 0;
+}
 
 // A null Through with a Skipped reason means the instance's linking setting stopped the run. A null
 // Through with no reason reports as a completed run that attached nothing.
@@ -93,6 +108,12 @@ public static class ReflectOwnedJob
     internal const string NamesNotComposedHereSentence =
         "Some files in the folders Whisparr was given were not put there by Cove, so they were "
         + "left alone.";
+
+    // Names no file and no drive: the line is durable. It says nothing was copied because a copy is
+    // the act a reader would otherwise take for granted, and a copy is a second set of their bytes.
+    internal const string OnAnotherDeviceSentence =
+        "Some files were not linked: they are not on the drive Cove keeps their entity's folder "
+        + "on, and nothing was copied.";
 
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
@@ -373,7 +394,12 @@ public static class ReflectOwnedJob
                 run.EntriesLeftUnderAnotherRoot,
                 run.RootsCouldNotBeRead,
                 run.FilesWithoutAnEntry,
-                run.NamesNotComposedHere),
+                run.NamesNotComposedHere,
+                run.EntitiesGivenAFolder,
+                run.LinksOnAnotherDevice,
+                run.LinksRemoved,
+                run.LinksWaiting,
+                run.RootsWithNoTree),
             run.Outcome == ReflectOwnedRunOutcome.Cancelled);
     }
 
@@ -384,36 +410,93 @@ public static class ReflectOwnedJob
     internal static string LineFor(LinkedTally tally, bool cancelled)
     {
         ArgumentNullException.ThrowIfNull(tally);
-        var (skipped, filesAttached, foldersRefused, unaddressed, leftUnderAnotherRoot,
-            rootsCouldNotBeRead, withoutAnEntry, namesNotComposedHere) = tally;
 
-        if (skipped is { } reason)
+        if (tally.Skipped is { } reason)
         {
             return SentenceFor(reason);
         }
 
-        if (rootsCouldNotBeRead)
+        if (tally.RootsCouldNotBeRead)
         {
             return NoRootToCompareSentence;
         }
 
-        var reasons = string.Join(
-            ' ', (unaddressed ?? []).Select(refusal => SentenceFor(refusal, filesAttached > 0)));
-        reasons = Carrying(reasons, leftUnderAnotherRoot, LeftUnderAnotherRootSentence);
-        reasons = Carrying(reasons, withoutAnEntry, WithoutAnEntrySentence);
-        reasons = Carrying(reasons, namesNotComposedHere, NamesNotComposedHereSentence);
-
-        if (filesAttached == 0 && foldersRefused == 0 && reasons.Length > 0)
+        var reasons = ReasonsIn(tally);
+        if (tally.DidNothing && reasons.Length > 0)
         {
             return cancelled ? reasons + " The run was then stopped." : reasons;
         }
 
-        var ending = cancelled ? ", then stopped" : string.Empty;
-        var counts = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{filesAttached:N0} linked, {foldersRefused:N0} refused{ending}.");
+        var counts = CountsIn(tally, cancelled);
 
         return reasons.Length == 0 ? counts : counts + " " + reasons;
+    }
+
+    // Linked and refused are always stated, because a run that reached the instance and did nothing
+    // is itself a fact a reader acts on. Every other figure is left out where it is zero: a row of
+    // zeros says nothing and buries the one figure that is not.
+    private static string CountsIn(LinkedTally tally, bool cancelled)
+    {
+        var counts = Figured(string.Empty, tally.GivenAFolder, "given a folder of their own");
+        counts += counts.Length == 0 ? string.Empty : ", ";
+        counts += string.Create(
+            CultureInfo.InvariantCulture,
+            $"{tally.FilesAttached:N0} linked, {tally.FoldersRefused:N0} refused");
+        counts = Figured(counts, tally.Removed, "taken back");
+        counts = Figured(counts, tally.Waiting, "left until they settle");
+
+        return counts + (cancelled ? ", then stopped." : ".");
+    }
+
+    // One paragraph, however many sentences the run carries.
+    private static string ReasonsIn(LinkedTally tally)
+    {
+        var linked = tally.FilesAttached > 0;
+        var reasons = string.Join(
+            ' ', (tally.Unaddressed ?? []).Select(refusal => SentenceFor(refusal, linked)));
+
+        foreach (var root in tally.RootsWithNoTree ?? [])
+        {
+            reasons = Carrying(reasons, 1, NoTreeSentence(root, linked));
+        }
+
+        reasons = Carrying(reasons, tally.LeftUnderAnotherRoot, LeftUnderAnotherRootSentence);
+        reasons = Carrying(reasons, tally.OnAnotherDevice, OnAnotherDeviceSentence);
+        reasons = Carrying(reasons, tally.WithoutAnEntry, WithoutAnEntrySentence);
+
+        return Carrying(reasons, tally.NamesNotComposedHere, NamesNotComposedHereSentence);
+    }
+
+    // One library root, named once. The roots are few and operator-created, and every entity under
+    // one that cannot be written inside meets the same refusal.
+    //
+    // A refusal naming no root speaks for the whole run only where the run linked nothing. Beside a
+    // non-zero count it has to be scoped to what it covers, or it contradicts the figure in front
+    // of it.
+    internal static string NoTreeSentence(string coveRoot, bool anythingLinked)
+    {
+        if (!string.IsNullOrWhiteSpace(coveRoot))
+        {
+            return "Nothing under " + coveRoot + " was given a folder of its own: Cove could not "
+                + "write inside that library path.";
+        }
+
+        return (anythingLinked ? "Some entities were" : "No entity was")
+            + " given a folder of its own: Cove could not write inside the library path they sit "
+            + "under.";
+    }
+
+    // A figure is carried where it is not zero, and reads as one clause among the counts.
+    private static string Figured(string counts, int figure, string what)
+    {
+        if (figure == 0)
+        {
+            return counts;
+        }
+
+        var clause = string.Create(CultureInfo.InvariantCulture, $"{figure:N0} {what}");
+
+        return counts.Length == 0 ? clause : counts + ", " + clause;
     }
 
     internal static string SentenceFor(ReflectOwnedSkipReason reason)

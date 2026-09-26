@@ -210,6 +210,90 @@ public sealed class ReflectOwnedSummaryTests
                     null,
                     2)));
 
+    // The figure the whole capability exists to move, beside the one a reader compares it against.
+    [Fact]
+    public void ARunStatesHowManyEntitiesGotAFolderAndHowManyFilesWereLinked()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            Completed with { EntitiesGivenAFolder = 12, FilesAttached = 31 });
+
+        Assert.Equal("12 given a folder of their own, 31 linked, 0 refused.", line);
+    }
+
+    // A name taken back freed a file's bytes, so it is stated whatever else the run did.
+    [Fact]
+    public void ARunThatTookNamesBackSaysHowMany()
+        => Assert.Equal(
+            "0 linked, 0 refused, 4 taken back.",
+            ReflectOwnedJob.SummaryOf(Completed with { LinksRemoved = 4 }));
+
+    [Fact]
+    public void ARunThatLeftNamesWaitingSaysHowMany()
+        => Assert.Equal(
+            "0 linked, 0 refused, 2 left until they settle.",
+            ReflectOwnedJob.SummaryOf(Completed with { LinksWaiting = 2 }));
+
+    // What was linked before the stop stays linked, so the line reports it and reads as stopped
+    // rather than as a run that refused everything.
+    [Fact]
+    public void ARunStoppedPartWayReportsWhatItDidAndReadsAsStopped()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            Completed with
+            {
+                Outcome = ReflectOwnedRunOutcome.Cancelled,
+                EntitiesGivenAFolder = 1,
+                FilesAttached = 2,
+            });
+
+        Assert.Equal("1 given a folder of their own, 2 linked, 0 refused, then stopped.", line);
+    }
+
+    // One line per library root however many entities sat under it, and each root is named: which
+    // one cannot be written inside is the whole of what a reader has to act on.
+    [Fact]
+    public void ARunThatCouldBuildUnderNoRootNamesEachRootOnce()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            Completed with { RootsWithNoTree = ["/data", "/data2"] });
+
+        Assert.Equal(
+            "Nothing under /data was given a folder of its own: Cove could not write inside that "
+                + "library path. Nothing under /data2 was given a folder of its own: Cove could "
+                + "not write inside that library path.",
+            line);
+    }
+
+    [Fact]
+    public void ARootThatRefusedBesideALinkedCountIsStatedBesideIt()
+    {
+        var line = ReflectOwnedJob.SummaryOf(
+            Completed with
+            {
+                EntitiesGivenAFolder = 1,
+                FilesAttached = 3,
+                RootsWithNoTree = ["/data2"],
+            });
+
+        Assert.Equal(
+            "1 given a folder of their own, 3 linked, 0 refused. Nothing under /data2 was given a "
+                + "folder of its own: Cove could not write inside that library path.",
+            line);
+    }
+
+    // A hard link cannot cross a filesystem, and the act a caller reaches for instead is a copy. A
+    // reader is told rather than left with an entity whose files the instance never records.
+    [Fact]
+    public void ARunThatMetFilesOnAnotherDriveSaysSoAndSaysNothingWasCopied()
+        => Assert.Equal(
+            "1 linked, 0 refused. Some files were not linked: they are not on the drive Cove keeps "
+                + "their entity's folder on, and nothing was copied.",
+            ReflectOwnedJob.SummaryOf(
+                Completed with { FilesAttached = 1, LinksOnAnotherDevice = 2 }));
+
+    private static ReflectOwnedRun Completed { get; } =
+        new(ReflectOwnedRunOutcome.Completed, 0, 0);
+
     // The figure the line states is files. A folder count travels with it because a file is only
     // attached as part of one, and the two are not interchangeable in the sentence.
     private static ReflectOwnedRun LeftUnderAnotherRoot(int filesAttached, int refused, int left)
