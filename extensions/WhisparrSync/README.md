@@ -33,7 +33,7 @@ straight from that source.
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** - overview and index
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
-- **[Link the files you already own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/linking)** - what appears in the library folders, what Whisparr's file list shows, and the two Whisparr settings it needs
+- **[Link the files you already own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/linking)** - what appears in the library folders, what Whisparr's file list shows, and where the two Whisparr settings apply
 - **[Browse what you do not own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/missing)** - the Missing tab and what its number counts
 - **[Show Whisparr status on library cards](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/library-status)** - the toolbar button, the card badge and what one press costs
 - **[Control one scene, or a selection of scenes](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/scenes)** - the scene tab, its four controls and the selection bar's five rows
