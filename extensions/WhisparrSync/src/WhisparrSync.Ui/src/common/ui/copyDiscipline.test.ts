@@ -267,7 +267,8 @@ const RENDERED_BY_THE_SYNC_SECTION = {
     "SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM",
   ],
 
-  // Names neither noun, so one declaration serves whatever the run registers.
+  // Names neither noun. One declaration serves both ways unless the two runs do different things,
+  // which is why the linking sentences are two and neither of them names what it registers.
   namesNeitherNoun: [
     "SYNC_COUNT",
     "SYNC_NOT_YET_IN_WHISPARR",
@@ -285,6 +286,7 @@ const RENDERED_BY_THE_SYNC_SECTION = {
     "SYNC_ALSO_MONITORS_EACH",
     "SYNC_MONITORS_NOTHING",
     "SYNC_ALSO_LINKS_WHAT_YOU_OWN",
+    "SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN",
   ],
 };
 
