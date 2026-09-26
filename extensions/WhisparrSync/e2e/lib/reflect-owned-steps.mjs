@@ -18,6 +18,7 @@ import { visit } from "./steps.mjs";
 
 const HARD_LINK_SETTING = "copyUsingHardlinks";
 const MEDIA_MANAGEMENT_PATH = "/api/v3/config/mediamanagement";
+const NAMING_PATH = "/api/v3/config/naming";
 
 const CONTROL_BUDGET_MS = 60_000;
 const GESTURE_BUDGET_MS = 60_000;
@@ -51,6 +52,35 @@ export async function linkIntoPlace(instance) {
       `linkIntoPlace: the instance reports ${HARD_LINK_SETTING}=${JSON.stringify(read.json?.[HARD_LINK_SETTING])}, so the run below is not about the path`,
     );
   }
+}
+
+/**
+ * Sets whether the instance renames what it takes in, and answers what it then reports.
+ *
+ * The extension only ever reads this resource; a spec is what writes one. The whole resource is read
+ * and written back with the renaming members changed, because these config routes REPLACE what they
+ * are sent.
+ *
+ * @param {readonly string[]} members the naming members this generation states its renaming under
+ */
+export async function renameOnImport(instance, members, on) {
+  const current = await instance.get(NAMING_PATH);
+  if (current.status !== 200) {
+    throw new Error(
+      `renameOnImport: GET ${NAMING_PATH} answered ${String(current.status)}, so the setting under test could not be arranged`,
+    );
+  }
+  const asked = Object.fromEntries(members.map((member) => [member, on]));
+  await instance.put(NAMING_PATH, { ...current.json, ...asked });
+
+  const read = await instance.get(NAMING_PATH);
+  const reported = members.map((member) => read.json?.[member]);
+  if (reported.some((value) => value !== on)) {
+    throw new Error(
+      `renameOnImport: asked for ${JSON.stringify(asked)} and the instance reports ${JSON.stringify(reported)}, so the run below is not about what this spec set`,
+    );
+  }
+  return reported;
 }
 
 /** Monitors the seeded studio from its own page, and waits for the instance's row to say so. */
@@ -93,8 +123,13 @@ export async function openMonitoredMenu(page, baseUrl, studio) {
   ).toBeVisible({ timeout: CONTROL_BUDGET_MS });
 }
 
-/** Presses the reflect-owned row and answers what the browser itself received. */
-export async function pressReflectOwned(page) {
+/**
+ * Presses the reflect-owned row and answers what the browser itself received, refusal and all.
+ *
+ * A spec whose subject is the refusal needs the body the route answered rather than a job id, so the
+ * assertion that a run started is {@link pressReflectOwned}'s and not this one's.
+ */
+export async function pressReflectOwnedAnswering(page) {
   const answered = page.waitForResponse(
     (response) => new URL(response.url()).pathname.endsWith("/reflect-owned"),
     { timeout: GESTURE_BUDGET_MS },
@@ -107,10 +142,15 @@ export async function pressReflectOwned(page) {
   await row.click();
 
   const response = await answered;
-  const body = await response.json().catch(() => null);
+  return await response.json().catch(() => null);
+}
+
+/** Presses the reflect-owned row and answers what the browser itself received. */
+export async function pressReflectOwned(page) {
+  const body = await pressReflectOwnedAnswering(page);
   expect(
     body?.jobId,
-    `the route answered ${String(response.status())} ${JSON.stringify(body)} with no job id, so nothing could follow the run it started`,
+    `the route answered ${JSON.stringify(body)} with no job id, so nothing could follow the run it started`,
   ).toBeTruthy();
   return body;
 }

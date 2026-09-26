@@ -67,6 +67,9 @@ const GENERATIONS = {
     // product built, wherever it built it.
     treeFolder: ".wsync-v3",
 
+    // This generation holds two kinds of entry and names each one's renaming separately.
+    renamingMembers: ["renameMovies", "renameScenes"],
+
     ownedFileRows: (api, entryId) => listRows(api, `/api/v3/moviefile?movieId=${String(entryId)}`),
 
     entryPath: async (api, entryId) =>
@@ -100,6 +103,9 @@ const GENERATIONS = {
     identityEndpoint: THEPORNDB_ENDPOINT,
     treeFolder: ".wsync-v2",
     storedKey: "V2",
+
+    // A scene is an episode here, so this generation names the renaming of episodes alone.
+    renamingMembers: ["renameEpisodes"],
 
     ownedFileRows: (api, entryId) =>
       listRows(api, `/api/v3/episodefile?seriesId=${String(entryId)}`),
@@ -150,6 +156,9 @@ export function adapterFor(generation) {
 
     /** What this generation's tree at the top of a library root is called. */
     treeFolder: own.treeFolder,
+
+    /** The naming-resource members this generation states its renaming under. */
+    renamingMembers: own.renamingMembers,
 
     /** Where the instance itself says it keeps the entity, read off its own row. */
     entryPath: (api, entryId) => own.entryPath(api, entryId),
