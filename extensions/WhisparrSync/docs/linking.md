@@ -12,9 +12,12 @@ files move.
 This runs when you press **Reflect owned** on a studio or a performer, when you turn monitoring on,
 and as part of a library run from the **Whisparr Sync** settings tab.
 
-## Turn two Whisparr settings the right way first
+## Two Whisparr settings, and what they govern
 
-Both live in Whisparr, under **Settings → Media Management**.
+Most of this hands the files to Whisparr to take in, and two of Whisparr's own settings decide
+whether it can. Turn them the right way before you press **Reflect owned**, before you turn
+monitoring on, and before a library run on Whisparr v3 (Eros). Both live in Whisparr, under
+**Settings → Media Management**.
 
 1. Turn **Rename Movies** and **Rename Scenes** off, on Whisparr v3 (Eros), in the **Movie Naming**
    section. On Whisparr v2 the one switch is **Rename Episodes**, in the **Episode Naming** section.
@@ -29,6 +32,11 @@ With the hard-link setting off, every file would be copied in full and use your 
 sends nothing there either and the run says: _No files were linked: Whisparr's hard-link setting is
 off._ A setting Cove cannot read at all stops the run the same way and names which of the two it
 could not read.
+
+**A library run on Whisparr v2 is the exception.** That run registers your studios, and it makes
+the second names itself rather than handing the files to Whisparr, so neither setting stops it and
+nothing is copied whatever the hard-link setting says. The two settings still govern **Reflect
+owned** and monitoring on that instance.
 
 ## What Whisparr shows you now
 
@@ -91,6 +99,10 @@ A finished run states two figures, and they count different things:
 They differ on purpose. A run can make every second name and hand them all over, and Whisparr's own
 queue can still be minutes behind after it re-reads its catalogue. The figures are about what Cove
 sent; Whisparr's own screens are where you see what it has taken in.
+
+A library run on Whisparr v2 hands nothing over, so its **recorded by Whisparr** figure stays 0
+however many second names it made. Whisparr reports those files once it re-reads the studio's
+folder.
 
 ## Where it stops short
 
