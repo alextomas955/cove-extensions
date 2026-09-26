@@ -41,6 +41,11 @@ export async function renameOnDisk(container, path, to) {
   await shell(container, `mv '${path}' '${to}'`);
 }
 
+/** Takes the name at `path` away, as a reader deleting a file does. */
+export async function removeOnDisk(container, path) {
+  await shell(container, `rm -f '${path}'`);
+}
+
 /** Puts `path`'s last-changed time far enough back that no settle window can cover it. */
 export async function changedLongAgo(container, path) {
   await shell(container, `touch -d '2020-01-01 00:00:00' '${path}'`);
