@@ -3358,6 +3358,7 @@
           "notYetThere",
           "alreadyThere",
           "skipped",
+          "withNoFileRecorded",
           "registers",
           "countedAt"
         ],
@@ -3372,6 +3373,10 @@
             "format": "int32"
           },
           "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "withNoFileRecorded": {
             "type": "integer",
             "format": "int32"
           },

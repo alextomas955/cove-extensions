@@ -30,6 +30,7 @@ import {
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   syncOffersScenes,
   syncOffersSites,
+  syncStillToHandOver,
 } from "../common/ui/copy";
 
 /**
@@ -139,6 +140,8 @@ export interface SyncCounts {
   readonly notYetThere: number;
   readonly alreadyThere: number;
   readonly skipped: number;
+  /** How many of the entries the instance holds it records no file against. */
+  readonly withNoFileRecorded: number;
 }
 
 export interface SyncControlState {
@@ -180,11 +183,22 @@ export function syncConfirmation(
         ? ", and skips 1 that cannot be registered"
         : `, and skips ${groupThousands(counts.skipped)} that cannot be registered`;
 
+  // Stated before what the run does, because it is the reason to press where everything is already
+  // registered. Left out at zero, where it would read as a report that nothing is outstanding and
+  // then be followed by a run that hands files over anyway.
+  const outstanding =
+    counts.withNoFileRecorded === 0
+      ? ""
+      : `${syncStillToHandOver(groupThousands(counts.withNoFileRecorded))} `;
+
   const monitoring = monitorAlso
     ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
     : SYNC_MONITORS_NOTHING;
 
-  return `${covers}${skips}. ${monitoring} ${sentences.alsoLinks} ${sentences.downloadsNothing}`;
+  return (
+    `${covers}${skips}. ${outstanding}${monitoring} ` +
+    `${sentences.alsoLinks} ${sentences.downloadsNothing}`
+  );
 }
 
 /**
@@ -193,9 +207,10 @@ export function syncConfirmation(
  * Exactly one sentence, in the declared order: a control with several reasons states one rather
  * than three.
  *
- * The last reason reads the monitor choice, because the run marks every scene the reader owns
- * monitored, including one the instance already holds. With that choice on, a library Whisparr
- * already holds in full still has work to do.
+ * The last reason reads all three of what a run does. It registers what is not yet there, it hands
+ * over the files of what is, and with the monitor choice on it marks every scene the reader owns
+ * monitored, including one the instance already holds. Any one of the three outstanding is work,
+ * so nothing is left only where all three are spent.
  */
 export function syncDisabledReason(state: SyncControlState): string | null {
   if (state.sharedReason !== null) return state.sharedReason;
@@ -203,7 +218,7 @@ export function syncDisabledReason(state: SyncControlState): string | null {
   if (state.syncRunning) return SYNC_ALREADY_RUNNING;
   if (state.starting) return SYNC_IS_STARTING;
   if (state.counts === null) return state.sentences.needsACountFirst;
-  if (!state.monitorAlso && state.counts.notYetThere === 0)
+  if (!state.monitorAlso && state.counts.notYetThere === 0 && state.counts.withNoFileRecorded === 0)
     return state.sentences.nothingLeftToSync;
   return null;
 }

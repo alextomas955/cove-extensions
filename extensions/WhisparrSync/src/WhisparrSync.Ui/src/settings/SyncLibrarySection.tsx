@@ -20,6 +20,7 @@ import {
   SYNC_COUNTING,
   SYNC_COUNT_DID_NOT_FINISH,
   SYNC_LIBRARY,
+  SYNC_NO_FILE_RECORDED,
   SYNC_NOTHING_COUNTED_YET,
   SYNC_NOT_YET_IN_WHISPARR,
   SYNC_RUNS_IN_THE_JOB_DRAWER,
@@ -196,6 +197,7 @@ function Counts({
     <div className="space-y-2">
       <CountRow label={SYNC_NOT_YET_IN_WHISPARR} value={counts.notYetThere} />
       <CountRow label={SYNC_ALREADY_IN_WHISPARR} value={counts.alreadyThere} />
+      <CountRow label={SYNC_NO_FILE_RECORDED} value={counts.withNoFileRecorded} />
       <CountRow label={SYNC_SKIPPED_CANNOT_BE_IDENTIFIED} value={counts.skipped} />
 
       <StatusText kind="muted">

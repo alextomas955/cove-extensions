@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
@@ -15,14 +16,16 @@ namespace WhisparrSync.Jobs;
 internal sealed record SyncPreviewAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
-    Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>>? Held,
+    Func<IReadOnlyCollection<string>, CancellationToken, Task<ScenesHeld>>? Held,
     Func<IReadOnlyCollection<string>, CancellationToken, Task<SiteBatchReading>>? HeldSites);
 
-// The two sets are disjoint and neither is the whole batch: an identifier in neither is one the
-// metadata source numbered and the instance holds no site for.
+// Held and NamesNone are disjoint and neither is the whole batch: an identifier in neither is one
+// the metadata source numbered and the instance holds no site for. WithNoFileRecorded is a subset
+// of Held, so a site it names is one the count has already put in the already-there column.
 internal sealed record SiteBatchReading(
     IReadOnlySet<string> Held,
-    IReadOnlySet<string> NamesNone);
+    IReadOnlySet<string> NamesNone,
+    IReadOnlySet<string> WithNoFileRecorded);
 
 /// <summary>
 /// The count job's id, the batch size its comparison asks in, and the pass one count goes through.
@@ -88,7 +91,8 @@ public static class SyncPreviewJob
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{counted.NotYetThere:N0} not yet in Whisparr, {counted.AlreadyThere:N0} already there, "
+            $"{counted.NotYetThere:N0} not yet in Whisparr, {counted.AlreadyThere:N0} already there "
+                + $"with no file recorded for {counted.WithNoFileRecorded:N0} of them, "
                 + $"{counted.Skipped:N0} carrying no metadata id.");
     }
 
@@ -169,6 +173,7 @@ public static class SyncPreviewJob
             counted.NamesNone
                 + await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct)
                     .ConfigureAwait(false),
+            counted.WithNoFileRecorded,
             aimed.Registers,
             DateTimeOffset.UtcNow);
 
@@ -179,7 +184,7 @@ public static class SyncPreviewJob
         }
     }
 
-    // Three integers, so nothing here grows with the library.
+    // Four integers, so nothing here grows with the library.
     private sealed class SiteTally
     {
         internal int NotYetThere { get; private set; }
@@ -187,6 +192,8 @@ public static class SyncPreviewJob
         internal int AlreadyThere { get; private set; }
 
         internal int NamesNone { get; private set; }
+
+        internal int WithNoFileRecorded { get; private set; }
 
         // Each offered identifier is classified rather than the answered set counted: two studios
         // carrying one identifier answer one number, and counting the answer's size would put the
@@ -198,6 +205,10 @@ public static class SyncPreviewJob
                 if (answered.Held.Contains(identity))
                 {
                     AlreadyThere++;
+                    if (answered.WithNoFileRecorded.Contains(identity))
+                    {
+                        WithNoFileRecorded++;
+                    }
                 }
                 else if (answered.NamesNone.Contains(identity))
                 {
@@ -228,6 +239,7 @@ public static class SyncPreviewJob
 
         var notYetThere = 0;
         var alreadyThere = 0;
+        var withNoFileRecorded = 0;
         var batch = new List<string>(ChunkSize);
 
         try
@@ -268,6 +280,7 @@ public static class SyncPreviewJob
             notYetThere,
             alreadyThere,
             await identities.CountUnidentifiedAsync(aimed.Generation, ct).ConfigureAwait(false),
+            withNoFileRecorded,
             aimed.Registers,
             DateTimeOffset.UtcNow);
 
@@ -278,9 +291,10 @@ public static class SyncPreviewJob
             // Each offered identifier is classified rather than the answered set counted: two
             // spellings of one source yield one identifier twice, and counting the answer's size
             // would put the second copy of a held scene in the not-yet-there column.
-            var wasHeld = batch.Count(answered.Contains);
+            var wasHeld = batch.Count(answered.Held.Contains);
             alreadyThere += wasHeld;
             notYetThere += batch.Count - wasHeld;
+            withNoFileRecorded += batch.Count(answered.WithNoFileRecorded.Contains);
             batch.Clear();
         }
     }

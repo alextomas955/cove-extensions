@@ -182,14 +182,14 @@ internal sealed class WhisparrV2Instance(
     // not help: this generation builds the whole set before filtering, so ?tvdbId= answers one row
     // no faster than the unfiltered list answers all. Bounded by the library read timeout, what it
     // waits on being the instance's work over its holdings.
-    public async Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+    public async Task<SitesHeld> ReduceHeldSitesAsync(
         IReadOnlyCollection<int> siteNumbers, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(siteNumbers);
 
         if (siteNumbers.Count == 0)
         {
-            return new HashSet<int>();
+            return new SitesHeld(new HashSet<int>(), new HashSet<int>());
         }
 
         var listed = await GeneratedReadAsync(
@@ -207,11 +207,9 @@ internal sealed class WhisparrV2Instance(
                     + "not established.");
         }
 
-        var rows = V2ListProjector.RowsByNumber(listed.Body, siteNumbers)
+        return V2ListProjector.HeldSitesIn(listed.Body, siteNumbers)
             ?? throw new HttpRequestException(
                 "The answer to the instance's own site list is not a list of rows at all.");
-
-        return rows.Keys.ToHashSet();
     }
 
     // Adds the entity so the instance tracks its catalogue and wants none of it. A site is this

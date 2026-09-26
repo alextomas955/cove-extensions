@@ -264,6 +264,66 @@ internal static class V2ListProjector
         return found;
     }
 
+    /// <summary>
+    /// Which of <paramref name="asked"/> the site list holds, and which of those it records nothing
+    /// under.
+    /// </summary>
+    /// <remarks>
+    /// One pass over the list, answering two sets each bounded by what was asked, so nothing here
+    /// grows with what the instance holds.
+    /// <para>
+    /// A file and a size are both read, because this generation's file count is taken over the
+    /// site's own catalogue rows and reads zero for a file recorded against a row the site does not
+    /// carry. The size is what such a file shows up in. A site reporting neither is one the
+    /// instance records nothing under.
+    /// </para>
+    /// </remarks>
+    internal static SitesHeld? HeldSitesIn(string? listed, IReadOnlyCollection<int> asked)
+    {
+        ArgumentNullException.ThrowIfNull(asked);
+
+        if (AsArray(listed) is not { } rows)
+        {
+            return null;
+        }
+
+        var wanted = asked.ToHashSet();
+        var held = new HashSet<int>();
+        var recordingNothing = new HashSet<int>();
+        foreach (var row in rows)
+        {
+            if (row is not JsonObject entry
+                || entry["tvdbId"] is not JsonValue numbered
+                || !numbered.TryGetValue<int>(out var siteNumber)
+                || !wanted.Contains(siteNumber)
+                || entry["id"] is not JsonValue identified
+                || !identified.TryGetValue<int>(out var rowId)
+                || rowId < 1)
+            {
+                continue;
+            }
+
+            held.Add(siteNumber);
+            if (RecordsNothing(entry["statistics"] as JsonObject))
+            {
+                recordingNothing.Add(siteNumber);
+            }
+        }
+
+        return new SitesHeld(held, recordingNothing);
+    }
+
+    // A site whose statistics the answer does not carry reads as one recording nothing: the
+    // instance stating no figure is the same fact to a reader as it stating a zero, and the other
+    // reading would report files it never claimed.
+    private static bool RecordsNothing(JsonObject? statistics)
+        => Figure(statistics, "episodeFileCount") == 0 && Figure(statistics, "sizeOnDisk") == 0;
+
+    private static long Figure(JsonObject? statistics, string member)
+        => statistics?[member] is JsonValue value && value.TryGetValue<long>(out var figure)
+            ? figure
+            : 0;
+
     private static JsonArray? AsArray(string? body)
     {
         if (string.IsNullOrWhiteSpace(body))

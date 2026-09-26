@@ -169,7 +169,7 @@ public sealed class SceneStatusPortTests
             return Task.FromResult(new WhisparrResponse(200, "application/json", sceneAnswer));
         }
 
-        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        public Task<ScenesHeld> ReduceHeldScenesAsync(
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(

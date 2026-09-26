@@ -65,7 +65,7 @@ public sealed class SyncPreviewCacheTests
     }
 
     private static SyncPreviewView Counted(int notYetThere, int alreadyThere, int skipped)
-        => new(notYetThere, alreadyThere, skipped, SyncRegisters.Scenes, Start);
+        => new(notYetThere, alreadyThere, skipped, 0, SyncRegisters.Scenes, Start);
 
     private sealed class SteppingClock(DateTimeOffset start) : TimeProvider
     {

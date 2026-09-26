@@ -212,6 +212,17 @@ public interface IWhisparrSiteSceneReading
         int siteId, IReadOnlyCollection<int> sceneNumbers, CancellationToken ct);
 }
 
+/// <summary>Which of a set of sites an instance holds, and which of those it records no file for.</summary>
+/// <remarks>
+/// <c>WithNoFileRecorded</c> is a subset of <c>Held</c>: an instance holding no row for a site
+/// records nothing under it either, and reporting that site in both sets would count it twice.
+/// <para>
+/// Both sets are bounded by what the caller asked about, so neither grows with what the instance
+/// holds.
+/// </para>
+/// </remarks>
+public sealed record SitesHeld(IReadOnlySet<int> Held, IReadOnlySet<int> WithNoFileRecorded);
+
 /// <summary>Reads which of a set of sites an instance holds.</summary>
 /// <remarks>
 /// A read role. Only one generation declares it: the other answers presence for a site through a
@@ -220,13 +231,18 @@ public interface IWhisparrSiteSceneReading
 /// </remarks>
 public interface IWhisparrHeldSiteReading
 {
-    /// <summary>Which of <paramref name="siteNumbers"/> the instance holds a row for.</summary>
+    /// <summary>
+    /// Which of <paramref name="siteNumbers"/> the instance holds a row for, and which of those it
+    /// records no file under.
+    /// </summary>
     /// <remarks>
     /// The answer is the subset of the numbers asked about, so it is bounded by the caller's own set.
     /// One request answers a whole batch: the instance narrows its list by no parameter, so the whole
-    /// answer is read as it arrives and each row is reduced to this question and dropped.
+    /// answer is read as it arrives and each row is reduced to this question and dropped. The
+    /// file reading rides that same answer rather than a read per site, whose cost would grow with
+    /// the library.
     /// <para>
-    /// An empty input answers an empty set with no request. There is no row cap: a cap would stop
+    /// An empty input answers empty sets with no request. There is no row cap: a cap would stop
     /// part way and report the rest as sites the instance holds none of, with nothing saying so.
     /// </para>
     /// </remarks>
@@ -235,7 +251,7 @@ public interface IWhisparrHeldSiteReading
     /// than answered as an empty set, because a caller comparing its library against this would
     /// otherwise report every site it asked about as one the instance does not hold.
     /// </exception>
-    Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+    Task<SitesHeld> ReduceHeldSitesAsync(
         IReadOnlyCollection<int> siteNumbers, CancellationToken ct);
 }
 
@@ -319,6 +335,16 @@ public interface IWhisparrReflectOwnedActing
     Task<WhisparrResponse> AttachOwnedFilesAsync(JsonNode files, CancellationToken ct);
 }
 
+/// <summary>
+/// Which of a set of scenes an instance holds, and which of those it records no file against.
+/// </summary>
+/// <remarks>
+/// <c>WithNoFileRecorded</c> is a subset of <c>Held</c>, for the reason <see cref="SitesHeld"/>
+/// gives. Each caller's own spelling of an identifier is what is answered back in both sets.
+/// </remarks>
+public sealed record ScenesHeld(
+    IReadOnlySet<string> Held, IReadOnlySet<string> WithNoFileRecorded);
+
 /// <summary>Reads what an instance holds for one catalogue scene.</summary>
 /// <remarks>
 /// A read role. Only v3 declares it: v2 answers a not-found on every per-scene route, so a caller
@@ -343,13 +369,17 @@ public interface IWhisparrSceneStatusReading
     /// </remarks>
     Task<WhisparrResponse> ReadSceneByRemoteIdAsync(string remoteId, CancellationToken ct);
 
-    /// <summary>Which of <paramref name="foreignIds"/> the instance already holds an entry for.</summary>
+    /// <summary>
+    /// Which of <paramref name="foreignIds"/> the instance already holds an entry for, and which of
+    /// those it records no file against.
+    /// </summary>
     /// <remarks>
     /// The answer is the subset of the identifiers that were asked about, so what it carries is
     /// bounded by the caller's own set whatever the instance holds. A caller reads its own scenes in
-    /// bounded batches and asks about one batch at a time.
+    /// bounded batches and asks about one batch at a time. The file reading rides that same answer
+    /// rather than a read per scene, whose cost would grow with the library.
     /// <para>
-    /// An empty input answers an empty set with no request. There is no row cap: a cap would stop
+    /// An empty input answers empty sets with no request. There is no row cap: a cap would stop
     /// part way and report the rest as absent, with nothing saying so.
     /// </para>
     /// </remarks>
@@ -358,7 +388,7 @@ public interface IWhisparrSceneStatusReading
     /// rather than answered as an empty set, because a caller comparing its library against this
     /// would otherwise report every scene it asked about as one the instance does not hold.
     /// </exception>
-    Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+    Task<ScenesHeld> ReduceHeldScenesAsync(
         IReadOnlyCollection<string> foreignIds, CancellationToken ct);
 }
 
