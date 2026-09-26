@@ -10,7 +10,7 @@
   ],
   "versionGroups": [
     {
-      "label": "TypeScript 7 ships no compiler API. The root's typescript is read through that API by typescript-eslint, openapi-typescript and knip, so the root stays on TypeScript 6, and the website stays on the same version as the root. An extension UI only runs tsc and takes 7 in the default group.",
+      "label": "TypeScript 7 ships no compiler API. The root's typescript is read through that API by typescript-eslint and openapi-typescript, so the root stays on TypeScript 6, and the website stays on the same version as the root. An extension UI only runs tsc and takes 7 in the default group.",
       "dependencies": ["typescript"],
       "packages": ["@cove-extensions/monorepo", "website"]
     },

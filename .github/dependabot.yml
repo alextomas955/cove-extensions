@@ -54,8 +54,8 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 7
-    # TypeScript 7 ships no compiler API, and typescript-eslint, openapi-typescript and knip read the
-    # root's copy through it. An ignore applies to every directory in this block, so a major update is
+    # TypeScript 7 ships no compiler API, and typescript-eslint and openapi-typescript read the root's
+    # copy through it. An ignore applies to every directory in this block, so a major update is
     # held for the extension UIs too; minor and patch updates still reach both.
     ignore:
       - dependency-name: "typescript"
