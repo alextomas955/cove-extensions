@@ -1,7 +1,7 @@
 ---
 id: settings
 title: Settings reference
-sidebar_position: 6
+sidebar_position: 7
 ---
 
 Every Whisparr Sync setting, grouped by the section it appears in on the **Whisparr Sync** settings
@@ -121,6 +121,12 @@ a second.
 | Cove's callback is not registered on this instance.        | Cove looked, and the callback is not there.                                                                   |
 | Registered, but no import has reached Cove through it yet. | The registration is there. Nothing has arrived through it, which is what a wrong callback address looks like. |
 | Registered, and imports are reaching Cove through it.      | Deliveries are arriving.                                                                                      |
+
+A delivery that lands in one of the folders Cove keeps for Whisparr is given a place in your own
+library first, and it is that place Cove records. Where Cove can find no place for it, the delivery
+is refused and the page says _Cove could not give this downloaded file a place in your library, so
+it was left where Whisparr put it._ The file itself is left untouched where Whisparr put it. See
+[Link the files you already own](./linking.md) for what those folders are.
 
 A standing note appears while deliveries carry the secret in the address, where proxies and load
 balancers record it. Registering again from the page moves it out of the address, and the note clears
