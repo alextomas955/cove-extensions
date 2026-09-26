@@ -1,6 +1,5 @@
-using WhisparrSync.Contracts;
-using WhisparrSync.Import;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
@@ -62,59 +61,42 @@ internal static class SiteRegistrationStep
             : MonitoringProjector.PathIn(held.Body);
         var alreadyThere = new SyncRegistration(SceneRegistration.AlreadyHeld, held, siteId);
 
-        if (siteId is not { } instanceId
-            || agreed.RootFolderPath is not { } agreedRoot
-            || heldAt is not { } registeredAt)
+        if (siteId is not { } instanceId)
         {
             return alreadyThere;
         }
 
-        if (SamePlace(registeredAt, agreed.EntityFolderPath ?? agreedRoot))
-        {
-            // A site at the agreed root with no file linked is what a move whose catalogue re-read
-            // never arrived leaves behind. The root reads as correct from then on, so the re-read
-            // has to be reachable without moving the site again. A site is registered only when it
-            // owns files under an agreed root, so a stated zero is an unread catalogue.
-            if (MonitoringProjector.FileCountIn(held.Body) is 0)
-            {
-                await refreshSiteCatalogue(instanceId, ct).ConfigureAwait(false);
-            }
+        var relocated = await TreeRelocationStep.RelocateAsync(
+            heldAt,
+            agreed,
+            relocate is null
+                ? null
+                : (root, folder, moveCt) => relocate(instanceId, root, folder, moveCt),
+            ct).ConfigureAwait(false);
 
-            return alreadyThere;
-        }
-
-        // A generation registering no relocation role refuses here rather than at the transport:
-        // the site keeps the folder it has while its links follow its files.
-        if (relocate is null)
+        switch (relocated.Act)
         {
-            return new SyncRegistration(
-                SceneRegistration.Refused,
-                new WhisparrResponse(0, null, string.Empty)
+            case RelocationAct.AlreadyThere:
+                // A site at the agreed root with no file linked is what a move whose catalogue
+                // re-read never arrived leaves behind. The root reads as correct from then on, so
+                // the re-read has to be reachable without moving the site again. A site is
+                // registered only when it owns files under an agreed root, so a stated zero is an
+                // unread catalogue.
+                if (MonitoringProjector.FileCountIn(held.Body) is 0)
                 {
-                    Refusal = MonitorRefusalKind.CapabilityAbsentOnThisGeneration,
-                },
-                siteId);
+                    await refreshSiteCatalogue(instanceId, ct).ConfigureAwait(false);
+                }
+
+                return alreadyThere;
+            case RelocationAct.Moved:
+                return new SyncRegistration(SceneRegistration.Moved, relocated.Answer, siteId);
+
+            // A move the instance declined is a failure a reader acts on, not a site left already
+            // held: the site is still registered where none of its files sit.
+            case RelocationAct.Declined:
+                return new SyncRegistration(SceneRegistration.Refused, relocated.Answer, siteId);
+            default:
+                return alreadyThere;
         }
-
-        var moved = await relocate(
-            instanceId, agreedRoot, agreed.EntityFolderPath, ct).ConfigureAwait(false);
-
-        // A move the instance declined is a failure a reader acts on, not a site left already held:
-        // the site is still registered where none of its files sit.
-        return moved is not null
-            && MonitoringProjector.Accepted(moved) is MonitorRefusalKind.None
-                ? new SyncRegistration(SceneRegistration.Moved, moved, siteId)
-                : new SyncRegistration(SceneRegistration.Refused, moved, siteId);
     }
-
-    // The intended path is built on the agreed root, which reaches here through the addressing
-    // port, and that port spells every candidate with forward slashes and verifies it against the
-    // instance's own listing without regard to case. The instance answers its own verbatim
-    // spelling. Compared literally, a Windows instance holding D:\Media never matches the agreed
-    // D:/Media, so every held site is moved again on every run and the correction never converges.
-    private static bool SamePlace(string registeredAt, string intended)
-        => string.Equals(
-            PathCandidateGuard.Normalize(registeredAt),
-            PathCandidateGuard.Normalize(intended),
-            StringComparison.OrdinalIgnoreCase);
 }

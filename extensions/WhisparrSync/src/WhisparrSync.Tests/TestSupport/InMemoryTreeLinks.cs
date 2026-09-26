@@ -23,6 +23,9 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
     /// <summary>Every name this run put in a tree, against the file it points at.</summary>
     internal IReadOnlyDictionary<string, string> Links => _links;
 
+    /// <summary>Called with each name as it is made, for a case whose subject is the order.</summary>
+    internal Action<string>? Watching { get; set; }
+
     /// <summary>Takes the library's own name for <paramref name="path"/> away.</summary>
     /// <remarks>
     /// What a reader deleting a file leaves behind: a link in the tree is then the only name the
@@ -62,6 +65,7 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
         }
 
         _links[name] = source;
+        Watching?.Invoke(name);
         return LinkOutcome.Linked;
     }
 

@@ -53,7 +53,10 @@ internal sealed record SyncLibraryAiming(
     IReadOnlyList<string>? OutOfReach = null,
     TreeAiming? Tree = null,
     TreeSweepStep? Sweep = null,
-    LinkTally? Tally = null);
+    LinkTally? Tally = null,
+    // Where the instance records one entity, moved to the folder this run built for it. Null where
+    // the pass settles that inside its own registration, or where no role could move one.
+    Func<string, EntityPlacement, CancellationToken, Task<TreeRelocation>>? Relocate = null);
 
 /// <summary>The figures a run's linking half gathers, carried across the whole walk.</summary>
 /// <remarks>
@@ -393,6 +396,25 @@ public static class SyncLibraryJob
         };
     }
 
+    // A relocation nothing was sent for leaves the registration as the offer classified it. A
+    // declined one is a failure a reader acts on: that entity is recorded where none of its files
+    // sit until a later run moves it.
+    private static SyncRegistration Reported(SyncRegistration answered, TreeRelocation relocated)
+        => relocated.Act switch
+        {
+            RelocationAct.Moved => answered with
+            {
+                Registration = SceneRegistration.Moved,
+                Answer = relocated.Answer,
+            },
+            RelocationAct.Declined => answered with
+            {
+                Registration = SceneRegistration.Refused,
+                Answer = relocated.Answer,
+            },
+            _ => answered,
+        };
+
     // The figures of the pass a reader can act on. What was left still named elsewhere is every
     // healthy link in the tree, and what the pass could settle nothing about is retried by the next
     // run, so neither is a line.
@@ -468,6 +490,22 @@ public static class SyncLibraryJob
                 : await linking.PlaceAsync(row.Folder, remoteId, ct).ConfigureAwait(false);
 
             var answered = await offer(remoteId, placed.Placement, ct).ConfigureAwait(false);
+
+            // Where the instance records a scene it already holds follows that scene's files, and
+            // only once the folder and its links exist: both generations rewrite their own file
+            // records to the new folder without reading it. A scene this run built no folder for is
+            // left registered where it is.
+            //
+            // A scene that moved is reported as moved rather than as already held, in the words the
+            // other pass already uses: the two passes report one act one way.
+            if (aimed.Relocate is { } relocate
+                && placed.Addressed is not null
+                && answered.Registration is SceneRegistration.AlreadyHeld)
+            {
+                answered = Reported(
+                    answered,
+                    await relocate(remoteId, placed.Placement, ct).ConfigureAwait(false));
+            }
 
             // A scene in the tree attaches from its own folder in this run. One left outside it is
             // held for the library folder's own pass, which attaches as the walk leaves the folder.

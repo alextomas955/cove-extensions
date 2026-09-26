@@ -6,11 +6,12 @@ namespace WhisparrSync.Missing;
 
 /// <summary>What one instance row says about one scene, read once.</summary>
 /// <remarks>
-/// Both answers come off the same row, so the state a card shows and the identifier a per-scene verb
-/// names cannot disagree about which scene they describe. The identifier is null where the answer
-/// carried no row or the row carried no usable one.
+/// Every answer comes off the same row, so the state a card shows, the identifier a per-scene verb
+/// names and the folder a relocation compares against cannot disagree about which scene they
+/// describe. The identifier and the folder are null where the answer carried no row or the row
+/// carried nothing usable.
 /// </remarks>
-public sealed record SceneOnInstance(MissingSceneState State, int? InstanceId);
+public sealed record SceneOnInstance(MissingSceneState State, int? InstanceId, string? Path = null);
 
 // One entity probe decides the page before any per-scene read is issued: an instance holding no
 // entry for the entity holds none for a scene under it. A kind the instance publishes no entity for
@@ -134,9 +135,17 @@ internal static class SceneStatusPort
                 monitored.GetBoolean()
                     ? MissingSceneState.Monitored
                     : MissingSceneState.Unmonitored,
-                InstanceIdIn(row));
+                InstanceIdIn(row),
+                PathIn(row));
         }
     }
+
+    private static string? PathIn(JsonElement row)
+        => row.TryGetProperty("path", out var path)
+            && path.ValueKind == JsonValueKind.String
+            && path.GetString() is { Length: > 0 } held
+                ? held
+                : null;
 
     private static int? InstanceIdIn(JsonElement row)
         => row.TryGetProperty("id", out var id)
