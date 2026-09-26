@@ -421,8 +421,8 @@ internal static class SyncLibraryPlanner
                 + $"{string.Join(", ", run.RootsLeftBehind)}, and nothing was copied.");
     }
 
-    // Stated only where there is a figure to act on. One of the two passes can never move
-    // anything, and a permanent zero there would read as something that failed.
+    // Stated only where there is a figure to act on: a permanent zero would read as something that
+    // failed.
     private static string Relocated(SyncLibraryRun run)
         => run.Moved == 0
             ? string.Empty

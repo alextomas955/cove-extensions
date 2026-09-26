@@ -360,6 +360,7 @@ public sealed partial class WhisparrSync
             // One holder for the run, whichever pass it makes: both give entities a folder in the
             // tree and take names back from it, and the line is composed from what it gathered.
             var siteTally = new LinkTally();
+            var sceneTally = new LinkTally();
 
             return SyncPassFor(target) switch
             {
@@ -382,7 +383,8 @@ public sealed partial class WhisparrSync
                             OutOfReach: ranked.OutOfReach,
                             Tree: TreeFor(services, target.Binding.Generation),
                             Sweep: SweepFor(services),
-                            Tally: new LinkTally())
+                            Tally: sceneTally,
+                            Relocate: RelocatingScenesThrough(target))
                         : null,
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
@@ -559,6 +561,45 @@ public sealed partial class WhisparrSync
                 ? answer.Refusal.ToString()
                 : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
         }
+    }
+
+    // One read of the scene the instance already holds, then the move. The read is what carries the
+    // folder the instance records it at, which no add answers: an add for a scene already held is
+    // refused and says nothing about where it sits.
+    //
+    // Null where the connected generation keeps no per-scene record, which leaves the scene pass
+    // registering as it did before entities followed their files.
+    private Func<string, EntityPlacement, CancellationToken, Task<TreeRelocation>>?
+        RelocatingScenesThrough(MonitoringTarget target)
+    {
+        if (target.Reads is not IWhisparrSceneStatusReading reading)
+        {
+            return null;
+        }
+
+        var relocate = RelocatingThrough(target);
+
+        return async (remoteId, intended, ct) =>
+        {
+            var held = await ContainedAsync(
+                () => reading.ReadSceneByRemoteIdAsync(remoteId, ct),
+                target,
+                _log,
+                ct).ConfigureAwait(false);
+
+            if (held is null || SceneStatusPort.ReadRow(held) is not { InstanceId: { } sceneId } row)
+            {
+                return TreeRelocation.NothingToCompare;
+            }
+
+            return await TreeRelocationStep.RelocateAsync(
+                row.Path,
+                intended,
+                relocate is null
+                    ? null
+                    : (root, folder, moveCt) => relocate(sceneId, root, folder, moveCt),
+                ct).ConfigureAwait(false);
+        };
     }
 
     // Null where the connected generation registers no relocation role, which leaves an entity
