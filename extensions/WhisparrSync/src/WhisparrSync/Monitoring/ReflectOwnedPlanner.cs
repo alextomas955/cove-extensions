@@ -155,16 +155,18 @@ internal sealed record PlannedFiles(
     internal static PlannedFiles Nothing { get; } = new(null, 0);
 }
 
-// The three requests a reflect-owned run makes per folder, and the optional read that names the
-// instance's own id for each entry.
+// The three requests a reflect-owned run makes per folder, and the optional read that names which
+// entry each file in it belongs to.
 //
-// A run whose identify step is absent attaches by path alone, which is what a generation keeping no
-// scene rows answers to.
+// The addresses arrive a chunk at a time, because the folder they are for holds every file one
+// entity owns. A run whose identify step is absent attaches what the instance itself matched, which
+// is what a folder the reader arranged answers to.
 internal sealed record ReflectOwnedSteps(
     Func<string, CancellationToken, Task<AddressedFolder>> Address,
     Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
     Func<JsonArray, CancellationToken, Task<bool>> Attach,
-    Func<string, CancellationToken, Task<IReadOnlyDictionary<string, EntryAddress>>>? Identify = null);
+    Func<string, CancellationToken,
+        IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>>? Identify = null);
 
 // Without the hard-link decision every matched file would be copied in full: the import mode that
 // links is labelled a copy, copies when it cannot link, and reports no distinct outcome for it.
@@ -183,11 +185,6 @@ internal static class ReflectOwnedPlanner
     // second each, and they are held in memory until the import goes, so a folder of a few thousand
     // would read for half an hour, show nothing while it did, and lose all of it on a stop.
     internal const int FilesAttachedAtOnce = 100;
-
-    // A run given no lookup reads the instance's own match, which is what every caller but the
-    // library run does.
-    private static readonly IReadOnlyDictionary<string, EntryAddress> NothingIdentified =
-        new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
 
     // The import mode that links when it can. The only other mode moves the file out of the
     // library, and is never composed.
@@ -266,11 +263,9 @@ internal static class ReflectOwnedPlanner
     internal static PlannedFiles Files(
         WhisparrGeneration generation,
         string? importable,
-        IReadOnlyList<string> instanceRoots,
-        IReadOnlyDictionary<string, EntryAddress> identified)
+        IReadOnlyList<string> instanceRoots)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
-        ArgumentNullException.ThrowIfNull(identified);
 
         if (AsArray(importable) is not { } rows)
         {
@@ -283,7 +278,7 @@ internal static class ReflectOwnedPlanner
         var withoutAnEntry = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
-            if (Entry(reading, row, identified) is not { } entry)
+            if (Entry(reading, row) is not { } entry)
             {
                 withoutAnEntry++;
                 continue;
@@ -300,6 +295,65 @@ internal static class ReflectOwnedPlanner
 
         return new PlannedFiles(
             files.Count == 0 ? null : files, leftUnderAnotherRoot, withoutAnEntry);
+    }
+
+    // The entries for the rows one chunk of addresses answers for, handed over a batch at a time.
+    // The folder these rows come from holds every file one entity owns, and an entity reaches the
+    // size of the library, so neither the composing nor the command it feeds may follow it.
+    //
+    // A row this chunk names no address for is left where it is. The instance reads a studio and a
+    // date out of a file name and a link is named for the identity of the file it points at, so
+    // attaching one by what the instance parsed out of that name attaches the file to a guess.
+    internal static IEnumerable<PlannedFiles> AddressedFiles(
+        WhisparrGeneration generation,
+        JsonArray rows,
+        IReadOnlyList<string> instanceRoots,
+        IReadOnlyDictionary<string, EntryAddress> addressed)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentNullException.ThrowIfNull(addressed);
+
+        return Addressing(generation, rows, instanceRoots, addressed);
+    }
+
+    private static IEnumerable<PlannedFiles> Addressing(
+        WhisparrGeneration generation,
+        JsonArray rows,
+        IReadOnlyList<string> instanceRoots,
+        IReadOnlyDictionary<string, EntryAddress> addressed)
+    {
+        var reading = WhisparrInstanceFactory.ReadingFor(generation);
+        var files = new JsonArray();
+        var leftUnderAnotherRoot = 0;
+        foreach (var row in rows.OfType<JsonObject>())
+        {
+            if (AddressedEntry(reading, row, addressed) is not { } entry)
+            {
+                continue;
+            }
+
+            if (UnderDifferentRoots(reading, row, instanceRoots))
+            {
+                leftUnderAnotherRoot++;
+                continue;
+            }
+
+            files.Add(entry);
+            if (files.Count < FilesAttachedAtOnce)
+            {
+                continue;
+            }
+
+            yield return new PlannedFiles(files, leftUnderAnotherRoot);
+            files = [];
+            leftUnderAnotherRoot = 0;
+        }
+
+        if (files.Count > 0 || leftUnderAnotherRoot > 0)
+        {
+            yield return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+        }
     }
 
     // One folder's files, composed from what the library owns rather than from a listing of the
@@ -453,6 +507,99 @@ internal static class ReflectOwnedPlanner
         }
     }
 
+    // What one folder came to. Attached and refused are apart because a folder that sent nothing is
+    // neither; the figures beside them add across the walk.
+    private readonly record struct ReflectedFolder(
+        bool Attached,
+        bool Refused,
+        int FilesAttached,
+        int LeftUnderAnotherRoot,
+        int WithoutAnEntry);
+
+    // A folder the reader arranged. What each file belongs to is the instance's own match, and one
+    // command carries the folder.
+    private static async Task<ReflectedFolder> MatchedAsync(
+        WhisparrGeneration generation,
+        string? rows,
+        IReadOnlyList<string> instanceRoots,
+        Func<JsonArray, CancellationToken, Task<bool>> attach,
+        CancellationToken ct)
+    {
+        var planned = Files(generation, rows, instanceRoots);
+        if (planned.Entries is not { } files)
+        {
+            return new ReflectedFolder(
+                false, false, 0, planned.LeftUnderAnotherRoot, planned.WithoutAnEntry);
+        }
+
+        var sent = await attach(files, ct).ConfigureAwait(false);
+
+        return new ReflectedFolder(
+            sent,
+            !sent,
+            sent ? files.Count : 0,
+            planned.LeftUnderAnotherRoot,
+            planned.WithoutAnEntry);
+    }
+
+    // An entity's own folder. Its addresses arrive a chunk at a time and each chunk's entries go as
+    // they are composed, so neither what is held nor what one command carries follows the entity.
+    //
+    // Counters over the chunks, never a record of which rows a chunk answered for. A row no chunk
+    // addressed is a file no entry could be found for, which is the subtraction at the end; a name
+    // two identifier spellings both reach is composed under each, so it is floored rather than
+    // allowed to run negative.
+    private static async Task<ReflectedFolder> AddressedAsync(
+        WhisparrGeneration generation,
+        string? listing,
+        IReadOnlyList<string> instanceRoots,
+        IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>> addressing,
+        Func<JsonArray, CancellationToken, Task<bool>> attach,
+        CancellationToken ct)
+    {
+        if (AsArray(listing) is not { } rows)
+        {
+            return default;
+        }
+
+        var listed = rows.OfType<JsonObject>().Count();
+        var composed = 0;
+        var filesAttached = 0;
+        var left = 0;
+        var anyAttached = false;
+        var anyRefused = false;
+
+        await foreach (var addressed in addressing.WithCancellation(ct).ConfigureAwait(false))
+        {
+            foreach (var planned in AddressedFiles(generation, rows, instanceRoots, addressed))
+            {
+                left += planned.LeftUnderAnotherRoot;
+                if (planned.Entries is not { } files)
+                {
+                    continue;
+                }
+
+                composed += files.Count;
+                if (await attach(files, ct).ConfigureAwait(false))
+                {
+                    anyAttached = true;
+                    filesAttached += files.Count;
+                }
+                else
+                {
+                    anyRefused = true;
+                }
+            }
+        }
+
+        return new ReflectedFolder(
+            anyAttached,
+            !anyAttached && anyRefused,
+            filesAttached,
+            left,
+            Math.Max(0, listed - composed - left));
+    }
+
     internal static async Task<ReflectOwnedRun> RunAsync(
         WhisparrGeneration generation,
         IReadOnlyList<string> instanceRoots,
@@ -499,27 +646,18 @@ internal static class ReflectOwnedPlanner
                     continue;
                 }
 
-                var identified = identify is null
-                    ? NothingIdentified
-                    : await identify(folder, ct).ConfigureAwait(false);
+                var reflected = identify is null
+                    ? await MatchedAsync(generation, listing.Rows, instanceRoots, attach, ct)
+                        .ConfigureAwait(false)
+                    : await AddressedAsync(
+                        generation, listing.Rows, instanceRoots, identify(folder, ct), attach, ct)
+                        .ConfigureAwait(false);
 
-                var planned = Files(generation, listing.Rows, instanceRoots, identified);
-                leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
-                withoutAnEntry += planned.WithoutAnEntry;
-                if (planned.Entries is not { } files)
-                {
-                    continue;
-                }
-
-                if (await attach(files, ct).ConfigureAwait(false))
-                {
-                    attached++;
-                    filesAttached += files.Count;
-                }
-                else
-                {
-                    refused++;
-                }
+                attached += reflected.Attached ? 1 : 0;
+                refused += reflected.Refused ? 1 : 0;
+                filesAttached += reflected.FilesAttached;
+                leftUnderAnotherRoot += reflected.LeftUnderAnotherRoot;
+                withoutAnEntry += reflected.WithoutAnEntry;
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -583,10 +721,24 @@ internal static class ReflectOwnedPlanner
 
     // The members every generation carries are composed here; the matched entity and its file are
     // the reader's, which answers null for a row it can attach nothing from.
-    private static JsonObject? Entry(
+    private static JsonObject? Entry(IWhisparrPayloadReading reading, JsonObject row)
+        => Composed(row) is { } entry ? reading.MatchedEntry(row, entry) : null;
+
+    // The entry Cove identified rather than the one the instance managed to parse. A generation
+    // that attaches by more than one row refuses an address naming only the first, and that refusal
+    // leaves the file where it is: a row the instance parsed its own answer for would be that
+    // answer, not the reader's.
+    private static JsonObject? AddressedEntry(
         IWhisparrPayloadReading reading,
         JsonObject row,
-        IReadOnlyDictionary<string, EntryAddress> identified)
+        IReadOnlyDictionary<string, EntryAddress> addressed)
+        => PayloadMember.NameIn(row) is { } name
+            && addressed.TryGetValue(name, out var address)
+            && Composed(row) is { } entry
+                ? reading.IdentifiedEntry(entry, address)
+                : null;
+
+    private static JsonObject? Composed(JsonObject row)
     {
         if (row["quality"] is not JsonObject quality
             || row["languages"] is not JsonArray languages
@@ -595,7 +747,7 @@ internal static class ReflectOwnedPlanner
             return null;
         }
 
-        var entry = new JsonObject
+        return new JsonObject
         {
             ["path"] = row["path"]?.DeepClone(),
             ["folderName"] = row["folderName"]?.DeepClone(),
@@ -605,19 +757,6 @@ internal static class ReflectOwnedPlanner
             ["indexerFlags"] = row["indexerFlags"]?.DeepClone(),
             ["downloadId"] = row["downloadId"]?.DeepClone(),
         };
-
-        // The entry Cove identified, not the one the instance managed to parse: the instance reads
-        // a studio and a date out of a file name, and a library whose names it cannot parse gets no
-        // file attached however certainly the library knows which scene it is. A name the library
-        // holds no identifier for is left for the instance's own reading.
-        if (PayloadMember.NameIn(row) is { } name
-            && identified.TryGetValue(name, out var address)
-            && reading.IdentifiedEntry(entry, address) is { } addressed)
-        {
-            return addressed;
-        }
-
-        return reading.MatchedEntry(row, entry);
     }
 
     private static JsonArray? AsArray(string? body)
