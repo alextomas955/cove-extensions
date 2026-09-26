@@ -241,6 +241,9 @@ public sealed class FolderAddressPortTests
         public Task<HeldFile?> HeldFileAtAsync(string path, CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<string?> HeldFilePathOfAsync(int videoId, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct)
             => throw new NotSupportedException();
 

@@ -48,6 +48,21 @@ public sealed class CoveLibraryPortTests
         Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
     }
 
+    // Ordered rather than whichever row the database answers first, so a second reading of one item
+    // names the same folder and an arrival is not placed somewhere new on a redelivery.
+    [Fact]
+    public async Task TheFileAnItemHoldsIsOnePathAndAnItemHoldingNoneAnswersNothing()
+    {
+        await using var library = await LibraryFixture.CreateAsync();
+        var videoId = await library.SeedVideoWithFileAsync("/data/second.mp4");
+        await library.AttachFileAsync(videoId, "/data/first.mp4");
+        var holdingNothing = await library.SeedVideoWithFileAsync("/data/other.mp4");
+        Assert.Equal(1, await library.Port.DetachSupersededFilesAsync(holdingNothing, "/data/none.mp4", Ct));
+
+        Assert.Equal("/data/first.mp4", await library.Port.HeldFilePathOfAsync(videoId, Ct));
+        Assert.Null(await library.Port.HeldFilePathOfAsync(holdingNothing, Ct));
+    }
+
     // The scan service is a double, because this extension does not reference the assembly the real one
     // lives in. That the real host raises these is proven where the real host runs, in the containerized
     // end-to-end spec.

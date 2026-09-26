@@ -88,6 +88,13 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
         return Task.FromResult(Held.GetValueOrDefault(path));
     }
 
+    public Task<string?> HeldFilePathOfAsync(int videoId, CancellationToken ct)
+        => Task.FromResult(
+            Held.Where(row => row.Value.VideoId == videoId)
+                .Select(row => row.Key)
+                .Order(StringComparer.Ordinal)
+                .FirstOrDefault());
+
     public Task<IdentityResolution> ResolveByRemoteIdAsync(
         string endpoint, string remoteId, CancellationToken ct)
     {

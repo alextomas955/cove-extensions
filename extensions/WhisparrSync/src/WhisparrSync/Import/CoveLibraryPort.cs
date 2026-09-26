@@ -110,6 +110,22 @@ internal sealed class CoveLibraryPort(
         return keys.Count == 0 ? null : new HeldFile(keys[0]);
     }
 
+    public async Task<string?> HeldFilePathOfAsync(int videoId, CancellationToken ct)
+    {
+        // One row, ordered so an item holding several answers the same one every time. The
+        // ordering and the limit are the database's: an item reaches the size of the library.
+        var paths = await db.Set<VideoFile>()
+            .AsNoTracking()
+            .Where(file => file.VideoId == videoId)
+            .OrderBy(file => file.Path)
+            .Select(file => file.Path)
+            .Take(1)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return paths.Count == 0 ? null : paths[0];
+    }
+
     public async Task<IdentityResolution> ResolveByRemoteIdAsync(
         string endpoint, string remoteId, CancellationToken ct)
     {
