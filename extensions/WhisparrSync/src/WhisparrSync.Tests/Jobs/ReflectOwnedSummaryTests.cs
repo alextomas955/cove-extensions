@@ -53,6 +53,32 @@ public sealed class ReflectOwnedSummaryTests
             ReflectOwnedJob.SummaryOf(run));
     }
 
+    // The two sentences a reader acts on, transcribed rather than composed. One names where to turn
+    // renaming off; the other says the setting was not read, which is a different fact from it being
+    // off.
+    [Theory]
+    [InlineData(
+        ReflectOwnedSkipReason.RenamingOn,
+        "No files were linked: Whisparr is set to rename files. Turn renaming off in Whisparr's "
+            + "Settings, Media Management.")]
+    [InlineData(
+        ReflectOwnedSkipReason.RenameSettingUnreadable,
+        "No files were linked: Whisparr's rename setting could not be read.")]
+    public void ARunStoppedByTheInstancesRenamingStatesWhatToChange(
+        ReflectOwnedSkipReason reason, string sentence)
+        => Assert.Equal(
+            sentence,
+            ReflectOwnedJob.SummaryOf(
+                new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, 0, 0, reason)));
+
+    // The sentences are written down one per reason and thrown for otherwise, so a reason added
+    // without one reaches a reader as an exception in the middle of a run.
+    [Fact]
+    public void EveryReasonTheServerCanAnswerHasASentence()
+        => Assert.All(
+            Enum.GetValues<ReflectOwnedSkipReason>(),
+            reason => Assert.NotEmpty(ReflectOwnedJob.SentenceFor(reason)));
+
     // A root is an operator's own small set; the paths under it are not, so the line carries at
     // most one path per root.
     [Fact]

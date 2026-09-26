@@ -14,6 +14,8 @@ import {
   MENU_MONITOR,
   MENU_UNMONITOR,
   REFLECT_OWNED_SKIPPED,
+  REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE,
+  REFLECT_OWNED_SKIPPED_RENAMING_ON,
   REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
@@ -602,6 +604,10 @@ describe("the verbs this build carries out", () => {
     expect(describeReflectOwnedSkip("hardLinksOff")).toBe(REFLECT_OWNED_SKIPPED);
     expect(describeReflectOwnedSkip("hardLinkSettingUnreadable")).toBe(
       REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
+    );
+    expect(describeReflectOwnedSkip("renamingOn")).toBe(REFLECT_OWNED_SKIPPED_RENAMING_ON);
+    expect(describeReflectOwnedSkip("renameSettingUnreadable")).toBe(
+      REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE,
     );
   });
 });

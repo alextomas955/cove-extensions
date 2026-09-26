@@ -50,6 +50,12 @@ public enum ReflectOwnedSkipReason
 
     /// <summary>The setting could not be read, so whether an import would copy is unknown.</summary>
     HardLinkSettingUnreadable,
+
+    /// <summary>The instance renames what it takes in, so a linked file would not stay put.</summary>
+    RenamingOn,
+
+    /// <summary>The naming settings could not be read, so whether it renames is unknown.</summary>
+    RenameSettingUnreadable,
 }
 
 /// <summary>What asking for one entity's owned files to be reflected produced.</summary>
