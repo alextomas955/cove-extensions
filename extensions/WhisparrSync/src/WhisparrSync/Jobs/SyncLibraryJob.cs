@@ -149,7 +149,7 @@ public static class SyncLibraryJob
                 SyncLibraryPlanner.SummaryOf(registered, aimed.Monitor is not null, aimed.Registers),
                 ReflectOwnedJob.SummaryOf(
                     (linking?.Total ?? ReflectOwnedJob.Untaken with { Skipped = link.Skipped })
-                        .Plus(Reported(swept)))));
+                        .Plus(ReportedSweep(swept)))));
 
             return registered;
         });
@@ -235,6 +235,19 @@ public static class SyncLibraryJob
                 null);
         }
 
+        // What one entity's build did. A build that made no folder names its root once: every entity
+        // under a root nothing can be written inside meets the same refusal, so a line per entity would
+        // say the same thing as many times as the library has entities.
+        private static ReflectOwnedRun ReportedBuild(TreeBuild built, string coveRoot)
+            => ReflectOwnedJob.Untaken with
+            {
+                EntitiesGivenAFolder = built.EntityFolder is null ? 0 : 1,
+                LinksMade = built.Linked,
+                LinksAlreadyThere = built.AlreadyThere,
+                LinksOnAnotherDevice = built.OnAnotherDevice,
+                RootsWithNoTree = built.EntityFolder is null ? [coveRoot] : null,
+            };
+
         // Null where the pass builds no tree, where the folder sits under no library root, where
         // the build produced no folder, or where the instance cannot be told which path that folder
         // is. Each leaves the caller registering the way it did before, rather than at a path one
@@ -253,6 +266,10 @@ public static class SyncLibraryJob
                 remoteId,
                 tree.FilesOfScene(remoteId, coveRoot, ct),
                 ct).ConfigureAwait(false);
+
+            // Folded in as the walk leaves this entity, so a run stopped part way still reports
+            // what it did for the entities it reached.
+            Total = Total.Plus(ReportedBuild(built, coveRoot));
 
             if (built.EntityFolder is not { } entityFolder)
             {
@@ -347,7 +364,7 @@ public static class SyncLibraryJob
     // The figures of the pass a reader can act on. What was left still named elsewhere is every
     // healthy link in the tree, and what the pass could settle nothing about is retried by the next
     // run, so neither is a line.
-    private static ReflectOwnedRun Reported(TreeSweep swept)
+    private static ReflectOwnedRun ReportedSweep(TreeSweep swept)
         => ReflectOwnedJob.Untaken with
         {
             NamesNotComposedHere = swept.NotComposedHere,

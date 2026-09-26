@@ -681,6 +681,78 @@ public sealed class ReflectOwnedPlannerTests
             ["languages"] = new JsonArray(new JsonObject { ["id"] = qualityId == 0 ? 0 : 1 }),
         }).ToJsonString();
 
+    // The walk carries one total over a library of folders, so every figure a part reports has to
+    // survive the fold. A member added and left out of Plus reads as a run that did nothing.
+    [Fact]
+    public void EveryFigureAPartCarriesSurvivesTheFold()
+    {
+        var first = new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed,
+            FoldersAttached: 1,
+            FoldersRefused: 2,
+            FoldersNotAddressed: 3,
+            EntriesLeftUnderAnotherRoot: 4,
+            FilesAttached: 5,
+            FilesWithoutAnEntry: 6,
+            NamesNotComposedHere: 7,
+            LinksRemoved: 8,
+            LinksWaiting: 9,
+            EntitiesGivenAFolder: 10,
+            LinksMade: 11,
+            LinksAlreadyThere: 12,
+            LinksOnAnotherDevice: 13);
+
+        var total = first.Plus(first);
+
+        Assert.Equal(
+            [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26],
+            new[]
+            {
+                total.FoldersAttached,
+                total.FoldersRefused,
+                total.FoldersNotAddressed,
+                total.EntriesLeftUnderAnotherRoot,
+                total.FilesAttached,
+                total.FilesWithoutAnEntry,
+                total.NamesNotComposedHere,
+                total.LinksRemoved,
+                total.LinksWaiting,
+                total.EntitiesGivenAFolder,
+                total.LinksMade,
+                total.LinksAlreadyThere,
+                total.LinksOnAnotherDevice,
+            });
+    }
+
+    // What was registered before the stop stays registered, so the total says so and reads as
+    // stopped rather than as a run that found nothing.
+    [Fact]
+    public void APartThatWasStoppedStopsTheWholeTotal()
+    {
+        var walked = new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, 1, 0, FilesAttached: 4);
+        var stopped = new ReflectOwnedRun(ReflectOwnedRunOutcome.Cancelled, 0, 0);
+
+        var total = walked.Plus(stopped);
+
+        Assert.Equal(ReflectOwnedRunOutcome.Cancelled, total.Outcome);
+        Assert.Equal(4, total.FilesAttached);
+    }
+
+    // A root nothing can be written under refuses every entity beneath it, and a library holds as
+    // many entities as it holds scenes.
+    [Fact]
+    public void TwoEntitiesUnderOneRootThatCouldNotBeBuiltUnderNameItOnce()
+    {
+        var refused = new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed, 0, 0, RootsWithNoTree: ["/data"]);
+
+        var total = refused.Plus(refused).Plus(
+            new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed, 0, 0, RootsWithNoTree: ["/data2"]));
+
+        Assert.Equal(["/data", "/data2"], total.RootsWithNoTree!.Order(StringComparer.Ordinal));
+    }
+
     // The cases using this are about the loop rather than the addressing, so the instance spells a
     // folder the way the library does.
     private static Task<AddressedFolder> OnTheInstance(string folder, CancellationToken _)
