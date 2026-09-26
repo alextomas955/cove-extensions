@@ -49,7 +49,7 @@ public sealed class ReflectOwnedSummaryTests
             ReflectOwnedRunOutcome.Completed, 0, 0, ReflectOwnedSkipReason.HardLinksOff);
 
         Assert.Equal(
-            "No files were linked: Whisparr's hard-link setting is off.",
+            "No files were handed to Whisparr: its hard-link setting is off.",
             ReflectOwnedJob.SummaryOf(run));
     }
 
@@ -59,11 +59,11 @@ public sealed class ReflectOwnedSummaryTests
     [Theory]
     [InlineData(
         ReflectOwnedSkipReason.RenamingOn,
-        "No files were linked: Whisparr is set to rename files. Turn renaming off in Whisparr's "
-            + "Settings, Media Management.")]
+        "No files were handed to Whisparr: it is set to rename files. Turn renaming off in "
+            + "Whisparr's Settings, Media Management.")]
     [InlineData(
         ReflectOwnedSkipReason.RenameSettingUnreadable,
-        "No files were linked: Whisparr's rename setting could not be read.")]
+        "No files were handed to Whisparr: its rename setting could not be read.")]
     public void ARunStoppedByTheInstancesRenamingStatesWhatToChange(
         ReflectOwnedSkipReason reason, string sentence)
         => Assert.Equal(

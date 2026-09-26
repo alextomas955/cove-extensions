@@ -389,20 +389,8 @@ public sealed partial class WhisparrSync
 
                 // Nothing monitors the site itself: what the reader owns on a site is its scenes,
                 // so the monitor slot here marks those.
-                SyncRegisters.Sites =>
-                    await ComposeSiteRegistrationAsync(services, readings, siteTally, runCt)
-                            .ConfigureAwait(false)
-                        is { } registerSite
-                        ? new SyncLibraryAiming(
-                            target.Binding.Generation,
-                            SyncRegisters.Sites,
-                            RegisterScene: null,
-                            registerSite,
-                            Monitor: null,
-                            ComposeSiteSceneMonitor(services, batch, target),
-                            Sweep: SweepFor(services),
-                            Tally: siteTally)
-                        : null,
+                SyncRegisters.Sites => await ComposeSitePassAsync(
+                        target, services, readings, batch, siteTally, runCt).ConfigureAwait(false),
 
                 _ => null,
             };
@@ -441,11 +429,44 @@ public sealed partial class WhisparrSync
                 identities.SceneFilePathsUnder(remoteId, generation, coveRoot, ct));
     }
 
+    // Nothing monitors the site itself: what the reader owns on a site is its scenes, so the
+    // monitor slot marks those.
+    //
+    // The linking aim is resolved once for the run and threaded into the offer, because this pass
+    // hands over one entity's folder as it registers that entity rather than one library folder as
+    // the walk leaves it. Its refusal still rides on the aiming, so a reader whose settings stop
+    // the hand-over is told which setting it was.
+    private async Task<SyncLibraryAiming?> ComposeSitePassAsync(
+        MonitoringTarget target,
+        IServiceProvider services,
+        ConcurrentDictionary<string, AddressedFolder> readings,
+        SyncLibraryBatch batch,
+        LinkTally tally,
+        CancellationToken runCt)
+    {
+        var link = await LinkOwnedAimAsync(target, services, runCt).ConfigureAwait(false);
+
+        return await ComposeSiteRegistrationAsync(services, readings, link, tally, runCt)
+                .ConfigureAwait(false) is { } registerSite
+            ? new SyncLibraryAiming(
+                target.Binding.Generation,
+                SyncRegisters.Sites,
+                RegisterScene: null,
+                registerSite,
+                Monitor: null,
+                ComposeSiteSceneMonitor(services, batch, target),
+                Link: link,
+                Sweep: SweepFor(services),
+                Tally: tally)
+            : null;
+    }
+
     // The presence-only add, so nothing this run registers is monitored or searched for.
     private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
         ComposeSiteRegistrationAsync(
             IServiceProvider services,
             ConcurrentDictionary<string, AddressedFolder> readings,
+            ReflectOwnedAim? link,
             LinkTally tally,
             CancellationToken runCt)
     {
@@ -502,10 +523,14 @@ public sealed partial class WhisparrSync
             new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()),
             tally);
 
+        var attaching = await AttachingSiteFoldersAsync(
+            link, services, target.Binding.Generation, tally, runCt).ConfigureAwait(false);
+
         return async (site, siteCt) =>
         {
-            var composed = await PlacedSiteAsync(composeWith, placing, site, siteCt)
+            var placed = await PlacedSiteAsync(composeWith, placing, site, siteCt)
                 .ConfigureAwait(false);
+            var composed = placed.Composed;
 
             // A refused composition still reaches the step, so the site is read: where the instance
             // holds it, its root need not settle for its scenes to be marked, and stopping short
@@ -541,6 +566,21 @@ public sealed partial class WhisparrSync
             {
                 WhisparrSyncLog.SiteRegistrationRefused(
                     _log, site.StudioId, site.RemoteId, RefusalReason(registered.Answer));
+            }
+
+            // The entity's folder holds one name per file it owns, each spelled as the identity of
+            // the file it points at, so this generation parses no scene out of any of them and
+            // would record nothing. The entry each name belongs to is supplied instead.
+            //
+            // A site the instance holds no row for can address nothing in the folder, so its files
+            // are left where they are rather than handed over on whatever the instance parsed.
+            if (attaching is { } attach
+                && placed.InTree is { } inTree
+                && registered.InstanceId is not null)
+            {
+                tally.Add(
+                    await AttachedSiteFolderAsync(attach, site, inTree, siteCt)
+                        .ConfigureAwait(false));
             }
 
             return registered with { Root = composed.Root };
@@ -625,6 +665,75 @@ public sealed partial class WhisparrSync
         TreeReconcileStep Tree,
         LinkTally Tally);
 
+    // Where one site was placed: the defaults its add carries, and the folder this run built for
+    // it as both systems spell it. A null tree is a site no folder was built for, which is what a
+    // library root Cove cannot write inside leaves.
+    private sealed record SitePlacement(
+        EntityAddDefaultsResolution Composed, AddressedTree? InTree);
+
+    // What one site's own folder is handed over through: the aim the run resolved, the roots the
+    // instance declared, and the pass that says which entry each name in the folder belongs to.
+    private sealed record SiteAttaching(
+        ReflectOwnedAiming Through,
+        IReadOnlyList<string> InstanceRoots,
+        Func<WhisparrEntityKind, int, EntityTreeFolder, CancellationToken,
+            IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>> Supply);
+
+    // Null where nothing is handed over: no reflect-owned role on the connected generation, a
+    // setting that refused, or a generation that names a scene by a row of its own and so supplies
+    // no entries. The refusal itself rides on the aiming, so a reader is still told which setting
+    // stopped it.
+    //
+    // The declared roots are read once for the run rather than once per site. A list that could not
+    // be established hands nothing over at all: an import composed without that comparison copies
+    // the bytes in full rather than linking them.
+    private static async Task<SiteAttaching?> AttachingSiteFoldersAsync(
+        ReflectOwnedAim? link,
+        IServiceProvider services,
+        WhisparrGeneration generation,
+        LinkTally tally,
+        CancellationToken ct)
+    {
+        if (link?.Through is not { SupplyEntries: { } supply } through)
+        {
+            return null;
+        }
+
+        var instanceRoots = await services.GetRequiredService<IReportedRootPort>()
+            .ReadAsync(generation, ct).ConfigureAwait(false);
+
+        if (instanceRoots is null)
+        {
+            tally.Add(
+                new ReflectOwnedRun(
+                    ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true));
+
+            return null;
+        }
+
+        return new SiteAttaching(through, instanceRoots, supply);
+    }
+
+    // The names in one site's folder, handed over with the entry each belongs to. The addresses
+    // arrive a chunk at a time and each chunk's entries go as they are composed, so neither what is
+    // held nor what one command carries follows the size of the studio.
+    private static Task<ReflectOwnedRun> AttachedSiteFolderAsync(
+        SiteAttaching attaching,
+        LibrarySiteIdentity site,
+        AddressedTree inTree,
+        CancellationToken ct)
+        => ReflectOwnedJob.AttachSuppliedAsync(
+            attaching.Through,
+            attaching.InstanceRoots,
+            inTree.CoveRoot,
+            inTree.OnInstance,
+            attaching.Supply(
+                WhisparrEntityKind.Studio,
+                site.StudioId,
+                new EntityTreeFolder(inTree.CoveRoot, inTree.EntityFolder, site.RemoteId),
+                ct),
+            ct);
+
     // The root and the folder one site is registered at, with the folder built before it is sent.
     //
     // A folder sent for a path nothing holds leaves the instance recording an entry whose files it
@@ -634,7 +743,7 @@ public sealed partial class WhisparrSync
     //
     // The files are the ones the studio owns under its chosen root, streamed one at a time, because
     // a studio's files reach the size of the library.
-    private static async Task<EntityAddDefaultsResolution> PlacedSiteAsync(
+    private static async Task<SitePlacement> PlacedSiteAsync(
         AddDefaults composeWith,
         SitePlacing placing,
         LibrarySiteIdentity site,
@@ -651,10 +760,10 @@ public sealed partial class WhisparrSync
             agreedRoot,
             ct).ConfigureAwait(false);
 
-        if (composed.Defaults is not { EntityFolderPath: not null } wanted
+        if (composed.Defaults is not { EntityFolderPath: { } onInstance } wanted
             || composed.Root.CoveRoot is not { } chosen)
         {
-            return composed;
+            return new SitePlacement(composed, null);
         }
 
         var built = await tree.BuildAsync(
@@ -666,9 +775,10 @@ public sealed partial class WhisparrSync
 
         tally.Add(SyncLibraryJob.ReportedBuild(built, chosen));
 
-        return built.EntityFolder is null
-            ? composed with { Defaults = wanted with { EntityFolderPath = null } }
-            : composed;
+        return built.EntityFolder is { } entityFolder
+            ? new SitePlacement(composed, new AddressedTree(chosen, entityFolder, onInstance))
+            : new SitePlacement(
+                composed with { Defaults = wanted with { EntityFolderPath = null } }, null);
     }
 
     // A generation this product cannot ask refuses the root rather than composing one, a root
@@ -747,7 +857,7 @@ public sealed partial class WhisparrSync
 
         return decision.Act
             ? new ReflectOwnedAim(
-                AimedAt(target, acting, services.GetRequiredService<IFolderAddressPort>()) with
+                AimedAt(target, acting, services) with
                 {
                     Identify = IdentifyingFilesIn(services, target.Binding.Generation),
                     ReadFile = ReadingFilesOn(target),
