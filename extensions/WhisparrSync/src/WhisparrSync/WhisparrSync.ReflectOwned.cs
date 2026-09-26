@@ -157,13 +157,20 @@ public sealed partial class WhisparrSync
 
             return decision.Act
                 ? new ReflectOwnedAim(
-                    AimedAt(target, acting, services.GetRequiredService<IFolderAddressPort>()), null)
+                    AimedAt(target, acting, services), null)
                 : new ReflectOwnedAim(null, decision.Reason);
         }
     }
 
     // The one statement of the work, reached by the entity's own run and by a selection's
     // per-entity step alike, so a selection cannot behave differently from a click.
+    private ReflectOwnedAiming AimedAt(
+        MonitoringTarget target, IWhisparrReflectOwnedActing acting, IServiceProvider services)
+        => AimedAt(target, acting, services.GetRequiredService<IFolderAddressPort>()) with
+        {
+            SupplyEntries = SupplyingEntries(target, services),
+        };
+
     private ReflectOwnedAiming AimedAt(
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, IFolderAddressPort addressing)
         => new(

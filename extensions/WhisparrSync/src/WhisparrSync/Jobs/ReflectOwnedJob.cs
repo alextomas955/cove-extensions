@@ -27,7 +27,30 @@ internal sealed record ReflectOwnedAiming(
     Func<JsonArray, CancellationToken, Task<bool>> Attach,
     Func<string, IReadOnlyDictionary<string, RegisteredScene>, CancellationToken,
         Task<IReadOnlyDictionary<string, RegisteredScene>>>? Identify = null,
-    Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadFile = null);
+    Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadFile = null,
+    Func<WhisparrEntityKind, int, EntityTreeFolder, CancellationToken,
+        Task<IReadOnlyDictionary<string, EntryAddress>>>? SupplyEntries = null);
+
+/// <summary>One entity's own folder in the tree, and the library root the tree sits under.</summary>
+/// <remarks>
+/// The root travels with the folder because an entity's links are made from files under that root
+/// and nowhere else, so it is the only root a name in this folder can be resolved against.
+/// </remarks>
+internal sealed record EntityTreeFolder(string CoveRoot, string Folder, string RemoteId);
+
+/// <summary>What one linking run came to, as the sentence describing it is composed from.</summary>
+/// <remarks>
+/// A single entity's run and a selection's linking step both compose their line from this, so a
+/// selection cannot report the same work in different words from a click.
+/// </remarks>
+internal sealed record LinkedTally(
+    ReflectOwnedSkipReason? Skipped,
+    int FilesAttached,
+    int FoldersRefused,
+    IReadOnlyList<FolderAddressRefusal>? Unaddressed,
+    int LeftUnderAnotherRoot,
+    bool RootsCouldNotBeRead = false,
+    int WithoutAnEntry = 0);
 
 // A null Through with a Skipped reason means the instance's linking setting stopped the run. A null
 // Through with no reason reports as a completed run that attached nothing.
@@ -53,6 +76,14 @@ public static class ReflectOwnedJob
     internal const string NoRootToCompareSentence =
         "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
         + "data could not be checked.";
+
+    // Names no file: the line is durable and must not grow with the library. Names no system
+    // either: a file reaches this where the metadata source numbered its scene and where Whisparr
+    // holds a row for it alike, and blaming one of them would send a reader to the wrong settings
+    // page half the time. The log carries which of the two it was.
+    internal const string WithoutAnEntrySentence =
+        "Some files were not linked: the scenes they belong to could not be matched to Whisparr's "
+        + "own catalogue rows.";
 
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
@@ -142,14 +173,29 @@ public static class ReflectOwnedJob
                 ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true);
         }
 
+        var walk = await FoldersToWalkAsync(services, aimed.Generation, kind, coveId, ct)
+            .ConfigureAwait(false);
+
+        // Only a folder in the tree carries names the instance can parse nothing out of, so only
+        // there is an entry supplied. A library folder keeps the instance's own reading, which is
+        // what its file names were written for.
+        var identify = walk.InTree is { } inTree && aimed.SupplyEntries is { } supply
+            ? (string _, CancellationToken identifyCt)
+                => supply(kind, coveId, inTree, identifyCt)
+            : (Func<string, CancellationToken,
+                Task<IReadOnlyDictionary<string, EntryAddress>>>?)null;
+
         return await ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
             instanceRoots,
-            await FoldersToWalkAsync(services, aimed.Generation, kind, coveId, ct)
-                .ConfigureAwait(false),
-            new ReflectOwnedSteps(aimed.Address, aimed.ReadImportable, aimed.Attach),
+            walk.Folders,
+            new ReflectOwnedSteps(aimed.Address, aimed.ReadImportable, aimed.Attach, identify),
             ct).ConfigureAwait(false);
     }
+
+    // A null InTree means no tree folder holds a name for the entity, so its library folders are
+    // walked as they were before a tree existed.
+    private sealed record FolderWalk(IAsyncEnumerable<string> Folders, EntityTreeFolder? InTree);
 
     // The entity's own folder where this product has built one, and the library folders its files
     // sit in where it has not. The folder holds links to exactly this entity's files, so the
@@ -159,7 +205,7 @@ public static class ReflectOwnedJob
     // One probe per configured library root, which an operator creates by hand. The first tree
     // holding a name for the entity answers, because a tree lives on the drive its files live on
     // and an entity's files are linked under one.
-    private static async Task<IAsyncEnumerable<string>> FoldersToWalkAsync(
+    private static async Task<FolderWalk> FoldersToWalkAsync(
         IServiceProvider services,
         WhisparrGeneration generation,
         WhisparrEntityKind kind,
@@ -173,7 +219,7 @@ public static class ReflectOwnedJob
             .ResolveAsync(kind, coveId, generation, ct).ConfigureAwait(false);
         if (named.ForeignId is not { } remoteId)
         {
-            return folders;
+            return new FolderWalk(folders, null);
         }
 
         var links = services.GetRequiredService<ITreeLinkPort>();
@@ -183,11 +229,13 @@ public static class ReflectOwnedJob
                 && TreePathGuard.EntityFolderIn(treeRoot, remoteId) is { } entityFolder
                 && links.NamesIn(entityFolder).Any())
             {
-                return OnlyAsync(entityFolder);
+                return new FolderWalk(
+                    OnlyAsync(entityFolder),
+                    new EntityTreeFolder(coveRoot, entityFolder, remoteId));
             }
         }
 
-        return folders;
+        return new FolderWalk(folders, null);
     }
 
     private static async IAsyncEnumerable<string> OnlyAsync(string folder)
@@ -308,28 +356,27 @@ public static class ReflectOwnedJob
         ArgumentNullException.ThrowIfNull(run);
 
         return LineFor(
-            run.Skipped,
-            run.FilesAttached,
-            run.FoldersRefused,
-            run.AddressRefusals,
-            run.EntriesLeftUnderAnotherRoot,
-            run.Outcome == ReflectOwnedRunOutcome.Cancelled,
-            run.RootsCouldNotBeRead);
+            new LinkedTally(
+                run.Skipped,
+                run.FilesAttached,
+                run.FoldersRefused,
+                run.AddressRefusals,
+                run.EntriesLeftUnderAnotherRoot,
+                run.RootsCouldNotBeRead,
+                run.FilesWithoutAnEntry),
+            run.Outcome == ReflectOwnedRunOutcome.Cancelled);
     }
 
     // Read by the entity's own enqueued run and by a selection's linking step alike, so a selection
     // cannot report a run in different words from a click.
     // A run that reached the instance for nothing leads with why instead of its counts: two zeros
     // read as a clean pass over every folder.
-    internal static string LineFor(
-        ReflectOwnedSkipReason? skipped,
-        int filesAttached,
-        int foldersRefused,
-        IReadOnlyList<FolderAddressRefusal>? unaddressed,
-        int leftUnderAnotherRoot,
-        bool cancelled,
-        bool rootsCouldNotBeRead = false)
+    internal static string LineFor(LinkedTally tally, bool cancelled)
     {
+        ArgumentNullException.ThrowIfNull(tally);
+        var (skipped, filesAttached, foldersRefused, unaddressed, leftUnderAnotherRoot,
+            rootsCouldNotBeRead, withoutAnEntry) = tally;
+
         if (skipped is { } reason)
         {
             return SentenceFor(reason);
@@ -347,6 +394,13 @@ public static class ReflectOwnedJob
             reasons = reasons.Length == 0
                 ? LeftUnderAnotherRootSentence
                 : reasons + " " + LeftUnderAnotherRootSentence;
+        }
+
+        if (withoutAnEntry > 0)
+        {
+            reasons = reasons.Length == 0
+                ? WithoutAnEntrySentence
+                : reasons + " " + WithoutAnEntrySentence;
         }
 
         if (filesAttached == 0 && foldersRefused == 0 && reasons.Length > 0)

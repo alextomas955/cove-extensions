@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
@@ -304,6 +303,8 @@ public sealed partial class WhisparrSync
         private int _foldersAttached;
         private int _foldersRefused;
         private int _entriesLeftUnderAnotherRoot;
+
+        private int _filesWithoutAnEntry;
         private bool _rootsCouldNotBeRead;
 
         internal IReadOnlyList<FolderAddressRefusal> AddressRefusals => [.. _refusalByRoot.Values];
@@ -319,7 +320,8 @@ public sealed partial class WhisparrSync
                 _foldersRefused,
                 AddressRefusals,
                 _entriesLeftUnderAnotherRoot,
-                _rootsCouldNotBeRead)
+                _rootsCouldNotBeRead,
+                _filesWithoutAnEntry)
             : null;
 
         internal async Task LinkAsync(
@@ -359,8 +361,7 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false);
             _skipped = decision.Reason;
             _through = decision.Act
-                ? owner.AimedAt(
-                    resolved, acting, services.GetRequiredService<IFolderAddressPort>())
+                ? owner.AimedAt(resolved, acting, services)
                 : null;
         }
 
@@ -369,6 +370,7 @@ public sealed partial class WhisparrSync
             _foldersAttached += linked.FoldersAttached;
             _foldersRefused += linked.FoldersRefused;
             _entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
+            _filesWithoutAnEntry += linked.FilesWithoutAnEntry;
             _rootsCouldNotBeRead |= linked.RootsCouldNotBeRead;
 
             foreach (var root in linked.AddressedRoots ?? [])
