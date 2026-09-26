@@ -188,6 +188,9 @@ public sealed class BulkReflectOwnedTests
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, setting))
             .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync),
+                MonitorHost.Json(200, RecordingWhisparrCore.LeavesNamesAlone))
+            .Answering(
                 nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync),
                 MonitorHost.Json(200, Attachable));
         return host;

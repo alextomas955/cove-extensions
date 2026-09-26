@@ -147,6 +147,9 @@ public sealed class ReflectOwnedNeverTransfersTests
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, LinksIntoPlace))
             .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync),
+                MonitorHost.Json(200, RecordingWhisparrCore.LeavesNamesAlone))
+            .Answering(
                 nameof(IWhisparrStudioActing.ReadStudioAsync),
                 MonitorHost.Json(200, """{"id":9,"monitored":false}"""),
                 MonitorHost.Json(200, """{"id":9,"monitored":true}"""));
@@ -178,6 +181,8 @@ public sealed class ReflectOwnedNeverTransfersTests
             {
                 var setting when setting.EndsWith("/config/mediamanagement", StringComparison.Ordinal)
                     => LinksIntoPlace,
+                var naming when naming.EndsWith("/config/naming", StringComparison.Ordinal)
+                    => RecordingWhisparrCore.LeavesNamesAlone,
 
                 // No root, so these cases stay about the loop rather than about which root a site
                 // sits under.

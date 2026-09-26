@@ -293,6 +293,9 @@ public sealed class RegisteredInItsOwnFolderTests
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, LinksIntoPlace))
             .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync),
+                MonitorHost.Json(200, RecordingWhisparrCore.LeavesNamesAlone))
+            .Answering(
                 nameof(RecordingWhisparrCore.AttachOwnedFilesAsync), MonitorHost.Json(200, "{}"));
 
         answering(host);

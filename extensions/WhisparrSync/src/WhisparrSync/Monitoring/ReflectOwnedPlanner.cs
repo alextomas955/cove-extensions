@@ -195,7 +195,22 @@ internal static class ReflectOwnedPlanner
 
     internal const string HardLinkSetting = "copyUsingHardlinks";
 
-    internal static ReflectOwnedDecision Decide(string? mediaManagement)
+    // Two readings, and the linking one answers first, so an instance failing both reports what it
+    // reported before the naming one existed rather than a reason that changed under a reader.
+    internal static ReflectOwnedDecision Decide(
+        WhisparrGeneration generation, string? mediaManagement, string? naming)
+    {
+        var linking = LinksIntoPlace(mediaManagement);
+
+        return linking.Act ? LeavesNamesAlone(generation, naming) : linking;
+    }
+
+    // Whether the naming body is worth a request at all. The linking reading answers first, so a
+    // refusal it already reached costs no second read.
+    internal static bool NeedsTheNamingReading(string? mediaManagement)
+        => LinksIntoPlace(mediaManagement).Act;
+
+    private static ReflectOwnedDecision LinksIntoPlace(string? mediaManagement)
     {
         if (MonitoringProjector.AsObject(mediaManagement) is not { } settings
             || settings[HardLinkSetting] is not JsonValue setting
@@ -207,6 +222,37 @@ internal static class ReflectOwnedPlanner
         return linksIntoPlace
             ? ReflectOwnedDecision.Acting
             : ReflectOwnedDecision.Skipped(ReflectOwnedSkipReason.HardLinksOff);
+    }
+
+    // Measured on both builds. With renaming on, one generation's rename command moves every file
+    // out of the folder this product named and into a format of its own; the other fails the attach
+    // outright, because with a new name to write the import is no longer in place.
+    //
+    // Every member the generation states has to be read. A body that answered none of them folds to
+    // null and refuses, rather than to an off nobody read.
+    private static ReflectOwnedDecision LeavesNamesAlone(
+        WhisparrGeneration generation, string? naming)
+    {
+        var settings = MonitoringProjector.AsObject(naming);
+        bool? renaming = null;
+        foreach (var member in WhisparrInstanceFactory.ReadingFor(generation).RenamingMembers)
+        {
+            if (settings?[member] is not JsonValue setting
+                || !setting.TryGetValue<bool>(out var renames))
+            {
+                return ReflectOwnedDecision.Skipped(
+                    ReflectOwnedSkipReason.RenameSettingUnreadable);
+            }
+
+            renaming = (renaming ?? false) || renames;
+        }
+
+        return renaming switch
+        {
+            true => ReflectOwnedDecision.Skipped(ReflectOwnedSkipReason.RenamingOn),
+            false => ReflectOwnedDecision.Acting,
+            null => ReflectOwnedDecision.Skipped(ReflectOwnedSkipReason.RenameSettingUnreadable),
+        };
     }
 
     // The linking import mode copies the whole file whenever source and destination are not on one
