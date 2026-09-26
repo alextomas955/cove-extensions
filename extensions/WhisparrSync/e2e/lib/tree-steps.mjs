@@ -28,6 +28,21 @@
 export const LIBRARY_LAYOUTS = {
   flat: { folder: null, names: null },
   byYear: { folder: "2019", names: null },
+
+  // A camera's own file name, a hash, a name carrying a duplicate marker, and a date with a
+  // counter. None of them carries a studio or a date an instance can parse. What the run hands an
+  // instance is a folder of links named for the identities of the files they point at, which no
+  // instance parses anything out of either, so a library nothing ever named is no different from
+  // one that is named.
+  unnamed: {
+    folder: null,
+    names: [
+      "IMG_0042.mp4",
+      "8f14e45fceea167a5a36dedd4bea2543.mp4",
+      "clip (1).mp4",
+      "2024-05-05_0007.mp4",
+    ],
+  },
 };
 
 /** Runs one shell line in a container and answers its output, refusing a non-zero exit. */

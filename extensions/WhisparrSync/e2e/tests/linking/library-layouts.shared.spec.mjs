@@ -14,6 +14,11 @@
 // registers one of the entities sharing it, and folders by year, which groups by something no
 // catalogue models at all. The absence of the other two is not a gap.
 //
+// The names are the third axis. A library whose file names carry nothing an instance can parse is
+// driven as its own layout, because what the run hands the instance is a folder of links named for
+// the identities of the files they point at, which no instance parses anything out of either, and
+// the entry each one belongs to is supplied outright rather than read off the name.
+//
 // THE LAYOUT DECIDES THE SEEDING AND REACHES NO ASSERTION. Every assertion below is shared: which
 // folder the files were in and what they were called is the fixture's business, and the body reads
 // only what the instance now holds and what is on disk.
@@ -48,6 +53,7 @@ const RUN_BUDGET_MS = 240_000;
 const ARRANGED = {
   flat: "every file in one folder",
   byYear: "its folders by year",
+  unnamed: "file names nothing can parse",
 };
 
 test.describe.configure({ timeout: SPEC_BUDGET_MS });
