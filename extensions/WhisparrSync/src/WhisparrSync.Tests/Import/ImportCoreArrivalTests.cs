@@ -22,10 +22,20 @@ public sealed class ImportCoreArrivalTests
     private const string ReportedOrdinaryPath = WhisparrRoot + "/per-studio/Scene.2026.mp4";
     private const string OrdinaryPath = CoveRoot + "/per-studio/Scene.2026.mp4";
 
+    // The other thing that reaches the tree: a second name the linking half made for a file the
+    // library already holds, which the instance takes in and reports back like any import of its
+    // own. The name is the identity of the file it points at, spelled the way the product spells
+    // one rather than read back off it.
+    private const string ReadersOwnName = CoveRoot + "/per-studio/a scene the reader named.mp4";
+    private const string HandoverName = "38-200000007e4eb.mp4";
+    private const string ReportedHandover = WhisparrRoot + "/.wsync-v3/tt1234567/" + HandoverName;
+    private const string HandoverInTheTree = CoveRoot + "/.wsync-v3/tt1234567/" + HandoverName;
+
     private const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000004";
     private const long ReportedSize = 10;
 
     private static readonly FileIdentity TheArrival = new(56, 0x100);
+    private static readonly FileIdentity TheHandedOverFile = new(0x38, 0x200000007e4eb);
     private static readonly DateTimeOffset Changed = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -83,6 +93,36 @@ public sealed class ImportCoreArrivalTests
         Assert.Single(ingest.Library.Imported);
     }
 
+    // A library run hands the instance one of these per owned file, and the instance reports every
+    // one of them back. Placed and registered they become a second row per file, carrying no title
+    // and sitting at the top of the reader's library root under a file number.
+    [Fact]
+    public async Task ALinkThisExtensionHandedOverRegistersNothingAndIsNotRefused()
+    {
+        var ingest = new Ingest();
+        ingest.HandedOverTheReadersFile();
+
+        Assert.Equal(
+            ImportOutcome.AlreadyHeldUnderTheReadersOwnName,
+            await ingest.DeliverAsync(reportedPath: ReportedHandover));
+
+        Assert.Empty(ingest.Library.Imported);
+        Assert.Empty((await ingest.StoredAsync()).Instance().ImportRefusals);
+    }
+
+    // Nothing is placed either. A second name at the top of the library root is what the reader
+    // sees as the duplicate, and it survives the row being deleted.
+    [Fact]
+    public async Task AHandedOverLinkIsGivenNoSecondNameInTheLibrary()
+    {
+        var ingest = new Ingest();
+        ingest.HandedOverTheReadersFile();
+
+        await ingest.DeliverAsync(reportedPath: ReportedHandover);
+
+        Assert.DoesNotContain("link", ingest.Links.Calls.Select(call => call.Verb));
+    }
+
     [Fact]
     public async Task AnArrivalThatCannotBePlacedIsRefusedUnderItsOwnCauseAndRegistersNothing()
     {
@@ -130,6 +170,20 @@ public sealed class ImportCoreArrivalTests
         };
 
         public void Holds(string path) => Library.Held[path] = new HeldFile(1);
+
+        // The reader's own file, the second name the linking half made for it in the entity's
+        // folder, and the library row that was there before either.
+        //
+        // The placement is left able to succeed. Refusing it would make these cases pass on the
+        // refusal rather than on the reading that settles them before any placement is attempted.
+        public void HandedOverTheReadersFile()
+        {
+            Links.Place(ReadersOwnName, TheHandedOverFile, Changed);
+            Links.PlaceLink(HandoverInTheTree, ReadersOwnName);
+            Links.AnswerLink(CoveRoot + "/" + HandoverName, LinkOutcome.Linked);
+            Paths.Present[HandoverInTheTree] = ReportedSize;
+            Holds(ReadersOwnName);
+        }
 
         public Task<WhisparrSyncOptions> StoredAsync()
             => new OptionsStore(Store).LoadAsync(TestContext.Current.CancellationToken);
