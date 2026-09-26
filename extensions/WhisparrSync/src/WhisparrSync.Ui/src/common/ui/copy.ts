@@ -802,11 +802,12 @@ export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
  * What the run does with the files after it has registered, on the generation that builds the
  * folders itself.
  *
- * Names neither Whisparr setting, because neither is a precondition here. This run makes the
- * second names through the host's own calls rather than handing the files to Whisparr to take in,
- * so nothing is copied whatever the instance's hard-link setting says.
+ * The second names are Cove's own act and no setting of Whisparr's is a precondition for them.
+ * Handing the folder over is a separate act with the same two preconditions the other generation's
+ * linking has, so the settings are named on that half alone.
  */
 export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
   "It then gives each one a folder in your library and makes a second name in that folder for " +
   "every file you own for it. A second name costs no extra disk, and your own files stay where " +
-  "they are, under the names you gave them.";
+  "they are, under the names you gave them. It hands each folder to Whisparr so your files show " +
+  "up there, while Whisparr's hard-link setting is on and Whisparr is not set to rename files.";

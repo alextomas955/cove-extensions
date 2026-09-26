@@ -24,19 +24,19 @@ monitoring on, and before a library run on Whisparr v3 (Eros). Both live in Whis
 2. Leave **Use Hardlinks instead of Copy** on. It is on in a fresh Whisparr.
 
 With renaming on, Whisparr moves what it takes in out of the folder it was handed, so Cove sends it
-nothing and the run says: _No files were linked: Whisparr is set to rename files. Turn renaming off
-in Whisparr's Settings, Media Management._ A press of **Reflect owned** says the same above the
-control.
+nothing and the run says: _No files were handed to Whisparr: it is set to rename files. Turn
+renaming off in Whisparr's Settings, Media Management._ A press of **Reflect owned** says the same
+above the control.
 
 With the hard-link setting off, every file would be copied in full and use your disk twice, so Cove
-sends nothing there either and the run says: _No files were linked: Whisparr's hard-link setting is
-off._ A setting Cove cannot read at all stops the run the same way and names which of the two it
-could not read.
+sends nothing there either and the run says: _No files were handed to Whisparr: its hard-link
+setting is off._ A setting Cove cannot read at all stops the run the same way and names which of the
+two it could not read.
 
-**A library run on Whisparr v2 is the exception.** That run registers your studios, and it makes
-the second names itself rather than handing the files to Whisparr, so neither setting stops it and
-nothing is copied whatever the hard-link setting says. The two settings still govern **Reflect
-owned** and monitoring on that instance.
+**The second names are made whatever these settings say.** Cove makes them itself, so nothing is
+copied and neither setting stops them. What the settings govern is handing the folder to Whisparr
+afterwards. A run with either setting against it still builds the folders and still states how many
+second names it made, and it hands none of them over.
 
 ## What Whisparr shows you now
 
@@ -100,9 +100,10 @@ They differ on purpose. A run can make every second name and hand them all over,
 queue can still be minutes behind after it re-reads its catalogue. The figures are about what Cove
 sent; Whisparr's own screens are where you see what it has taken in.
 
-A library run on Whisparr v2 hands nothing over, so its **recorded by Whisparr** figure stays 0
-however many second names it made. Whisparr reports those files once it re-reads the studio's
-folder.
+A studio Whisparr has not finished reading its catalogue for holds no entry to record a file
+against, so that studio's files are handed over on a later run instead. Registering a studio starts
+that read, and on a large studio it runs for hours, so the first run after you register one usually
+records less than it linked.
 
 ## Where it stops short
 
