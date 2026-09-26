@@ -66,7 +66,11 @@ internal sealed record ReflectOwnedRun(
     // Files the instance listed that no entry could be addressed to. Counted rather than dropped:
     // a run that attached none of a folder's files and reported only a zero reads as a folder
     // holding nothing importable.
-    int FilesWithoutAnEntry = 0)
+    int FilesWithoutAnEntry = 0,
+    // Names in an entity's own folder that this product did not put there, which it therefore
+    // leaves alone. A count rather than a list: a reader is told the folder holds them and the log
+    // carries the rest.
+    int NamesNotComposedHere = 0)
 {
     // Folds one folder's run into the total a library-wide walk carries. The counts add; the two
     // lists are unioned, because each names a library root and an operator creates those by hand,
@@ -86,7 +90,8 @@ internal sealed record ReflectOwnedRun(
             EntriesLeftUnderAnotherRoot + other.EntriesLeftUnderAnotherRoot,
             RootsCouldNotBeRead || other.RootsCouldNotBeRead,
             FilesAttached + other.FilesAttached,
-            FilesWithoutAnEntry + other.FilesWithoutAnEntry);
+            FilesWithoutAnEntry + other.FilesWithoutAnEntry,
+            NamesNotComposedHere + other.NamesNotComposedHere);
     }
 
     private static IReadOnlyList<T>? Union<T>(
