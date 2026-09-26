@@ -26,6 +26,7 @@ public sealed class AbsentCapabilityTests
         "api/v3/studio",
         "api/v3/performer",
         "api/v3/exclusions",
+        "api/v3/movie",
     ];
 
     // The routes the generated client composes on this product's behalf. That client declares an
@@ -71,7 +72,7 @@ public sealed class AbsentCapabilityTests
                 nameof(IWhisparrMissingSceneActing.AddSceneAsync),
                 nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync),
                 nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync),
-                nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync),
+                nameof(IWhisparrEntityRelocationActing.MoveEntityFolderAsync),
                 nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync),
                 nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync),
                 nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync),

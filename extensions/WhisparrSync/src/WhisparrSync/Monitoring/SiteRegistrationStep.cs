@@ -15,7 +15,7 @@ internal static class SiteRegistrationStep
     internal static async Task<SyncRegistration> RegisterAsync(
         Func<string, CancellationToken, Task<WhisparrResponse?>> readSite,
         Func<string, CancellationToken, Task<WhisparrResponse?>> registerSite,
-        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? relocate,
         Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
         EntityPlacement agreed,
         LibrarySiteIdentity site,
@@ -24,7 +24,6 @@ internal static class SiteRegistrationStep
         ArgumentNullException.ThrowIfNull(agreed);
         ArgumentNullException.ThrowIfNull(readSite);
         ArgumentNullException.ThrowIfNull(registerSite);
-        ArgumentNullException.ThrowIfNull(moveSiteRoot);
         ArgumentNullException.ThrowIfNull(refreshSiteCatalogue);
         ArgumentNullException.ThrowIfNull(site);
 
@@ -37,7 +36,7 @@ internal static class SiteRegistrationStep
         {
             case MonitoringProjector.EntityReading.Held:
                 return await HeldAsync(
-                    moveSiteRoot, refreshSiteCatalogue, agreed, held!, ct)
+                    relocate, refreshSiteCatalogue, agreed, held!, ct)
                     .ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 return SyncRegistration.Offered(
@@ -51,7 +50,7 @@ internal static class SiteRegistrationStep
     // the root: two sites under one root are both at that root and only their folders differ, so a
     // root comparison would read a site still at another entity's folder as correctly placed.
     private static async Task<SyncRegistration> HeldAsync(
-        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? relocate,
         Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
         EntityPlacement agreed,
         WhisparrResponse held,
@@ -84,7 +83,20 @@ internal static class SiteRegistrationStep
             return alreadyThere;
         }
 
-        var moved = await moveSiteRoot(
+        // A generation registering no relocation role refuses here rather than at the transport:
+        // the site keeps the folder it has while its links follow its files.
+        if (relocate is null)
+        {
+            return new SyncRegistration(
+                SceneRegistration.Refused,
+                new WhisparrResponse(0, null, string.Empty)
+                {
+                    Refusal = MonitorRefusalKind.CapabilityAbsentOnThisGeneration,
+                },
+                siteId);
+        }
+
+        var moved = await relocate(
             instanceId, agreedRoot, agreed.EntityFolderPath, ct).ConfigureAwait(false);
 
         // A move the instance declined is a failure a reader acts on, not a site left already held:

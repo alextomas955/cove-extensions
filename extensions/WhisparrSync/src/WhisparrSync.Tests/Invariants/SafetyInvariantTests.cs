@@ -82,7 +82,7 @@ internal static class OutboundSeam
             [nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync)] = WhisparrVerbClass.Act,
             // The request names no transfer parameter, which leaves the library's own files where
             // they are.
-            [nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrEntityRelocationActing.MoveEntityFolderAsync)] = WhisparrVerbClass.Act,
             // Asks the instance to re-read the path it already holds. No body, no file, no
             // registration.
             [nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync)] = WhisparrVerbClass.Act,
@@ -111,6 +111,7 @@ internal static class OutboundSeam
         typeof(IWhisparrPerformerActing),
         typeof(IWhisparrMissingSceneActing),
         typeof(IWhisparrSiteRegistrationActing),
+        typeof(IWhisparrEntityRelocationActing),
         typeof(IWhisparrReflectOwnedActing),
         typeof(IWhisparrSearchGrabbing),
         typeof(IWhisparrSceneSearchGrabbing),
@@ -175,7 +176,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(13, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(14, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),

@@ -27,6 +27,7 @@ internal sealed class WhisparrV2Instance(
     : IWhisparrClient,
         IWhisparrStudioActing,
         IWhisparrSiteRegistrationActing,
+        IWhisparrEntityRelocationActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
         IWhisparrEntityBatchReading,
@@ -430,13 +431,13 @@ internal sealed class WhisparrV2Instance(
     // files where they are. The re-read is not optional: the update alone rewrites where the
     // instance records the site and links nothing, so the site reports no file until the catalogue
     // is re-read.
-    public async Task<WhisparrResponse> MoveSiteRootAsync(
-        int siteId, string rootFolderPath, string? entityFolderPath, CancellationToken ct)
+    public async Task<WhisparrResponse> MoveEntityFolderAsync(
+        int entityId, string rootFolderPath, string? entityFolderPath, CancellationToken ct)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(siteId, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootFolderPath);
 
-        var (read, resource) = await ReadSeriesResourceAsync(siteId, ct).ConfigureAwait(false);
+        var (read, resource) = await ReadSeriesResourceAsync(entityId, ct).ConfigureAwait(false);
         if (resource is null)
         {
             // A success status carrying nothing the model could be read from arrives here too, and
@@ -449,7 +450,7 @@ internal sealed class WhisparrV2Instance(
 
         var moved = await GeneratedActAsync(
             api => api.Api<V2Api.ISeriesApi>().UpdateSeriesAsync(
-                siteId.ToString(CultureInfo.InvariantCulture),
+                entityId.ToString(CultureInfo.InvariantCulture),
                 seriesResource: V2BodyProjector.MovedSiteRoot(
                     resource, rootFolderPath, entityFolderPath),
                 cancellationToken: ct)).ConfigureAwait(false);
@@ -458,7 +459,7 @@ internal sealed class WhisparrV2Instance(
             return moved;
         }
 
-        var linked = await RefreshSiteCatalogueAsync(siteId, ct).ConfigureAwait(false);
+        var linked = await RefreshSiteCatalogueAsync(entityId, ct).ConfigureAwait(false);
 
         return WhisparrTransport.Refused(linked) ? linked : moved;
     }

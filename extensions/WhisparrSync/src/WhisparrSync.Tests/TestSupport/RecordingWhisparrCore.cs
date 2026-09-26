@@ -306,17 +306,17 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
                 Monitored = false,
             });
 
-    public Task<WhisparrResponse> MoveSiteRootAsync(
-        int siteId,
+    public Task<WhisparrResponse> MoveEntityFolderAsync(
+        int entityId,
         string rootFolderPath,
         string? entityFolderPath,
         CancellationToken ct)
         => RecordActing(
-            new ActingCall(nameof(MoveSiteRootAsync), Binding.BaseAddress, Binding.ApiKey)
+            new ActingCall(nameof(MoveEntityFolderAsync), Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
-                Generation = WhisparrGeneration.V2,
-                EntityId = siteId,
+                Generation = Binding.Generation,
+                EntityId = entityId,
                 Folder = rootFolderPath,
                 EntityFolder = entityFolderPath,
             });
@@ -680,6 +680,7 @@ internal sealed class RecordingWhisparrV3Client(
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
+        IWhisparrEntityRelocationActing,
         IWhisparrReflectOwnedActing,
         IWhisparrOwnedFileReading,
         IWhisparrSearchGrabbing,
@@ -704,6 +705,7 @@ internal sealed class RecordingWhisparrV2Client(
     : RecordingWhisparrCore(answer, binding),
         IWhisparrStudioActing,
         IWhisparrSiteRegistrationActing,
+        IWhisparrEntityRelocationActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
         IWhisparrEntityBatchReading,

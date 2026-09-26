@@ -126,42 +126,53 @@ public interface IWhisparrSiteRegistrationActing
         string foreignId, AddDefaults defaults, CancellationToken ct);
 
     /// <summary>
-    /// Moves the site <paramref name="siteId"/> names to <paramref name="entityFolderPath"/> under
-    /// <paramref name="rootFolderPath"/>, leaving its files where they are.
-    /// </summary>
-    /// <remarks>
-    /// A null <paramref name="entityFolderPath"/> keeps the site's own folder name and moves it
-    /// under the new root, which is where a site registered before this product built folders for
-    /// entities sits.
-    /// <para>
-    /// No file is moved or copied: only where the instance records the site changes. The request
-    /// carries no transfer parameter at all, measured against a live instance holding linked files
-    /// under the old root, so adding that parameter is the edit that could move terabytes.
-    /// </para>
-    /// <para>
-    /// The instance relinks nothing on its own, so this member issues the catalogue re-read that
-    /// links the files as part of the same call.
-    /// </para>
-    /// <para>
-    /// Only one generation registers this role, so a target connected to the other is refused before
-    /// any request leaves.
-    /// </para>
-    /// </remarks>
-    Task<WhisparrResponse> MoveSiteRootAsync(
-        int siteId, string rootFolderPath, string? entityFolderPath, CancellationToken ct);
-
-    /// <summary>
     /// Asks the instance to read the catalogue of the site <paramref name="siteId"/> names again.
     /// </summary>
     /// <remarks>
-    /// The same re-read <see cref="MoveSiteRootAsync"/> issues, on its own, for a move whose re-read
-    /// did not arrive and left the site reporting no file.
+    /// The same re-read a relocation issues, on its own, for a move whose re-read did not arrive
+    /// and left the site reporting no file.
     /// <para>
     /// Nothing is written. The instance reads what is on disk under the path it already holds, so the
     /// call is repeatable and moves no file.
     /// </para>
     /// </remarks>
     Task<WhisparrResponse> RefreshSiteCatalogueAsync(int siteId, CancellationToken ct);
+}
+
+/// <summary>Moves where an instance records an entity, leaving the entity's files where they are.</summary>
+/// <remarks>
+/// Both generations register this role, and each was driven across two drives against a live
+/// instance: the request is accepted and no file is transferred.
+/// <para>
+/// A generation that held no registration for it would refuse a caller before any request left, and
+/// the entity would keep the folder it has while its links follow its files.
+/// </para>
+/// </remarks>
+public interface IWhisparrEntityRelocationActing
+{
+    /// <summary>
+    /// Moves the entity <paramref name="entityId"/> names to <paramref name="entityFolderPath"/>
+    /// under <paramref name="rootFolderPath"/>.
+    /// </summary>
+    /// <remarks>
+    /// A null <paramref name="entityFolderPath"/> keeps the entity's own folder name and moves it
+    /// under the new root, which is where an entity registered before this product built folders
+    /// for entities sits.
+    /// <para>
+    /// No file is moved or copied: only where the instance records the entity changes. The request
+    /// carries no transfer parameter at all, measured against a live instance of each generation
+    /// holding linked files under the old root, so adding that parameter is the edit that could
+    /// move terabytes.
+    /// </para>
+    /// <para>
+    /// Both generations rewrite their own file records to the new folder without reading it, so
+    /// each reports a file at a path that is absent until the folder is read again. This member
+    /// issues that re-read as part of the same call, which is why the caller has to have built the
+    /// new folder and its links before it calls.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> MoveEntityFolderAsync(
+        int entityId, string rootFolderPath, string? entityFolderPath, CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>
