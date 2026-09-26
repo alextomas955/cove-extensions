@@ -9,6 +9,27 @@
 // copy of it look alike in a listing and differ in what they cost a reader's disk, which is the one
 // thing this capability must never get wrong.
 
+/**
+ * The library arrangements a spec can have seeded for it, by the name it names one under.
+ *
+ * A layout decides two things and nothing else: which folder every entity's files go in, and what
+ * those files are called. Which entities the instance holds, which studio in Cove names each of
+ * them and which identity each file carries are the same whichever layout is seeded, so one
+ * scenario body asserts the same things over all of them.
+ *
+ * `folder` is where the files sit under the library root the instance is rooted on, or null for
+ * that root itself. Every layout here puts more than one entity's files in one folder, which is
+ * what an instance refuses to register: both generations refuse a second entity at a folder another
+ * already uses.
+ *
+ * `names` are the file names to use in order, or null to let each generation name the files the way
+ * its own parse expects.
+ */
+export const LIBRARY_LAYOUTS = {
+  flat: { folder: null, names: null },
+  byYear: { folder: "2019", names: null },
+};
+
 /** Runs one shell line in a container and answers its output, refusing a non-zero exit. */
 async function shell(container, line) {
   const ran = await container.exec(["sh", "-c", line], { user: "root" });
