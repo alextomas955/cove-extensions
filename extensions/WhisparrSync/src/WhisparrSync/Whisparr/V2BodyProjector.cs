@@ -125,57 +125,19 @@ internal static class V2BodyProjector
 
     // The resource the instance answered, changed in place: rebuilding would name a fixed member
     // set and drop everything outside it, the tags, the per-year flags, whatever a later client
-    // carries.
-    //
-    // The path relocates a site; changing the root folder alone is accepted and relocates nothing.
-    // The instance derives the root from the path, so the path is recomposed as the new root plus
-    // the site's existing last segment, with the root sent beside it to state the intent. Nothing
-    // here instructs a transfer: whether files move is a parameter of the request, not of this body.
-    // A folder this product built is sent as it is rather than recomposed: its last segment names
-    // the entity, and the site's own held path names wherever the instance put it, so carrying that
-    // segment across would move the site to a folder no entity owns.
+    // carries. Nothing here instructs a transfer: whether files move is a parameter of the request,
+    // not of this body.
     internal static SeriesResource MovedSiteRoot(
         SeriesResource held, string instanceRoot, string? entityFolderPath)
     {
         ArgumentNullException.ThrowIfNull(held);
-        ArgumentException.ThrowIfNullOrWhiteSpace(instanceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(held.Path);
 
-        var separator = SeparatorOf(held.Path);
-        var root = Respelled(instanceRoot, separator);
-
-        held.Path = entityFolderPath is { } folder
-            ? Respelled(folder, separator)
-            : Under(root, held.Path, separator);
+        var (path, root) = MovedEntityFolder.Composed(held.Path, instanceRoot, entityFolderPath);
+        held.Path = path;
         held.RootFolderPath = root;
         return held;
     }
-
-    private static string Under(string root, string path, char separator)
-    {
-        var trimmedPath = path.TrimEnd('/', '\\');
-        var lastSegment = trimmedPath[(trimmedPath.LastIndexOfAny(['/', '\\']) + 1)..];
-
-        return lastSegment.Length == 0
-            ? root
-            : string.Create(CultureInfo.InvariantCulture, $"{root}{separator}{lastSegment}");
-    }
-
-    // The separator comes off the site's own held path rather than off the root. The root arrives
-    // from the addressing port, which spells every candidate with forward slashes whichever host the
-    // instance runs on, and joining a Windows path with a forward slash yields one that instance
-    // will not resolve.
-    private static char SeparatorOf(string path)
-    {
-        var trimmed = path.TrimEnd('/', '\\');
-        return trimmed.Contains('\\', StringComparison.Ordinal)
-            && !trimmed.Contains('/', StringComparison.Ordinal)
-                ? '\\'
-                : '/';
-    }
-
-    private static string Respelled(string root, char separator)
-        => root.TrimEnd('/', '\\').Replace(separator == '\\' ? '/' : '\\', separator);
 
     // Every member left unset is omitted from the wire document, and an omitted one is not
     // applied, so the profile, path, tags, new-item rule and per-year flags are left alone.

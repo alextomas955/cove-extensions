@@ -56,6 +56,19 @@ public sealed class CapabilityDeclarationTests
             GenerationCapabilities.CapabilitiesOf(generation).Order());
     }
 
+    // Not a wire capability: no control offers it and nothing renders it. It is stated here because
+    // the same measurement was made on both generations across two drives, and because a generation
+    // that lost the registration would silently stop following an entity's files rather than fail.
+    [Theory]
+    [InlineData(typeof(WhisparrV3Instance))]
+    [InlineData(typeof(WhisparrV2Instance))]
+    public void BothGenerationsRegisterTheRelocationRole(Type instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        Assert.Contains(typeof(IWhisparrEntityRelocationActing), instance.GetInterfaces());
+    }
+
     // Every capability on the wire expresses a role, so a new one cannot be added to the enum and
     // rendered in a menu with nothing behind it.
     [Fact]
