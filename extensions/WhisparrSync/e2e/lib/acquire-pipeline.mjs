@@ -48,13 +48,18 @@ async function addFromSchema(whisparrApi, resource, implementation, overrides, f
 }
 
 /**
- * Relaxes the two gates that refuse a tiny fixture, so what a spec measures is the import rather than
- * a quality decision.
+ * Relaxes the gates that refuse a tiny fixture, so what a spec measures is the import rather than a
+ * quality decision, and leaves what the instance imports readable and writable by the other product.
  *
- * Both were live blockers. `AcceptableSizeSpecification` reads an unknown runtime as a feature-length
+ * Two were live blockers. `AcceptableSizeSpecification` reads an unknown runtime as a feature-length
  * one and expects gigabytes, so a sub-megabyte file is "too small"; every quality definition's floor
  * goes to zero and its ceiling is lifted. `DetectSample` reads a near-zero runtime as a sample and
  * holds the import in `importPending`; storing no media info leaves it no runtime to judge.
+ *
+ * The permission setting is the third. Linux refuses a hard link to a file the linking user neither
+ * owns nor may write, so an imported file left at the instance user's default mode cannot be given a
+ * second name by anything else, whatever the directory allows. An installation arranges that with a
+ * shared group; here the instance is told to leave what it imports writable.
  */
 async function relaxQualityGates(whisparrApi) {
   const media = await whisparrApi.get("/api/v3/config/mediamanagement");
@@ -62,6 +67,8 @@ async function relaxQualityGates(whisparrApi) {
     await whisparrApi.put("/api/v3/config/mediamanagement", {
       ...media.json,
       enableMediaInfo: false,
+      setPermissionsLinux: true,
+      chmodFolder: "777",
     });
   }
 
@@ -138,15 +145,45 @@ export async function provisionAcquirePipeline({ whisparrApi, fakeIndexer, qbit 
  * Seeded into the instance's datastore rather than added through its API: an add resolves the
  * foreign id against a hosted metadata service, which a sealed run does not reach.
  */
+/**
+ * Declares `treeRoot` a root folder of the instance's, so an entry seeded under it stays under it.
+ *
+ * The seeder writes the entry's folder column as a path below the root it is given, and the column
+ * has to be below a root the instance declares. Measured on a live instance of the newer
+ * generation: an entry moved into the tree afterwards is recomposed under the root it came from,
+ * and the completed download is then imported outside the tree. Declaring the root first is what
+ * removes that recomposition, and it leaves the instance in the state the extension's own
+ * registration leaves it in - an entry whose folder is inside the tree.
+ *
+ * The directory has to be there and writable by the instance before this is called.
+ */
+async function declareRootFolder(whisparrApi, path) {
+  const declared = await whisparrApi.get("/api/v3/rootfolder");
+  if ((declared.json ?? []).some((one) => one.path === path)) {
+    return;
+  }
+
+  const added = await whisparrApi.post("/api/v3/rootfolder", { path });
+  if (!added.ok) {
+    throw new Error(
+      `declareRootFolder: declaring ${path} answered ${added.status}: ${added.text?.slice(0, 400)}`,
+    );
+  }
+}
+
 const ACQUIRABLE = {
-  async v3({ whisparr, rootFolder, run }) {
+  async v3({ whisparr, rootFolder, treeRoot, run }) {
     const instance = whisparr.apiFor("v3");
     const remoteId = randomUUID();
+    const seededUnder = treeRoot ?? rootFolder;
+    if (treeRoot !== undefined) {
+      await declareRootFolder(instance, treeRoot);
+    }
     await whisparr.seedEntity("v3", {
       kind: "scene",
       foreignId: remoteId,
       title: `Acquire ${run}`,
-      rootFolderPath: rootFolder,
+      rootFolderPath: seededUnder,
       monitored: true,
     });
 
@@ -172,12 +209,16 @@ const ACQUIRABLE = {
     };
   },
 
-  async v2({ whisparr, rootFolder, run }) {
+  async v2({ whisparr, rootFolder, treeRoot, run }) {
     const instance = whisparr.apiFor("v2");
+    const siteId = randomInt(1, 1_000_001);
+    if (treeRoot !== undefined) {
+      await declareRootFolder(instance, treeRoot);
+    }
     const seeded = await seedV2Scene(whisparr.v2.container, instance, {
-      siteId: randomInt(1, 1_000_001),
+      siteId,
       siteTitle: SCENE_SITE,
-      rootFolderPath: rootFolder,
+      rootFolderPath: treeRoot ?? rootFolder,
       sceneExternalId: randomUUID(),
       sceneTitle: `Acquire ${run}`,
     });
@@ -200,15 +241,18 @@ const ACQUIRABLE = {
 /**
  * Seeds one scene this generation's indexer query can answer for.
  *
- * @param {{ generation: "v2"|"v3", whisparr: object, rootFolder: string, run: string }} options
+ * `treeRoot` seeds the entry under the tree instead of under the plain root folder, which is where
+ * a completed download is then imported. Left out, the entry is seeded under `rootFolder`.
+ *
+ * @param {{ generation: "v2"|"v3", whisparr: object, rootFolder: string, treeRoot?: string, run: string }} options
  * @returns {Promise<{ entryId: number, folder: string, releaseQuery: string, grabFields: object }>}
  */
-export async function seedAcquirableScene({ generation, whisparr, rootFolder, run }) {
+export async function seedAcquirableScene({ generation, whisparr, rootFolder, treeRoot, run }) {
   if (!Object.hasOwn(ACQUIRABLE, generation)) {
     throw new Error(
       `seedAcquirableScene: no seed is written for the generation "${generation}"; written are ${Object.keys(ACQUIRABLE).join(", ")}.`,
     );
   }
   const seed = ACQUIRABLE[generation];
-  return seed({ whisparr, rootFolder, run });
+  return seed({ whisparr, rootFolder, treeRoot, run });
 }
