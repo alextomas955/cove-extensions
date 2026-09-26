@@ -283,8 +283,8 @@ public sealed class BulkEndpointTests
         await host.RunEnqueuedBatchAsync(progress);
 
         Assert.Equal(
-            (1d, "1 applied, 0 refused. Some files were not linked: Whisparr holds their site "
-                + "under a different root from the files, and nothing was copied."),
+            (1d, "1 applied, 0 refused. Some files were not handed to Whisparr: it holds their "
+                + "site under a different root from the files, and nothing was copied."),
             Assert.Single(progress.Reports));
         Assert.DoesNotContain(
             nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
