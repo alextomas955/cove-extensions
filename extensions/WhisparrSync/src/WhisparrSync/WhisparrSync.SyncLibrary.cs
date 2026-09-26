@@ -523,12 +523,7 @@ public sealed partial class WhisparrSync
                         _log,
                         addCt)
                     : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
-                (siteId, agreed, folder, moveCt) => ContainedAsync(
-                    () => acting.MoveSiteRootAsync(
-                        siteId, agreed, folder, moveCt),
-                    target,
-                    _log,
-                    moveCt),
+                RelocatingThrough(target),
                 (siteId, refreshCt) => ContainedAsync(
                     () => acting.RefreshSiteCatalogueAsync(
                         siteId, refreshCt),
@@ -565,6 +560,18 @@ public sealed partial class WhisparrSync
                 : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
         }
     }
+
+    // Null where the connected generation registers no relocation role, which leaves an entity
+    // whose files changed drive registered where it is rather than at a folder nothing agreed to.
+    private Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? RelocatingThrough(
+        MonitoringTarget target)
+        => target.Reads is IWhisparrEntityRelocationActing relocating
+            ? (entityId, agreed, folder, moveCt) => ContainedAsync(
+                () => relocating.MoveEntityFolderAsync(entityId, agreed, folder, moveCt),
+                target,
+                _log,
+                moveCt)
+            : null;
 
     // What the site pass needs to settle where one site goes, resolved once for the run rather than
     // once per site: the roots, the connected generation, the library reads, the agreement and the

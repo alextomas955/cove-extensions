@@ -185,6 +185,38 @@ internal static class V3BodyProjector
         return body;
     }
 
+    // Reads what is on disk under the path the instance already holds for the scene. Nothing is
+    // written and no file is moved, and it is what replaces the file record a relocation rewrites
+    // without reading: straight after a move the instance reports a file at the old name under the
+    // new folder, which is a path nothing holds, and this is the call that corrects it.
+    internal const string RescanSceneCommand = "RescanMovie";
+
+    internal static JsonObject RescanScene(int sceneId)
+        => Command(RescanSceneCommand, SceneIdsProperty, sceneId);
+
+    // The resource the instance answered, changed in place. Rebuilding through the generated model
+    // would name a fixed member set and drop the tags, the flags and whatever a later instance
+    // build adds. Nothing here instructs a transfer: whether files move is a parameter of the
+    // request, not of this body.
+    //
+    // Null where the answer carries no path to move from, which leaves the caller sending nothing.
+    internal static JsonObject? MovedSceneFolder(
+        JsonObject held, string instanceRoot, string? entityFolderPath)
+    {
+        ArgumentNullException.ThrowIfNull(held);
+
+        if (held["path"]?.GetValue<string>() is not { Length: > 0 } heldPath)
+        {
+            return null;
+        }
+
+        var (path, root) = MovedEntityFolder.Composed(heldPath, instanceRoot, entityFolderPath);
+        var body = (JsonObject)held.DeepClone();
+        body["path"] = path;
+        body["rootFolderPath"] = root;
+        return body;
+    }
+
     // An id array, which is this generation's spelling. v2 names a single scalar id, and a body
     // carrying the other's shape is accepted and does nothing.
     internal static JsonObject RefreshCatalogue(WhisparrEntityKind kind, int entityId)
