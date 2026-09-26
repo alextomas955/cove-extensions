@@ -21,6 +21,7 @@ import {
   SYNC_OFFERS_ONE_SITE,
   SYNC_REGISTERS_THE_SCENES_YOU_OWN,
   SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN,
   SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
   SYNC_SITE_DOWNLOADS_NOTHING,
   SYNC_SITE_NEEDS_A_COUNT_FIRST,
@@ -65,7 +66,7 @@ export interface SyncSentences {
   /** What the confirmation covers at any other size, given the figure already grouped. */
   readonly offersMany: (grouped: string) => string;
   readonly alsoMonitors: string;
-  /** What the run does with the files it owns, or blank where the run links nothing. */
+  /** What the run does with the files the reader owns. Both runs link, in their own words. */
   readonly alsoLinks: string;
 }
 
@@ -90,7 +91,7 @@ const SITE_SENTENCES: SyncSentences = {
   offersOne: SYNC_OFFERS_ONE_SITE,
   offersMany: syncOffersSites,
   alsoMonitors: SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
-  alsoLinks: "",
+  alsoLinks: SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN,
 };
 
 /**
@@ -183,9 +184,7 @@ export function syncConfirmation(
     ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
     : SYNC_MONITORS_NOTHING;
 
-  const linking = sentences.alsoLinks === "" ? "" : `${sentences.alsoLinks} `;
-
-  return `${covers}${skips}. ${monitoring} ${linking}${sentences.downloadsNothing}`;
+  return `${covers}${skips}. ${monitoring} ${sentences.alsoLinks} ${sentences.downloadsNothing}`;
 }
 
 /**
