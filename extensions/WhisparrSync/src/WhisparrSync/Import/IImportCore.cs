@@ -19,6 +19,18 @@ public enum ImportOutcome
     /// </remarks>
     AlreadyHeld,
 
+    /// <summary>
+    /// The delivery named a link this extension handed the instance, so the library already holds
+    /// those bytes under the reader's own name and this delivery registered nothing.
+    /// </summary>
+    /// <remarks>
+    /// Not a refusal and not an import. It is what the instance reports back after taking in a file
+    /// the linking half gave it a second name for, which is every owned file on every library run.
+    /// Registering the reported path would give the reader a second row for one file, named after a
+    /// file identity rather than after anything they recognise.
+    /// </remarks>
+    AlreadyHeldUnderTheReadersOwnName,
+
     /// <summary>The delivery named an event this product does not act on.</summary>
     IgnoredEventType,
 

@@ -251,6 +251,16 @@ public static class PathCandidateGuard
             : null;
     }
 
+    // The last segment of a path, which is the whole of it where there is no folder above. Split
+    // over the string rather than through the platform's path helpers: these paths are a Linux
+    // container's whichever machine this code runs on.
+    internal static string LeafOf(string path)
+    {
+        var normalized = Normalize(path);
+        var cut = normalized.LastIndexOf('/');
+        return cut < 0 ? normalized : normalized[(cut + 1)..];
+    }
+
     // One spelling of a path: forward slashes, no trailing separator beyond a bare root.
     internal static string Normalize(string path)
     {

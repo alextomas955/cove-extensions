@@ -40,6 +40,20 @@ internal sealed class ImportCore(
                 .ConfigureAwait(false);
         }
 
+        // Before the identity read and before the placement, because neither has anything to settle
+        // here. The instance is reporting back a name this extension gave it for a file the library
+        // already holds, so there is nothing to place and nothing to register: the reader's own row
+        // for those bytes is already there, under the name they know it by.
+        //
+        // The root is cleared rather than left alone. It named a path this product could read and
+        // account for, which is the same evidence a working root gives on any other delivery.
+        if (HandedOverLinkGuard.NamesALinkComposedHere(
+                path, library.LibraryRoots, filesystem.Links.Identify))
+        {
+            await ClearAsync(candidate.Generation, reading.RefusalRoot, ct).ConfigureAwait(false);
+            return ImportOutcome.AlreadyHeldUnderTheReadersOwnName;
+        }
+
         var identity = await IdentifyAsync(candidate, ct).ConfigureAwait(false);
         if (identity is { Resolution.Ambiguous: true })
         {
