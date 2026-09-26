@@ -163,7 +163,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
         "registered. It monitors nothing. " +
         "It then gives each one a folder in your library and makes a second name in that folder " +
         "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. " +
+        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
+        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
+        "not set to rename files. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -177,7 +179,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
         "downloads nothing by itself. " +
         "It then gives each one a folder in your library and makes a second name in that folder " +
         "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. " +
+        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
+        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
+        "not set to rename files. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -187,7 +191,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
       "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
         "It then gives each one a folder in your library and makes a second name in that folder " +
         "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. " +
+        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
+        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
+        "not set to rename files. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -197,7 +203,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
       "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
         "It then gives each one a folder in your library and makes a second name in that folder " +
         "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. " +
+        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
+        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
+        "not set to rename files. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
