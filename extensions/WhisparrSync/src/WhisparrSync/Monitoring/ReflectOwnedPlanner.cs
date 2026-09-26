@@ -75,7 +75,22 @@ internal sealed record ReflectOwnedRun(
     // more. Each one freed a file's bytes, so a reader is told the figure whatever else the run did.
     int LinksRemoved = 0,
     // Names whose file changed too recently to decide about, left where they are for the next run.
-    int LinksWaiting = 0)
+    int LinksWaiting = 0,
+    // Entities this run gave a folder of its own and registered there, which is the figure the
+    // phase's whole point is read off: an entity with a folder is one the instance accepted at a
+    // path of this product's choosing rather than one of the reader's.
+    int EntitiesGivenAFolder = 0,
+    // Second names made, and second names already there from an earlier run. Apart, because the
+    // first is what this run did and the second is what it found done.
+    int LinksMade = 0,
+    int LinksAlreadyThere = 0,
+    // Files the folder for their entity is not on the drive of. Nothing is copied for one, so a
+    // reader is told rather than left with a file the instance never records.
+    int LinksOnAnotherDevice = 0,
+    // Library roots no folder could be built under. One line per root, not per entity: a root that
+    // cannot be written under refuses every entity beneath it, and a line per entity would grow
+    // with the library.
+    IReadOnlyList<string>? RootsWithNoTree = null)
 {
     // Folds one folder's run into the total a library-wide walk carries. The counts add; the two
     // lists are unioned, because each names a library root and an operator creates those by hand,
@@ -98,7 +113,12 @@ internal sealed record ReflectOwnedRun(
             FilesWithoutAnEntry + other.FilesWithoutAnEntry,
             NamesNotComposedHere + other.NamesNotComposedHere,
             LinksRemoved + other.LinksRemoved,
-            LinksWaiting + other.LinksWaiting);
+            LinksWaiting + other.LinksWaiting,
+            EntitiesGivenAFolder + other.EntitiesGivenAFolder,
+            LinksMade + other.LinksMade,
+            LinksAlreadyThere + other.LinksAlreadyThere,
+            LinksOnAnotherDevice + other.LinksOnAnotherDevice,
+            Union(RootsWithNoTree, other.RootsWithNoTree, root => root));
     }
 
     private static IReadOnlyList<T>? Union<T>(
