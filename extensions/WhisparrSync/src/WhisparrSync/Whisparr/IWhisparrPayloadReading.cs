@@ -24,6 +24,11 @@ internal interface IWhisparrPayloadReading
     // The importable row's member naming the entity the file was matched to.
     string MatchedMember { get; }
 
+    // The naming resource's members this generation states its renaming under, one per kind of
+    // entry it holds. Any of them on renames the file, so a caller that reads them takes them
+    // together and refuses where it could not read one of them.
+    IReadOnlyList<string> RenamingMembers { get; }
+
     // The submit entry for one matched row, composed onto the members every generation carries, or
     // null where the row names nothing this generation can attach a file to.
     JsonObject? MatchedEntry(JsonObject row, JsonObject entry);

@@ -297,7 +297,10 @@ public sealed class SearchGrabbingRouteTests
             .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), answers)
             .Answering(
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
-                MonitorHost.Json(200, LinksIntoPlace));
+                MonitorHost.Json(200, LinksIntoPlace))
+            .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync),
+                MonitorHost.Json(200, RecordingWhisparrCore.LeavesNamesAlone));
         return host;
     }
 

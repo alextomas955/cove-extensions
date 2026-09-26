@@ -290,6 +290,17 @@ public interface IWhisparrReflectOwnedActing
     /// <summary>Reads whether the instance links a file into place rather than copying it.</summary>
     Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct);
 
+    /// <summary>Reads the instance's whole naming resource.</summary>
+    /// <remarks>
+    /// A read, and there is no member that writes one. These config routes replace what they are
+    /// sent, so a caller that read one and wrote it back would reset every member it did not carry.
+    /// <para>
+    /// The whole resource rather than one member: each generation states its renaming under members
+    /// of its own, and which those are is read from that generation's payload reader.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> ReadNamingSettingsAsync(CancellationToken ct);
+
     /// <summary>Parses <paramref name="folder"/> into one row per file the instance could take.</summary>
     /// <remarks>
     /// The row count grows with the folder, so a caller reads one folder at a time and hands its rows

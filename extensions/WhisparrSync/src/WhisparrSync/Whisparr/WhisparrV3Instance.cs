@@ -591,6 +591,10 @@ internal sealed class WhisparrV3Instance(
         => GeneratedReadAsync(
             api => api.Api<V3Api.IMediaManagementConfigApi>().GetConfigMediamanagementAsync(ct));
 
+    public Task<WhisparrResponse> ReadNamingSettingsAsync(CancellationToken ct)
+        => GeneratedReadAsync(
+            api => api.Api<V3Api.INamingConfigApi>().GetConfigNamingAsync(ct));
+
     // The instance is asked to include what it already holds, so a file the library holds and the
     // instance has not attached is still answered for.
     //

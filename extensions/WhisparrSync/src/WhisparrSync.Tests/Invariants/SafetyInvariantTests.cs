@@ -87,6 +87,7 @@ internal static class OutboundSeam
             // registration.
             [nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)] = WhisparrVerbClass.Grab,

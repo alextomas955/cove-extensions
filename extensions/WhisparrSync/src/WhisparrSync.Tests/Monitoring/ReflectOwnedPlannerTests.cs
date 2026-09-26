@@ -148,6 +148,9 @@ public sealed class ReflectOwnedPlannerTests
     private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
 
+    private const string V3NamingFixture = "whisparr-v3-3.6.2.1727-naming.json";
+    private const string V2NamingFixture = "whisparr-v2-2.2.0.231-naming.json";
+
     private const string V3MatchedRow = """
         {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
          "folderName":"Vixen","name":"scene","size":10,
@@ -221,12 +224,49 @@ public sealed class ReflectOwnedPlannerTests
     private static readonly WhisparrGeneration[] Generations =
         [WhisparrGeneration.V3, WhisparrGeneration.V2];
 
-    [Fact]
-    public void HardLinksOnAnswersActOnBothGenerations()
+    // One instance per generation: the two settings bodies this decision reads, and the members
+    // that generation states its renaming under. The member names are transcribed from a running
+    // instance of each build rather than read off the reader under test, which would agree with the
+    // reader whatever it named.
+    private static readonly (
+        WhisparrGeneration Generation,
+        string MediaManagement,
+        string Naming,
+        string[] RenameMembers)[] Instances =
+    [
+        (WhisparrGeneration.V3,
+            V3MediaManagementFixture,
+            V3NamingFixture,
+            ["renameMovies", "renameScenes"]),
+        (WhisparrGeneration.V2,
+            V2MediaManagementFixture,
+            V2NamingFixture,
+            ["renameEpisodes"]),
+    ];
+
+    // The instance's own naming body with every renaming member set as asked, so a case states the
+    // one fact it is about and carries the rest of the resource as the build sent it.
+    private static string NamingWith(string fixture, string[] members, params bool[] on)
     {
-        foreach (var fixture in new[] { V3MediaManagementFixture, V2MediaManagementFixture })
+        var settings = (JsonObject)JsonNode.Parse(ProbeFixtures.Read(fixture))!;
+        for (var index = 0; index < members.Length; index++)
         {
-            var decision = ReflectOwnedPlanner.Decide(ProbeFixtures.Read(fixture));
+            Assert.True(settings.ContainsKey(members[index]));
+            settings[members[index]] = on[index % on.Length];
+        }
+
+        return settings.ToJsonString();
+    }
+
+    [Fact]
+    public void HardLinksOnAndRenamingOffAnswersActOnBothGenerations()
+    {
+        foreach (var (generation, media, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                ProbeFixtures.Read(media),
+                NamingWith(naming, members, false));
 
             Assert.True(decision.Act);
             Assert.Null(decision.Reason);
@@ -236,13 +276,17 @@ public sealed class ReflectOwnedPlannerTests
     [Fact]
     public void HardLinksOffAnswersSkippedWithTheSameReasonOnBothGenerations()
     {
-        var reasons = new[] { V3MediaManagementFixture, V2MediaManagementFixture }
-            .Select(fixture =>
+        var reasons = Instances
+            .Select(instance =>
             {
-                var settings = (JsonObject)JsonNode.Parse(ProbeFixtures.Read(fixture))!;
+                var settings = (JsonObject)JsonNode.Parse(
+                    ProbeFixtures.Read(instance.MediaManagement))!;
                 Assert.True(settings[ReflectOwnedPlanner.HardLinkSetting]!.GetValue<bool>());
                 settings[ReflectOwnedPlanner.HardLinkSetting] = false;
-                return ReflectOwnedPlanner.Decide(settings.ToJsonString());
+                return ReflectOwnedPlanner.Decide(
+                    instance.Generation,
+                    settings.ToJsonString(),
+                    NamingWith(instance.Naming, instance.RenameMembers, false));
             })
             .ToList();
 
@@ -267,10 +311,93 @@ public sealed class ReflectOwnedPlannerTests
     [InlineData("""{"copyUsingHardLinks":true}""")]
     public void AnAbsentOrUnreadableSettingAnswersSkippedAndNotAct(string? body)
     {
-        var decision = ReflectOwnedPlanner.Decide(body);
+        foreach (var (generation, _, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation, body, NamingWith(naming, members, false));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.HardLinkSettingUnreadable, decision.Reason);
+        }
+    }
+
+    // Measured on both builds. With renaming on, one generation's rename command moves every file
+    // out of the folder this product named, and the other fails the attach outright.
+    [Fact]
+    public void RenamingOnSkipsOnBothGenerations()
+    {
+        foreach (var (generation, media, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                ProbeFixtures.Read(media),
+                NamingWith(naming, members, true));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.RenamingOn, decision.Reason);
+        }
+    }
+
+    // One generation states its renaming under two members, one per kind of entry it holds. Either
+    // of them renames the file this product linked, so either of them refuses.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void EitherMemberOnSkipsOnTheGenerationStatingTwo(bool movies, bool scenes)
+    {
+        var settings = (JsonObject)JsonNode.Parse(ProbeFixtures.Read(V3NamingFixture))!;
+        settings["renameMovies"] = movies;
+        settings["renameScenes"] = scenes;
+
+        var decision = ReflectOwnedPlanner.Decide(
+            WhisparrGeneration.V3,
+            ProbeFixtures.Read(V3MediaManagementFixture),
+            settings.ToJsonString());
 
         Assert.False(decision.Act);
-        Assert.Equal(ReflectOwnedSkipReason.HardLinkSettingUnreadable, decision.Reason);
+        Assert.Equal(ReflectOwnedSkipReason.RenamingOn, decision.Reason);
+    }
+
+    // A naming body nobody could read is its own outcome and is never folded into the off case.
+    // Acting on a setting nobody read is how a silent reorganisation happens.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    [InlineData("not json")]
+    [InlineData("""{"renameMovies":false,"renameScenes":null,"renameEpisodes":null}""")]
+    [InlineData("""{"renameMovies":"false","renameScenes":"false","renameEpisodes":"false"}""")]
+    [InlineData("""{"renameMovies":0,"renameScenes":0,"renameEpisodes":0}""")]
+    [InlineData("""{"RenameMovies":false,"RenameScenes":false,"RenameEpisodes":false}""")]
+    public void AnUnreadableNamingBodyAnswersItsOwnReason(string? body)
+    {
+        foreach (var (generation, media, _, _) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation, ProbeFixtures.Read(media), body);
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.RenameSettingUnreadable, decision.Reason);
+        }
+    }
+
+    // Two refusals must not read as one. The hard-link reading answers first, so an instance failing
+    // both reports what it reported before the naming reading existed.
+    [Fact]
+    public void AnInstanceFailingBothReadingsReportsTheHardLinkReason()
+    {
+        foreach (var (generation, _, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                """{"copyUsingHardlinks":false}""",
+                NamingWith(naming, members, true));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.HardLinksOff, decision.Reason);
+        }
     }
 
     // The exclusion keys on member absence. The unmatched rows are asserted to carry no matched

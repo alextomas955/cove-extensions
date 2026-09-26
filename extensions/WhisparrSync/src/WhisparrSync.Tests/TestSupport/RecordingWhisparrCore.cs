@@ -346,6 +346,9 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     public Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct)
         => RecordActing(new ActingCall(nameof(ReadHardlinkSettingAsync), Binding.BaseAddress, Binding.ApiKey));
 
+    public Task<WhisparrResponse> ReadNamingSettingsAsync(CancellationToken ct)
+        => RecordActing(new ActingCall(nameof(ReadNamingSettingsAsync), Binding.BaseAddress, Binding.ApiKey));
+
     public Task<WhisparrResponse> ListImportableFilesAsync(
         string folder, CancellationToken ct)
         => RecordActing(
@@ -421,6 +424,16 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         => Answering(
             nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
             MonitorHost.Json(200, """{"copyUsingHardlinks":false}"""));
+
+    // The other reading the linking path refuses to act without, arranged as an instance that
+    // leaves a name alone. Carries both generations' members, so one body serves either binding.
+    public RecordingWhisparrCore AnsweringThatNamesAreLeftAlone()
+        => Answering(
+            nameof(IWhisparrReflectOwnedActing.ReadNamingSettingsAsync),
+            MonitorHost.Json(200, LeavesNamesAlone));
+
+    public const string LeavesNamesAlone =
+        """{"renameMovies":false,"renameScenes":false,"renameEpisodes":false}""";
 
     public RecordingWhisparrCore Answering(string verb, params WhisparrResponse[] answers)
     {
