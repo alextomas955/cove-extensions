@@ -159,7 +159,9 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IImportCore>(services => new ImportCore(
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
-            services.GetRequiredService<IImportPathPort>(),
+            new ImportFilesystem(
+                services.GetRequiredService<IImportPathPort>(),
+                services.GetRequiredService<ITreeLinkPort>()),
             services.GetRequiredService<OptionsWriting>(),
             services.GetRequiredService<FollowUpScanCoalescer>(),
             services.GetRequiredService<TimeProvider>(),

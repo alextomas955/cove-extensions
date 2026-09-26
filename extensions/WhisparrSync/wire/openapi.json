@@ -2495,7 +2495,8 @@
         "enum": [
           "notFoundUnderAnyRoot",
           "ambiguousCandidates",
-          "unreadable"
+          "unreadable",
+          "notPlacedInLibrary"
         ]
       },
       "InstanceCatalogueCache": {

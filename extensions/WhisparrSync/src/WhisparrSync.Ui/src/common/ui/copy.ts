@@ -471,6 +471,10 @@ export const IMPORT_CAUSE_AMBIGUOUS =
 /** The file was found where it was reported and Cove's own import would not take it. */
 export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and would not take it in.";
 
+/** A download that landed in the folders Cove keeps for Whisparr and could not be moved on. */
+export const IMPORT_CAUSE_NOT_PLACED =
+  "Cove could not give this downloaded file a place in your library, so it was left where Whisparr put it.";
+
 /** One Whisparr root folder's outstanding refusals. */
 export function importRefusalsUnderRootSentence(root: string, count: number): string {
   return `${String(count)} ${count === 1 ? "file" : "files"} under ${root} ${count === 1 ? "has" : "have"} not reached your library since an import from it last worked.`;

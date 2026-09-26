@@ -68,6 +68,18 @@ public enum ImportOutcome
     /// path the host declined came from that root.
     /// </remarks>
     RefusedHostRefusedFile,
+
+    /// <summary>
+    /// The file arrived in the folder this extension keeps for the entity, and no name for it could
+    /// be made in the library.
+    /// </summary>
+    /// <remarks>
+    /// The downloaded file is left where it is and nothing is registered. Reported rather than
+    /// passed over: a file left there is one no later pass removes, because removal is confined to
+    /// names this extension composed, so a persistent refusal is a reader's disk filling with
+    /// downloads nothing says are there.
+    /// </remarks>
+    RefusedArrivalNotPlaced,
 }
 
 // Both ingest channels enter here, and this is the only place a file becomes a library item, so the

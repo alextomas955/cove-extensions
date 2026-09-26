@@ -244,7 +244,7 @@ public sealed class ImportCoreIdempotencyTests
             => new ImportCore(
                     new StubReportedRoots(WhisparrRoot),
                     Library,
-                    Paths,
+                    new ImportFilesystem(Paths, new RecordingTreeLinkPort()),
                     new OptionsWriting(new OptionsStore(Store), Gate),
                     FollowUp,
                     new FixedClock(Now),

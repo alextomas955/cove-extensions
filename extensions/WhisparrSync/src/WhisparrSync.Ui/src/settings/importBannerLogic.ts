@@ -2,6 +2,7 @@ import type { ImportBannerRootLine, ImportBannerView, ImportRefusalCause } from 
 import {
   IMPORT_CAUSE_AMBIGUOUS,
   IMPORT_CAUSE_NOT_FOUND,
+  IMPORT_CAUSE_NOT_PLACED,
   IMPORT_CAUSE_UNREADABLE,
   importRefusalsUnderRootSentence,
   importRefusalsWithNoReportedRootSentence,
@@ -29,6 +30,7 @@ const CAUSE_SENTENCES: Record<ImportRefusalCause, string> = {
   notFoundUnderAnyRoot: IMPORT_CAUSE_NOT_FOUND,
   ambiguousCandidates: IMPORT_CAUSE_AMBIGUOUS,
   unreadable: IMPORT_CAUSE_UNREADABLE,
+  notPlacedInLibrary: IMPORT_CAUSE_NOT_PLACED,
 };
 
 /** The causes. Spellings transcribed by hand from the server's enum. */
@@ -36,6 +38,7 @@ export const IMPORT_REFUSAL_CAUSES: readonly ImportRefusalCause[] = [
   "notFoundUnderAnyRoot",
   "ambiguousCandidates",
   "unreadable",
+  "notPlacedInLibrary",
 ];
 
 export function describeCause(cause: ImportRefusalCause): string {

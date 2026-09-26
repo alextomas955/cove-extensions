@@ -721,7 +721,7 @@ public sealed class SafetyInvariantTests
             => new ImportCore(
                 _reportedRoots,
                 Library,
-                Paths,
+                new ImportFilesystem(Paths, new RecordingTreeLinkPort()),
                 new OptionsWriting(_options, Gate),
                 _followUp,
                 new FixedClock(Now),
