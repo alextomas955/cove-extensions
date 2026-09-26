@@ -162,7 +162,7 @@ public sealed class BulkReflectOwnedTests
         await host.RunEnqueuedBatchAsync(progress);
 
         Assert.Equal(
-            (1d, "2 applied, 0 refused. No files were linked: Whisparr's hard-link setting is off."),
+            (1d, "2 applied, 0 refused. No files were handed to Whisparr: its hard-link setting is off."),
             Assert.Single(progress.Reports));
     }
 

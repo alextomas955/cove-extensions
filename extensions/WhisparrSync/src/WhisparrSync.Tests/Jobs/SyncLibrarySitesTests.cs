@@ -740,6 +740,10 @@ public sealed class SyncLibrarySitesTests
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             held ? MonitorHost.Json(200, HeldRow) : MonitorHost.Json(404, string.Empty));
 
+        // These cases register and monitor; a run hands its folders over too, and an instance that
+        // would copy rather than link stops that half before it reads anything.
+        host.Client.AnsweringThatLinkingWouldCopy();
+
         if (!held)
         {
             host.Client.Answering(
@@ -768,7 +772,8 @@ public sealed class SyncLibrarySitesTests
                 MonitorHost.Json(201, RegisteredRow))
             .Answering(
                 nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync),
-                MonitorHost.Json(202, "{}"));
+                MonitorHost.Json(202, "{}"))
+            .AnsweringThatLinkingWouldCopy();
 
         foreach (var (scene, number) in SceneNumbers)
         {

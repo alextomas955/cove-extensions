@@ -175,14 +175,17 @@ public static class SyncLibraryJob
         });
     }
 
-    // Null where nothing links: a pass registering studios, an instance holding no reflect-owned
-    // role, or a hard-link setting that refused. A declared-root list that could not be read gives
+    // Null where nothing links through the folder walk: a pass registering studios, whose folders
+    // are reached one per entity rather than one per library folder and which attaches inside its
+    // own offer; an instance holding no reflect-owned role; or a hard-link setting that refused. A declared-root list that could not be read gives
     // one carrying that fact and attaching nothing, an import made without the comparison copying
     // the bytes rather than linking. The roots are read once here, not per folder.
     private static async Task<FolderLinking?> LinkingThrough(
         IServiceProvider services, SyncLibraryAiming aimed, CancellationToken ct)
     {
-        if (aimed.Link?.Through is not { } aim || aimed.Tally is not { } tally)
+        if (aimed.RegisterScene is null
+            || aimed.Link?.Through is not { } aim
+            || aimed.Tally is not { } tally)
         {
             return null;
         }

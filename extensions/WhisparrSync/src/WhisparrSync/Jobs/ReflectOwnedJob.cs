@@ -88,12 +88,12 @@ public static class ReflectOwnedJob
         "Some files were not linked: Whisparr holds their site under a different root from the "
         + "files, and nothing was copied.";
 
-    // States that the check was not made, not that nothing was found to link. An instance that could
-    // not be asked answers the same empty root list as one declaring none, and linking across two
-    // roots copies the bytes in full.
+    // States that the check was not made, not that nothing was found to hand over. An instance that
+    // could not be asked answers the same empty root list as one declaring none, and an import
+    // across two roots copies the bytes in full.
     internal const string NoRootToCompareSentence =
-        "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
-        + "data could not be checked.";
+        "No files were handed to Whisparr: it declared no root folder, so whether an import would "
+        + "copy the data could not be checked.";
 
     // Names no file: the line is durable and must not grow with the library. Names no system
     // either: a file reaches this where the metadata source numbered its scene and where Whisparr
@@ -380,6 +380,47 @@ public static class ReflectOwnedJob
             FilesAttached: filesAttached);
     }
 
+    // One entity's own folder in the tree, on a generation that decides which entry a file belongs
+    // to by parsing the file's name. Every name in the folder is the identity of the file it points
+    // at, so that parse answers nothing and the entry is supplied instead, a chunk of addresses at
+    // a time.
+    //
+    // The instance is asked what it can import from the folder, which is the one read that names
+    // the quality and languages an import needs and the only route this generation offers for them.
+    // A folder it refused to read counts as refused rather than as one holding nothing.
+    internal static async Task<ReflectOwnedRun> AttachSuppliedAsync(
+        ReflectOwnedAiming aimed,
+        IReadOnlyList<string> instanceRoots,
+        string coveRoot,
+        string onInstance,
+        IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>> addressing,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(aimed);
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+        ArgumentException.ThrowIfNullOrWhiteSpace(onInstance);
+        ArgumentNullException.ThrowIfNull(addressing);
+
+        var listing = await aimed.ReadImportable(onInstance, ct).ConfigureAwait(false);
+        if (listing.WasRefused)
+        {
+            return Untaken with { FoldersRefused = 1 };
+        }
+
+        var reflected = await ReflectOwnedPlanner.AddressedAsync(
+            aimed.Generation, listing.Rows, instanceRoots, addressing, aimed.Attach, ct)
+            .ConfigureAwait(false);
+
+        return new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed,
+            reflected.Attached ? 1 : 0,
+            reflected.Refused ? 1 : 0,
+            AddressedRoots: [coveRoot],
+            EntriesLeftUnderAnotherRoot: reflected.LeftUnderAnotherRoot,
+            FilesAttached: reflected.FilesAttached,
+            FilesWithoutAnEntry: reflected.WithoutAnEntry);
+    }
+
 
     // Counts, never a list of folders: the line must not grow with the entity, and it would put
     // filesystem paths in a durable place nothing needs them in.
@@ -413,16 +454,6 @@ public static class ReflectOwnedJob
     internal static string LineFor(LinkedTally tally, bool cancelled)
     {
         ArgumentNullException.ThrowIfNull(tally);
-
-        if (tally.Skipped is { } reason)
-        {
-            return SentenceFor(reason);
-        }
-
-        if (tally.RootsCouldNotBeRead)
-        {
-            return NoRootToCompareSentence;
-        }
 
         var reasons = ReasonsIn(tally);
         if (tally.DidNothing && reasons.Length > 0)
@@ -460,8 +491,11 @@ public static class ReflectOwnedJob
     private static string ReasonsIn(LinkedTally tally)
     {
         var linked = tally.FilesAttached > 0 || tally.Linked > 0;
-        var reasons = string.Join(
-            ' ', (tally.Unaddressed ?? []).Select(refusal => SentenceFor(refusal, linked)));
+        var reasons = Carrying(
+            NothingHandedOver(tally),
+            (tally.Unaddressed ?? []).Count,
+            string.Join(
+                ' ', (tally.Unaddressed ?? []).Select(refusal => SentenceFor(refusal, linked))));
 
         foreach (var root in tally.RootsWithNoTree ?? [])
         {
@@ -507,18 +541,35 @@ public static class ReflectOwnedJob
         return counts.Length == 0 ? clause : counts + ", " + clause;
     }
 
+    // Why nothing reached the instance at all, which is a different fact from a share of a run's
+    // files being left out, and is stated before any of those. It names the hand-over rather than
+    // the second names a run makes: those are Cove's own act and no setting of Whisparr's stops
+    // them, so a run can make every one of them and still hand over nothing.
+    //
+    // The linking reading answers first, so an instance failing both readings reports what it
+    // reported before the naming one existed rather than a reason that changed under a reader.
+    private static string NothingHandedOver(LinkedTally tally)
+    {
+        if (tally.Skipped is { } reason)
+        {
+            return SentenceFor(reason);
+        }
+
+        return tally.RootsCouldNotBeRead ? NoRootToCompareSentence : string.Empty;
+    }
+
     internal static string SentenceFor(ReflectOwnedSkipReason reason)
         => reason switch
         {
             ReflectOwnedSkipReason.HardLinksOff
-                => "No files were linked: Whisparr's hard-link setting is off.",
+                => "No files were handed to Whisparr: its hard-link setting is off.",
             ReflectOwnedSkipReason.HardLinkSettingUnreadable
-                => "No files were linked: Whisparr's hard-link setting could not be read.",
+                => "No files were handed to Whisparr: its hard-link setting could not be read.",
             ReflectOwnedSkipReason.RenamingOn
-                => "No files were linked: Whisparr is set to rename files. Turn renaming off in "
-                    + "Whisparr's Settings, Media Management.",
+                => "No files were handed to Whisparr: it is set to rename files. Turn renaming off "
+                    + "in Whisparr's Settings, Media Management.",
             ReflectOwnedSkipReason.RenameSettingUnreadable
-                => "No files were linked: Whisparr's rename setting could not be read.",
+                => "No files were handed to Whisparr: its rename setting could not be read.",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(reason),
                 reason,

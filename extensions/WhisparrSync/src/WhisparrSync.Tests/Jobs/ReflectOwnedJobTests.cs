@@ -23,10 +23,10 @@ public sealed class ReflectOwnedJobTests
           "quality":{"quality":{"id":7}},"languages":[{"id":1}],"movie":{"id":31}}]
         """;
 
-    private const string SettingIsOff = "No files were linked: Whisparr's hard-link setting is off.";
+    private const string SettingIsOff = "No files were handed to Whisparr: its hard-link setting is off.";
 
     private const string SettingUnreadable =
-        "No files were linked: Whisparr's hard-link setting could not be read.";
+        "No files were handed to Whisparr: its hard-link setting could not be read.";
 
     private const string AttachedNothing = "0 recorded by Whisparr, 0 refused.";
 
@@ -35,8 +35,8 @@ public sealed class ReflectOwnedJobTests
         + "left alone.";
 
     private const string NoRootToCompare =
-        "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
-        + "data could not be checked.";
+        "No files were handed to Whisparr: it declared no root folder, so whether an import would "
+        + "copy the data could not be checked.";
 
     // A folder holding files this product did not put there is the state a reader may have to act
     // on: a download it could not place in the library stays there and is reported on every run.
