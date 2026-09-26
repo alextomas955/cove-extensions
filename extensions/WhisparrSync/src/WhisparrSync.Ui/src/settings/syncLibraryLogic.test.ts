@@ -89,7 +89,7 @@ describe("the confirmation names the figures and the consequence", () => {
         "It monitors nothing. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
         "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off. " +
+        "setting is off or Whisparr is set to rename files. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -100,7 +100,7 @@ describe("the confirmation names the figures and the consequence", () => {
         "It also marks each of them monitored. Monitoring a scene downloads nothing by itself. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
         "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off. " +
+        "setting is off or Whisparr is set to rename files. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -110,7 +110,7 @@ describe("the confirmation names the figures and the consequence", () => {
       "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
         "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off. " +
+        "setting is off or Whisparr is set to rename files. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -121,7 +121,7 @@ describe("the confirmation names the figures and the consequence", () => {
         "It monitors nothing. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
         "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off. " +
+        "setting is off or Whisparr is set to rename files. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -144,7 +144,7 @@ describe("the confirmation names the figures and the consequence", () => {
       "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
         "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
         "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off. " +
+        "setting is off or Whisparr is set to rename files. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });

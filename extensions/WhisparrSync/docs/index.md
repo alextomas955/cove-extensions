@@ -31,8 +31,10 @@ It also adds a Whisparr button to studio and performer pages, and one to those l
 - **Register the scenes Cove holds that Whisparr does not**, from that same menu. Nothing is
   downloaded, and a scene Whisparr already holds is left alone.
 - **Ask Whisparr to link the files you already own into place**, from that same menu. It also runs
-  by itself when you turn monitoring on. Nothing is copied: with Whisparr's hard-link setting off,
-  or unreadable, nothing is sent and the control says so.
+  by itself when you turn monitoring on. Cove gives each file a second name in a folder it keeps
+  for that entry inside your own library folders, so nothing is copied and none of your files move.
+  Read [Link the files you already own](./linking.md) for what appears in those folders, what
+  Whisparr's file list shows afterwards, and the two Whisparr settings it depends on.
 - **Ask Whisparr to search for what it monitors**, from that same menu. This is the one action in
   Whisparr Sync that downloads, it is named on its own row, and nothing else here reaches it.
 - **Unmonitor from the same menu.** It stops Whisparr wanting new scenes and retracts nothing that
@@ -100,6 +102,8 @@ below, so on an older Cove this extension is not offered to you in the first pla
 
 - [Monitor a studio or a performer](./monitoring.md) - the button, the two scopes and what each
   costs, and the same actions in bulk.
+- [Link the files you already own](./linking.md) - what Cove creates in your library folders, what
+  Whisparr's file list shows afterwards, and the two Whisparr settings it depends on.
 - [Browse what you do not own](./missing.md) - the Missing tab, what its number counts, and why a
   control you expected may be absent.
 - [Show Whisparr status on library cards](./library-status.md) - the toolbar button, the badge on

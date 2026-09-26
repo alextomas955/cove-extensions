@@ -789,11 +789,11 @@ export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
 /**
  * What the run does with the files after it has registered, on the generation whose run links.
  *
- * States the mechanism and its precondition, as the per-entity control does: the setting is the
- * instance's, and with it off every matched file would be copied in full rather than linked, so the
- * run skips the linking instead. The generation registering studios links nothing and says nothing.
+ * States the mechanism and both its preconditions, as the per-entity control does. Both settings
+ * are the instance's: with hard links off every matched file would be copied in full rather than
+ * linked, and with renaming on the instance moves what it takes in out of the folder it was handed.
  */
 export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
   "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
   "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-  "setting is off.";
+  "setting is off or Whisparr is set to rename files.";
