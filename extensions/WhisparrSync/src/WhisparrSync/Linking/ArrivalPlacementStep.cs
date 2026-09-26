@@ -74,7 +74,7 @@ internal static class ArrivalPlacementStep
             return ArrivalPlacement.At(arrivalPath);
         }
 
-        var name = NameOf(arrivalPath);
+        var name = PathCandidateGuard.LeafOf(arrivalPath);
         var beside = await BesideTheItemsOwnFileAsync(heldByTheItem, coveRoots, name, ct)
             .ConfigureAwait(false);
 
@@ -131,15 +131,6 @@ internal static class ArrivalPlacementStep
         => links.Identify(arrivalPath) is { } arrival
             && links.Identify(destination) is { } there
             && arrival == there;
-
-    // Split over the string rather than through the platform's path helpers: these paths are a
-    // Linux container's whichever machine this code runs on.
-    private static string NameOf(string path)
-    {
-        var normalized = PathCandidateGuard.Normalize(path);
-        var cut = normalized.LastIndexOf('/');
-        return cut < 0 ? normalized : normalized[(cut + 1)..];
-    }
 
     // Null for a path with no folder above it to speak of, which is the root itself.
     private static string? FolderOf(string path)
