@@ -1226,3 +1226,35 @@ export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
   "It then gives each one a folder in your library, holding a second name for every file you own " +
   "for it. Your files stay where they are, and the second names cost no extra disk. Handing the " +
   "folders to Whisparr needs its hard-link setting on and its renaming off.";
+
+/** An age under a minute, which every surface that states one reads the same way. */
+export const JUST_NOW = "just now";
+
+/** An age in minutes, which reads "min" whatever the count. */
+export function minutesAgo(count: number): string {
+  return `${String(count)} min ago`;
+}
+
+/** An age in hours. */
+export function hoursAgo(count: number): string {
+  return `${String(count)} hour${count === 1 ? "" : "s"} ago`;
+}
+
+/**
+ * The month names the date form draws on.
+ *
+ * A table rather than the platform locale formatter: a locale-dependent rendering shows the same
+ * instant differently in two places and gives a test nothing fixed to assert.
+ */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * An instant too old to read as an age.
+ *
+ * @param day the day of the month
+ * @param monthIndex the month, counted from zero as the platform counts it
+ * @param year the full year
+ */
+export function dateSentence(day: number, monthIndex: number, year: number): string {
+  return `${String(day)} ${MONTHS[monthIndex]} ${String(year)}`;
+}

@@ -1,10 +1,8 @@
 /**
- * How a recorded instant reads: relative within a day, an absolute date beyond it.
- *
- * The absolute form uses a month table, not the platform locale formatter. A locale-dependent
- * rendering shows the same instant differently in two places and gives a test nothing fixed to
- * assert.
+ * Which form a recorded instant takes: relative within a day, an absolute date beyond it. The
+ * words each form reads in are the catalogue's.
  */
+import { dateSentence, hoursAgo, JUST_NOW, minutesAgo } from "../common/ui/copy";
 
 type InstantForm = "relative" | "absolute";
 
@@ -19,12 +17,6 @@ const HOUR_MS = 60 * MINUTE_MS;
 
 // Anything this old or older reads as a date.
 const DAY_MS = 24 * HOUR_MS;
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function hoursAgo(count: number): string {
-  return `${String(count)} hour${count === 1 ? "" : "s"} ago`;
-}
 
 /**
  * How `iso` reads as of `nowMs`, or `null` when the value is not an instant.
@@ -44,16 +36,15 @@ export function describeInstant(iso: string, nowMs: number): InstantRendering | 
     const when = new Date(at);
     return {
       form: "absolute",
-      text: `${String(when.getDate())} ${MONTHS[when.getMonth()]} ${String(when.getFullYear())}`,
+      text: dateSentence(when.getDate(), when.getMonth(), when.getFullYear()),
     };
   }
 
   if (elapsed < MINUTE_MS) {
-    return { form: "relative", text: "just now" };
+    return { form: "relative", text: JUST_NOW };
   }
   if (elapsed < HOUR_MS) {
-    // "min" whatever the count, matching the copy.
-    return { form: "relative", text: `${String(Math.floor(elapsed / MINUTE_MS))} min ago` };
+    return { form: "relative", text: minutesAgo(Math.floor(elapsed / MINUTE_MS)) };
   }
   return { form: "relative", text: hoursAgo(Math.floor(elapsed / HOUR_MS)) };
 }

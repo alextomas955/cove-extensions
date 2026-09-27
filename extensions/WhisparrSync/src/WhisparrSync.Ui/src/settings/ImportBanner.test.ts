@@ -12,6 +12,7 @@ import {
   importRefusalsWithNoReportedRootSentence,
   IMPORT_REPORT_UNREADABLE,
   IMPORTS_UNREADABLE,
+  minutesAgo,
 } from "../common/ui/copy";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -143,7 +144,7 @@ test("a containment with no root refused at all still puts a block on the screen
   expect(view.blocks.length).toBe(1);
   expect(view.rootLines.length).toBe(0);
   expect(view.text).toContain("3 files");
-  expect(view.text).toContain("30 min ago");
+  expect(view.text).toContain(minutesAgo(30));
   // The heading belongs to the root list, and there is no root list here.
   expect(view.text).not.toContain(IMPORTS_UNREADABLE);
 });
