@@ -241,6 +241,60 @@ public sealed class RegistrationIdempotencyTests
 
     // The recorder for the generation, because the fields a registration carries come off the role
     // the instance declares and the two generations declare different ones.
+    // A reading is the instance's answer about its own list. An error, an unauthorised refusal or a
+    // body that is not a list says nothing about whether the registration is there, and a caller
+    // that recorded such an answer as an absence would report a registered instance as bare.
+    [Theory]
+    [InlineData(401, "{\"message\":\"Unauthorized\"}")]
+    [InlineData(404, "")]
+    [InlineData(500, "{}")]
+    [InlineData(200, "{\"message\":\"not a list\"}")]
+    public async Task AnAnswerThatIsNotAListSettlesNothing(int status, string body)
+    {
+        var binding = new WhisparrBinding(WhisparrGeneration.V3, Instance, ApiKey);
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"), binding);
+        client.Answering(
+            nameof(IWhisparrClient.ListNotificationsAsync),
+            RecordingWhisparrCore.Json(status, body));
+
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .ReadAsync(binding, TestCt);
+
+        Assert.Equal(RegistrationStatus.NotCheckedYet, outcome.Status);
+        Assert.Null(outcome.StoredAddress);
+    }
+
+    [Fact]
+    public async Task AListWithoutThisProductsEntryReadsAsNotRegistered()
+    {
+        var binding = new WhisparrBinding(WhisparrGeneration.V3, Instance, ApiKey);
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"), binding);
+        client.Answering(
+            nameof(IWhisparrClient.ListNotificationsAsync),
+            RecordingWhisparrCore.Json(200, """[{"id":3,"name":"Somebody Else","fields":[]}]"""));
+
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .ReadAsync(binding, TestCt);
+
+        Assert.Equal(RegistrationStatus.NotRegistered, outcome.Status);
+    }
+
+    [Fact]
+    public async Task AListHoldingThisProductsEntryReadsAsRegisteredAtItsAddress()
+    {
+        var binding = new WhisparrBinding(WhisparrGeneration.V3, Instance, ApiKey);
+        var client = new RecordingWhisparrV3Client(RecordingWhisparrCore.Json(200, "[]"), binding);
+        client.Answering(
+            nameof(IWhisparrClient.ListNotificationsAsync),
+            RecordingWhisparrCore.Json(200, ListHolding(Address)));
+
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .ReadAsync(binding, TestCt);
+
+        Assert.Equal(RegistrationStatus.Registered, outcome.Status);
+        Assert.Equal(Address, outcome.StoredAddress);
+    }
+
     private static RecordingWhisparrCore ClientAnswering(
         string listBefore, string listAfter, WhisparrGeneration generation = WhisparrGeneration.V3)
     {

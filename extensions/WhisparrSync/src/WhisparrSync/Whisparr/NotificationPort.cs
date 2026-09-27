@@ -121,8 +121,17 @@ internal sealed class NotificationPort(IWhisparrInstanceFactory instances, ILogg
     {
         ArgumentNullException.ThrowIfNull(binding);
 
-        var listed = await FindRegistrationAsync(instances.Bound(binding), ct).ConfigureAwait(false);
-        return listed is null
+        // An answer that is not a list settles nothing and is not an absent registration. A caller
+        // recording this reading would otherwise write "not registered" whenever the key was turned
+        // down or the route answered an error, which is the reading a registered instance least
+        // deserves.
+        var answered = await instances.Bound(binding).ListNotificationsAsync(ct).ConfigureAwait(false);
+        if (ParseArray(answered) is not { } list)
+        {
+            return new CallbackRegistrationOutcome(RegistrationStatus.NotCheckedYet, null, false, null);
+        }
+
+        return RegistrationIn(list) is not { } listed
             ? new CallbackRegistrationOutcome(RegistrationStatus.NotRegistered, null, false, null)
             : new CallbackRegistrationOutcome(
                 RegistrationStatus.Registered, FieldValue(listed, UrlField)?.ToString(), false, null);
@@ -141,10 +150,13 @@ internal sealed class NotificationPort(IWhisparrInstanceFactory instances, ILogg
         IWhisparrClient instance, CancellationToken ct)
     {
         var answered = await instance.ListNotificationsAsync(ct).ConfigureAwait(false);
-        return ParseArray(answered)?
+        return ParseArray(answered) is { } list ? RegistrationIn(list) : null;
+    }
+
+    private static JsonObject? RegistrationIn(JsonArray list)
+        => list
             .OfType<JsonObject>()
             .FirstOrDefault(entry => StringOf(entry, "name") == RegistrationName);
-    }
 
     // The implementation identifiers and the trigger flags are echoed from the schema entry the
     // instance returned, never written as literals: v2 and v3 declare different values.

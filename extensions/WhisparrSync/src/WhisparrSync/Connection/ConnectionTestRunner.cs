@@ -1,5 +1,6 @@
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Connection;
 
@@ -18,7 +19,8 @@ public interface IConnectionTestRunner
     /// <summary>Tests the stored connection of the generation the settings currently select.</summary>
     /// <remarks>
     /// The only path that records a version reading, and only on a success, because it is the one
-    /// call that knows the instance it reached is the stored one.
+    /// call that knows the instance it reached is the stored one. It is also the only path that
+    /// re-reads the callback registration, for the same reason.
     /// </remarks>
     Task<ConnectionTestView> TestStoredAsync(CancellationToken ct);
 }
@@ -28,6 +30,7 @@ internal sealed class ConnectionTestRunner(
     OptionsStore options,
     OptionsWriteGate gate,
     ICredentialPort credentials,
+    IWhisparrNotificationPort notifications,
     TimeProvider clock) : IConnectionTestRunner
 {
     public async Task<ConnectionTestView> TestTransientAsync(
@@ -83,6 +86,15 @@ internal sealed class ConnectionTestRunner(
         var now = clock.GetUtcNow();
         var connected = view.Kind == ConnectionFailureKind.Connected;
 
+        // Read back here and nowhere else. Opening the settings page deliberately asks the instance
+        // nothing, because a failed ask there is indistinguishable from an absent registration; this
+        // gesture has already reached the instance, so the same ask is attributable. Without it a
+        // registration the instance no longer holds, after a reset or a hand-deleted connection,
+        // goes on being reported as present and no import arrives.
+        var registration = connected
+            ? await ReadRegistrationAsync(binding, ct).ConfigureAwait(false)
+            : RegistrationStatus.NotCheckedYet;
+
         // Applied to the connection the gate loads, not the one read before the probe: another writer
         // may have committed to the same record while the instance was being asked.
         await gate.MutateAsync(
@@ -100,8 +112,28 @@ internal sealed class ConnectionTestRunner(
                     LastReachableAtUtc = now,
                     RecordedVersion = view.Version,
                     VersionVerifiedAtUtc = now,
+                    CallbackRegistration = Settled(current.CallbackRegistration),
                 }
                 : current with { LastReachableAtUtc = now };
+
+        RegistrationStatus Settled(RegistrationStatus last)
+            => registration == RegistrationStatus.NotCheckedYet ? last : registration;
+    }
+
+    // A reading that did not arrive settles nothing, so the status held from the last check stands.
+    // The probe this follows is what the view reports on, and a registration read is not allowed to
+    // turn a connection the instance answered into a failed test.
+    private async Task<RegistrationStatus> ReadRegistrationAsync(
+        WhisparrBinding binding, CancellationToken ct)
+    {
+        try
+        {
+            return (await notifications.ReadAsync(binding, ct).ConfigureAwait(false)).Status;
+        }
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        {
+            return RegistrationStatus.NotCheckedYet;
+        }
     }
 
     // A rejected key counts as an answer: the instance was reached.
