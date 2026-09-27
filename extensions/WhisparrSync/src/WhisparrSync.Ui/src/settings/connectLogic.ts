@@ -18,6 +18,12 @@ import {
   connectNotTheWhisparrApiSentence,
   connectUnreachableSentence,
   connectVersionNotManagedSentence,
+  GENERATION_V2_NAME,
+  GENERATION_V3_NAME,
+  INSTANCE_HAS_NOT_ANSWERED_YET,
+  lastReachableSentence,
+  recordedVersionSentence,
+  VERSION_NOT_VERIFIED_YET,
 } from "../common/ui/copy";
 import { describeInstant } from "./relativeTimeLogic";
 
@@ -120,9 +126,9 @@ export type CardGeneration = NonNullable<WhisparrGeneration>;
 /** Both cards, in the order the page draws them. */
 export const CARD_GENERATIONS: readonly CardGeneration[] = ["v3", "v2"];
 
-/** Declared once, so two surfaces cannot name a generation differently. */
+/** The name a surface calls `card` by. */
 export function generationLabel(card: CardGeneration): string {
-  return card === "v3" ? "Whisparr v3 (Eros)" : "Whisparr v2";
+  return card === "v3" ? GENERATION_V3_NAME : GENERATION_V2_NAME;
 }
 
 /**
@@ -249,11 +255,11 @@ export function describeRecorded(
   return {
     version:
       stored.recordedVersion === null || verifiedAt === null
-        ? "Whisparr version not verified yet"
-        : `Whisparr reported ${stored.recordedVersion} · verified ${verifiedAt.text}`,
+        ? VERSION_NOT_VERIFIED_YET
+        : recordedVersionSentence(stored.recordedVersion, verifiedAt.text),
     reachable:
       reachableAt === null
-        ? "Whisparr has not answered yet"
-        : `Whisparr last reachable ${reachableAt.text}`,
+        ? INSTANCE_HAS_NOT_ANSWERED_YET
+        : lastReachableSentence(reachableAt.text),
   };
 }

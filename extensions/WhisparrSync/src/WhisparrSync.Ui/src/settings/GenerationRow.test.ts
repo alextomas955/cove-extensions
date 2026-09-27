@@ -7,6 +7,8 @@ import {
   GENERATION_ADDRESS_NOT_READ_YET,
   GENERATION_NO_ADDRESS_STORED,
   GENERATION_SELECTED,
+  GENERATION_V2_NAME,
+  GENERATION_V3_NAME,
   KEY_IS_SET,
   KEY_NOT_STORED,
   selectGenerationName,
@@ -64,8 +66,8 @@ test("both generations are drawn whichever one the draft holds", async () => {
   const onV2 = await render(row({ drafted: "v2" }));
 
   for (const host of [onV3, onV2]) {
-    expect(host.textContent).toContain("Whisparr v3 (Eros)");
-    expect(host.textContent).toContain("Whisparr v2");
+    expect(host.textContent).toContain(GENERATION_V3_NAME);
+    expect(host.textContent).toContain(GENERATION_V2_NAME);
   }
 });
 
@@ -81,14 +83,14 @@ test("the drafted option is marked by a word, not by its colours alone", async (
   expect(marked[0]?.querySelector("svg"), "the pill says it with a tint and a word alone").not.toBe(
     null,
   );
-  expect(marked[0].textContent).toContain("Whisparr v2");
+  expect(marked[0].textContent).toContain(GENERATION_V2_NAME);
   expect(marked[0].textContent).not.toContain("Eros");
 });
 
 test("only the option the draft does not hold carries a control, and it names that generation", async () => {
   const host = await render(row({ drafted: "v3" }));
 
-  expect(controlNames(host)).toEqual([selectGenerationName("Whisparr v2")]);
+  expect(controlNames(host)).toEqual([selectGenerationName(GENERATION_V2_NAME)]);
 });
 
 test("pressing the control reports the generation it names", async () => {
@@ -136,5 +138,5 @@ test("before the read answers the control cannot be pressed and names itself bef
 
   const control = host.querySelector("button");
   expect(control?.disabled, "the control could be pressed before anything was read").toBe(true);
-  expect(control?.textContent).toBe(`${selectGenerationName("Whisparr v2")}${reason}`);
+  expect(control?.textContent).toBe(`${selectGenerationName(GENERATION_V2_NAME)}${reason}`);
 });

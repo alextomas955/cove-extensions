@@ -10,10 +10,12 @@ import {
   CONNECT_TEST,
   CONNECT_TESTING,
   GENERATION_SELECTED,
+  GENERATION_V3_NAME,
   KEY_IS_SET,
   KEY_WILL_BE_REMOVED_ON_SAVE,
   NEW_KEY_WILL_BE_SAVED,
   selectGenerationName,
+  VERSION_NOT_VERIFIED_YET,
 } from "../common/ui/copy";
 import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { ConnectionSection } from "./ConnectionSection";
@@ -92,7 +94,7 @@ test("the section says which generation the form is editing, and offers the othe
     option.textContent.includes(GENERATION_SELECTED),
   );
   expect(marked, "the section marks no generation as the selected one").toHaveLength(1);
-  expect(marked[0].textContent).toContain("Whisparr v3 (Eros)");
+  expect(marked[0].textContent).toContain(GENERATION_V3_NAME);
 
   const select = [...host.querySelectorAll("button")].filter((button) =>
     button.textContent.startsWith(selectGenerationName("")),
@@ -202,7 +204,7 @@ test("a version never verified reads as a normal state, not as a failure", async
   const host = await render(section({ stored: NEVER_VERIFIED }));
 
   const line = [...host.querySelectorAll("span")].find(
-    (span) => span.textContent === "Whisparr version not verified yet",
+    (span) => span.textContent === VERSION_NOT_VERIFIED_YET,
   );
   expect(line, "the section says nothing about a version it has never verified").toBeDefined();
   expect(line?.className).toContain("text-secondary");
