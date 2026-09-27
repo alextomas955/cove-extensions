@@ -367,19 +367,15 @@ const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
   noIdentityInThisNamespace: null,
   severalIdentitiesInThisNamespace: null,
   capabilityAbsentOnThisGeneration: null,
-  noQualityProfile:
-    "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.",
-  noRootFolder:
-    "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
+  noQualityProfile: "Whisparr has no quality profile. Add one there and try again.",
+  noRootFolder: "Whisparr has no root folder. Add one there and try again.",
   noAgreedRootForThisEntity:
-    "Cove and Whisparr have not agreed where this entity's files are, so nothing was sent. Settle that folder on the settings page.",
+    "Cove doesn't know where Whisparr keeps this folder. Settle it on the settings page.",
   instanceRefused: "Whisparr would not do this. Nothing here was changed.",
-  answerTooLargeToRead:
-    "Whisparr answered correctly, with more than this extension reads at once. Reload the page for its current state.",
-  instanceHoldsNoSuchEntity:
-    "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.",
+  answerTooLargeToRead: "Whisparr's answer was too large to read. Reload for its current state.",
+  instanceHoldsNoSuchEntity: "Whisparr no longer holds this. Reload for its current state.",
   instanceDidNotReportTheChange:
-    "Whisparr accepted the change but does not report it. Reload the page for its current state.",
+    "Whisparr took the change but doesn't report it. Reload for its current state.",
 };
 
 describe("which refusal speaks beneath the control, and which speaks at it", () => {

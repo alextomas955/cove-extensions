@@ -226,9 +226,7 @@ test("a refused press states the reason beneath the verbs, in the tone the reaso
   );
 
   const stated = container.querySelector("[data-status]");
-  expect(stated?.textContent).toBe(
-    "Whisparr has no entry for this scene yet, so there is nothing to search for - monitor it first.",
-  );
+  expect(stated?.textContent).toBe("Add this to Whisparr and monitor it before searching.");
   expect(stated?.getAttribute("data-status")).toBe("muted");
 });
 
