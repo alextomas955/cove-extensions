@@ -25,7 +25,6 @@ import {
   SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
   SYNC_SITE_DOWNLOADS_NOTHING,
   SYNC_SITE_NEEDS_A_COUNT_FIRST,
-  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   syncOffersScenes,
@@ -60,8 +59,16 @@ export interface SyncSentences {
   readonly description: string;
   readonly skippedRemedy: string;
   readonly needsACountFirst: string;
-  /** Why there is nothing left for the run to register. Claims nothing about monitoring. */
-  readonly nothingLeftToSync: string;
+  /**
+   * Why there is nothing left for the run to do, or null where a run always has some.
+   *
+   * Null on the site pass. What the instance publishes per site is whether it recorded any file,
+   * not how many of the site's files are still to hand over, so a site holding five of the reader's
+   * files with one recorded reads as done. An exact figure costs a read per site, which grows with
+   * the library. The run there also rebuilds the tree, follows a file that changed drive and takes
+   * back a name whose library file is gone, so it has work on most runs whatever the figure says.
+   */
+  readonly nothingLeftToSync: string | null;
   readonly downloadsNothing: string;
   readonly offersOne: string;
   /** What the confirmation covers at any other size, given the figure already grouped. */
@@ -87,7 +94,7 @@ const SITE_SENTENCES: SyncSentences = {
   description: SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
   skippedRemedy: SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   needsACountFirst: SYNC_SITE_NEEDS_A_COUNT_FIRST,
-  nothingLeftToSync: SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+  nothingLeftToSync: null,
   downloadsNothing: SYNC_SITE_DOWNLOADS_NOTHING,
   offersOne: SYNC_OFFERS_ONE_SITE,
   offersMany: syncOffersSites,
@@ -210,7 +217,8 @@ export function syncConfirmation(
  * The last reason reads all three of what a run does. It registers what is not yet there, it hands
  * over the files of what is, and with the monitor choice on it marks every scene the reader owns
  * monitored, including one the instance already holds. Any one of the three outstanding is work,
- * so nothing is left only where all three are spent.
+ * so nothing is left only where all three are spent. It is stated only where the run can tell that
+ * all three are spent, which the site pass cannot.
  */
 export function syncDisabledReason(state: SyncControlState): string | null {
   if (state.sharedReason !== null) return state.sharedReason;
@@ -218,7 +226,12 @@ export function syncDisabledReason(state: SyncControlState): string | null {
   if (state.syncRunning) return SYNC_ALREADY_RUNNING;
   if (state.starting) return SYNC_IS_STARTING;
   if (state.counts === null) return state.sentences.needsACountFirst;
-  if (!state.monitorAlso && state.counts.notYetThere === 0 && state.counts.withNoFileRecorded === 0)
+  if (
+    !state.monitorAlso &&
+    state.sentences.nothingLeftToSync !== null &&
+    state.counts.notYetThere === 0 &&
+    state.counts.withNoFileRecorded === 0
+  )
     return state.sentences.nothingLeftToSync;
   return null;
 }

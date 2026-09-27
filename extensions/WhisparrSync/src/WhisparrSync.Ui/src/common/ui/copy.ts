@@ -730,15 +730,6 @@ export const SYNC_NOTHING_LEFT_TO_SYNC =
   "Whisparr already holds every scene in your library that carries a metadata id, and records a " +
   "file for each of them.";
 
-/**
- * The same, where the run registers the studios a library covers rather than its scenes.
- *
- * @see SYNC_NOTHING_LEFT_TO_SYNC
- */
-export const SYNC_SITE_NOTHING_LEFT_TO_SYNC =
-  "Whisparr already holds every studio in your library that carries a metadata id, and records a " +
-  "file for each of them.";
-
 /** Why nothing on the sync side can act while a run is in flight. Points at the progress surface. */
 export const SYNC_ALREADY_RUNNING =
   "A library sync is already running. Its progress is in Cove's job list.";
@@ -793,12 +784,15 @@ export function syncOffersSites(grouped: string): string {
  * What the run still has to hand over, stated where the count found any.
  *
  * Reads at one as it does at any other size: the figure carries no noun after it, so there is no
- * plural to disagree with.
+ * plural to disagree with, and the same sentence serves whichever noun the run registers.
+ *
+ * Names where the figure was counted rather than saying "of them". It follows the clause about
+ * what the run skips, so "them" read as the skipped ones, which is the opposite set.
  *
  * @param grouped the figure, already grouped
  */
 export function syncStillToHandOver(grouped: string): string {
-  return `Whisparr records no file for ${grouped} of them yet.`;
+  return `Whisparr holds ${grouped} with no file recorded yet.`;
 }
 
 /** What the monitor choice adds to the run, where the run registers scenes. */
@@ -820,11 +814,12 @@ export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
  * States the mechanism and both its preconditions, as the per-entity control does. Both settings
  * are the instance's: with hard links off every matched file would be copied in full rather than
  * linked, and with renaming on the instance moves what it takes in out of the folder it was handed.
+ * What happens when a precondition is unmet is not spelled out: "needs" carries it, and the run's
+ * own ending names each entry it left alone.
  */
 export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
-  "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-  "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-  "setting is off or Whisparr is set to rename files.";
+  "It then links each file you own into the folder Whisparr keeps for it, using no extra disk. " +
+  "This needs Whisparr's hard-link setting on and its renaming off.";
 
 /**
  * What the run does with the files after it has registered, on the generation that builds the
@@ -835,7 +830,6 @@ export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
  * linking has, so the settings are named on that half alone.
  */
 export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
-  "It then gives each one a folder in your library and makes a second name in that folder for " +
-  "every file you own for it. A second name costs no extra disk, and your own files stay where " +
-  "they are, under the names you gave them. It hands each folder to Whisparr so your files show " +
-  "up there, while Whisparr's hard-link setting is on and Whisparr is not set to rename files.";
+  "It then gives each one a folder in your library, holding a second name for every file you own " +
+  "for it. Your files stay where they are, and the second names cost no extra disk. Handing the " +
+  "folders to Whisparr needs its hard-link setting on and its renaming off.";

@@ -39,6 +39,21 @@ export const OPTIONS_KEY = "options";
 /** Where the settings tab renders, which is a page address rather than a route. */
 export const SETTINGS_PAGE_PATH = "/settings/whisparr-sync";
 
+/**
+ * A sentence that appears only inside the panel this extension ships, used to tell a loaded bundle
+ * from an unloaded one.
+ *
+ * The host draws the tab button, the heading and the description from the manifest alone, so a
+ * probe for the extension's name is satisfied by a bundle that never loaded. This sentence is not
+ * in the manifest, so seeing it means the bundle ran.
+ *
+ * Transcribed by hand, because the specs cannot import the panel's own module. It is a probe rather
+ * than a claim: no spec asserts this wording, and any sentence unique to the panel would serve. It
+ * lives here because four specs used it and a reworded helper broke all four at once, each with a
+ * navigation timeout that named nothing.
+ */
+export const SETTINGS_PANEL_SENTENCE = "Where Cove itself reaches Whisparr, including the port.";
+
 /** Where an inbound delivery carries its shared secret, in each position that is accepted. */
 export const SECRET_HEADER = "X-Cove-Whisparr-Sync-Secret";
 export const SECRET_QUERY_PARAMETER = "s";

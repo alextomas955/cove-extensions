@@ -256,10 +256,14 @@ const RENDERED_BY_THE_SYNC_SECTION = {
     ["SYNC_REGISTERS_THE_SCENES_YOU_OWN", "SYNC_REGISTERS_THE_STUDIOS_YOU_OWN"],
     ["SYNC_SKIPPED_CANNOT_BE_REGISTERED", "SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED"],
     ["SYNC_NEEDS_A_COUNT_FIRST", "SYNC_SITE_NEEDS_A_COUNT_FIRST"],
-    ["SYNC_NOTHING_LEFT_TO_SYNC", "SYNC_SITE_NOTHING_LEFT_TO_SYNC"],
     ["SYNC_DOWNLOADS_NOTHING", "SYNC_SITE_DOWNLOADS_NOTHING"],
     ["SYNC_OFFERS_ONE_SCENE", "SYNC_OFFERS_ONE_SITE"],
   ],
+
+  // Rendered on the scene pass alone, so it names that noun and has no studio counterpart. The
+  // site pass states no such sentence: what the instance publishes per site does not say whether a
+  // site's files are all handed over, so its control never claims there is nothing left.
+  renderedOnTheScenePassAlone: ["SYNC_NOTHING_LEFT_TO_SYNC"],
 
   // Names what monitoring reaches, which is a scene whatever the run registers.
   namesWhatMonitoringReaches: [
@@ -293,6 +297,7 @@ const RENDERED_BY_THE_SYNC_SECTION = {
 
 const ACCOUNTED_FOR = [
   ...RENDERED_BY_THE_SYNC_SECTION.pairedByWhatTheRunRegisters.flat(),
+  ...RENDERED_BY_THE_SYNC_SECTION.renderedOnTheScenePassAlone,
   ...RENDERED_BY_THE_SYNC_SECTION.namesWhatMonitoringReaches,
   ...RENDERED_BY_THE_SYNC_SECTION.namesNeitherNoun,
 ];
@@ -319,6 +324,13 @@ describe("every sentence the sync section renders was walked for the noun it nam
       expect(contains(sentenceOf(scene), "studio"), `${scene} names a studio`).toBe(false);
       expect(contains(sentenceOf(studio), "studio"), `${studio} names no studio`).toBe(true);
       expect(contains(sentenceOf(studio), "scene"), `${studio} names a scene`).toBe(false);
+    }
+  });
+
+  it("names a scene in what only the scene pass renders", () => {
+    for (const name of RENDERED_BY_THE_SYNC_SECTION.renderedOnTheScenePassAlone) {
+      expect(contains(sentenceOf(name), "scene"), `${name} names no scene`).toBe(true);
+      expect(contains(sentenceOf(name), "studio"), `${name} names a studio`).toBe(false);
     }
   });
 

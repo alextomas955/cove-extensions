@@ -16,17 +16,12 @@ import { test as base, expect } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../../../../Renamer/e2e/lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../../../../Renamer/e2e/lib/pages/renamer-settings-page.mjs";
+import { SETTINGS_PANEL_SENTENCE } from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 
 const RUN_FLAG = "COVE_E2E_BOTH_BUNDLES";
 
 const WHISPARR_SYNC_SETTINGS_PATH = "/settings/whisparr-sync";
-
-// The sentence lives only inside the component this extension ships. The host draws the tab button,
-// the heading and the manifest description from the manifest alone, so an assertion on the
-// extension's NAME passes just as happily against a bundle that never loaded.
-const WHISPARR_SYNC_PANEL_SENTENCE =
-  "The address Cove itself reaches Whisparr on, including the scheme and port.";
 
 const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
@@ -92,7 +87,7 @@ bothBundles.describe("both extension bundles in one Cove", () => {
       ).toBeVisible();
 
       // Second: the new extension's own surface, so a pass cannot mean its bundle was simply absent.
-      const panel = page.getByText(WHISPARR_SYNC_PANEL_SENTENCE, { exact: true });
+      const panel = page.getByText(SETTINGS_PANEL_SENTENCE, { exact: true });
       const panelUrl = `${baseUrl}${WHISPARR_SYNC_SETTINGS_PATH}`;
       // The host carries an unknown settings key only until it finishes loading extensions, then
       // rewrites the address to its first built-in tab. Nothing after that rewrite can reach the
