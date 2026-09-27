@@ -1,5 +1,15 @@
 import type { CallbackView, ConnectionSetting } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
+import {
+  CALLBACK_NOT_CHECKED_YET,
+  CALLBACK_NOT_REGISTERED,
+  CALLBACK_REGISTERED_AND_DELIVERING,
+  CALLBACK_REGISTERED_WITH_NO_EVENTS,
+  NOTHING_TO_REGISTER,
+  REGISTER_NEEDS_A_SAVED_ADDRESS,
+  REGISTER_NEEDS_A_SAVED_KEY,
+  REGISTRATION_IS_STILL_RUNNING,
+} from "../common/ui/copy";
 
 /**
  * The query parameter a hand-pasted address carries its secret in.
@@ -33,22 +43,10 @@ export interface RegistrationDescription {
 
 // Total by type, so a rendering added to the union fails the build instead of compiling silently.
 const DESCRIPTIONS: Record<RegistrationRendering, Omit<RegistrationDescription, "rendering">> = {
-  notCheckedYet: {
-    sentence: "Cove has not checked this instance for its callback yet.",
-    tone: "muted",
-  },
-  notRegistered: {
-    sentence: "Cove's callback is not registered on this instance.",
-    tone: "warning",
-  },
-  registeredWithNoEvents: {
-    sentence: "Registered, but no import has reached Cove through it yet.",
-    tone: "warning",
-  },
-  registeredAndDelivering: {
-    sentence: "Registered, and imports are reaching Cove through it.",
-    tone: "success",
-  },
+  notCheckedYet: { sentence: CALLBACK_NOT_CHECKED_YET, tone: "muted" },
+  notRegistered: { sentence: CALLBACK_NOT_REGISTERED, tone: "warning" },
+  registeredWithNoEvents: { sentence: CALLBACK_REGISTERED_WITH_NO_EVENTS, tone: "warning" },
+  registeredAndDelivering: { sentence: CALLBACK_REGISTERED_AND_DELIVERING, tone: "success" },
 };
 
 /**
@@ -71,21 +69,6 @@ export function describeRegistration(view: CallbackView): RegistrationDescriptio
 }
 
 /**
- * What this Cove may do to itself when Whisparr calls the address.
- *
- * Said before the gesture, not after it, and it opens on what the reader would lose rather than on
- * the mechanism: a warning nobody reaches the end of warns nobody. Whisparr checks a webhook by
- * posting to it. A Cove holding an owner account while sign-in is off can read that call as an
- * instance reachable from outside its own machine: it turns sign-in on, keeps it on, and signs out
- * the person configuring this. Whether it does depends on the address, where the call comes from
- * and the host's own trusted-host list, so this is a warning rather than a refusal.
- */
-export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
-  "Registering may sign you out. Sign-in is off here, and Whisparr checks the address by calling " +
-  "it. A call arriving from outside this machine makes Cove switch sign-in on. Set a password " +
-  "under Security & Access first to avoid that.";
-
-/**
  * Whether the callback can be registered at all, or a sentence saying why not.
  *
  * The lockdown reason outranks the rest: the others clear on their own, and this one stands until
@@ -97,20 +80,12 @@ export function registerRefusal(input: {
   readonly address: string;
 }): string | null {
   if (input.sharedReason !== null) return input.sharedReason;
-  if (input.registering) return "This registration is still running.";
-  return input.address.trim() === "" ? "There is no callback address to register." : null;
+  if (input.registering) return REGISTRATION_IS_STILL_RUNNING;
+  return input.address.trim() === "" ? NOTHING_TO_REGISTER : null;
 }
 
 /**
- * The standing note, shown while deliveries still carry the secret in the address.
- *
- * There is no dismiss control. The note goes when the fact goes.
- */
-export const LESS_PRIVATE_FORM_NOTE =
-  "Imports are arriving with the callback secret in the address, where proxies and load balancers record it. Registering again from here moves it out of the address.";
-
-/**
- * Whether the note above is standing.
+ * Whether the standing note about the secret's place is shown.
  *
  * Keyed on where a delivery carried its secret, not on which generation answered. A hand-pasted
  * address carries it in the address whatever the generation supports.
@@ -123,9 +98,9 @@ export function shouldShowLessPrivateFormNote(view: CallbackView): boolean {
 export function missingSettingSentence(setting: ConnectionSetting): string | null {
   switch (setting) {
     case "address":
-      return "Enter the Whisparr address above and save it before registering the callback.";
+      return REGISTER_NEEDS_A_SAVED_ADDRESS;
     case "apiKey":
-      return "Enter the Whisparr API key above and save it before registering the callback.";
+      return REGISTER_NEEDS_A_SAVED_KEY;
     case null:
       return null;
   }

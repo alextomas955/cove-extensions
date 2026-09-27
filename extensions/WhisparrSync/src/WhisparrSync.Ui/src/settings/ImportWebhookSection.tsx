@@ -26,14 +26,14 @@ import {
   WEBHOOK_REGISTERING,
   WEBHOOK_STATUS_NOT_READ,
   WEBHOOK_TITLE,
+  REGISTRATION_WOULD_LOCK_COVE_DOWN,
+  LESS_PRIVATE_FORM_NOTE,
   webhookRefusedSentence,
   webhookRegistrationFailedSentence,
 } from "../common/ui/copy";
 import type { CopyResult } from "./useRegistration";
 import {
   describeRegistration,
-  REGISTRATION_WOULD_LOCK_COVE_DOWN,
-  LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
   registerRefusal,
   registrationRead,

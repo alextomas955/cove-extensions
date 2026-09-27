@@ -4,6 +4,8 @@ import { createElement } from "react";
 
 import { render } from "../common/lib/testRender";
 import {
+  CALLBACK_NOT_CHECKED_YET,
+  CALLBACK_REGISTERED_AND_DELIVERING,
   WEBHOOK_ADDRESS,
   WEBHOOK_READING_THE_STATUS,
   WEBHOOK_REGISTER,
@@ -91,8 +93,8 @@ test("the status tells reading, checked, never checked and unreadable apart", as
 
   const sentences = [reading, checked, never, failed].map((host) => host.textContent);
   expect(sentences[0]).toContain(WEBHOOK_READING_THE_STATUS);
-  expect(sentences[1]).toContain("Registered, and imports are reaching Cove through it.");
-  expect(sentences[2]).toContain("Cove has not checked this instance for its callback yet.");
+  expect(sentences[1]).toContain(CALLBACK_REGISTERED_AND_DELIVERING);
+  expect(sentences[2]).toContain(CALLBACK_NOT_CHECKED_YET);
   expect(sentences[3]).toContain(WEBHOOK_STATUS_NOT_READ);
   expect(new Set(sentences).size, "two of the four read the same").toBe(4);
 });

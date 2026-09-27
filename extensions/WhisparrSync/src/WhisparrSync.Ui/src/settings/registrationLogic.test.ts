@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { CallbackView, RegistrationStatus } from "../wire/api";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
+  LESS_PRIVATE_FORM_NOTE,
+  NOTHING_TO_REGISTER,
+  REGISTRATION_IS_STILL_RUNNING,
+} from "../common/ui/copy";
+import {
   carriesSecretInAddress,
   describeRegistration,
-  LESS_PRIVATE_FORM_NOTE,
   missingSettingSentence,
   registerRefusal,
   registrationRead,
@@ -204,12 +208,8 @@ describe("whether the callback can be registered", () => {
   });
 
   it("states a reason that does stop the press", () => {
-    expect(registerRefusal({ ...AT_REST, registering: true })).toBe(
-      "This registration is still running.",
-    );
-    expect(registerRefusal({ ...AT_REST, address: "  " })).toBe(
-      "There is no callback address to register.",
-    );
+    expect(registerRefusal({ ...AT_REST, registering: true })).toBe(REGISTRATION_IS_STILL_RUNNING);
+    expect(registerRefusal({ ...AT_REST, address: "  " })).toBe(NOTHING_TO_REGISTER);
   });
 
   it("offers the press when nothing is in the way", () => {
