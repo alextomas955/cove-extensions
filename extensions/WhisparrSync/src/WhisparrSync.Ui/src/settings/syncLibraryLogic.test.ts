@@ -213,10 +213,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It monitors nothing. " +
-        "It then gives each one a folder in your library, holding a second name for every file " +
-        "you own for it. Your files stay where they are, and the second names cost no extra " +
-        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
-        "off. " +
+        "It then gives each one a folder holding a second name for every file you own, which " +
+        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
+        "hard-link setting on and its renaming off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -228,10 +227,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It also marks the scenes you own on them monitored. Monitoring a scene " +
         "downloads nothing by itself. " +
-        "It then gives each one a folder in your library, holding a second name for every file " +
-        "you own for it. Your files stay where they are, and the second names cost no extra " +
-        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
-        "off. " +
+        "It then gives each one a folder holding a second name for every file you own, which " +
+        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
+        "hard-link setting on and its renaming off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -239,10 +237,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("reads as one studio at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_STUDIO, false, SITES)).toBe(
       "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder in your library, holding a second name for every file " +
-        "you own for it. Your files stay where they are, and the second names cost no extra " +
-        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
-        "off. " +
+        "It then gives each one a folder holding a second name for every file you own, which " +
+        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
+        "hard-link setting on and its renaming off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -250,10 +247,9 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SITES)).toBe(
       "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder in your library, holding a second name for every file " +
-        "you own for it. Your files stay where they are, and the second names cost no extra " +
-        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
-        "off. " +
+        "It then gives each one a folder holding a second name for every file you own, which " +
+        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
+        "hard-link setting on and its renaming off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });

@@ -42,7 +42,7 @@ const EXPECTED_LABEL: Record<WhisparrEntityState, string> = {
   unmonitored: "Unmonitored",
   notAdded: "Not added",
   excluded: "Excluded",
-  statusUnknown: "Status unknown",
+  statusUnknown: "Unknown",
 };
 
 // Every badge the product draws, states and markers alike. A reader meets them side by side on one
