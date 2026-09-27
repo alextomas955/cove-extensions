@@ -683,6 +683,65 @@ export function webhookRefusedSentence(refusal: string): string {
   return `Whisparr refused it: ${refusal}`;
 }
 
+/**
+ * The callback status before Cove has looked.
+ *
+ * Never merged with the not-registered sentence below. "Not looked yet" and "not there" send a
+ * reader somewhere different.
+ */
+export const CALLBACK_NOT_CHECKED_YET = "Cove has not checked this instance for its callback yet.";
+
+/** @see CALLBACK_NOT_CHECKED_YET */
+export const CALLBACK_NOT_REGISTERED = "Cove's callback is not registered on this instance.";
+
+/**
+ * Registered, and nothing has arrived through it. Its own sentence rather than a shade of the one
+ * below: the combination is the tell for an address mismatch, and plain success would hide it.
+ */
+export const CALLBACK_REGISTERED_WITH_NO_EVENTS =
+  "Registered, but no import has reached Cove through it yet.";
+
+/** @see CALLBACK_REGISTERED_WITH_NO_EVENTS */
+export const CALLBACK_REGISTERED_AND_DELIVERING =
+  "Registered, and imports are reaching Cove through it.";
+
+/**
+ * What this Cove may do to itself when Whisparr calls the address.
+ *
+ * Said before the gesture, not after it, and it opens on what the reader would lose rather than on
+ * the mechanism: a warning nobody reaches the end of warns nobody. Whisparr checks a webhook by
+ * posting to it. A Cove holding an owner account while sign-in is off can read that call as an
+ * instance reachable from outside its own machine: it turns sign-in on, keeps it on, and signs out
+ * the person configuring this. Whether it does depends on the address, where the call comes from
+ * and the host's own trusted-host list, so this is a warning rather than a refusal.
+ */
+export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
+  "Registering may sign you out. Sign-in is off here, and Whisparr checks the address by calling " +
+  "it. A call arriving from outside this machine makes Cove switch sign-in on. Set a password " +
+  "under Security & Access first to avoid that.";
+
+/** Why the register control cannot be pressed while the one already asked for is unanswered. */
+export const REGISTRATION_IS_STILL_RUNNING = "This registration is still running.";
+
+/** Why there is nothing to register: no address has been typed. */
+export const NOTHING_TO_REGISTER = "There is no callback address to register.";
+
+/**
+ * The standing note, shown while deliveries still carry the callback secret in the address.
+ *
+ * There is no dismiss control. The note goes when the fact goes.
+ */
+export const LESS_PRIVATE_FORM_NOTE =
+  "Imports are arriving with the callback secret in the address, where proxies and load balancers record it. Registering again from here moves it out of the address.";
+
+/** Why a registration could not be attempted: the address is stored empty. */
+export const REGISTER_NEEDS_A_SAVED_ADDRESS =
+  "Enter the Whisparr address above and save it before registering the callback.";
+
+/** @see REGISTER_NEEDS_A_SAVED_ADDRESS */
+export const REGISTER_NEEDS_A_SAVED_KEY =
+  "Enter the Whisparr API key above and save it before registering the callback.";
+
 /** The card holding what a redelivery does to a scene already held, named at its head. */
 export const UPGRADE_TITLE = "When Whisparr replaces a file";
 
