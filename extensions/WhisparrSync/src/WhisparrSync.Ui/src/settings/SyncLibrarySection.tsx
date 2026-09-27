@@ -25,6 +25,8 @@ import {
   SYNC_NOT_YET_IN_WHISPARR,
   SYNC_RUNS_IN_THE_JOB_DRAWER,
   SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
+  SYNC_TITLE,
+  syncCountedSentence,
 } from "../common/ui/copy";
 import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { ConfirmDialog } from "./hostComponents";
@@ -96,7 +98,7 @@ export function SyncLibrarySection({
   const syncReason = syncDisabledReason(state);
 
   return (
-    <SectionCard title="Sync your library to Whisparr" description={sentences.description}>
+    <SectionCard title={SYNC_TITLE} description={sentences.description}>
       <div
         className="space-y-2 rounded-xl border border-border bg-card px-3 py-2"
         aria-busy={counting}
@@ -201,7 +203,7 @@ function Counts({
       <CountRow label={SYNC_SKIPPED_CANNOT_BE_IDENTIFIED} value={counts.skipped} />
 
       <StatusText kind="muted">
-        {age === null ? remedy : `Counted ${age.text}. ${remedy}`}
+        {age === null ? remedy : syncCountedSentence(age.text, remedy)}
       </StatusText>
     </div>
   );

@@ -12,7 +12,23 @@ import type { CallbackView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
-import { READ_IS_STALE } from "../common/ui/copy";
+import {
+  READ_IS_STALE,
+  WEBHOOK_ADDRESS,
+  WEBHOOK_ADDRESS_COPIED,
+  WEBHOOK_ADDRESS_HELPER,
+  WEBHOOK_CLIPBOARD_NOT_REACHED,
+  WEBHOOK_COPY,
+  WEBHOOK_DESCRIPTION,
+  WEBHOOK_NOTHING_TO_COPY,
+  WEBHOOK_READING_THE_STATUS,
+  WEBHOOK_REGISTER,
+  WEBHOOK_REGISTERING,
+  WEBHOOK_STATUS_NOT_READ,
+  WEBHOOK_TITLE,
+  webhookRefusedSentence,
+  webhookRegistrationFailedSentence,
+} from "../common/ui/copy";
 import type { CopyResult } from "./useRegistration";
 import {
   describeRegistration,
@@ -53,16 +69,9 @@ export function ImportWebhookSection({
   const registerReason = registerRefusal({ sharedReason, registering, address });
 
   return (
-    <SectionCard
-      title="Import webhook"
-      description="The address Whisparr calls when it finishes an import."
-    >
+    <SectionCard title={WEBHOOK_TITLE} description={WEBHOOK_DESCRIPTION}>
       <div className="space-y-4">
-        <Field
-          label="Callback address"
-          labelStyle="mono"
-          helper="Change the address only if Whisparr reaches Cove somewhere other than you do. Leave the rest as it is."
-        >
+        <Field label={WEBHOOK_ADDRESS} labelStyle="mono" helper={WEBHOOK_ADDRESS_HELPER}>
           {(id) => <TextInput id={id} value={address} onChange={onAddressChange} mono />}
         </Field>
 
@@ -77,13 +86,13 @@ export function ImportWebhookSection({
         <div className="space-y-2 border-t border-border pt-4">
           <div className="flex flex-wrap items-center gap-3" aria-busy={registering}>
             <OptionallyDisabled
-              name="Copy URL"
+              name={WEBHOOK_COPY}
               variant="ghost"
-              reason={address.trim() === "" ? "There is no callback address to copy." : null}
+              reason={address.trim() === "" ? WEBHOOK_NOTHING_TO_COPY : null}
               onClick={onCopy}
             />
             <OptionallyDisabled
-              name={registering ? "Registering…" : "Register in Whisparr"}
+              name={registering ? WEBHOOK_REGISTERING : WEBHOOK_REGISTER}
               reason={registerReason}
               onClick={onRegister}
             />
@@ -95,21 +104,17 @@ export function ImportWebhookSection({
             <div className="ml-auto">
               <AsyncRegion
                 state={deriveAsyncRegionState(registrationRead(view, readFailed))}
-                reading={<StatusText kind="muted">Reading the callback status…</StatusText>}
+                reading={<StatusText kind="muted">{WEBHOOK_READING_THE_STATUS}</StatusText>}
                 outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
                 content={<Status view={view} />}
                 empty={<Status view={view} />}
-                failed={
-                  <StatusText kind="error">Cove could not read the callback status.</StatusText>
-                }
+                failed={<StatusText kind="error">{WEBHOOK_STATUS_NOT_READ}</StatusText>}
               />
             </div>
           </div>
 
           {registerError === null ? null : (
-            <StatusText kind="error">
-              Cove could not register the callback: {registerError}
-            </StatusText>
+            <StatusText kind="error">{webhookRegistrationFailedSentence(registerError)}</StatusText>
           )}
         </div>
       </div>
@@ -137,8 +142,7 @@ function Status({ view }: Readonly<{ view: CallbackView | null }>) {
       )}
       {view.refusal === null ? null : (
         <div>
-          {/* Whisparr's own words, so the refusal reports what it said rather than a guess. */}
-          <StatusText kind="error">Whisparr refused it: {view.refusal}</StatusText>
+          <StatusText kind="error">{webhookRefusedSentence(view.refusal)}</StatusText>
         </div>
       )}
       {shouldShowLessPrivateFormNote(view) ? (
@@ -152,14 +156,10 @@ function Status({ view }: Readonly<{ view: CallbackView | null }>) {
 
 function CopyOutcome({ result }: Readonly<{ result: CopyResult }>) {
   if (result.status === "copied") {
-    return <StatusText kind="success">Copied.</StatusText>;
+    return <StatusText kind="success">{WEBHOOK_ADDRESS_COPIED}</StatusText>;
   }
   if (result.status === "failed") {
-    return (
-      <StatusText kind="error">
-        Cove could not reach the clipboard - select the address above and copy it.
-      </StatusText>
-    );
+    return <StatusText kind="error">{WEBHOOK_CLIPBOARD_NOT_REACHED}</StatusText>;
   }
   return null;
 }

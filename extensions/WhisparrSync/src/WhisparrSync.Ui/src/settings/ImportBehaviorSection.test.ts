@@ -4,7 +4,11 @@ import { createElement, type ReactNode } from "react";
 import { render as renderNode } from "../common/lib/testRender";
 
 import type { UpgradeBehavior } from "../wire/api";
-import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
+import {
+  UPGRADE_DROPS_THE_SUPERSEDED_FILE,
+  UPGRADE_FIELD,
+  UPGRADE_KEEPS_BOTH_FILES,
+} from "../common/ui/copy";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
@@ -89,9 +93,7 @@ test("the shared reason takes the control out, and the control says so once", as
 
   expect(host.querySelector("select")?.disabled).toBe(true);
   const named = host.querySelector("label")?.textContent ?? "";
-  expect(named.startsWith("Replacement files"), "the control does not open with its own name").toBe(
-    true,
-  );
+  expect(named.startsWith(UPGRADE_FIELD), "the control does not open with its own name").toBe(true);
   expect(named.endsWith(reason), "the control does not close with its reason").toBe(true);
   expect(host.textContent.split(reason).length - 1, "the reason is stated more than once").toBe(1);
 });
