@@ -1174,6 +1174,24 @@ export function syncOffersSites(grouped: string): string {
 }
 
 /**
+ * What the confirmation says about the entries the run passes over, where the count found one.
+ *
+ * Follows what the run covers rather than standing alone, so it opens on a comma. Names no noun,
+ * so one declaration serves whichever the run registers.
+ */
+export const SYNC_SKIPS_ONE = ", and skips 1 that cannot be registered";
+
+/**
+ * The same at any other size.
+ *
+ * @param grouped the figure, already grouped
+ * @see SYNC_SKIPS_ONE
+ */
+export function syncSkipsMany(grouped: string): string {
+  return `, and skips ${grouped} that cannot be registered`;
+}
+
+/**
  * What the run still has to hand over, stated where the count found any.
  *
  * Reads at one as it does at any other size: the figure carries no noun after it, so there is no

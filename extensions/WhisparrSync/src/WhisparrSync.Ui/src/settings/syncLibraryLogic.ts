@@ -1,7 +1,7 @@
 /**
  * How the sync section's numbers read, and what its count control says at each state.
  *
- * No relative imports, so this module runs with no environment.
+ * Relative imports only, so this module runs with no environment.
  */
 import {
   ACTION_REFRESH,
@@ -27,8 +27,10 @@ import {
   SYNC_SITE_NEEDS_A_COUNT_FIRST,
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
+  SYNC_SKIPS_ONE,
   syncOffersScenes,
   syncOffersSites,
+  syncSkipsMany,
   syncStillToHandOver,
 } from "../common/ui/copy";
 
@@ -187,8 +189,8 @@ export function syncConfirmation(
     counts.skipped === 0
       ? ""
       : counts.skipped === 1
-        ? ", and skips 1 that cannot be registered"
-        : `, and skips ${groupThousands(counts.skipped)} that cannot be registered`;
+        ? SYNC_SKIPS_ONE
+        : syncSkipsMany(groupThousands(counts.skipped));
 
   // Stated before what the run does, because it is the reason to press where everything is already
   // registered. Left out at zero, where it would read as a report that nothing is outstanding and
