@@ -10,7 +10,31 @@ import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } fro
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
-import { READ_IS_STALE } from "../common/ui/copy";
+import {
+  CONNECT_ADDRESS,
+  CONNECT_ADDRESS_HELPER,
+  CONNECT_ADDRESS_PLACEHOLDER,
+  CONNECT_API_KEY,
+  CONNECT_API_KEY_HELPER,
+  CONNECT_CLEAR_STORED_KEY,
+  CONNECT_DESCRIPTION,
+  CONNECT_KEEP_STORED_KEY,
+  CONNECT_NEEDS_AN_ADDRESS_FIRST,
+  CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS,
+  CONNECT_READING_THE_STORED_CONNECTION,
+  CONNECT_STORED_CONNECTION_NOT_READ,
+  CONNECT_TEST,
+  CONNECT_TESTING,
+  CONNECT_TITLE,
+  connectedSentence,
+  connectOtherGenerationSentence,
+  connectTestDidNotRunSentence,
+  connectTestingSentence,
+  KEY_WILL_BE_REMOVED_ON_SAVE,
+  NEW_KEY_WILL_BE_SAVED,
+  READ_IS_STALE,
+  TEST_IS_STILL_RUNNING,
+} from "../common/ui/copy";
 import { GenerationRow } from "./GenerationRow";
 import { KeyStateField } from "./KeyStatePill";
 import {
@@ -25,9 +49,6 @@ import {
   type TransientTest,
 } from "./connectLogic";
 import type { SettingsDraft } from "./settingsDraftLogic";
-
-/** The e2e specs locate the address field by this placeholder. */
-const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
 
 export interface ConnectionSectionProps {
   /** The generation the draft holds, and so the one the fields below edit. */
@@ -72,15 +93,15 @@ export function ConnectionSection({
   const testReason =
     sharedReason ??
     (testing
-      ? "This test is still running."
+      ? TEST_IS_STILL_RUNNING
       : draft.address.trim() === ""
-        ? "Enter the Whisparr address first."
+        ? CONNECT_NEEDS_AN_ADDRESS_FIRST
         : !testsStored && draft.apiKey === ""
-          ? "Enter the Whisparr API key to test this address."
+          ? CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS
           : null);
 
   return (
-    <SectionCard title="Connection" description="The Whisparr instance Cove keeps in step with.">
+    <SectionCard title={CONNECT_TITLE} description={CONNECT_DESCRIPTION}>
       <div className="space-y-4">
         <GenerationRow
           settings={settings}
@@ -91,37 +112,25 @@ export function ConnectionSection({
 
         <AsyncRegion
           state={deriveAsyncRegionState(recordedRead(stored, readFailed))}
-          reading={<StatusText kind="muted">Reading the stored connection…</StatusText>}
+          reading={<StatusText kind="muted">{CONNECT_READING_THE_STORED_CONNECTION}</StatusText>}
           content={<RecordedLines stored={stored} now={now} />}
           empty={<RecordedLines stored={stored} now={now} />}
           outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
-          failed={
-            <StatusText kind="error">
-              Cove could not read what is stored for this connection.
-            </StatusText>
-          }
+          failed={<StatusText kind="error">{CONNECT_STORED_CONNECTION_NOT_READ}</StatusText>}
         />
 
-        <Field
-          label="Whisparr address"
-          labelStyle="mono"
-          helper="Where Cove itself reaches Whisparr, including the port."
-        >
+        <Field label={CONNECT_ADDRESS} labelStyle="mono" helper={CONNECT_ADDRESS_HELPER}>
           {(id) => (
             <TextInput
               id={id}
               value={draft.address}
               onChange={onAddressChange}
-              placeholder={ADDRESS_PLACEHOLDER}
+              placeholder={CONNECT_ADDRESS_PLACEHOLDER}
             />
           )}
         </Field>
 
-        <Field
-          label="API key"
-          labelStyle="mono"
-          helper="Leave blank to keep the key already stored for this generation."
-        >
+        <Field label={CONNECT_API_KEY} labelStyle="mono" helper={CONNECT_API_KEY_HELPER}>
           {(id) => (
             <KeyStateField
               id={id}
@@ -136,7 +145,7 @@ export function ConnectionSection({
           <KeyIntent draft={draft} />
           {stored?.keyIsSet === true && !draft.keyCleared ? (
             <OptionallyDisabled
-              name="Clear stored key"
+              name={CONNECT_CLEAR_STORED_KEY}
               variant="ghost"
               reason={sharedReason}
               onClick={() => {
@@ -146,7 +155,7 @@ export function ConnectionSection({
           ) : null}
           {draft.keyCleared ? (
             <OptionallyDisabled
-              name="Keep stored key"
+              name={CONNECT_KEEP_STORED_KEY}
               variant="ghost"
               reason={sharedReason}
               onClick={() => {
@@ -160,7 +169,7 @@ export function ConnectionSection({
             the fields above rather than spacing alone. */}
         <div className="flex items-center gap-3 border-t border-border pt-4" aria-busy={testing}>
           <OptionallyDisabled
-            name={testing ? "Testing…" : "Test connection"}
+            name={testing ? CONNECT_TESTING : CONNECT_TEST}
             reason={testReason}
             onClick={onTest}
           />
@@ -201,10 +210,10 @@ function RecordedLines({
 // state is a distinct sentence, so nothing here is signalled by colour alone.
 function KeyIntent({ draft }: Readonly<{ draft: SettingsDraft }>) {
   if (draft.keyCleared) {
-    return <StatusText kind="warning">Key will be removed when you save</StatusText>;
+    return <StatusText kind="warning">{KEY_WILL_BE_REMOVED_ON_SAVE}</StatusText>;
   }
   if (draft.apiKey !== "") {
-    return <StatusText kind="muted">New key will be saved</StatusText>;
+    return <StatusText kind="muted">{NEW_KEY_WILL_BE_SAVED}</StatusText>;
   }
   return null;
 }
@@ -214,10 +223,10 @@ function TestResult({ test, card }: Readonly<{ test: TransientTest; card: CardGe
     return null;
   }
   if (test.phase === "running") {
-    return <StatusText kind="muted">Testing {test.address}</StatusText>;
+    return <StatusText kind="muted">{connectTestingSentence(test.address)}</StatusText>;
   }
   if (test.phase === "failed") {
-    return <StatusText kind="error">Cove could not run the test: {test.message}</StatusText>;
+    return <StatusText kind="error">{connectTestDidNotRunSentence(test.message)}</StatusText>;
   }
 
   const { result } = test;
@@ -225,19 +234,17 @@ function TestResult({ test, card }: Readonly<{ test: TransientTest; card: CardGe
   if (detected?.kind === "otherGeneration") {
     return (
       <StatusText kind="warning">
-        That address answered as {generationLabel(detected.detected)} {detected.version}, not{" "}
-        {generationLabel(card)}. Nothing was saved - select {generationLabel(detected.detected)}{" "}
-        above to configure it there.
+        {connectOtherGenerationSentence(
+          generationLabel(detected.detected),
+          detected.version,
+          generationLabel(card),
+        )}
       </StatusText>
     );
   }
   if (result.kind === "connected") {
-    // The instance's own version string, unformatted. Reformatting it would report a version no
-    // instance runs.
     return (
-      <StatusText kind="success">
-        Connected to Whisparr {result.version} ({result.generation})
-      </StatusText>
+      <StatusText kind="success">{connectedSentence(result.version, result.generation)}</StatusText>
     );
   }
 

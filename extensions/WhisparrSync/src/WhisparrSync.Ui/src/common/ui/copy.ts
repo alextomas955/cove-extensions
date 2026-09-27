@@ -642,6 +642,144 @@ export function connectVersionNotManagedSentence(
     : `That instance is ${otherApplication} ${found}, not Whisparr.`;
 }
 
+/** The card holding the instance Cove works against, named at its head. */
+export const CONNECT_TITLE = "Connection";
+
+/** What the card is for, stated under its title. */
+export const CONNECT_DESCRIPTION = "The Whisparr instance Cove keeps in step with.";
+
+/** Why the test cannot be started again while the one already asked for is unanswered. */
+export const TEST_IS_STILL_RUNNING = "This test is still running.";
+
+/** Why there is nothing to test: no address has been typed, so nothing could be reached. */
+export const CONNECT_NEEDS_AN_ADDRESS_FIRST = "Enter the Whisparr address first.";
+
+/**
+ * Why a typed address cannot be tested on its own. A stored key cannot be sent back out, so a test
+ * of an address that is not the stored one needs a key typed beside it.
+ */
+export const CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS =
+  "Enter the Whisparr API key to test this address.";
+
+/** While what is stored for this generation is being read. */
+export const CONNECT_READING_THE_STORED_CONNECTION = "Reading the stored connection…";
+
+/** The read of what is stored failed, so the recorded lines state nothing. */
+export const CONNECT_STORED_CONNECTION_NOT_READ =
+  "Cove could not read what is stored for this connection.";
+
+/** What the reader types: where Cove reaches the instance. */
+export const CONNECT_ADDRESS = "Whisparr address";
+
+/** What the address field takes, including the part a reader leaves out most often. */
+export const CONNECT_ADDRESS_HELPER = "Where Cove itself reaches Whisparr, including the port.";
+
+/** An example address, standing in the empty field. The e2e specs locate the field by it. */
+export const CONNECT_ADDRESS_PLACEHOLDER = "http://whisparr:6969";
+
+/** What the reader types: the key the instance issued. */
+export const CONNECT_API_KEY = "API key";
+
+/** What leaving the key field blank does. */
+export const CONNECT_API_KEY_HELPER =
+  "Leave blank to keep the key already stored for this generation.";
+
+/** The control that drops the stored key at the next save. */
+export const CONNECT_CLEAR_STORED_KEY = "Clear stored key";
+
+/** The control that takes that back, on a draft that would drop the key. */
+export const CONNECT_KEEP_STORED_KEY = "Keep stored key";
+
+/** The test control while the test it started is in flight. */
+export const CONNECT_TESTING = "Testing…";
+
+/** The same control at rest. */
+export const CONNECT_TEST = "Test connection";
+
+/** What the next save does to the key, where the draft drops it. */
+export const KEY_WILL_BE_REMOVED_ON_SAVE = "Key will be removed when you save";
+
+/** What the next save does to the key, where the draft carries a typed one. */
+export const NEW_KEY_WILL_BE_SAVED = "New key will be saved";
+
+/**
+ * What the test is working on, said while it runs.
+ *
+ * @param address the address being tested, as the form holds it
+ */
+export function connectTestingSentence(address: string): string {
+  return `Testing ${address}`;
+}
+
+/**
+ * The test itself never ran, which says nothing about the instance.
+ *
+ * @param message Cove's own account of why the request failed
+ */
+export function connectTestDidNotRunSentence(message: string): string {
+  return `Cove could not run the test: ${message}`;
+}
+
+/**
+ * The address answered as the generation the form is not editing, so nothing was saved and the
+ * other generation's own form is where that address belongs.
+ *
+ * @param detected the generation that answered, as the reader sees it named
+ * @param version the version that instance reported, read off its own answer
+ * @param drafted the generation the form is editing, as the reader sees it named
+ */
+export function connectOtherGenerationSentence(
+  detected: string,
+  version: string | null,
+  drafted: string,
+): string {
+  return `That address answered as ${detected} ${version ?? ""}, not ${drafted}. Nothing was saved - select ${detected} above to configure it there.`;
+}
+
+/**
+ * The instance answered as the generation the form is editing.
+ *
+ * The version is the instance's own string, unformatted. Reformatting it would report a version no
+ * instance runs.
+ *
+ * @param version the version the instance reported
+ * @param generation the generation it answered as
+ */
+export function connectedSentence(version: string | null, generation: string | null): string {
+  return `Connected to Whisparr ${version ?? ""} (${generation ?? ""})`;
+}
+
+/** That a key is held for a generation. Never any part of the key itself. */
+export const KEY_IS_SET = "Key is set";
+
+/** @see KEY_IS_SET */
+export const KEY_NOT_STORED = "Key not stored";
+
+/** Which of the two Whisparr generations the form edits. */
+export const CONNECT_GENERATION = "Whisparr generation";
+
+/** That the two generations are configured apart, and what choosing one here costs. */
+export const CONNECT_GENERATION_HELPER =
+  "Each generation keeps its own address and key. Saving moves Cove to the one selected here.";
+
+/** The word marking the generation the form holds, so the mark is not a colour alone. */
+export const GENERATION_SELECTED = "Selected";
+
+/**
+ * The control that puts the other generation into the form.
+ *
+ * @param label the generation it selects, as the reader sees it named
+ */
+export function selectGenerationName(label: string): string {
+  return `Select ${label}`;
+}
+
+/** What an option's address line reads before the stored values arrive. */
+export const GENERATION_ADDRESS_NOT_READ_YET = "Not read yet";
+
+/** What it reads once they have arrived and hold no address. */
+export const GENERATION_NO_ADDRESS_STORED = "No address stored";
+
 /** What the count control is called before any result exists. */
 export const SYNC_COUNT = "Count what would sync";
 

@@ -3,6 +3,14 @@ import { expect, test } from "vitest";
 import { createElement } from "react";
 
 import { press, render } from "../common/lib/testRender";
+import {
+  GENERATION_ADDRESS_NOT_READ_YET,
+  GENERATION_NO_ADDRESS_STORED,
+  GENERATION_SELECTED,
+  KEY_IS_SET,
+  KEY_NOT_STORED,
+  selectGenerationName,
+} from "../common/ui/copy";
 import type { WhisparrSyncSettingsView } from "../wire/api";
 import { GenerationRow } from "./GenerationRow";
 import type { CardGeneration } from "./connectLogic";
@@ -64,7 +72,7 @@ test("both generations are drawn whichever one the draft holds", async () => {
 test("the drafted option is marked by a word, not by its colours alone", async () => {
   const host = await render(row({ drafted: "v2" }));
 
-  const marked = options(host).filter((option) => option.textContent.includes("Selected"));
+  const marked = options(host).filter((option) => option.textContent.includes(GENERATION_SELECTED));
   expect(marked, "the drafted option carries no word saying it is the selected one").toHaveLength(
     1,
   );
@@ -80,7 +88,7 @@ test("the drafted option is marked by a word, not by its colours alone", async (
 test("only the option the draft does not hold carries a control, and it names that generation", async () => {
   const host = await render(row({ drafted: "v3" }));
 
-  expect(controlNames(host)).toEqual(["Select Whisparr v2"]);
+  expect(controlNames(host)).toEqual([selectGenerationName("Whisparr v2")]);
 });
 
 test("pressing the control reports the generation it names", async () => {
@@ -101,10 +109,10 @@ test("each option names its own stored address and its own key state", async () 
   const [v3, v2] = options(await render(row({ drafted: "v3" })));
 
   expect(v3.textContent).toContain("http://whisparr3:6969");
-  expect(v3.textContent).toContain("Key is set");
+  expect(v3.textContent).toContain(KEY_IS_SET);
   // The v2 half is stored and empty, which reads differently from stored and set.
-  expect(v2.textContent).toContain("No address stored");
-  expect(v2.textContent).toContain("Key not stored");
+  expect(v2.textContent).toContain(GENERATION_NO_ADDRESS_STORED);
+  expect(v2.textContent).toContain(KEY_NOT_STORED);
 });
 
 test("an option never draws any part of a key", async () => {
@@ -117,9 +125,9 @@ test("an option never draws any part of a key", async () => {
 test("stored values that have not arrived do not read as nothing stored", async () => {
   const host = await render(row({ settings: null, sharedReason: "Cove is still reading." }));
 
-  expect(host.textContent).not.toContain("No address stored");
-  expect(host.textContent).not.toContain("Key not stored");
-  expect(host.textContent).toContain("Not read yet");
+  expect(host.textContent).not.toContain(GENERATION_NO_ADDRESS_STORED);
+  expect(host.textContent).not.toContain(KEY_NOT_STORED);
+  expect(host.textContent).toContain(GENERATION_ADDRESS_NOT_READ_YET);
 });
 
 test("before the read answers the control cannot be pressed and names itself before its reason", async () => {
@@ -128,5 +136,5 @@ test("before the read answers the control cannot be pressed and names itself bef
 
   const control = host.querySelector("button");
   expect(control?.disabled, "the control could be pressed before anything was read").toBe(true);
-  expect(control?.textContent).toBe(`Select Whisparr v2${reason}`);
+  expect(control?.textContent).toBe(`${selectGenerationName("Whisparr v2")}${reason}`);
 });

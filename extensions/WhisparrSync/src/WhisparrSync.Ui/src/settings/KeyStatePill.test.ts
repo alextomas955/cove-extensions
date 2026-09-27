@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import { createElement } from "react";
 
 import { render } from "../common/lib/testRender";
+import { KEY_IS_SET, KEY_NOT_STORED } from "../common/ui/copy";
 import {
   KEY_PILL_OFFSET_PX,
   KEY_PILL_WIDTH_PX,
@@ -29,7 +30,7 @@ test("a stored key is reported on the field itself, and no part of a key is draw
   // The innermost span carrying the wording: the pill holds a glyph, and the span positioning it
   // reports the same text.
   const pill = [...host.querySelectorAll("span")].filter(
-    (span) => span.textContent === "Key is set" && span.querySelector("span") === null,
+    (span) => span.textContent === KEY_IS_SET && span.querySelector("span") === null,
   );
   expect(pill, "the field reported nothing about the stored key").toHaveLength(1);
 
@@ -45,7 +46,7 @@ test("a stored key is reported on the field itself, and no part of a key is draw
 test("no stored key is its own state, not the absence of the pill", async () => {
   const host = await render(field(false));
 
-  expect(host.textContent).toContain("Key not stored");
+  expect(host.textContent).toContain(KEY_NOT_STORED);
 });
 
 test("a generation whose stored values have not arrived claims nothing about its key", async () => {
@@ -65,7 +66,7 @@ test("the field's right padding clears the pill it carries", async () => {
 test("a press over the pill reaches the field under it", async () => {
   const host = await render(field(true));
 
-  const pill = [...host.querySelectorAll("span")].find((span) => span.textContent === "Key is set");
+  const pill = [...host.querySelectorAll("span")].find((span) => span.textContent === KEY_IS_SET);
   const positioned = pill?.closest(".absolute");
   expect(positioned, "the pill is not positioned over the field").not.toBeNull();
   expect(
