@@ -372,10 +372,10 @@ const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
   noRootFolder:
     "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
   noAgreedRootForThisEntity:
-    "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. Set the folder mapping for that library folder on this extension's settings page.",
+    "Cove and Whisparr have not agreed where this entity's files are, so nothing was sent. Settle that folder on the settings page.",
   instanceRefused: "Whisparr would not do this. Nothing here was changed.",
   answerTooLargeToRead:
-    "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.",
+    "Whisparr answered correctly, with more than this extension reads at once. Reload the page for its current state.",
   instanceHoldsNoSuchEntity:
     "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.",
   instanceDidNotReportTheChange:

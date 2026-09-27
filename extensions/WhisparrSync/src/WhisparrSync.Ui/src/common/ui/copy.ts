@@ -77,10 +77,10 @@ export const ACTION_ABSENT_IN_THIS_VERSION =
   "This version of Whisparr Sync does not carry out this action.";
 
 /** The narrower monitor scope. */
-export const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
+export const SCOPE_FUTURE_SCENES = "New releases only";
 
 /** The wider monitor scope, named for what it does with what Whisparr already lists. */
-export const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
+export const SCOPE_ALL_SCENES = "All scenes";
 
 /** What the wider scope costs, stated where the scope is chosen rather than after it is taken. */
 export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
@@ -92,7 +92,7 @@ export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
 
 /** What the search costs, stated where it is chosen rather than after it is taken. */
 export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
-  "Whisparr looks for everything these entities monitor and does not hold, and takes in what it finds, which spends indexer traffic and disk.";
+  "Whisparr looks for everything these entities monitor and do not hold, and takes in what it finds. That spends indexer traffic and disk.";
 
 /** Why nothing was linked. Names the setting, because turning it on is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED =
@@ -100,15 +100,15 @@ export const REFLECT_OWNED_SKIPPED =
 
 /** Why nothing was linked when the setting itself could not be read. */
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
-  "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
+  "Skipped: Cove could not read Whisparr's hard-link setting, so it could not tell whether linking these would cost extra disk.";
 
 /** Why nothing was linked. Names where to turn renaming off, because that is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED_RENAMING_ON =
-  "Skipped: Whisparr is set to rename files, and linking works only while Whisparr leaves a file where it found it. Turn renaming off in Whisparr's Settings, Media Management.";
+  "Skipped: Whisparr is set to rename files, and linking works only while it leaves a file where it found it. Turn renaming off under its Settings, Media Management.";
 
 /** Why nothing was linked when the rename setting itself could not be read. */
 export const REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE =
-  "Skipped: Cove could not read Whisparr's rename setting, so it could not establish that Whisparr would leave these files where they are.";
+  "Skipped: Cove could not read Whisparr's rename setting, so it could not tell whether Whisparr would leave these files alone.";
 
 /**
  * The same scene tab control once the instance monitors the scene. Named for what it does, not for
@@ -163,8 +163,7 @@ export const NO_IDENTITY_IN_THIS_NAMESPACE =
  * different entities.
  */
 export const SEVERAL_IDENTITIES_IN_THIS_NAMESPACE =
-  "Cove holds more than one conflicting link for this entity, so which one Whisparr should use is " +
-  "unclear. Remove the links that do not belong on this entity's page in Cove.";
+  "Cove holds conflicting links for this entity, so Whisparr cannot be told which one it is. Remove the links that do not belong, on the entity's page in Cove.";
 
 /** The instance offers no quality profile, so nothing could be composed to send. */
 export const INSTANCE_OFFERS_NO_QUALITY_PROFILE =
@@ -176,15 +175,14 @@ export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
 
 /** The folder this entity's own files sit in has no agreed Whisparr spelling. */
 export const NO_AGREED_ROOT_FOR_THIS_ENTITY =
-  "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. " +
-  "Set the folder mapping for that library folder on this extension's settings page.";
+  "Cove and Whisparr have not agreed where this entity's files are, so nothing was sent. Settle that folder on the settings page.";
 
 /** The instance answered and declined. */
 export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 
 /** The instance answered, and the answer was past what this extension reads at once. */
 export const INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ =
-  "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.";
+  "Whisparr answered correctly, with more than this extension reads at once. Reload the page for its current state.";
 
 /** The instance answered, and holds no such entry. */
 export const INSTANCE_HOLDS_NO_SUCH_ENTRY =
@@ -368,7 +366,7 @@ export const STATE_NOT_ADDED = "Not added";
 export const STATE_EXCLUDED = "Excluded";
 
 /** @see STATE_MONITORED */
-export const STATE_STATUS_UNKNOWN = "Status unknown";
+export const STATE_STATUS_UNKNOWN = "Unknown";
 
 /** The marker saying the instance holds a file, which is drawn beside a state and never instead. */
 export const MARKER_IN_LIBRARY = "In library";
@@ -599,7 +597,7 @@ export const FOLDER_AGREEMENT_TITLE = "Where Whisparr holds your folders";
 
 /** What the section is for, and which folders reach it. */
 export const FOLDER_AGREEMENT_DESCRIPTION =
-  "Whisparr reaches your files at paths of its own. Cove works each one out by asking Whisparr what it holds. Listed here are the folders it could not settle, and the ones you set a path for.";
+  "Whisparr reaches your files at paths of its own, and Cove works each one out by asking it what it holds. Listed here are the folders it could not settle, and the ones you set a path for.";
 
 /** The read behind the section failed, so which folders are listed is not known. */
 export const FOLDER_AGREEMENT_UNREADABLE = "Cove could not read where Whisparr holds your folders.";
@@ -786,9 +784,7 @@ export const CALLBACK_REGISTERED_AND_DELIVERING =
  * and the host's own trusted-host list, so this is a warning rather than a refusal.
  */
 export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
-  "Registering may sign you out. Sign-in is off here, and Whisparr checks the address by calling " +
-  "it. A call arriving from outside this machine makes Cove switch sign-in on. Set a password " +
-  "under Security & Access first to avoid that.";
+  "Registering may sign you out. Sign-in is off here, and the call Whisparr makes to check the address switches it on if it arrives from another machine. Set a password under Security & Access first.";
 
 /** Why the register control cannot be pressed while the one already asked for is unanswered. */
 export const REGISTRATION_IS_STILL_RUNNING = "This registration is still running.";
@@ -1311,9 +1307,7 @@ export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
  * linking has, so the settings are named on that half alone.
  */
 export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
-  "It then gives each one a folder in your library, holding a second name for every file you own " +
-  "for it. Your files stay where they are, and the second names cost no extra disk. Handing the " +
-  "folders to Whisparr needs its hard-link setting on and its renaming off.";
+  "It then gives each one a folder holding a second name for every file you own, which costs no extra disk and moves nothing. Handing those folders to Whisparr needs its hard-link setting on and its renaming off.";
 
 /** An age under a minute, which every surface that states one reads the same way. */
 export const JUST_NOW = "just now";
