@@ -19,6 +19,9 @@ import { Search } from "lucide-react";
 
 import {
   ACTION_REFRESH,
+  MISSING_MONITOR_ALL,
+  MISSING_SEARCH_PLACEHOLDER,
+  MISSING_SORT_MENU,
   MISSING_TAB_HEADING,
   countLine,
   facetCoversEverything,
@@ -38,9 +41,6 @@ import { countLineParts } from "./missingCountLogic";
 import { facetMenuRows, toggleFacetValue } from "./missingFacetLogic";
 import {
   MISSING_TOOLBAR_CONTROLS,
-  MONITOR_ALL_LABEL,
-  SEARCH_PLACEHOLDER,
-  SORT_MENU_LABEL,
   monitorAllOffered,
   searchSettleDelayMs,
   sortOptionsFor,
@@ -145,7 +145,7 @@ export function MissingToolbar({
         <input
           type="text"
           value={text}
-          placeholder={SEARCH_PLACEHOLDER}
+          placeholder={MISSING_SEARCH_PLACEHOLDER}
           onChange={(event) => {
             setText(event.target.value);
           }}
@@ -155,14 +155,14 @@ export function MissingToolbar({
 
       {controls.includes("sort") && sortRows.length > 0 ? (
         <select
-          aria-label={SORT_MENU_LABEL}
+          aria-label={MISSING_SORT_MENU}
           value={sortInForce?.value ?? ""}
           onChange={(event) => {
             setView({ ...view, sort: event.target.value || null, page: 1 });
           }}
           className={DROPDOWN_CLASS}
         >
-          {sortInForce === undefined ? <option value="">{SORT_MENU_LABEL}</option> : null}
+          {sortInForce === undefined ? <option value="">{MISSING_SORT_MENU}</option> : null}
           {sortRows.map((row) => (
             <option key={row.value} value={row.value}>
               {row.label}
@@ -203,7 +203,7 @@ export function MissingToolbar({
             className={ACTION_CLASS}
           >
             <MonitorGlyph className="h-3.5 w-3.5" />
-            {MONITOR_ALL_LABEL}
+            {MISSING_MONITOR_ALL}
           </button>
         )}
       </div>
@@ -219,8 +219,8 @@ export function MissingToolbar({
               // scenes wanted and downloads nothing, so a red button would contradict the
               // message.
               destructive={false}
-              title={MONITOR_ALL_LABEL}
-              confirmLabel={MONITOR_ALL_LABEL}
+              title={MISSING_MONITOR_ALL}
+              confirmLabel={MISSING_MONITOR_ALL}
               message={monitorAllConfirmation(
                 catalogue.view.catalogueSize,
                 catalogue.view.providerName,

@@ -1,6 +1,7 @@
 /** What one catalogue card draws, derived from the scene the server answered with. */
 import {
   ACTION_DID_NOT_REACH_WHISPARR,
+  cardCountsLine,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
@@ -136,24 +137,11 @@ export function deriveCardRows(card: MissingCard): CardRows {
     meta: releaseDate === null && studioName === null ? null : { releaseDate, studioName },
     performers: card.performers.length === 0 ? null : card.performers,
     description: present(card.description),
-    counts: countsFooter(card.performerCount, card.tagCount),
+    counts: cardCountsLine(card.performerCount, card.tagCount),
   };
 }
 
 // Null where the value is absent or blank.
 function present(value: string | null | undefined): string | null {
   return value === null || value === undefined || value.trim() === "" ? null : value;
-}
-
-// A half that counts nothing is omitted rather than rendered as a zero, which would read as a
-// measurement of the scene.
-function countsFooter(performerCount: number, tagCount: number): string | null {
-  const parts: string[] = [];
-  if (performerCount > 0) {
-    parts.push(`${String(performerCount)} ${performerCount === 1 ? "performer" : "performers"}`);
-  }
-  if (tagCount > 0) {
-    parts.push(`${String(tagCount)} ${tagCount === 1 ? "tag" : "tags"}`);
-  }
-  return parts.length === 0 ? null : parts.join(" · ");
 }

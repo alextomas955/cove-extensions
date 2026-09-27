@@ -10,12 +10,6 @@ import type { MissingSortOption, WhisparrEntityKind } from "../wire/api";
 // not sit reporting the previous search.
 export const searchSettleDelayMs = 300;
 
-export const SEARCH_PLACEHOLDER = "Search titles";
-
-export const SORT_MENU_LABEL = "Sort";
-
-export const MONITOR_ALL_LABEL = "Monitor all";
-
 /**
  * Whether the toolbar offers the whole-catalogue marking control for `kind`.
  *
