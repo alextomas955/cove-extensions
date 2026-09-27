@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { minutesAgo } from "../common/ui/copy";
 import type { ImportBannerRootLine, ImportBannerView, ImportRefusalCause } from "../wire/api";
 import {
   bannerLines,
@@ -87,7 +88,7 @@ describe("the files the catch-up passed over", () => {
 
     expect(line).not.toBeNull();
     expect(line).toContain("3 files");
-    expect(line).toContain("30 min ago");
+    expect(line).toContain(minutesAgo(30));
   });
 
   it("agrees with the count for one file", () => {

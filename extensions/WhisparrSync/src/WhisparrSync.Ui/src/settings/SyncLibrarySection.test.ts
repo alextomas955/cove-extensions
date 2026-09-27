@@ -7,6 +7,7 @@ import type { SyncPreviewRead, SyncPreviewView } from "../wire/api";
 import {
   ACTION_REFRESH,
   CONNECT_NOT_CONFIGURED,
+  minutesAgo,
   MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF,
   RUN_WAS_NOT_STARTED,
   SYNC_ALREADY_IN_WHISPARR,
@@ -181,7 +182,7 @@ describe("the preview's four slots", () => {
       { label: SYNC_NO_FILE_RECORDED, value: "0" },
       { label: SYNC_SKIPPED_CANNOT_BE_IDENTIFIED, value: "1,648" },
     ]);
-    expect(host.textContent).toContain("Counted 30 min ago.");
+    expect(host.textContent).toContain(`Counted ${minutesAgo(30)}.`);
     expect(host.textContent).toContain(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
   });
 
