@@ -11,6 +11,16 @@ import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } fro
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { StateGlyph } from "../common/ui/StateGlyph";
 import {
+  CONNECT_GENERATION,
+  CONNECT_GENERATION_HELPER,
+  GENERATION_ADDRESS_NOT_READ_YET,
+  GENERATION_NO_ADDRESS_STORED,
+  GENERATION_SELECTED,
+  KEY_IS_SET,
+  KEY_NOT_STORED,
+  selectGenerationName,
+} from "../common/ui/copy";
+import {
   CARD_GENERATIONS,
   generationLabel,
   valuesForCard,
@@ -33,11 +43,7 @@ export function GenerationRow({
   onChoose,
 }: Readonly<GenerationRowProps>) {
   return (
-    <FieldGroup
-      label="Whisparr generation"
-      labelStyle="mono"
-      helper="Each generation keeps its own address and key. Saving moves Cove to the one selected here."
-    >
+    <FieldGroup label={CONNECT_GENERATION} labelStyle="mono" helper={CONNECT_GENERATION_HELPER}>
       <div className="grid grid-cols-2 gap-2">
         {CARD_GENERATIONS.map((generation) => (
           <GenerationOption
@@ -84,14 +90,14 @@ function GenerationOption({
         <span className="flex-1" />
         {selected ? (
           <StatusPill variant="accent" shape="tag" icon={<StateGlyph iconKey="check" />}>
-            Selected
+            {GENERATION_SELECTED}
           </StatusPill>
         ) : (
           // Pressing this drafts the generation and discards whatever the form holds. There is no
           // dialog: the bar below states what is unsaved, and its discard puts the stored
           // generation back.
           <OptionallyDisabled
-            name={`Select ${label}`}
+            name={selectGenerationName(label)}
             variant="ghost"
             reason={reason}
             onClick={onChoose}
@@ -104,9 +110,7 @@ function GenerationOption({
         </div>
         {stored === null ? null : (
           <div>
-            <StatusText kind="muted">
-              {stored.keyIsSet ? "Key is set" : "Key not stored"}
-            </StatusText>
+            <StatusText kind="muted">{stored.keyIsSet ? KEY_IS_SET : KEY_NOT_STORED}</StatusText>
           </div>
         )}
       </div>
@@ -118,7 +122,7 @@ function GenerationOption({
 // would invite a user to enter what is already there.
 function addressLine(stored: WhisparrSyncGenerationSettingsView | null): string {
   if (stored === null) {
-    return "Not read yet";
+    return GENERATION_ADDRESS_NOT_READ_YET;
   }
-  return stored.address === "" ? "No address stored" : stored.address;
+  return stored.address === "" ? GENERATION_NO_ADDRESS_STORED : stored.address;
 }

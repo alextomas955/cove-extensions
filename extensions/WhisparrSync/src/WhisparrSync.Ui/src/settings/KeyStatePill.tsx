@@ -8,6 +8,7 @@
 import { INPUT_CLASS, StatusPill } from "@cove-extensions/ui-shared";
 
 import { StateGlyph } from "../common/ui/StateGlyph";
+import { KEY_IS_SET, KEY_NOT_STORED } from "../common/ui/copy";
 
 /**
  * The widest wording this pill draws, measured against the host's own stylesheet, and the offset it
@@ -58,7 +59,7 @@ export function KeyStateField({
             variant={storedKeyIsSet ? "green" : "gray"}
             icon={<StateGlyph iconKey={storedKeyIsSet ? "check" : "circleDashed"} />}
           >
-            {storedKeyIsSet ? "Key is set" : "Key not stored"}
+            {storedKeyIsSet ? KEY_IS_SET : KEY_NOT_STORED}
           </StatusPill>
         </span>
       )}
