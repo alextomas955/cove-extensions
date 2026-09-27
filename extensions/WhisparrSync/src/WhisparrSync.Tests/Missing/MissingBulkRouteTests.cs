@@ -4,6 +4,7 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -20,6 +21,33 @@ public sealed class MissingBulkRouteTests
 
     private static string Ticking(params string[] providerSceneIds)
         => JsonSerializer.Serialize(new { providerSceneIds });
+
+    private static string TickingToUnmonitor(params string[] providerSceneIds)
+        => JsonSerializer.Serialize(new { providerSceneIds, verb = "unmonitor" });
+
+    private static WhisparrCatalogueScene CatalogueRow(string providerSceneId, int instanceSceneId)
+        => new(
+            providerSceneId,
+            providerSceneId,
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            Monitored: false,
+            HasFile: false,
+            instanceSceneId);
+
+    private static List<int?> FlippedIn(MonitorHost host)
+        => [.. host.Client.Acting
+            .Where(call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync))
+            .Select(call => call.EntityId)];
+
+    private static List<string?> AddedIn(MonitorHost host)
+        => [.. host.Client.Acting
+            .Where(call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync))
+            .Select(call => call.ForeignId)];
 
     private static Task<int> StudioIn(MonitorHost host)
         => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
@@ -195,6 +223,133 @@ public sealed class MissingBulkRouteTests
             .ToList();
 
         Assert.Equal([FirstScene, SecondScene], reached);
+    }
+
+    [Fact]
+    public async Task AMonitoringRunOverScenesTheInstanceHoldsRowsForFlipsEveryOneAndSendsNoAdd()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(FirstScene, 811), CatalogueRow(SecondScene, 812)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync("studio", studioId, BulkVerb, Ticking(FirstScene, SecondScene)));
+        await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+
+        Assert.Equal([811, 812], FlippedIn(host));
+        Assert.All(
+            host.Client.Acting
+                .Where(call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)),
+            call => Assert.True(call.Monitored));
+        Assert.Empty(AddedIn(host));
+    }
+
+    [Fact]
+    public async Task AMonitoringRunFlipsTheRowsItHasAndRegistersTheScenesItHasNone()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(FirstScene, 811)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync("studio", studioId, BulkVerb, Ticking(FirstScene, SecondScene)));
+        await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+
+        Assert.Equal([811], FlippedIn(host));
+        Assert.Equal([SecondScene], AddedIn(host));
+    }
+
+    [Fact]
+    public async Task AMonitoringRunWhoseCatalogueWasNotReadStillRegistersThroughTheAdd()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Unreachable.Add(nameof(RecordingWhisparrCore.ReadEntityCatalogueAsync));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync("studio", studioId, BulkVerb, Ticking(FirstScene, SecondScene)));
+        await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+
+        Assert.Equal([FirstScene, SecondScene], AddedIn(host));
+    }
+
+    [Fact]
+    public async Task AnUnmonitoringRunFlipsRowsAndRegistersNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(FirstScene, 811)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync(
+                "studio", studioId, BulkVerb, TickingToUnmonitor(FirstScene, SecondScene)));
+        await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+
+        var flipped = Assert.Single(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync));
+        Assert.Equal(811, flipped.EntityId);
+        Assert.False(flipped.Monitored);
+        Assert.Empty(AddedIn(host));
+    }
+
+    [Fact]
+    public async Task ARunTheInstanceRefusedOutrightReportsTheRefusalsAndIsRecordedAsFailed()
+    {
+        var progress = new RecordingJobProgress();
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(FirstScene, 811)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(409, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync("studio", studioId, BulkVerb, TickingToUnmonitor(FirstScene)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => host.Jobs.RunLastAsync(progress, TestCt));
+
+        Assert.Equal(
+            "Nothing was unmonitored: Whisparr refused all 1.",
+            Assert.Single(progress.Reports).SubTask);
+    }
+
+    [Fact]
+    public async Task ARunThatMarkedOneOfTwoIsNotRecordedAsFailed()
+    {
+        var progress = new RecordingJobProgress();
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(FirstScene, 811), CatalogueRow(SecondScene, 812)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync),
+            MonitorHost.Json(200, "{}"),
+            MonitorHost.Json(409, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync(
+                "studio", studioId, BulkVerb, TickingToUnmonitor(FirstScene, SecondScene)));
+
+        await host.Jobs.RunLastAsync(progress, TestCt);
+
+        Assert.Equal(
+            "1 unmonitored, 0 already unmonitored, 1 refused.",
+            Assert.Single(progress.Reports).SubTask);
     }
 
     [Fact]

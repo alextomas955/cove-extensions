@@ -25,6 +25,10 @@ internal enum MissingBulkRunOutcome
 
     NothingToMark,
 
+    // Every scene the run offered was refused, so nothing was marked and the run is not a
+    // completion.
+    EverythingRefused,
+
     // A stop part way. What was marked before it stays marked.
     Cancelled,
 }
@@ -140,6 +144,13 @@ public static class MissingBulkJob
         var ending = run.Outcome == MissingBulkRunOutcome.Cancelled ? ", then stopped" : string.Empty;
         var did = verb == MissingBulkVerb.Monitor ? "monitored" : "unmonitored";
 
+        if (run.Outcome == MissingBulkRunOutcome.EverythingRefused)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"Nothing was {did}: Whisparr refused all {run.Refused}.");
+        }
+
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{run.Marked} {did}, {run.AlreadyHeld} already {did}, {run.Refused} refused{ending}.");
@@ -186,9 +197,18 @@ public static class MissingBulkJob
                 MissingBulkRunOutcome.Cancelled, marked, alreadyHeld, refused);
         }
 
-        return offered == 0
-            ? Untaken
-            : new MissingBulkRun(MissingBulkRunOutcome.Completed, marked, alreadyHeld, refused);
+        if (offered == 0)
+        {
+            return Untaken;
+        }
+
+        return new MissingBulkRun(
+            marked == 0 && alreadyHeld == 0
+                ? MissingBulkRunOutcome.EverythingRefused
+                : MissingBulkRunOutcome.Completed,
+            marked,
+            alreadyHeld,
+            refused);
     }
 
     private static MissingBulkRun Untaken { get; } =
