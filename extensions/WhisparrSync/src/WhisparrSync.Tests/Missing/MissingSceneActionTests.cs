@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Cove.Core.Auth;
 using WhisparrSync.Contracts;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -29,8 +30,26 @@ public sealed class MissingSceneActionTests
     private static string HeldSceneRow(bool monitored)
         => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
 
+    // MonitorHost seeds its entities under the address v3 prefers, and an identity read compares
+    // sources rather than spellings, so a v2 case has to seed the other one to be resolvable at all.
+    private const string TheEndpointV2Prefers = "theporndb.net/graphql";
+
     private static Task<int> StudioIn(MonitorHost host)
         => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+    private static WhisparrCatalogueScene CatalogueRow(string providerSceneId, int instanceSceneId)
+        => new(
+            providerSceneId,
+            providerSceneId,
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            Monitored: false,
+            HasFile: false,
+            instanceSceneId);
 
     private static async Task<MissingSceneActionResult> ReadResultAsync(HttpResponseMessage answered)
     {
@@ -61,9 +80,140 @@ public sealed class MissingSceneActionTests
     }
 
     [Fact]
-    public async Task TheBodyTheInstanceReceivesAcquiresNothing()
+    public async Task ASceneTheInstanceHoldsARowForIsMarkedThroughThatRow()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(SceneId, SceneOnTheInstance)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+        Assert.Equal(MissingSceneState.Monitored, result.State);
+
+        var flipped = Assert.Single(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync));
+        Assert.Equal(SceneOnTheInstance, flipped.EntityId);
+        Assert.True(flipped.Monitored);
+        Assert.DoesNotContain(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync));
+    }
+
+    [Fact]
+    public async Task MarkingASceneWritesNothingToTheOwningEntityWhereTheInstanceRegistersAdds()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(SceneId, SceneOnTheInstance)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.DoesNotContain(
+            nameof(IWhisparrStudioActing.SetStudioMonitoredAsync),
+            host.Client.Verbs,
+            StringComparer.Ordinal);
+    }
+
+    // The discriminating control for the case above: the entity step is live, and it is the other
+    // generation's rule that keeps it.
+    [Fact]
+    public async Task MarkingASceneMonitorsTheOwningEntityWhereTheInstanceRegistersNoAdd()
+    {
+        await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow(SceneId, SceneOnTheInstance)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await host.SeedStudioAsync(
+            TheEndpointV2Prefers, MonitorHost.StudioRemoteIdValue);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+        Assert.Contains(
+            nameof(IWhisparrStudioActing.SetStudioMonitoredAsync),
+            host.Client.Verbs,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync));
+    }
+
+    [Fact]
+    public async Task ASceneTheCatalogueNamesNoRowForIsRegisteredThroughTheAdd()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow("a-scene-the-instance-holds-a-row-for", SceneOnTheInstance)];
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+
+        var added = Assert.Single(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync));
+        Assert.Equal(SceneId, added.ForeignId);
+        Assert.DoesNotContain(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync));
+    }
+
+    [Fact]
+    public async Task ASceneWithNoRowOnAnInstanceRegisteringNoAddIsStatedAsHeldNowhere()
+    {
+        await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+            [CatalogueRow("a-scene-the-instance-holds-a-row-for", SceneOnTheInstance)];
+        var studioId = await host.SeedStudioAsync(
+            TheEndpointV2Prefers, MonitorHost.StudioRemoteIdValue);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.WhisparrHasNoEntryForScene, result.Refusal);
+        Assert.Empty(host.Client.Acting);
+    }
+
+    [Fact]
+    public async Task ACatalogueReadThatDidNotArriveReachesNeitherTheFlipNorTheAdd()
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.InternalServerError, ""));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.DidNotReachWhisparr, result.Refusal);
+        Assert.DoesNotContain(handler.Requests, sent => sent.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task TheBodyTheInstanceReceivesAcquiresNothing()
+    {
+        // The catalogue is read first, and an instance holding no entry for the entity is what
+        // sends this scene down the add.
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.NotFound, ""),
             (HttpStatusCode.OK, MonitorHost.UnsortedProfiles),
             (HttpStatusCode.OK, MonitorHost.OneRootFolder),
             (HttpStatusCode.Created, """{"id":7,"monitored":true}"""));
