@@ -3,6 +3,7 @@ using Cove.Core.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
+using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
@@ -119,6 +120,61 @@ public sealed class MissingBulkJobTests
 
         // Restored after the run, so the elevation is the run's own span rather than the process's.
         Assert.Null(principals.Current);
+    }
+
+    // A run that marked nothing and was refused everything is not a completion: reported as one, a
+    // reader is told their gesture landed.
+    [Fact]
+    public async Task ARunRefusedEverythingIsNotACompletion()
+        => Assert.Equal(
+            MissingBulkRunOutcome.EverythingRefused,
+            (await TwoSceneRunAsync(409, 409)).Outcome);
+
+    // The discriminating control: one marked scene keeps the same run a completion, so the answer
+    // above is about the refusals rather than about the driver.
+    [Fact]
+    public async Task ARunThatMarkedOneOfTwoIsACompletion()
+    {
+        var run = await TwoSceneRunAsync(200, 409);
+
+        Assert.Equal(MissingBulkRunOutcome.Completed, run.Outcome);
+        Assert.Equal(1, run.Marked);
+        Assert.Equal(1, run.Refused);
+    }
+
+    private static async Task<MissingBulkRun> TwoSceneRunAsync(int first, int second)
+    {
+        var answers = new Queue<int>([first, second]);
+        var services = new ServiceCollection()
+            .AddSingleton<ICurrentPrincipalAccessor>(new FakePrincipalAccessor())
+            .BuildServiceProvider();
+
+        return await MissingBulkJob.RunAsync(
+            MissingBulkJob.Decode(
+                MissingBulkJob.Encode(
+                    WhisparrEntityKind.Studio,
+                    4,
+                    [FirstScene, SecondScene],
+                    MissingBulkVerb.Monitor)),
+            services.GetRequiredService<IServiceScopeFactory>(),
+            (IServiceProvider _, CancellationToken _) =>
+                Task.FromResult<Func<string, CancellationToken, Task<WhisparrResponse?>>?>(
+                    (_, _) => Task.FromResult<WhisparrResponse?>(
+                        RecordingWhisparrCore.Json(answers.Dequeue(), "{}"))),
+            TestCt);
+    }
+
+    [Fact]
+    public void ARunRefusedOutrightSaysSoAndCountsTheRefusals()
+    {
+        var run = new MissingBulkRun(MissingBulkRunOutcome.EverythingRefused, 0, 0, 3);
+
+        Assert.Equal(
+            "Nothing was monitored: Whisparr refused all 3.",
+            MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor));
+        Assert.Equal(
+            "Nothing was unmonitored: Whisparr refused all 3.",
+            MissingBulkJob.SummaryOf(run, MissingBulkVerb.Unmonitor));
     }
 
     // Reported as monitoring either way, a reader who unmonitored a page would read that the run
