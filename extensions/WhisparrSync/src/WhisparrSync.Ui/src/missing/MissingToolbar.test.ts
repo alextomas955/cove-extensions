@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { render, press } from "../common/lib/testRender";
 
+import { ACTION_REFRESH, MISSING_MONITOR_ALL, MISSING_SORT_MENU } from "../common/ui/copy";
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
 
 vi.mock("./hostComponents", () => ({
@@ -129,7 +130,7 @@ test("the whole-catalogue control confirms with the catalogue's own figure befor
   const started: number[] = [];
   const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
 
-  await press(control(container, "Monitor all"));
+  await press(control(container, MISSING_MONITOR_ALL));
   expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
 
   const dialog = document.body.querySelector('[role="dialog"]');
@@ -145,7 +146,7 @@ test("cancelling the confirmation sends nothing", async () => {
   const started: number[] = [];
   const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
 
-  await press(control(container, "Monitor all"));
+  await press(control(container, MISSING_MONITOR_ALL));
   expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
 
   const dialog = document.body.querySelector('[role="dialog"]');
@@ -158,8 +159,8 @@ test("cancelling the confirmation sends nothing", async () => {
 test("a tag page draws no whole-catalogue control at all", async () => {
   const container = await mountToolbar([YEAR], { kind: "tag" });
 
-  expect(control(container, "Monitor all")).toBeUndefined();
-  expect(container.textContent).not.toContain("Monitor all");
+  expect(control(container, MISSING_MONITOR_ALL)).toBeUndefined();
+  expect(container.textContent).not.toContain(MISSING_MONITOR_ALL);
 });
 
 function occurrences(text: string, needle: string): number {
@@ -207,7 +208,7 @@ test("the ordering control names the ordering in force", async () => {
     view: { sortInForce: "DATE-DESC" },
   });
 
-  expect(valueShown(dropdownNamed(container, "Sort"))).toBe("Newest first");
+  expect(valueShown(dropdownNamed(container, MISSING_SORT_MENU))).toBe("Newest first");
 });
 
 // jsdom applies no host stylesheet, so what a control draws is only readable from its classes.
@@ -223,7 +224,7 @@ function fillUtilities(drawn: Element): string[] {
 test("the actions draw no fill of their own, and the dropdowns do", async () => {
   const container = await mountToolbar([YEAR], { catalogueSize: 665 });
 
-  for (const label of ["Refresh", "Monitor all"]) {
+  for (const label of [ACTION_REFRESH, MISSING_MONITOR_ALL]) {
     const action = control(container, label);
     if (action === undefined) throw new Error(`the toolbar drew no ${label}`);
     expect(fillUtilities(action), `${label} draws a fill`).toEqual([]);
@@ -242,7 +243,7 @@ test("no year control is offered when the source provides no year facet", async 
 
 test("a performer page offers an enabled whole-catalogue control", async () => {
   const container = await mountToolbar([PERFORMER], { kind: "performer" });
-  const button = control(container, "Monitor all");
+  const button = control(container, MISSING_MONITOR_ALL);
   expect(button).toBeDefined();
   expect(button?.disabled).toBe(false);
 });

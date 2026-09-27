@@ -7,8 +7,11 @@
  */
 import { membersOf } from "../common/lib/totalTableLogic";
 import {
+  DESELECT_ALL,
+  INVERT_SELECTION,
   RUN_WAS_NOT_STARTED,
   NO_INSTANCE_CONNECTED,
+  SELECT_ALL,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
 
@@ -26,15 +29,6 @@ export interface SelectionAction {
   /** Exactly what would be ticked afterwards, drawn from the loaded page alone. */
   readonly resulting: readonly string[];
 }
-
-// Worded as Cove's own list selection bar words them, so the two bars read alike.
-const SELECT_ALL_LABEL = "Select all";
-const SELECT_NONE_LABEL = "Deselect all";
-const INVERT_SELECTION_LABEL = "Invert";
-
-export const MONITOR_SELECTION_LABEL = "Monitor";
-
-export const UNMONITOR_SELECTION_LABEL = "Unmonitor";
 
 export function invertSelection(
   loadedPageIds: readonly string[],
@@ -55,21 +49,21 @@ export function selectionActionsFor(
   return [
     {
       key: "selectAll",
-      label: SELECT_ALL_LABEL,
+      label: SELECT_ALL,
       shortcutId: "list.select.all",
       keys: "s a",
       resulting: [...loadedPageIds],
     },
     {
       key: "invert",
-      label: INVERT_SELECTION_LABEL,
+      label: INVERT_SELECTION,
       shortcutId: "list.select.invert",
       keys: "s i",
       resulting: invertSelection(loadedPageIds, selected),
     },
     {
       key: "selectNone",
-      label: SELECT_NONE_LABEL,
+      label: DESELECT_ALL,
       shortcutId: "list.select.none",
       keys: "s n",
       resulting: [],

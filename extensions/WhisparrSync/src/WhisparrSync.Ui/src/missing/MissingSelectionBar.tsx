@@ -13,13 +13,16 @@
 import { useMemo } from "react";
 import { Spinner } from "@cove-extensions/ui-shared";
 
-import { WAITING_FOR_WHISPARR, selectionCount } from "../common/ui/copy";
+import {
+  SELECTION_MONITOR,
+  SELECTION_UNMONITOR,
+  WAITING_FOR_WHISPARR,
+  selectionCount,
+} from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 import { useKeySequence } from "./hostComponents";
 import {
-  MONITOR_SELECTION_LABEL,
-  UNMONITOR_SELECTION_LABEL,
   selectionActionsFor,
   selectionOutcomeLine,
   type SelectionOutcome,
@@ -120,7 +123,7 @@ export function MissingSelectionBar({
               onClick={onMonitorSelection}
             >
               {inFlight ? <Spinner className="h-3 w-3" /> : <MonitorGlyph className="h-3 w-3" />}
-              {MONITOR_SELECTION_LABEL}
+              {SELECTION_MONITOR}
               {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
             </button>
             <button
@@ -131,7 +134,7 @@ export function MissingSelectionBar({
               onClick={onUnmonitorSelection}
             >
               {inFlight ? <Spinner className="h-3 w-3" /> : <UnmonitorGlyph className="h-3 w-3" />}
-              {UNMONITOR_SELECTION_LABEL}
+              {SELECTION_UNMONITOR}
               {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
             </button>
           </div>

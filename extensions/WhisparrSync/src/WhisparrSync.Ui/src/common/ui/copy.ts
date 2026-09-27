@@ -373,6 +373,51 @@ export const MISSING_CLEAR_SEARCH = "Clear search";
 /** The accessible name of the page control under the grid, which announces what it pages. */
 export const MISSING_PAGES = "Missing scenes pages";
 
+/** The placeholder in the toolbar's title search. */
+export const MISSING_SEARCH_PLACEHOLDER = "Search titles";
+
+/** The ordering menu's own name. */
+export const MISSING_SORT_MENU = "Sort";
+
+/** The control that marks everything the source lists for the entity. */
+export const MISSING_MONITOR_ALL = "Monitor all";
+
+/** The selection bar's three gestures, worded as Cove's own list selection bar words them. */
+export const SELECT_ALL = "Select all";
+
+/** @see SELECT_ALL */
+export const DESELECT_ALL = "Deselect all";
+
+/** @see SELECT_ALL */
+export const INVERT_SELECTION = "Invert";
+
+/**
+ * The two verbs the selection bar offers over the ticked scenes.
+ *
+ * Declared apart from the menu rows of the same verb, so renaming a row leaves the bar alone.
+ */
+export const SELECTION_MONITOR = "Monitor";
+
+/** @see SELECTION_MONITOR */
+export const SELECTION_UNMONITOR = "Unmonitor";
+
+/**
+ * What a card's footer counts, or null where it counts nothing.
+ *
+ * A half that counts nothing is left out rather than rendered as a zero, which would read as a
+ * measurement of the scene.
+ */
+export function cardCountsLine(performerCount: number, tagCount: number): string | null {
+  const parts: string[] = [];
+  if (performerCount > 0) {
+    parts.push(`${String(performerCount)} ${performerCount === 1 ? "performer" : "performers"}`);
+  }
+  if (tagCount > 0) {
+    parts.push(`${String(tagCount)} ${tagCount === 1 ? "tag" : "tags"}`);
+  }
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
 /** The name of the card control that monitors one scene. */
 export function monitorSceneName(title: string): string {
   return `Monitor ${title} in Whisparr`;
