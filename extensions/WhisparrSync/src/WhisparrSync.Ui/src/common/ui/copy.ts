@@ -351,6 +351,31 @@ export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
  */
 export const WORKING_IN_WHISPARR = "Working";
 
+/**
+ * The five names an entity's Whisparr state goes by, wherever one appears.
+ *
+ * Reusing one for a different meaning in another view changes what the product means by a state.
+ */
+export const STATE_MONITORED = "Monitored";
+
+/** @see STATE_MONITORED */
+export const STATE_UNMONITORED = "Unmonitored";
+
+/** @see STATE_MONITORED */
+export const STATE_NOT_ADDED = "Not added";
+
+/** @see STATE_MONITORED */
+export const STATE_EXCLUDED = "Excluded";
+
+/** @see STATE_MONITORED */
+export const STATE_STATUS_UNKNOWN = "Status unknown";
+
+/** The marker saying the instance holds a file, which is drawn beside a state and never instead. */
+export const MARKER_IN_LIBRARY = "In library";
+
+/** The marker for an entity the instance could not be told which one it is, so was never asked. */
+export const MARKER_NOT_LINKED = "Not linked";
+
 /** Why the card was never asked about, for the chip's own title. */
 export const NOT_LINKED_REASON =
   "No id Whisparr could name this by, so it was never asked. Identify it in Cove first.";

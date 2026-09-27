@@ -1,9 +1,18 @@
 /**
  * The one state vocabulary, used wherever a Whisparr entity's state appears.
  *
- * The glyphs and labels are specified product content. Adding a state, or reusing a label for a
- * different meaning in another view, changes what the product means by a state.
+ * The glyphs are specified product content and the labels are the catalogue's. Adding a state
+ * changes what the product means by a state.
  */
+import {
+  MARKER_IN_LIBRARY,
+  MARKER_NOT_LINKED,
+  STATE_EXCLUDED,
+  STATE_MONITORED,
+  STATE_NOT_ADDED,
+  STATE_STATUS_UNKNOWN,
+  STATE_UNMONITORED,
+} from "./copy";
 
 /** In the spelling the shared `StatusPill` takes. */
 type Variant = "accent" | "amber" | "red" | "green" | "cyan" | "violet" | "gray";
@@ -33,12 +42,12 @@ export interface StateDescription {
  * states that carry a judgment; a state that reports absence takes a neutral one.
  */
 export const STATE_VOCABULARY: Record<WhisparrEntityState, StateDescription> = {
-  monitored: { iconKey: "bookmark", label: "Monitored", variant: "green" },
+  monitored: { iconKey: "bookmark", label: STATE_MONITORED, variant: "green" },
   // The bookmark negated, because the pair is one flag's two settings.
-  unmonitored: { iconKey: "bookmarkMinus", label: "Unmonitored", variant: "gray" },
-  notAdded: { iconKey: "circleDashed", label: "Not added", variant: "cyan" },
-  excluded: { iconKey: "ban", label: "Excluded", variant: "red" },
-  statusUnknown: { iconKey: "circleQuestion", label: "Status unknown", variant: "amber" },
+  unmonitored: { iconKey: "bookmarkMinus", label: STATE_UNMONITORED, variant: "gray" },
+  notAdded: { iconKey: "circleDashed", label: STATE_NOT_ADDED, variant: "cyan" },
+  excluded: { iconKey: "ban", label: STATE_EXCLUDED, variant: "red" },
+  statusUnknown: { iconKey: "circleQuestion", label: STATE_STATUS_UNKNOWN, variant: "amber" },
 };
 
 /**
@@ -50,7 +59,7 @@ export const STATE_VOCABULARY: Record<WhisparrEntityState, StateDescription> = {
  */
 export const FILE_MARKER: StateDescription = {
   iconKey: "hardDrive",
-  label: "In library",
+  label: MARKER_IN_LIBRARY,
   variant: "accent",
 };
 
@@ -60,7 +69,7 @@ export const FILE_MARKER: StateDescription = {
  */
 export const NOT_LINKED_MARKER: StateDescription = {
   iconKey: "unlink",
-  label: "Not linked",
+  label: MARKER_NOT_LINKED,
   variant: "violet",
 };
 

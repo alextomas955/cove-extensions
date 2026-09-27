@@ -5,6 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../common/lib/testRender";
+import { MARKER_NOT_LINKED } from "../common/ui/copy";
 import type { LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -113,5 +114,5 @@ test("the answered reading is drawn on the card, and a row with none says it is 
   const unlinked = await render(
     createElement(WhisparrStudioCardBadge, { studio: { ...HOST_OBJECT, id: 8 } }),
   );
-  expect(unlinked.textContent).toContain("Not linked");
+  expect(unlinked.textContent).toContain(MARKER_NOT_LINKED);
 });

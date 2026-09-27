@@ -4,7 +4,14 @@ import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { MissingCard as MissingCardView, MissingSceneState } from "../wire/api";
-import { MISSING_DESELECT_SCENE, MISSING_SELECT_SCENE } from "../common/ui/copy";
+import {
+  MISSING_DESELECT_SCENE,
+  MISSING_SELECT_SCENE,
+  STATE_MONITORED,
+  STATE_NOT_ADDED,
+  STATE_STATUS_UNKNOWN,
+  STATE_UNMONITORED,
+} from "../common/ui/copy";
 import type { CardActionState } from "./missingCardLogic";
 
 // The shared primitives stand in, because their `react` and `lucide-react` imports resolve only
@@ -198,16 +205,18 @@ test("the status reads in the shared vocabulary, mark and tint and all", async (
   }
 
   expect(drawn).toEqual([
-    "cyan:lucide-circle-dashed:Not added",
-    "gray:lucide-bookmark-minus:Unmonitored",
-    "amber:lucide-circle-question-mark:Status unknown",
+    `cyan:lucide-circle-dashed:${STATE_NOT_ADDED}`,
+    `gray:lucide-bookmark-minus:${STATE_UNMONITORED}`,
+    `amber:lucide-circle-question-mark:${STATE_STATUS_UNKNOWN}`,
   ]);
 });
 
 // The state's own word, not a word of this tab's own: "Wanted" is the name of a list the
 // instance keeps rather than a state a scene is in.
 test("a monitored scene is called Monitored, under the vocabulary's own mark and tint", async () => {
-  expect(chip(await mountCard({ state: "monitored" }))).toBe("green:lucide-bookmark:Monitored");
+  expect(chip(await mountCard({ state: "monitored" }))).toBe(
+    `green:lucide-bookmark:${STATE_MONITORED}`,
+  );
 });
 
 test("a refused press states the reason beneath the verbs, in the tone the reason carries", async () => {
