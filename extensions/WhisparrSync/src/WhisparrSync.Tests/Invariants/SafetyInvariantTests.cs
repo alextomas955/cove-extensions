@@ -97,6 +97,9 @@ internal static class OutboundSeam
             // Answers only entries the instance holds. It composes no command name and starts
             // nothing.
             [nameof(IWhisparrSceneStatusReading.ReduceHeldScenesAsync)] = WhisparrVerbClass.Read,
+            // Lists what the instance already holds under one entity. It is the missing surface's
+            // own source of scenes and registers nothing.
+            [nameof(IWhisparrEntityCatalogueReading.ReadEntityCatalogueAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync)] = WhisparrVerbClass.Act,
@@ -117,6 +120,7 @@ internal static class OutboundSeam
         typeof(IWhisparrSearchGrabbing),
         typeof(IWhisparrSceneSearchGrabbing),
         typeof(IWhisparrSceneStatusReading),
+        typeof(IWhisparrEntityCatalogueReading),
         typeof(IWhisparrSceneMonitorActing),
         typeof(IWhisparrSceneExclusionActing),
         typeof(IWhisparrSiteSceneReading),
@@ -177,7 +181,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(14, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(15, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),
