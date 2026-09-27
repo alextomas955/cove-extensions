@@ -12,6 +12,14 @@ import type {
   WhisparrSyncSettingsSaveRequest,
   WhisparrSyncSettingsView,
 } from "../wire/api";
+import {
+  FIELD_NAME_ADDRESS,
+  FIELD_NAME_API_KEY,
+  FIELD_NAME_GENERATION,
+  FIELD_NAME_UPGRADE_BEHAVIOR,
+  SAVING_THE_GENERATION_RELOADS,
+  unsavedFieldsSentence,
+} from "../common/ui/copy";
 import { isAddressEdit, valuesForCard, type CardGeneration } from "./connectLogic";
 
 /** Everything the page's plain settings controls hold, and everything one save writes. */
@@ -33,14 +41,11 @@ export type UnsavedField = "generation" | "address" | "apiKey" | "upgradeBehavio
 const FIELD_ORDER: readonly UnsavedField[] = ["generation", "address", "apiKey", "upgradeBehavior"];
 
 const FIELD_NAMES: Record<UnsavedField, string> = {
-  generation: "the Whisparr generation",
-  address: "the Whisparr address",
-  apiKey: "the API key",
-  upgradeBehavior: "the replacement-file behaviour",
+  generation: FIELD_NAME_GENERATION,
+  address: FIELD_NAME_ADDRESS,
+  apiKey: FIELD_NAME_API_KEY,
+  upgradeBehavior: FIELD_NAME_UPGRADE_BEHAVIOR,
 };
-
-/** Said whenever the generation is unsaved, because saving it reloads the page. */
-const RELOAD_SENTENCE = "Saving changes the generation Cove uses and reloads the page.";
 
 /** The draft a generation's stored values seed. */
 export function draftFor(
@@ -84,13 +89,8 @@ export function unsavedSummary(fields: readonly UnsavedField[]): string {
   if (fields.length === 0) {
     return "";
   }
-  const names = fields.map((field) => FIELD_NAMES[field]);
-  const list =
-    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-  const sentence = `${list.charAt(0).toUpperCase()}${list.slice(1)} ${
-    names.length === 1 ? "is" : "are"
-  } not saved yet.`;
-  return fields.includes("generation") ? `${sentence} ${RELOAD_SENTENCE}` : sentence;
+  const sentence = unsavedFieldsSentence(fields.map((field) => FIELD_NAMES[field]));
+  return fields.includes("generation") ? `${sentence} ${SAVING_THE_GENERATION_RELOADS}` : sentence;
 }
 
 /**

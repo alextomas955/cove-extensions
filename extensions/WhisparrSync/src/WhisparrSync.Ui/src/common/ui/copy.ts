@@ -974,6 +974,35 @@ export function lastReachableSentence(when: string): string {
 /** What the bar at the foot of the settings page heads its summary of the edits with. */
 export const UNSAVED_CHANGES = "Unsaved changes";
 
+/** The four names the save bar calls an unsaved field by, each named as its own control is. */
+export const FIELD_NAME_GENERATION = "the Whisparr generation";
+
+/** @see FIELD_NAME_GENERATION */
+export const FIELD_NAME_ADDRESS = "the Whisparr address";
+
+/** @see FIELD_NAME_GENERATION */
+export const FIELD_NAME_API_KEY = "the API key";
+
+/** @see FIELD_NAME_GENERATION */
+export const FIELD_NAME_UPGRADE_BEHAVIOR = "the replacement-file behaviour";
+
+/** Said whenever the generation is unsaved, because saving it reloads the page. */
+export const SAVING_THE_GENERATION_RELOADS =
+  "Saving changes the generation Cove uses and reloads the page.";
+
+/**
+ * Which fields the save bar reports unsaved.
+ *
+ * @param names the field names, in the order the page draws the controls that hold them
+ */
+export function unsavedFieldsSentence(names: readonly string[]): string {
+  const list =
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${
+    names.length === 1 ? "is" : "are"
+  } not saved yet.`;
+}
+
 /** What the bar says once a save has landed. */
 export const SETTINGS_SAVED = "Settings saved.";
 
