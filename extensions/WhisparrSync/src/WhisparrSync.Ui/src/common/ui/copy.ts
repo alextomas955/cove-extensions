@@ -207,6 +207,14 @@ export const SEARCH_WITH_NO_ENTRY =
 /** The product's own name, drawn beside the state chip in the scene tab's header. */
 export const SCENE_HEADER_WHISPARR = "Whisparr";
 
+/**
+ * The accessible name of the product's mark, which carries no text of its own.
+ *
+ * Its own constant rather than one of the two above. Those name text the reader sees on other
+ * surfaces, and an edit to either of them must not rename the mark with it.
+ */
+export const WHISPARR_LOGO_NAME = "Whisparr";
+
 /** The label on the scene tab's quality row, which names the file the instance holds. */
 export const SCENE_FACT_QUALITY = "Quality";
 
@@ -349,6 +357,21 @@ export const NOT_LINKED_REASON =
 
 /** The catalogue tab's own name, drawn at the left of its toolbar. */
 export const MISSING_TAB_HEADING = "Missing";
+
+/** The name of the card control that ticks one scene, which carries no text of its own. */
+export const MISSING_SELECT_SCENE = "Select scene";
+
+/** The same control once the scene is ticked. */
+export const MISSING_DESELECT_SCENE = "Deselect scene";
+
+/** The control the empty state offers that puts the whole catalogue back. */
+export const MISSING_CLEAR_FILTERS = "Clear filters";
+
+/** The control it offers beside that one, which drops the title search alone. */
+export const MISSING_CLEAR_SEARCH = "Clear search";
+
+/** The accessible name of the page control under the grid, which announces what it pages. */
+export const MISSING_PAGES = "Missing scenes pages";
 
 /** The name of the card control that monitors one scene. */
 export function monitorSceneName(title: string): string {

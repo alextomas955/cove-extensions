@@ -11,6 +11,8 @@
  */
 import { useId } from "react";
 
+import { WHISPARR_LOGO_NAME } from "./copy";
+
 export function WhisparrLogo({ className }: Readonly<{ className?: string }>) {
   const maskId = `whisparr-mark-${useId()}`;
   return (
@@ -18,7 +20,7 @@ export function WhisparrLogo({ className }: Readonly<{ className?: string }>) {
       viewBox="0 0 1200 1200"
       className={className}
       role="img"
-      aria-label="Whisparr"
+      aria-label={WHISPARR_LOGO_NAME}
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
     >
