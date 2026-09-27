@@ -9,7 +9,14 @@ import { createElement, useState, type ReactNode } from "react";
 
 import { press, render } from "../common/lib/testRender";
 import { FILE_MARKER, NOT_LINKED_MARKER } from "../common/ui/stateVocabularyLogic";
-import { STILL_COUNTING } from "../common/ui/copy";
+import {
+  STATE_EXCLUDED,
+  STATE_MONITORED,
+  STATE_NOT_ADDED,
+  STATE_STATUS_UNKNOWN,
+  STATE_UNMONITORED,
+  STILL_COUNTING,
+} from "../common/ui/copy";
 import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -83,9 +90,9 @@ test("the row counts the cards on the page and names what it counted", async () 
   ]);
 
   const row = page.querySelector("[role=status]");
-  expect(row?.textContent).toContain("2Monitored");
-  expect(row?.textContent).toContain("1Unmonitored");
-  expect(row?.textContent).toContain("1Not added");
+  expect(row?.textContent).toContain(`2${STATE_MONITORED}`);
+  expect(row?.textContent).toContain(`1${STATE_UNMONITORED}`);
+  expect(row?.textContent).toContain(`1${STATE_NOT_ADDED}`);
 });
 
 test("the row says its counts are the page's and not the library's", async () => {
@@ -131,8 +138,8 @@ test("cards the instance answered nothing usable for are counted as unknown, not
   ]);
 
   const row = page.querySelector("[role=status]");
-  expect(row?.textContent).toContain("2Status unknown");
-  expect(row?.textContent).toContain("0Not added");
+  expect(row?.textContent).toContain(`2${STATE_STATUS_UNKNOWN}`);
+  expect(row?.textContent).toContain(`0${STATE_NOT_ADDED}`);
 });
 
 test("a file is counted beside the states it cross-cuts", async () => {
@@ -144,9 +151,9 @@ test("a file is counted beside the states it cross-cuts", async () => {
   ]);
 
   const row = page.querySelector("[role=status]");
-  expect(row?.textContent).toContain("2In library");
-  expect(row?.textContent).toContain("1Monitored");
-  expect(row?.textContent).toContain("1Unmonitored");
+  expect(row?.textContent).toContain(`2${FILE_MARKER.label}`);
+  expect(row?.textContent).toContain(`1${STATE_MONITORED}`);
+  expect(row?.textContent).toContain(`1${STATE_UNMONITORED}`);
 });
 
 test("the key keeps every entry at a count of zero, so it does not change as you page", async () => {
@@ -155,17 +162,17 @@ test("the key keeps every entry at a count of zero, so it does not change as you
   const page = await pageOf([{ excluded: false, present: false, monitored: null }]);
 
   const row = page.querySelector("[role=status]");
-  expect(row?.textContent).toContain("0Monitored");
-  expect(row?.textContent).toContain("0Unmonitored");
-  expect(row?.textContent).toContain("0Excluded");
-  expect(row?.textContent).toContain("0In library");
+  expect(row?.textContent).toContain(`0${STATE_MONITORED}`);
+  expect(row?.textContent).toContain(`0${STATE_UNMONITORED}`);
+  expect(row?.textContent).toContain(`0${STATE_EXCLUDED}`);
+  expect(row?.textContent).toContain(`0${FILE_MARKER.label}`);
 });
 
 test("the unknown state is drawn only where a card is in it", async () => {
   showBadges();
 
   const known = await pageOf([{ excluded: false, present: true, monitored: true }]);
-  expect(known.querySelector("[role=status]")?.textContent).not.toContain("Status unknown");
+  expect(known.querySelector("[role=status]")?.textContent).not.toContain(STATE_STATUS_UNKNOWN);
 });
 
 test("a display mode that mounts no card mounts no row either", async () => {
@@ -202,7 +209,7 @@ test("the studio row draws no file figure, because no studio answer carries one"
     ),
   );
 
-  expect(page.textContent).toContain("Unmonitored");
+  expect(page.textContent).toContain(STATE_UNMONITORED);
   expect(page.textContent).not.toContain(FILE_MARKER.label);
 });
 
@@ -236,11 +243,11 @@ test("the figures account for every card on the page", async () => {
   // `In library` is left out because it cross-cuts the states rather than partitioning them.
   const figure = (label: string) => Number(new RegExp(`(\\d+)${label}`).exec(text)?.[1] ?? NaN);
   const drawn = [
-    figure("Monitored"),
-    figure("Unmonitored"),
-    figure("Not added"),
-    figure("Excluded"),
-    figure("Status unknown"),
+    figure(STATE_MONITORED),
+    figure(STATE_UNMONITORED),
+    figure(STATE_NOT_ADDED),
+    figure(STATE_EXCLUDED),
+    figure(STATE_STATUS_UNKNOWN),
     figure(NOT_LINKED_MARKER.label),
   ];
 
@@ -296,7 +303,7 @@ test("the row says it is still counting while a later read is still out", async 
   }
 
   const page = await render(createElement(Harness));
-  expect(page.textContent).toContain("Monitored");
+  expect(page.textContent).toContain(STATE_MONITORED);
 
   await press(page.querySelector("button"));
 
