@@ -601,9 +601,9 @@ describe("the confirmation in front of the run", () => {
 
     const opened = dialog();
     expect(opened?.getAttribute("aria-label")).toBe(SYNC_LIBRARY);
-    expect(opened?.textContent).toContain("This offers all 5,898 scenes you own to Whisparr");
-    expect(opened?.textContent).toContain("and skips 1,648 that cannot be registered");
-    expect(opened?.textContent).toContain("Registering a scene in Whisparr downloads nothing.");
+    expect(opened?.textContent).toContain("Offers 5,898 scenes to Whisparr");
+    expect(opened?.textContent).toContain("skipping 1,648 it can't identify");
+    expect(opened?.textContent).toContain("downloads nothing.");
     // Its confirm control carries the same words as the control that opened it.
     expect([...(opened?.querySelectorAll("button") ?? [])].at(0)?.textContent).toBe(SYNC_LIBRARY);
 
@@ -640,7 +640,7 @@ describe("the confirmation in front of the run", () => {
 
     await press(syncButton(host));
 
-    expect(dialog()?.textContent).toContain("It also marks each of them monitored.");
+    expect(dialog()?.textContent).toContain("Each is marked monitored.");
     expect(dialog()?.textContent).toContain(MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF);
   });
 });
@@ -782,11 +782,9 @@ describe("the section reads in the noun the run registers", () => {
     await press(syncButton(host));
 
     const opened = dialog();
-    expect(opened?.textContent).toContain(
-      "This offers all 5,898 studios in your library to Whisparr",
-    );
-    expect(opened?.textContent).toContain("It also marks the scenes you own on them monitored.");
-    expect(opened?.textContent).toContain("Registering a studio in Whisparr downloads nothing.");
+    expect(opened?.textContent).toContain("Offers 5,898 studios to Whisparr");
+    expect(opened?.textContent).toContain("The scenes you own on them are marked monitored.");
+    expect(opened?.textContent).toContain("downloads nothing.");
     expect(opened?.textContent).not.toContain("scenes you own to Whisparr");
   });
 

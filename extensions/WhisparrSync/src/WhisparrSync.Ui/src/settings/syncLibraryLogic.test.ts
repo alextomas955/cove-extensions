@@ -107,30 +107,19 @@ describe("the confirmation names the figures and the consequence", () => {
   // Transcribed by hand. One composed from the module's own clauses would always agree with it.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
-      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
-        "It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 5,898 scenes to Whisparr, skipping 1,648 it can't identify. Nothing is monitored. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 
   it("names what monitoring does, and what it does not do by itself", () => {
     expect(syncConfirmation(LIBRARY, true, SCENES)).toBe(
-      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
-        "It also marks each of them monitored. Monitoring a scene downloads nothing by itself. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 5,898 scenes to Whisparr, skipping 1,648 it can't identify. Each is marked monitored. Monitoring a scene downloads nothing by itself. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 
   it("reads as one scene at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_SCENE, false, SCENES)).toBe(
-      "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 1 scene to Whisparr. Nothing is monitored. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 
@@ -142,11 +131,7 @@ describe("the confirmation names the figures and the consequence", () => {
         SCENES,
       ),
     ).toBe(
-      "This offers all 4 scenes you own to Whisparr, and skips 1 that cannot be registered. " +
-        "It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 4 scenes to Whisparr, skipping 1 it can't identify. Nothing is monitored. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 
@@ -166,17 +151,13 @@ describe("the confirmation names the figures and the consequence", () => {
   // Transcribed by hand, as the pins beside it are.
   it("names what is still to hand over ahead of what the run does", () => {
     expect(syncConfirmation(FULLY_HELD_WITH_FILES_OUTSTANDING, false, SCENES)).toBe(
-      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be " +
-        "registered. Whisparr holds 7 with no file recorded yet. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 5,898 scenes to Whisparr, skipping 1,648 it can't identify. 7 of those have no file in Whisparr yet. Nothing is monitored. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 
   it("reads at one as it does at any other size", () => {
     expect(syncConfirmation({ ...FULLY_HELD, withNoFileRecorded: 1 }, false, SCENES)).toContain(
-      "Whisparr holds 1 with no file recorded yet.",
+      "1 of those have no file in Whisparr yet.",
     );
   });
 
@@ -186,10 +167,7 @@ describe("the confirmation names the figures and the consequence", () => {
 
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SCENES)).toBe(
-      "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
-        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
-        "Registering a scene in Whisparr downloads nothing.",
+      "Offers 0 scenes to Whisparr. Nothing is monitored. Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off. Registering a scene downloads nothing.",
     );
   });
 });
@@ -211,12 +189,7 @@ describe("the confirmation reads in studios where the run registers studios", ()
   // Transcribed by hand, as the scene set's own pins are.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
-      "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
-        "registered. It monitors nothing. " +
-        "It then gives each one a folder holding a second name for every file you own, which " +
-        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
-        "hard-link setting on and its renaming off. " +
-        "Registering a studio in Whisparr downloads nothing.",
+      "Offers 412 studios to Whisparr, skipping 12 it can't identify. Nothing is monitored. Each then gets a folder of second names for your files, costing no disk and moving nothing. Handing those over needs Whisparr's hard links on and renaming off. Registering a studio downloads nothing.",
     );
   });
 
@@ -224,33 +197,19 @@ describe("the confirmation reads in studios where the run registers studios", ()
   // carry the flag.
   it("names the scenes monitoring reaches on those studios", () => {
     expect(syncConfirmation(STUDIOS, true, SITES)).toBe(
-      "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
-        "registered. It also marks the scenes you own on them monitored. Monitoring a scene " +
-        "downloads nothing by itself. " +
-        "It then gives each one a folder holding a second name for every file you own, which " +
-        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
-        "hard-link setting on and its renaming off. " +
-        "Registering a studio in Whisparr downloads nothing.",
+      "Offers 412 studios to Whisparr, skipping 12 it can't identify. The scenes you own on them are marked monitored. Monitoring a scene downloads nothing by itself. Each then gets a folder of second names for your files, costing no disk and moving nothing. Handing those over needs Whisparr's hard links on and renaming off. Registering a studio downloads nothing.",
     );
   });
 
   it("reads as one studio at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_STUDIO, false, SITES)).toBe(
-      "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder holding a second name for every file you own, which " +
-        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
-        "hard-link setting on and its renaming off. " +
-        "Registering a studio in Whisparr downloads nothing.",
+      "Offers 1 studio to Whisparr. Nothing is monitored. Each then gets a folder of second names for your files, costing no disk and moving nothing. Handing those over needs Whisparr's hard links on and renaming off. Registering a studio downloads nothing.",
     );
   });
 
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SITES)).toBe(
-      "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder holding a second name for every file you own, which " +
-        "costs no extra disk and moves nothing. Handing those folders to Whisparr needs its " +
-        "hard-link setting on and its renaming off. " +
-        "Registering a studio in Whisparr downloads nothing.",
+      "Offers 0 studios to Whisparr. Nothing is monitored. Each then gets a folder of second names for your files, costing no disk and moving nothing. Handing those over needs Whisparr's hard links on and renaming off. Registering a studio downloads nothing.",
     );
   });
 

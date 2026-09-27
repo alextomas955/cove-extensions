@@ -24,19 +24,18 @@ export const STILL_COUNTING = "still counting";
 
 /** Nothing could be reached, said once for the page on the control that asked. */
 export const WHISPARR_STATUS_COULD_NOT_BE_READ =
-  "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
+  "Couldn't reach Whisparr, so no card can show a status.";
 
 /** Nothing is connected, so nothing was asked, said once for the page on the control that asked. */
-export const NO_WHISPARR_CONNECTED =
-  "No Whisparr is connected, so no card can show a status. Nothing was asked of Whisparr.";
+export const NO_WHISPARR_CONNECTED = "No Whisparr is connected, so no card can show a status.";
 
 /** The connected Whisparr keeps no record of the cards on this page, so it was not asked. */
 export const WHISPARR_KEEPS_NO_RECORD_OF_THESE =
-  "The connected Whisparr keeps no record of these, so no card can show a status. It was not asked.";
+  "This Whisparr keeps no record of these, so no card can show a status.";
 
 /** The status request itself never answered, said once for the page on the control that made it. */
 export const THE_STATUS_READ_DID_NOT_COMPLETE =
-  "Cove could not complete the status read, so no card can show a status. Whisparr may not have been asked at all.";
+  "The status check didn't finish, so no card can show a status.";
 
 /** The badges are on where the display mode draws none, said on the control that turned them on. */
 export const NO_PLACE_FOR_A_CARD_STATUS_HERE =
@@ -65,8 +64,7 @@ export const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 export const WHISPARR_MONITORED = "Whisparr, monitored";
 
 /** The entity's monitored state could not be read. */
-export const MONITORING_COULD_NOT_BE_READ =
-  "Cove could not read what Whisparr monitors for this. That is not the same as Whisparr monitoring nothing.";
+export const MONITORING_COULD_NOT_BE_READ = "Couldn't read this from Whisparr.";
 
 /** An action that never reached the instance. */
 export const ACTION_DID_NOT_REACH_WHISPARR =
@@ -84,7 +82,7 @@ export const SCOPE_ALL_SCENES = "All scenes";
 
 /** What the wider scope costs, stated where the scope is chosen rather than after it is taken. */
 export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
-  "Monitoring all scenes monitors every scene Whisparr already lists for this entity, which spends indexer traffic and disk.";
+  "This monitors every scene Whisparr already lists, which spends indexer traffic and disk.";
 
 /** That the wider scope is a one-way door, stated where the scope is chosen. */
 export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
@@ -92,23 +90,23 @@ export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
 
 /** What the search costs, stated where it is chosen rather than after it is taken. */
 export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
-  "Whisparr looks for everything these entities monitor and do not hold, and takes in what it finds. That spends indexer traffic and disk.";
+  "Whisparr searches for everything these monitor and downloads what it finds. That spends traffic and disk.";
 
 /** Why nothing was linked. Names the setting, because turning it on is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED =
-  "Skipped: with Whisparr's hard-link setting off each file would be copied rather than linked, and would use disk twice.";
+  "Skipped: Whisparr's hard links are off, so each file would be copied and use disk twice.";
 
 /** Why nothing was linked when the setting itself could not be read. */
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
-  "Skipped: Cove could not read Whisparr's hard-link setting, so it could not tell whether linking these would cost extra disk.";
+  "Skipped: couldn't read Whisparr's hard-link setting.";
 
 /** Why nothing was linked. Names where to turn renaming off, because that is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED_RENAMING_ON =
-  "Skipped: Whisparr is set to rename files, and linking works only while it leaves a file where it found it. Turn renaming off under its Settings, Media Management.";
+  "Skipped: Whisparr is renaming files, which breaks linking. Turn it off in its Media Management settings.";
 
 /** Why nothing was linked when the rename setting itself could not be read. */
 export const REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE =
-  "Skipped: Cove could not read Whisparr's rename setting, so it could not tell whether Whisparr would leave these files alone.";
+  "Skipped: couldn't read Whisparr's rename setting.";
 
 /**
  * The same scene tab control once the instance monitors the scene. Named for what it does, not for
@@ -118,7 +116,7 @@ export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
 
 /** Nothing could be offered, because what the connected Whisparr can do was not read. */
 export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
-  "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
+  "Couldn't read what this Whisparr can do. Try again shortly.";
 
 /**
  * Why a selection larger than the bound did nothing.
@@ -156,41 +154,41 @@ export const NO_INSTANCE_CONNECTED =
 
 /** The entity carries no identifier the connected instance could be given. */
 export const NO_IDENTITY_IN_THIS_NAMESPACE =
-  "Cove holds no link for this entity that the connected Whisparr can identify it by.";
+  "Whisparr can't identify this entity from the links Cove holds.";
 
 /**
  * The entity carries several links the connected instance would read as the same source, naming
  * different entities.
  */
 export const SEVERAL_IDENTITIES_IN_THIS_NAMESPACE =
-  "Cove holds conflicting links for this entity, so Whisparr cannot be told which one it is. Remove the links that do not belong, on the entity's page in Cove.";
+  "This entity has conflicting links. Remove the ones that don't belong, on its page in Cove.";
 
 /** The instance offers no quality profile, so nothing could be composed to send. */
 export const INSTANCE_OFFERS_NO_QUALITY_PROFILE =
-  "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.";
+  "Whisparr has no quality profile. Add one there and try again.";
 
 /** The instance offers no library root, so nothing could be composed to send. */
 export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
-  "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.";
+  "Whisparr has no root folder. Add one there and try again.";
 
 /** The folder this entity's own files sit in has no agreed Whisparr spelling. */
 export const NO_AGREED_ROOT_FOR_THIS_ENTITY =
-  "Cove and Whisparr have not agreed where this entity's files are, so nothing was sent. Settle that folder on the settings page.";
+  "Cove doesn't know where Whisparr keeps this folder. Settle it on the settings page.";
 
 /** The instance answered and declined. */
 export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 
 /** The instance answered, and the answer was past what this extension reads at once. */
 export const INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ =
-  "Whisparr answered correctly, with more than this extension reads at once. Reload the page for its current state.";
+  "Whisparr's answer was too large to read. Reload for its current state.";
 
 /** The instance answered, and holds no such entry. */
 export const INSTANCE_HOLDS_NO_SUCH_ENTRY =
-  "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.";
+  "Whisparr no longer holds this. Reload for its current state.";
 
 /** The change was accepted, and the read taken straight after it does not report it. */
 export const INSTANCE_DID_NOT_REPORT_THE_CHANGE =
-  "Whisparr accepted the change but does not report it. Reload the page for its current state.";
+  "Whisparr took the change but doesn't report it. Reload for its current state.";
 
 /** The version-gap sentence, for a capability the connected generation does not have. */
 export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whisparr v3 (Eros)";
@@ -199,8 +197,7 @@ export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whispa
  * A search asked for on an entity Whisparr does not hold. A true statement, not a failure, so it
  * renders differently from a failed request.
  */
-export const SEARCH_WITH_NO_ENTRY =
-  "Whisparr has no entry for this scene yet, so there is nothing to search for - monitor it first.";
+export const SEARCH_WITH_NO_ENTRY = "Add this to Whisparr and monitor it before searching.";
 
 /** The product's own name, drawn beside the state chip in the scene tab's header. */
 export const SCENE_HEADER_WHISPARR = "Whisparr";
@@ -235,24 +232,21 @@ export const SCENE_EXCLUDE = "Exclude from Whisparr";
 export const SCENE_REMOVE_EXCLUSION = "Remove exclusion";
 
 /** A search asked for on a scene the instance holds no entry for, on the scene's own tab. */
-export const SCENE_SEARCH_NEEDS_AN_ENTRY =
-  "Whisparr has no entry for this scene, so there is nothing to search for. Add it first.";
+export const SCENE_SEARCH_NEEDS_AN_ENTRY = "Add this to Whisparr before searching for it.";
 
 /** The monitor control's own no-entry sentence, which names monitoring rather than searching. */
-export const SCENE_MONITOR_NEEDS_AN_ENTRY =
-  "Whisparr has no entry for this scene, so there is nothing to monitor. Add it first.";
+export const SCENE_MONITOR_NEEDS_AN_ENTRY = "Add this to Whisparr before monitoring it.";
 
 /** A search asked for on a scene the instance holds and is not monitoring. */
 export const SCENE_SEARCH_NEEDS_MONITORING =
-  "Whisparr only looks for a scene it is monitoring, so nothing was sent. Monitor it first.";
+  "Whisparr only searches for scenes it monitors. Monitor this one first.";
 
 /** The add control's reason once the instance holds the scene. */
-export const SCENE_IS_ALREADY_IN_WHISPARR =
-  "Whisparr already holds this scene, so there is nothing to add.";
+export const SCENE_IS_ALREADY_IN_WHISPARR = "Whisparr already holds this scene.";
 
 /** Why the other three controls are unavailable on an excluded scene. */
 export const SCENE_IS_ON_THE_EXCLUSION_LIST =
-  "This scene is on Whisparr's exclusion list, so Whisparr will not act on it. Remove the exclusion first.";
+  "This scene is excluded in Whisparr. Remove the exclusion first.";
 
 /** What confirms a search, read back off the instance by the command's own id. */
 export const SCENE_SEARCH_IS_WITH_WHISPARR =
@@ -272,7 +266,7 @@ export const THE_METADATA_SOURCE = "your metadata source";
 
 /** A missing-check whose provider did not answer. */
 export const PROVIDER_UNREACHABLE =
-  "Couldn't reach {provider} to check what's missing for {entity}. This isn't the same as owning everything - try again shortly.";
+  "Couldn't reach {provider} to check what's missing. Try again shortly.";
 
 /** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
@@ -283,15 +277,15 @@ export const EVERY_SCENE_ON_THIS_PAGE_IS_OWNED =
 
 /** A parent studio read without its sub-studios, which the provider attributes every scene to. */
 export const NO_SCENES_WITHOUT_SUB_STUDIOS =
-  "{provider} lists this studio's scenes under its sub-studios. Turn on “Include sub-studio content” above to see them.";
+  "{provider} lists these scenes under sub-studios. Turn on “Include sub-studio content” above.";
 
 /** Cove names no metadata source, so there is nothing to read a catalogue from. */
 export const NO_METADATA_PROVIDER_CONFIGURED =
-  "Set up a {provider} metadata source in Cove (Settings → Scraping → Metadata servers) to discover {entity}'s catalogue.";
+  "Set up a {provider} source under Settings → Scraping → Metadata servers.";
 
 /** The entity carries no identifier the provider issued, and its name matched nothing exactly. */
 export const NO_PROVIDER_ID_FOR_ENTITY =
-  "No {provider} id for {entity}, so Whisparr cannot be told which entity this is. Identify it in Cove first.";
+  "No {provider} id for {entity}. Identify it in Cove first.";
 
 /**
  * Whisparr holds no entry for the entity, so it lists no scenes under it. The surface offers the
@@ -302,7 +296,7 @@ export const ENTITY_NOT_IN_WHISPARR =
 
 /** What the add offered beside that sentence does, stated before it is pressed. */
 export const ADD_TO_WHISPARR_TRACKS_ONLY =
-  "Adding it lets Whisparr list every scene it knows of. Nothing is monitored and nothing is downloaded until you say so.";
+  "Whisparr will then list every scene it knows of. Nothing is monitored or downloaded until you say so.";
 
 /** The control that adds the entity for its catalogue alone. */
 export const ADD_TO_WHISPARR = "Add to Whisparr";
@@ -312,15 +306,14 @@ export const ADDING_TO_WHISPARR = "Adding...";
 
 /** The instance was asked for the entity's scenes and nothing whole arrived. */
 export const WHISPARR_CATALOGUE_NOT_READ =
-  "Cove could not read what Whisparr lists for {entity}. That is not the same as Whisparr listing nothing - try again shortly.";
+  "Couldn't read what Whisparr lists for {entity}. Try again shortly.";
 
 /** The connected generation addresses no entity of this kind, so it can track none. */
-export const WHISPARR_CANNOT_TRACK_THIS_KIND =
-  "The connected Whisparr does not hold entries of this kind, so it cannot list scenes for {entity}.";
+export const WHISPARR_CANNOT_TRACK_THIS_KIND = "This Whisparr doesn't hold entries of this kind.";
 
 /** The instance declares no profile or no root, so no add could be composed. */
 export const WHISPARR_HOLDS_NO_ADD_DEFAULTS =
-  "Whisparr declares no quality profile or no library root, so nothing could be added. Set both in Whisparr first.";
+  "Whisparr has no quality profile or library root. Set both in Whisparr first.";
 
 /** The add was sent and did not take, said on the control that sent it. */
 export const ADD_TO_WHISPARR_DID_NOT_TAKE =
@@ -335,11 +328,11 @@ export const NO_SCENES_MATCH_THESE_FILTERS =
 
 /** The catalogue was read and Whisparr was not. */
 export const WHISPARR_STATUS_NOT_READ =
-  "Cove could not reach Whisparr, so it could not read a status for these. The catalogue below is still complete.";
+  "Couldn't reach Whisparr, so these have no status. The catalogue is still complete.";
 
 /** The connected Whisparr holds no per-scene records at all. */
 export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
-  "The connected Whisparr keeps no per-scene records, so Cove cannot read a status for these. The catalogue below is still complete.";
+  "This Whisparr keeps no per-scene records, so these have no status. The catalogue is still complete.";
 
 /**
  * What a surface says while a run this browser started is still working through something.
@@ -572,7 +565,7 @@ export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and would not take 
 
 /** A download that landed in the folders Cove keeps for Whisparr and could not be moved on. */
 export const IMPORT_CAUSE_NOT_PLACED =
-  "Cove could not give this downloaded file a place in your library, so it was left where Whisparr put it.";
+  "Cove couldn't place this file in your library, so it stayed where Whisparr put it.";
 
 /** One Whisparr root folder's outstanding refusals. */
 export function importRefusalsUnderRootSentence(root: string, count: number): string {
@@ -597,7 +590,7 @@ export const FOLDER_AGREEMENT_TITLE = "Where Whisparr holds your folders";
 
 /** What the section is for, and which folders reach it. */
 export const FOLDER_AGREEMENT_DESCRIPTION =
-  "Whisparr reaches your files at paths of its own, and Cove works each one out by asking it what it holds. Listed here are the folders it could not settle, and the ones you set a path for.";
+  "Whisparr reaches your files at its own paths. Listed here are the folders Cove couldn't work out, and the ones you set.";
 
 /** The read behind the section failed, so which folders are listed is not known. */
 export const FOLDER_AGREEMENT_UNREADABLE = "Cove could not read where Whisparr holds your folders.";
@@ -638,7 +631,7 @@ export const FOLDER_NOTHING_RESOLVED =
 
 /** Several candidates held one, so which of them the folder means was not settled. */
 export const FOLDER_MORE_THAN_ONE_RESOLVED =
-  "More than one of the paths Cove asked about holds the file, and the two cannot be told apart. Stating the path settles it.";
+  "Several paths hold the file and Cove can't tell them apart. State the path to settle it.";
 
 /** The instance declares no folder of its own to rebuild a path under. */
 export const FOLDER_INSTANCE_DECLARES_NO_ROOT =
@@ -650,7 +643,7 @@ export const FOLDER_NO_FILE_TO_PROBE_WITH =
 
 /** The instance was asked and its answer could not be read, which is not an answer of no. */
 export const FOLDER_PROBE_COULD_NOT_BE_READ =
-  "Cove asked Whisparr about this folder and could not read the answer, which is not the same as Whisparr holding nothing.";
+  "Whisparr did not answer when Cove asked about this folder.";
 
 /** The connected instance offers no way to ask what it holds. */
 export const FOLDER_INSTANCE_CANNOT_BE_ASKED =
@@ -784,7 +777,7 @@ export const CALLBACK_REGISTERED_AND_DELIVERING =
  * and the host's own trusted-host list, so this is a warning rather than a refusal.
  */
 export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
-  "Registering may sign you out. Sign-in is off here, and the call Whisparr makes to check the address switches it on if it arrives from another machine. Set a password under Security & Access first.";
+  "Registering may sign you out: Whisparr's check call arrives from another machine, which switches sign-in on. Set a password under Security & Access first.";
 
 /** Why the register control cannot be pressed while the one already asked for is unanswered. */
 export const REGISTRATION_IS_STILL_RUNNING = "This registration is still running.";
@@ -798,7 +791,7 @@ export const NOTHING_TO_REGISTER = "There is no callback address to register.";
  * There is no dismiss control. The note goes when the fact goes.
  */
 export const LESS_PRIVATE_FORM_NOTE =
-  "Imports are arriving with the callback secret in the address, where proxies and load balancers record it. Registering again from here moves it out of the address.";
+  "The callback secret is travelling in the address, where proxies can log it. Register again here to move it out.";
 
 /** Why a registration could not be attempted: the address is stored empty. */
 export const REGISTER_NEEDS_A_SAVED_ADDRESS =
@@ -826,11 +819,11 @@ export const UPGRADE_KEEP_ONLY_THE_NEW_FILE = "Keep only the new file";
 
 /** What the default upgrade behaviour does, in the terms the reader sees the result in. */
 export const UPGRADE_KEEPS_BOTH_FILES =
-  "The new file joins the scene you already have, and Cove lists both until its own scan notices the old one is gone. Nothing is removed from disk.";
+  "Both files stay, until Cove's next scan notices the old one is gone. Nothing is removed from disk.";
 
 /** What the other upgrade behaviour does. */
 export const UPGRADE_DROPS_THE_SUPERSEDED_FILE =
-  "The new file joins the scene you already have and the file it replaces is dropped from it. That file stays on disk, for Whisparr to remove.";
+  "The new file replaces the old one in the scene. The old file stays on disk for Whisparr to remove.";
 
 /** No address or key was entered, so nothing was tried. Names the settings that would fix it. */
 export const CONNECT_NOT_CONFIGURED =
@@ -1113,7 +1106,7 @@ export const SYNC_NO_FILE_RECORDED = "Of those, with no file recorded";
 
 /** What the skipped row means, and what a reader can do about it. */
 export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
-  "A scene with no metadata id cannot be registered. Identify more of your library and count again.";
+  "A scene needs a metadata id to register. Identify more of your library and count again.";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
@@ -1121,8 +1114,7 @@ export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
  * @see SYNC_SKIPPED_CANNOT_BE_REGISTERED
  */
 export const SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED =
-  "A studio cannot be registered where your library carries no metadata id for it, or where the " +
-  "metadata source names no site for that id. Identify more of your library and count again.";
+  "A studio needs a metadata id, and the source must name a site for it. Identify more of your library and count again.";
 
 /**
  * When the figures above were taken, and what to do about the ones the run skips.
@@ -1152,8 +1144,7 @@ export const SYNC_LIBRARY = "Sync library to Whisparr";
 
 /** What the sync card offers, stated under its title. */
 export const SYNC_REGISTERS_THE_SCENES_YOU_OWN =
-  "Register the scenes you already own, so Whisparr knows about them, " +
-  "and link the files you own to what it holds.";
+  "Tell Whisparr about the scenes you already own, and link your files to what it holds.";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
@@ -1186,8 +1177,7 @@ export const SYNC_SITE_NEEDS_A_COUNT_FIRST =
  * they could not press.
  */
 export const SYNC_NOTHING_LEFT_TO_SYNC =
-  "Whisparr already holds every scene in your library that carries a metadata id, and records a " +
-  "file for each of them.";
+  "Whisparr already holds every identified scene in your library, with a file for each.";
 
 /** Why nothing on the sync side can act while a run is in flight. Points at the progress surface. */
 export const SYNC_ALREADY_RUNNING =
@@ -1201,24 +1191,24 @@ export const SYNC_RUNS_IN_THE_JOB_DRAWER =
   "This runs in the background. Its progress appears in Cove's job list.";
 
 /** The reason the confirmation exists, stated at every size. */
-export const SYNC_DOWNLOADS_NOTHING = "Registering a scene in Whisparr downloads nothing.";
+export const SYNC_DOWNLOADS_NOTHING = "Registering a scene downloads nothing.";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
  *
  * @see SYNC_DOWNLOADS_NOTHING
  */
-export const SYNC_SITE_DOWNLOADS_NOTHING = "Registering a studio in Whisparr downloads nothing.";
+export const SYNC_SITE_DOWNLOADS_NOTHING = "Registering a studio downloads nothing.";
 
 /** What the confirmation covers where the run offers one scene. */
-export const SYNC_OFFERS_ONE_SCENE = "This offers the 1 scene you own to Whisparr";
+export const SYNC_OFFERS_ONE_SCENE = "Offers 1 scene to Whisparr";
 
 /**
  * The same, where the run registers the studios a library covers rather than its scenes.
  *
  * @see SYNC_OFFERS_ONE_SCENE
  */
-export const SYNC_OFFERS_ONE_SITE = "This offers the 1 studio in your library to Whisparr";
+export const SYNC_OFFERS_ONE_SITE = "Offers 1 studio to Whisparr";
 
 /**
  * What the confirmation covers at any size but one.
@@ -1226,7 +1216,7 @@ export const SYNC_OFFERS_ONE_SITE = "This offers the 1 studio in your library to
  * @param grouped the figure, already grouped, so this module stays free of a number format
  */
 export function syncOffersScenes(grouped: string): string {
-  return `This offers all ${grouped} scenes you own to Whisparr`;
+  return `Offers ${grouped} scenes to Whisparr`;
 }
 
 /**
@@ -1236,7 +1226,7 @@ export function syncOffersScenes(grouped: string): string {
  * @see syncOffersScenes
  */
 export function syncOffersSites(grouped: string): string {
-  return `This offers all ${grouped} studios in your library to Whisparr`;
+  return `Offers ${grouped} studios to Whisparr`;
 }
 
 /**
@@ -1245,7 +1235,7 @@ export function syncOffersSites(grouped: string): string {
  * Follows what the run covers rather than standing alone, so it opens on a comma. Names no noun,
  * so one declaration serves whichever the run registers.
  */
-export const SYNC_SKIPS_ONE = ", and skips 1 that cannot be registered";
+export const SYNC_SKIPS_ONE = ", skipping 1 it can't identify";
 
 /**
  * The same at any other size.
@@ -1254,7 +1244,7 @@ export const SYNC_SKIPS_ONE = ", and skips 1 that cannot be registered";
  * @see SYNC_SKIPS_ONE
  */
 export function syncSkipsMany(grouped: string): string {
-  return `, and skips ${grouped} that cannot be registered`;
+  return `, skipping ${grouped} it can't identify`;
 }
 
 /**
@@ -1269,21 +1259,21 @@ export function syncSkipsMany(grouped: string): string {
  * @param grouped the figure, already grouped
  */
 export function syncStillToHandOver(grouped: string): string {
-  return `Whisparr holds ${grouped} with no file recorded yet.`;
+  return `${grouped} of those have no file in Whisparr yet.`;
 }
 
 /** What the monitor choice adds to the run, where the run registers scenes. */
-export const SYNC_ALSO_MONITORS_EACH = "It also marks each of them monitored.";
+export const SYNC_ALSO_MONITORS_EACH = "Each is marked monitored.";
 
 /**
  * What the monitor choice adds to the run where it registers studios: the scenes the reader owns on
  * each of them, which is what gets marked there rather than the studios themselves.
  */
 export const SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM =
-  "It also marks the scenes you own on them monitored.";
+  "The scenes you own on them are marked monitored.";
 
 /** What the run does about monitoring with the choice off, whatever it registers. */
-export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
+export const SYNC_MONITORS_NOTHING = "Nothing is monitored.";
 
 /**
  * What the run does with the files after it has registered, on the generation whose run links.
@@ -1295,8 +1285,7 @@ export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
  * own ending names each entry it left alone.
  */
 export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
-  "It then links each file you own into the folder Whisparr keeps for it, using no extra disk. " +
-  "This needs Whisparr's hard-link setting on and its renaming off.";
+  "Your files are then linked into Whisparr's folders, using no extra disk. Needs its hard links on and renaming off.";
 
 /**
  * What the run does with the files after it has registered, on the generation that builds the
@@ -1307,7 +1296,7 @@ export const SYNC_ALSO_LINKS_WHAT_YOU_OWN =
  * linking has, so the settings are named on that half alone.
  */
 export const SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN =
-  "It then gives each one a folder holding a second name for every file you own, which costs no extra disk and moves nothing. Handing those folders to Whisparr needs its hard-link setting on and its renaming off.";
+  "Each then gets a folder of second names for your files, costing no disk and moving nothing. Handing those over needs Whisparr's hard links on and renaming off.";
 
 /** An age under a minute, which every surface that states one reads the same way. */
 export const JUST_NOW = "just now";
