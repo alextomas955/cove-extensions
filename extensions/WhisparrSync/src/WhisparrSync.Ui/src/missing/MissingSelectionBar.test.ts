@@ -6,6 +6,7 @@ import { expect, test, vi } from "vitest";
 import { createElement } from "react";
 
 import { render } from "../common/lib/testRender";
+import { SELECTION_MONITOR, SELECTION_UNMONITOR } from "../common/ui/copy";
 import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -51,17 +52,19 @@ async function tableMark(verb: "monitor" | "unmonitor"): Promise<string> {
 test("the bar draws the monitor verb's own mark", async () => {
   const bar = await barWithOneTicked();
 
-  expect(markIn(verbNamed(bar, "Monitor"))).toBe(await tableMark("monitor"));
+  expect(markIn(verbNamed(bar, SELECTION_MONITOR))).toBe(await tableMark("monitor"));
 });
 
 test("the bar draws the unmonitor verb's own mark", async () => {
   const bar = await barWithOneTicked();
 
-  expect(markIn(verbNamed(bar, "Unmonitor"))).toBe(await tableMark("unmonitor"));
+  expect(markIn(verbNamed(bar, SELECTION_UNMONITOR))).toBe(await tableMark("unmonitor"));
 });
 
 test("the bar's two verbs are not the same mark", async () => {
   const bar = await barWithOneTicked();
 
-  expect(markIn(verbNamed(bar, "Monitor"))).not.toBe(markIn(verbNamed(bar, "Unmonitor")));
+  expect(markIn(verbNamed(bar, SELECTION_MONITOR))).not.toBe(
+    markIn(verbNamed(bar, SELECTION_UNMONITOR)),
+  );
 });
