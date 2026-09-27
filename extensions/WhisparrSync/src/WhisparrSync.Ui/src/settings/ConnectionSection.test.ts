@@ -3,6 +3,18 @@ import { expect, test } from "vitest";
 import { createElement } from "react";
 
 import { press, render } from "../common/lib/testRender";
+import {
+  CONNECT_ADDRESS,
+  CONNECT_API_KEY,
+  CONNECT_GENERATION,
+  CONNECT_TEST,
+  CONNECT_TESTING,
+  GENERATION_SELECTED,
+  KEY_IS_SET,
+  KEY_WILL_BE_REMOVED_ON_SAVE,
+  NEW_KEY_WILL_BE_SAVED,
+  selectGenerationName,
+} from "../common/ui/copy";
 import type { WhisparrSyncGenerationSettingsView, WhisparrSyncSettingsView } from "../wire/api";
 import { ConnectionSection } from "./ConnectionSection";
 import type { CardGeneration, TransientTest } from "./connectLogic";
@@ -77,13 +89,13 @@ test("the section says which generation the form is editing, and offers the othe
   );
 
   const marked = [...host.querySelectorAll(".grid > *")].filter((option) =>
-    option.textContent.includes("Selected"),
+    option.textContent.includes(GENERATION_SELECTED),
   );
   expect(marked, "the section marks no generation as the selected one").toHaveLength(1);
   expect(marked[0].textContent).toContain("Whisparr v3 (Eros)");
 
   const select = [...host.querySelectorAll("button")].filter((button) =>
-    button.textContent.startsWith("Select "),
+    button.textContent.startsWith(selectGenerationName("")),
   );
   expect(select, "the section offers no control that selects the other generation").toHaveLength(1);
   await press(select[0]);
@@ -93,7 +105,7 @@ test("the section says which generation the form is editing, and offers the othe
 test("every field label in the section is an uppercase mono micro-label", async () => {
   const host = await render(section({}));
 
-  for (const text of ["Whisparr generation", "Whisparr address", "API key"]) {
+  for (const text of [CONNECT_GENERATION, CONNECT_ADDRESS, CONNECT_API_KEY]) {
     const label = [...host.querySelectorAll("span")].find((span) => span.textContent === text);
     expect(label, `the section draws no label reading ${text}`).toBeDefined();
     expect([...(label?.classList ?? [])], `${text} is not drawn as a mono micro-label`).toEqual(
@@ -130,7 +142,7 @@ test("a pressed control reads as busy and cannot be pressed again", async () => 
   ).not.toBeNull();
 
   const pressed = busy?.querySelector("button");
-  expect(pressed?.textContent).toContain("Testing");
+  expect(pressed?.textContent).toContain(CONNECT_TESTING);
   expect(pressed?.disabled, "the control could be pressed a second time while in flight").toBe(
     true,
   );
@@ -144,7 +156,7 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   const grid = set.querySelector(".grid");
   const pill = [...set.querySelectorAll("span")].filter(
     (span) =>
-      span.textContent === "Key is set" &&
+      span.textContent === KEY_IS_SET &&
       // The innermost span carrying the wording: the pill holds a glyph, and the span positioning
       // it reports the same text.
       span.querySelector("span") === null &&
@@ -166,11 +178,11 @@ test("what the next save will do to the key is stated apart from what is stored"
   const cleared = await render(section({ draft: { ...NO_DRAFT, keyCleared: true } }));
 
   // The stored state stays on the field whichever the draft holds; the intent is the extra line.
-  expect(typed.textContent).toContain("Key is set");
-  expect(typed.textContent).toContain("New key will be saved");
+  expect(typed.textContent).toContain(KEY_IS_SET);
+  expect(typed.textContent).toContain(NEW_KEY_WILL_BE_SAVED);
 
-  expect(cleared.textContent).toContain("Key will be removed when you save");
-  expect(cleared.textContent).not.toContain("New key will be saved");
+  expect(cleared.textContent).toContain(KEY_WILL_BE_REMOVED_ON_SAVE);
+  expect(cleared.textContent).not.toContain(NEW_KEY_WILL_BE_SAVED);
 });
 
 test("the section offers one accent control, and it is the test", async () => {
@@ -181,7 +193,7 @@ test("the section offers one accent control, and it is the test", async () => {
   const accent = buttons.filter((button) => button.className.split(" ").includes("bg-accent"));
   expect(accent, "the section draws more than one accent control").toHaveLength(1);
   expect(
-    accent[0].textContent.startsWith("Test connection"),
+    accent[0].textContent.startsWith(CONNECT_TEST),
     "the section's accent control is something other than the test",
   ).toBe(true);
 });
