@@ -93,9 +93,13 @@ export function useSettingsDraft(reload: () => void): UseSettingsDraft {
       .then((result) => {
         if (token !== issued.current) return;
         store.answered(address, result);
-        // Only a test against the stored address records a version. Re-read it rather than derive
-        // it here, because what was written is the server's answer.
-        if (asksAboutStored) read();
+        // Only a test against the stored address records a version, and it is also the only call
+        // that re-reads the callback registration off the instance. Re-read both rather than derive
+        // them here, because what was written is the server's answer.
+        if (asksAboutStored) {
+          read();
+          announceConnectionChanged();
+        }
       })
       .catch((err: unknown) => {
         if (token !== issued.current) return;

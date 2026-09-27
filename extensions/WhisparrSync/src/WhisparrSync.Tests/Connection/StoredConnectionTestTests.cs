@@ -208,7 +208,13 @@ public sealed class StoredConnectionTestTests
             gate,
             CallbackSecretPosition.OutOfBand);
 
-        var view = await new ConnectionTestRunner(tester, options, gate, KeyPort(), new FixedClock(Now))
+        var view = await new ConnectionTestRunner(
+                tester,
+                options,
+                gate,
+                KeyPort(),
+                ReadingNotificationPort.Answering(RegistrationStatus.Registered),
+                new FixedClock(Now))
             .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
@@ -259,6 +265,79 @@ public sealed class StoredConnectionTestTests
         Assert.Equal("Radarr", ordinary.OtherApplication);
     }
 
+    // The instance is the only thing that says whether it still holds the registration, and a reset
+    // or a hand-deleted connection leaves the stored answer saying it does. The page's own load asks
+    // nothing on purpose, so this gesture is where the correction has to happen; without it the user
+    // is told imports are arriving while none can.
+    [Fact]
+    public async Task AStoredTestRecordsThatTheInstanceNoLongerHoldsTheRegistration()
+    {
+        var options = await SeededAsync(
+            "3.3.8.1097", Verified, Verified, registration: RegistrationStatus.Registered);
+        var notifications = ReadingNotificationPort.Answering(RegistrationStatus.NotRegistered);
+
+        await NewRunner(RecordingConnectionTester.Connected("3.3.8.1097"), options, KeyPort(), notifications)
+            .TestStoredAsync(TestCt);
+
+        Assert.Equal(WhisparrGeneration.V3, Assert.Single(notifications.Reads));
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(RegistrationStatus.NotRegistered, stored.CallbackRegistration);
+    }
+
+    [Fact]
+    public async Task AStoredTestRecordsARegistrationTheInstanceHolds()
+    {
+        var options = await SeededAsync(null, null, null);
+
+        await NewRunner(
+                RecordingConnectionTester.Connected("3.3.8.1097"),
+                options,
+                KeyPort(),
+                ReadingNotificationPort.Answering(RegistrationStatus.Registered))
+            .TestStoredAsync(TestCt);
+
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(RegistrationStatus.Registered, stored.CallbackRegistration);
+    }
+
+    // An instance that turned the key down was reached but answered no list, so it says nothing
+    // about the registration and the last answer stands.
+    [Fact]
+    public async Task ARejectedKeyLeavesTheRegistrationReadingAlone()
+    {
+        var options = await SeededAsync(
+            "3.3.8.1097", Verified, Verified, registration: RegistrationStatus.Registered);
+        var notifications = ReadingNotificationPort.Answering(RegistrationStatus.NotRegistered);
+
+        await NewRunner(RecordingConnectionTester.KeyRejected(), options, KeyPort(), notifications)
+            .TestStoredAsync(TestCt);
+
+        Assert.Empty(notifications.Reads);
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(RegistrationStatus.Registered, stored.CallbackRegistration);
+    }
+
+    // A reading that did not arrive settles nothing, and must not turn a connection the instance
+    // answered into a failed test.
+    [Fact]
+    public async Task AReadingThatDidNotArriveLeavesTheStatusAndTheTestAlone()
+    {
+        var options = await SeededAsync(
+            null, null, null, registration: RegistrationStatus.Registered);
+
+        var view = await NewRunner(
+                RecordingConnectionTester.Connected("3.3.8.1097"),
+                options,
+                KeyPort(),
+                ReadingNotificationPort.Unreachable())
+            .TestStoredAsync(TestCt);
+
+        Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(RegistrationStatus.Registered, stored.CallbackRegistration);
+        Assert.Equal("3.3.8.1097", stored.RecordedVersion);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // Driven through the real tester over the recording client seam, so the projection under test
@@ -281,8 +360,17 @@ public sealed class StoredConnectionTestTests
     }
 
     private static ConnectionTestRunner NewRunner(
-        IWhisparrConnectionTester tester, OptionsStore options, ICredentialPort credentials)
-        => new(tester, options, new OptionsWriteGate(), credentials, new FixedClock(Now));
+        IWhisparrConnectionTester tester,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrNotificationPort? notifications = null)
+        => new(
+            tester,
+            options,
+            new OptionsWriteGate(),
+            credentials,
+            notifications ?? ReadingNotificationPort.Answering(RegistrationStatus.Registered),
+            new FixedClock(Now));
 
     private static RecordingCredentialPort KeyPort()
         => new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);
@@ -306,7 +394,8 @@ public sealed class StoredConnectionTestTests
         string? recordedVersion,
         DateTimeOffset? verifiedAt,
         DateTimeOffset? lastReachableAt,
-        string address = StoredAddress)
+        string address = StoredAddress,
+        RegistrationStatus registration = RegistrationStatus.NotCheckedYet)
     {
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
@@ -319,6 +408,7 @@ public sealed class StoredConnectionTestTests
                     RecordedVersion = recordedVersion,
                     VersionVerifiedAtUtc = verifiedAt,
                     LastReachableAtUtc = lastReachableAt,
+                    CallbackRegistration = registration,
                 },
             },
             TestCt);
