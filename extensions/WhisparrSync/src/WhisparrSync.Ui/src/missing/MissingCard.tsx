@@ -20,6 +20,8 @@ import { VERB_GLYPH } from "../common/ui/verbGlyphs";
 import { StateChip } from "../common/ui/StateChip";
 import { WorkingChip } from "../common/ui/WorkingChip";
 import {
+  MISSING_DESELECT_SCENE,
+  MISSING_SELECT_SCENE,
   monitorSceneName,
   nameWhileWaiting,
   openSceneName,
@@ -54,9 +56,6 @@ const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
 
 const ACTION_CLASS = `inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-secondary transition-colors hover:border-accent hover:text-foreground ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-60`;
 const GLYPH_CLASS = "h-3.5 w-3.5";
-
-const SELECT_LABEL = "Select scene";
-const DESELECT_LABEL = "Deselect scene";
 
 // Inline because the host's Tailwind JIT never scans this bundle, so an arbitrary-value width
 // class would contribute no declaration at all.
@@ -292,7 +291,7 @@ function SelectionToggle({
     <button
       type="button"
       aria-pressed={selected}
-      aria-label={selected ? DESELECT_LABEL : SELECT_LABEL}
+      aria-label={selected ? MISSING_DESELECT_SCENE : MISSING_SELECT_SCENE}
       onClick={(event) => {
         onToggleSelect({ range: event.shiftKey });
       }}

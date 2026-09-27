@@ -5,10 +5,9 @@
  * set the provider will actually serve. A provider that reports a total past its last servable page
  * would otherwise offer pages that silently repeat the last one.
  */
+import { MISSING_PAGES } from "../common/ui/copy";
 import { DetailListPagination } from "./hostComponents";
 import { clampToReachable, pagerTotalFor } from "./missingPageLogic";
-
-const PAGER_LABEL = "Missing scenes pages";
 
 export function MissingPager({
   page,
@@ -30,7 +29,7 @@ export function MissingPager({
         onPage(clampToReachable(filter.page ?? 1, bounds));
       }}
       totalCount={pagerTotalFor(bounds)}
-      ariaLabel={PAGER_LABEL}
+      ariaLabel={MISSING_PAGES}
     />
   );
 }
