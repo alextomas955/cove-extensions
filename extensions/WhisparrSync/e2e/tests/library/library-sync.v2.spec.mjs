@@ -174,18 +174,17 @@ test("a library sync monitors the scenes the reader owns under a site on Cove's 
     skipped: "0",
   });
 
-  // The decoupling, observed: with the choice off there is nothing left for a run to register, and
-  // the run below therefore has work to do only because monitoring was asked for.
+  // Nothing is left for a run to register here, and the control is still offered. What the instance
+  // publishes per site is whether it recorded any file at all, never how many of that site's files
+  // are still to hand over, so closing the control on that figure would read as done while files
+  // were outstanding.
   await expect(
     syncControl(page),
-    "the sync control offered a run over a library the instance already holds in full",
-  ).toBeDisabled();
-
-  await page.getByRole("switch", { name: ALSO_MONITOR, exact: true }).click();
-  await expect(
-    syncControl(page),
-    "the monitor choice left the sync control unavailable",
+    "the sync control closed on a site figure that cannot see an outstanding file",
   ).toBeEnabled();
+
+  // The decoupling, observed: the run below reaches a scene only because monitoring was asked for.
+  await page.getByRole("switch", { name: ALSO_MONITOR, exact: true }).click();
 
   const reported = await syncAndWait(page, api);
 

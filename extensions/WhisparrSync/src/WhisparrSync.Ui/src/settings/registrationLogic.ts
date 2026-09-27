@@ -73,14 +73,17 @@ export function describeRegistration(view: CallbackView): RegistrationDescriptio
 /**
  * What this Cove may do to itself when Whisparr calls the address.
  *
- * Said before the gesture, not after it. Whisparr checks a webhook by posting to it. A Cove holding
- * an owner account while sign-in is off can read that call as an instance reachable from outside
- * its own machine: it turns sign-in on, keeps it on, and signs out the person configuring this.
- * Whether it does depends on the address, where the call comes from and the host's own trusted-host
- * list, so this is a warning rather than a refusal.
+ * Said before the gesture, not after it, and it opens on what the reader would lose rather than on
+ * the mechanism: a warning nobody reaches the end of warns nobody. Whisparr checks a webhook by
+ * posting to it. A Cove holding an owner account while sign-in is off can read that call as an
+ * instance reachable from outside its own machine: it turns sign-in on, keeps it on, and signs out
+ * the person configuring this. Whether it does depends on the address, where the call comes from
+ * and the host's own trusted-host list, so this is a warning rather than a refusal.
  */
 export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
-  "Sign-in is off for this Cove. Whisparr checks the address by calling it, and if that call reaches Cove from outside this machine, Cove protects itself by turning sign-in on and will sign you out. Set a password under Security & Access first if you want to avoid that.";
+  "Registering may sign you out. Sign-in is off here, and Whisparr checks the address by calling " +
+  "it. A call arriving from outside this machine makes Cove switch sign-in on. Set a password " +
+  "under Security & Access first to avoid that.";
 
 /**
  * Whether the callback can be registered at all, or a sentence saying why not.

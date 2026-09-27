@@ -61,7 +61,7 @@ export function ImportWebhookSection({
         <Field
           label="Callback address"
           labelStyle="mono"
-          helper="Correct the scheme, host, port or path prefix if Whisparr reaches Cove somewhere other than you do. The rest is Cove's own."
+          helper="Change the address only if Whisparr reaches Cove somewhere other than you do. Leave the rest as it is."
         >
           {(id) => <TextInput id={id} value={address} onChange={onAddressChange} mono />}
         </Field>
