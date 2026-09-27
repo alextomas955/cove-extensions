@@ -4,6 +4,7 @@ import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { MissingCard as MissingCardView, MissingSceneState } from "../wire/api";
+import { MISSING_DESELECT_SCENE, MISSING_SELECT_SCENE } from "../common/ui/copy";
 import type { CardActionState } from "./missingCardLogic";
 
 // The shared primitives stand in, because their `react` and `lucide-react` imports resolve only
@@ -232,13 +233,13 @@ test("a description from the source is drawn as text, never as markup", async ()
 
 test("the selection control names the gesture it offers, and is absent where none is", async () => {
   const withNone = await mountCard();
-  expect(named(withNone, "Select scene")).toBeUndefined();
+  expect(named(withNone, MISSING_SELECT_SCENE)).toBeUndefined();
 
   const offered = await mountCard({}, { onToggleSelect: () => undefined });
-  expect(named(offered, "Select scene")).toBeDefined();
+  expect(named(offered, MISSING_SELECT_SCENE)).toBeDefined();
 
   const ticked = await mountCard({}, { onToggleSelect: () => undefined, selected: true });
-  const control = named(ticked, "Deselect scene");
+  const control = named(ticked, MISSING_DESELECT_SCENE);
   expect(control?.getAttribute("aria-pressed")).toBe("true");
 });
 

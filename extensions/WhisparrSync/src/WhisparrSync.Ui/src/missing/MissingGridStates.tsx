@@ -9,6 +9,8 @@ import {
   ADDING_TO_WHISPARR,
   ADD_TO_WHISPARR,
   ADD_TO_WHISPARR_TRACKS_ONLY,
+  MISSING_CLEAR_FILTERS,
+  MISSING_CLEAR_SEARCH,
 } from "../common/ui/copy";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { describeGridState, type MissingGridStateKind } from "./missingStatesLogic";
@@ -24,9 +26,6 @@ export interface MissingGridStateActions {
   /** What the add answered, or null while it has answered nothing. */
   readonly addRefusal: string | null;
 }
-
-const CLEAR_FILTERS = "Clear filters";
-const CLEAR_SEARCH = "Clear search";
 
 const CONTROL_CLASS =
   "rounded border border-border px-2.5 py-1.5 text-sm text-foreground hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent";
@@ -64,12 +63,12 @@ export function MissingGridStates({
       <div className="flex items-center gap-2">
         {state.clearFiltersIsOffered && actions.onClearFilters !== null ? (
           <button type="button" onClick={actions.onClearFilters} className={CONTROL_CLASS}>
-            {CLEAR_FILTERS}
+            {MISSING_CLEAR_FILTERS}
           </button>
         ) : null}
         {state.clearSearchIsOffered && actions.onClearSearch !== null ? (
           <button type="button" onClick={actions.onClearSearch} className={CONTROL_CLASS}>
-            {CLEAR_SEARCH}
+            {MISSING_CLEAR_SEARCH}
           </button>
         ) : null}
         {state.addIsOffered && actions.onAdd !== null ? (
