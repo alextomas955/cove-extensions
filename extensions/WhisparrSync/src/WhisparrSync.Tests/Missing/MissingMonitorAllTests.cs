@@ -5,6 +5,7 @@ using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Providers;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -96,6 +97,29 @@ public sealed class MissingMonitorAllTests
 
             page++;
         }
+    }
+
+    // The tab's scenes as rows the instance itself holds, which is the set a reader presses Monitor
+    // all over. A scene the id falls to zero for is one the catalogue names no row for.
+    private static void HoldingRows(MonitorHost host, Func<int, int> rowIdAt)
+        => host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+        [
+            .. CatalogueSceneIds().Select(
+                (id, at) => new WhisparrCatalogueScene(
+                    id, id, null, null, null, null, [], [], Monitored: false, HasFile: false,
+                    rowIdAt(at))),
+        ];
+
+    private static List<ActingCall> FlipsIn(MonitorHost host)
+        => [.. host.Client.Acting
+            .Where(call => call.Verb == nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync))];
+
+    private static void AnsweringThePageReads(MonitorHost host)
+    {
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.ReadEntityPresenceAsync), MonitorHost.Json(200, "{}"));
     }
 
     private static async Task<List<string>> RunAndReadOfferedAsync(MonitorHost host)
@@ -226,6 +250,99 @@ public sealed class MissingMonitorAllTests
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
             ],
             host.Client.Verbs.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheRunFlipsTheRowTheInstanceHoldsAndRegistersNothing()
+    {
+        await using var host = await HostOverAsync(PagedCatalogue());
+        HoldingRows(host, at => 900 + at);
+        AnsweringThePageReads(host);
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await MonitorAllAsync(host, "studio", studioId);
+        var offered = await RunAndReadOfferedAsync(host);
+
+        Assert.Equal(Catalogue, FlipsIn(host).Count);
+        Assert.All(FlipsIn(host), call => Assert.True(call.Monitored));
+        Assert.Empty(offered);
+    }
+
+    [Fact]
+    public async Task TheRunRegistersOnlyTheScenesTheCatalogueNamesNoRowFor()
+    {
+        await using var host = await HostOverAsync(PagedCatalogue());
+        HoldingRows(host, at => at % 2 == 0 ? 900 + at : 0);
+        AnsweringThePageReads(host);
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.AddSceneAsync), MonitorHost.Json(200, "{}"));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await MonitorAllAsync(host, "studio", studioId);
+        var offered = await RunAndReadOfferedAsync(host);
+
+        // Ordered for the comparison alone. A page's order is the grid's, which the case above
+        // covers, and this one is about which scene each marker carried.
+        Assert.Equal(
+            CatalogueSceneIds().Where((_, at) => at % 2 != 0).Order(StringComparer.Ordinal),
+            offered.Order(StringComparer.Ordinal));
+        Assert.Equal(
+            CatalogueSceneIds().Where((_, at) => at % 2 == 0).Count(),
+            FlipsIn(host).Count);
+    }
+
+    // A run the instance turned down everywhere is not a completion: reported as one, a reader is
+    // told their gesture landed.
+    [Fact]
+    public async Task ARunTheInstanceRefusedOutrightReportsTheRefusalsAndIsRecordedAsFailed()
+    {
+        var progress = new RecordingJobProgress();
+        await using var host = await HostOverAsync(PagedCatalogue());
+        HoldingRows(host, at => 900 + at);
+        AnsweringThePageReads(host);
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync), MonitorHost.Json(409, "{}"));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await MonitorAllAsync(host, "studio", studioId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => host.RunEnqueuedBatchAsync(progress));
+
+        Assert.Equal(
+            "Nothing was monitored: Whisparr refused all 85.",
+            Assert.Single(progress.Reports).SubTask);
+    }
+
+    // The discriminating control: one marked scene keeps the same run a completion, so the answer
+    // above is about the refusals rather than about the driver.
+    [Fact]
+    public async Task ARunThatMarkedOneSceneIsNotRecordedAsFailed()
+    {
+        var progress = new RecordingJobProgress();
+        await using var host = await HostOverAsync(PagedCatalogue());
+        HoldingRows(host, at => 900 + at);
+        AnsweringThePageReads(host);
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.SetSceneMonitoredAsync),
+            MonitorHost.Json(200, "{}"),
+            MonitorHost.Json(409, "{}"));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await MonitorAllAsync(host, "studio", studioId);
+        await host.RunEnqueuedBatchAsync(progress);
+
+        Assert.Equal(
+            "1 monitored, 0 already monitored, 84 refused.",
+            Assert.Single(progress.Reports).SubTask);
     }
 
     [Fact]

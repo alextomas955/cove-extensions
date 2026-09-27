@@ -106,7 +106,8 @@ public sealed partial class WhisparrSync
     }
 
     // Cancellation is rethrown after the summary is written, so the host classifies the run as
-    // cancelled while the reader is still told what it managed to mark.
+    // cancelled while the reader is still told what it managed to mark. A run the instance refused
+    // outright throws for the same reason, behind the cancellation so a stop stays a stop.
     private async Task RunMissingMonitorAllAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -127,12 +128,21 @@ public sealed partial class WhisparrSync
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
-        progress.Report(1d, MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor));
+        var summary = MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor);
+        progress.Report(1d, summary);
         ct.ThrowIfCancellationRequested();
 
+        if (run.Outcome == MissingBulkRunOutcome.EverythingRefused)
+        {
+            throw new InvalidOperationException(summary);
+        }
+
+        // The scenes come from the entity's own catalogue on the instance, so this run's are
+        // normally ones it already holds a row for and marking one is a flip of that row.
         Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?> AimAsync(
             IServiceProvider services, CancellationToken runCt)
-            => OfferingSceneAddAsync(batch.Kind, batch.CoveId, services, runCt);
+            => ComposeSceneMarkAsync(
+                batch.Kind, batch.CoveId, MissingBulkVerb.Monitor, services, runCt);
 
         Task<MissingPageView?> ReadPageAsync(
             IServiceProvider services,

@@ -124,7 +124,8 @@ public sealed partial class WhisparrSync
             .RunAsync(
                 batch,
                 scopes,
-                (services, runCt) => ComposeSceneMarkAsync(batch, services, runCt),
+                (services, runCt) => ComposeSceneMarkAsync(
+                    batch.Kind, batch.CoveId, batch.Verb, services, runCt),
                 ct)
             .ConfigureAwait(false);
 
@@ -148,13 +149,16 @@ public sealed partial class WhisparrSync
         }
     }
 
-    // Which marker one selection's run uses. Marking is a flip of the row the instance already holds
-    // wherever its catalogue names one, on either generation. The add carries the scenes it names
-    // none of, and only a monitoring run on a generation that registers one has it to carry: a scene
-    // the instance holds no row for was never asked for, so an unmonitoring run leaves it alone.
+    // Which marker one marking run uses, whether its scenes came from a selection or from a whole
+    // catalogue. Marking is a flip of the row the instance already holds wherever its catalogue names
+    // one, on either generation. The add carries the scenes it names none of, and only a monitoring
+    // run on a generation that registers one has it to carry: a scene the instance holds no row for
+    // was never asked for, so an unmonitoring run leaves it alone.
     private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneMarkAsync(
-            MissingBulkBatch batch,
+            WhisparrEntityKind? owningKind,
+            int owningId,
+            MissingBulkVerb verb,
             IServiceProvider services,
             CancellationToken runCt)
     {
@@ -165,15 +169,15 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        var add = batch.Verb == MissingBulkVerb.Monitor
+        var add = verb == MissingBulkVerb.Monitor
             && target.Reads is IWhisparrMissingSceneActing
                 ? Offering(
-                    await ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt)
+                    await ComposeSceneAddAsync(owningKind, owningId, services, runCt)
                         .ConfigureAwait(false))
                 : null;
 
         return await ComposeSceneFlipAsync(
-                batch.Kind, batch.CoveId, batch.Verb, target, services, add, runCt)
+                owningKind, owningId, verb, target, services, add, runCt)
                 .ConfigureAwait(false)
             ?? add;
     }
@@ -257,18 +261,6 @@ public sealed partial class WhisparrSync
         => add is null
             ? null
             : (providerSceneId, ct) => add(providerSceneId, EntityPlacement.Nowhere, ct);
-
-    // Null where the run must not act at all. Nothing composed here grabs: the add is the
-    // non-grabbing one and the flip writes a flag, so no run built from this can make an instance
-    // download by itself.
-    private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
-        OfferingSceneAddAsync(
-            WhisparrEntityKind? owningKind,
-            int owningId,
-            IServiceProvider services,
-            CancellationToken runCt)
-        => Offering(
-            await ComposeSceneAddAsync(owningKind, owningId, services, runCt).ConfigureAwait(false));
 
     private async Task<Func<string, EntityPlacement, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneAddAsync(

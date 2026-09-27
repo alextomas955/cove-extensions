@@ -174,9 +174,18 @@ public static class MissingMonitorAllJob
                 MissingBulkRunOutcome.Cancelled, marked, alreadyHeld, refused);
         }
 
-        return offered == 0
-            ? Untaken
-            : new MissingBulkRun(MissingBulkRunOutcome.Completed, marked, alreadyHeld, refused);
+        if (offered == 0)
+        {
+            return Untaken;
+        }
+
+        return new MissingBulkRun(
+            marked == 0 && alreadyHeld == 0
+                ? MissingBulkRunOutcome.EverythingRefused
+                : MissingBulkRunOutcome.Completed,
+            marked,
+            alreadyHeld,
+            refused);
     }
 
     private static MissingBulkRun Untaken { get; } =
