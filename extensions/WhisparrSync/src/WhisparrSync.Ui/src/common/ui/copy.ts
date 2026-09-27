@@ -936,6 +936,41 @@ export const GENERATION_ADDRESS_NOT_READ_YET = "Not read yet";
 /** What it reads once they have arrived and hold no address. */
 export const GENERATION_NO_ADDRESS_STORED = "No address stored";
 
+/** The newer generation's name, declared once so two surfaces cannot name it differently. */
+export const GENERATION_V3_NAME = "Whisparr v3 (Eros)";
+
+/** @see GENERATION_V3_NAME */
+export const GENERATION_V2_NAME = "Whisparr v2";
+
+/** The recorded-version line while no version has ever been read off the instance. */
+export const VERSION_NOT_VERIFIED_YET = "Whisparr version not verified yet";
+
+/**
+ * The same line once a version has been read.
+ *
+ * The version is the instance's own string, unformatted. Reformatting it would report a version no
+ * instance runs.
+ *
+ * @param version the version the instance reported
+ * @param verifiedAt when it was read, as the page words an age
+ */
+export function recordedVersionSentence(version: string, verifiedAt: string): string {
+  return `Whisparr reported ${version} · verified ${verifiedAt}`;
+}
+
+/** The last-reachable line before the instance has answered anything at all. */
+export const INSTANCE_HAS_NOT_ANSWERED_YET = "Whisparr has not answered yet";
+
+/**
+ * The same line once it has. Measures when the instance last answered, which is not when its
+ * version was read, so the two lines are never merged into one.
+ *
+ * @param when how long ago it answered, as the page words an age
+ */
+export function lastReachableSentence(when: string): string {
+  return `Whisparr last reachable ${when}`;
+}
+
 /** What the bar at the foot of the settings page heads its summary of the edits with. */
 export const UNSAVED_CHANGES = "Unsaved changes";
 
