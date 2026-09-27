@@ -16,7 +16,6 @@ import {
   SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN,
   SYNC_SITE_DOWNLOADS_NOTHING,
   SYNC_SITE_NEEDS_A_COUNT_FIRST,
-  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
 } from "../common/ui/copy";
@@ -110,9 +109,8 @@ describe("the confirmation names the figures and the consequence", () => {
     expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
         "It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -121,9 +119,8 @@ describe("the confirmation names the figures and the consequence", () => {
     expect(syncConfirmation(LIBRARY, true, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
         "It also marks each of them monitored. Monitoring a scene downloads nothing by itself. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -131,9 +128,8 @@ describe("the confirmation names the figures and the consequence", () => {
   it("reads as one scene at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_SCENE, false, SCENES)).toBe(
       "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -148,9 +144,8 @@ describe("the confirmation names the figures and the consequence", () => {
     ).toBe(
       "This offers all 4 scenes you own to Whisparr, and skips 1 that cannot be registered. " +
         "It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -172,30 +167,28 @@ describe("the confirmation names the figures and the consequence", () => {
   it("names what is still to hand over ahead of what the run does", () => {
     expect(syncConfirmation(FULLY_HELD_WITH_FILES_OUTSTANDING, false, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be " +
-        "registered. Whisparr records no file for 7 of them yet. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "registered. Whisparr holds 7 with no file recorded yet. It monitors nothing. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
 
   it("reads at one as it does at any other size", () => {
     expect(syncConfirmation({ ...FULLY_HELD, withNoFileRecorded: 1 }, false, SCENES)).toContain(
-      "Whisparr records no file for 1 of them yet.",
+      "Whisparr holds 1 with no file recorded yet.",
     );
   });
 
   it("leaves the clause out where the instance records a file for everything it holds", () => {
-    expect(syncConfirmation(FULLY_HELD, false, SCENES)).not.toContain("records no file for");
+    expect(syncConfirmation(FULLY_HELD, false, SCENES)).not.toContain("with no file recorded");
   });
 
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SCENES)).toBe(
       "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
-        "It then links each file you own into the folder Whisparr keeps for it, at no extra " +
-        "disk while Whisparr's hard-link setting is on, and skips the linking while that " +
-        "setting is off or Whisparr is set to rename files. " +
+        "It then links each file you own into the folder Whisparr keeps for it, using no extra " +
+        "disk. This needs Whisparr's hard-link setting on and its renaming off. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -220,11 +213,10 @@ describe("the confirmation reads in studios where the run registers studios", ()
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It monitors nothing. " +
-        "It then gives each one a folder in your library and makes a second name in that folder " +
-        "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
-        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
-        "not set to rename files. " +
+        "It then gives each one a folder in your library, holding a second name for every file " +
+        "you own for it. Your files stay where they are, and the second names cost no extra " +
+        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
+        "off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -236,11 +228,10 @@ describe("the confirmation reads in studios where the run registers studios", ()
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
         "registered. It also marks the scenes you own on them monitored. Monitoring a scene " +
         "downloads nothing by itself. " +
-        "It then gives each one a folder in your library and makes a second name in that folder " +
-        "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
-        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
-        "not set to rename files. " +
+        "It then gives each one a folder in your library, holding a second name for every file " +
+        "you own for it. Your files stay where they are, and the second names cost no extra " +
+        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
+        "off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -248,11 +239,10 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("reads as one studio at one, and drops the skip clause where nothing is skipped", () => {
     expect(syncConfirmation(ONE_STUDIO, false, SITES)).toBe(
       "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder in your library and makes a second name in that folder " +
-        "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
-        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
-        "not set to rename files. " +
+        "It then gives each one a folder in your library, holding a second name for every file " +
+        "you own for it. Your files stay where they are, and the second names cost no extra " +
+        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
+        "off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -260,11 +250,10 @@ describe("the confirmation reads in studios where the run registers studios", ()
   it("names no figure to offer where nothing was counted", () => {
     expect(syncConfirmation(NOTHING, false, SITES)).toBe(
       "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
-        "It then gives each one a folder in your library and makes a second name in that folder " +
-        "for every file you own for it. A second name costs no extra disk, and your own files " +
-        "stay where they are, under the names you gave them. It hands each folder to Whisparr " +
-        "so your files show up there, while Whisparr's hard-link setting is on and Whisparr is " +
-        "not set to rename files. " +
+        "It then gives each one a folder in your library, holding a second name for every file " +
+        "you own for it. Your files stay where they are, and the second names cost no extra " +
+        "disk. Handing the folders to Whisparr needs its hard-link setting on and its renaming " +
+        "off. " +
         "Registering a studio in Whisparr downloads nothing.",
     );
   });
@@ -287,7 +276,7 @@ describe("the set is chosen by what the read says the run registers", () => {
     expect(syncSentences("sites").description).toBe(SYNC_REGISTERS_THE_STUDIOS_YOU_OWN);
     expect(syncSentences("sites").skippedRemedy).toBe(SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED);
     expect(syncSentences("sites").needsACountFirst).toBe(SYNC_SITE_NEEDS_A_COUNT_FIRST);
-    expect(syncSentences("sites").nothingLeftToSync).toBe(SYNC_SITE_NOTHING_LEFT_TO_SYNC);
+    expect(syncSentences("sites").nothingLeftToSync).toBeNull();
   });
 
   it("states scenes where the read says scenes", () => {
@@ -389,9 +378,13 @@ describe("the sync control states one reason at a time", () => {
     expect(syncDisabledReason({ ...PRESSABLE, sentences: SITES, counts: null })).toBe(
       SYNC_SITE_NEEDS_A_COUNT_FIRST,
     );
-    expect(syncDisabledReason({ ...PRESSABLE, sentences: SITES, counts: FULLY_HELD })).toBe(
-      SYNC_SITE_NOTHING_LEFT_TO_SYNC,
-    );
+  });
+
+  // What the instance publishes per site is whether it recorded any file, so a site holding five of
+  // the reader's files with one recorded reads as done. Closing the control on that figure leaves
+  // files that were never handed over, with nothing saying so.
+  it("stays available on the site pass however the figures read", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, sentences: SITES, counts: FULLY_HELD })).toBeNull();
   });
 });
 

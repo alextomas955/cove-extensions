@@ -35,13 +35,11 @@ import {
   STASHDB_ENDPOINT,
 } from "../../lib/connected-fixture.mjs";
 import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
-import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
+import { SETTINGS_PAGE_PATH, SETTINGS_PANEL_SENTENCE } from "../../lib/contract.mjs";
 import { visit } from "../../lib/steps.mjs";
 
 // The sentence the settings panel itself draws. It exists only inside the component this extension
 // ships, so reaching it means the whole bundle loaded and the host resolved its component map.
-const PANEL_SENTENCE =
-  "The address Cove itself reaches Whisparr on, including the scheme and port.";
 
 // The tab's label, transcribed by hand from the manifest that advertises it. A spec importing the
 // same constant the manifest declares would be asserting that a string equals itself.
@@ -160,7 +158,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     page,
     baseUrl,
     SETTINGS_PAGE_PATH,
-    page.getByText(PANEL_SENTENCE, { exact: true }),
+    page.getByText(SETTINGS_PANEL_SENTENCE, { exact: true }),
     "the whole-bundle load",
   );
 
@@ -264,7 +262,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     page,
     baseUrl,
     SETTINGS_PAGE_PATH,
-    page.getByText(PANEL_SENTENCE, { exact: true }),
+    page.getByText(SETTINGS_PANEL_SENTENCE, { exact: true }),
     "the bundle after the tab mounted",
   );
 });

@@ -105,7 +105,7 @@ export function ConnectionSection({
         <Field
           label="Whisparr address"
           labelStyle="mono"
-          helper="The address Cove itself reaches Whisparr on, including the scheme and port."
+          helper="Where Cove itself reaches Whisparr, including the port."
         >
           {(id) => (
             <TextInput

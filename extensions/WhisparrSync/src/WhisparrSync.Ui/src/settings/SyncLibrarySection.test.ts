@@ -26,7 +26,6 @@ import {
   SYNC_NOT_YET_IN_WHISPARR,
   SYNC_REGISTERS_THE_SCENES_YOU_OWN,
   SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
-  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
@@ -756,7 +755,9 @@ describe("the section reads in the noun the run registers", () => {
     expect(host.textContent).not.toContain(SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED);
   });
 
-  test("a fully held library says in studios that there is nothing left", async () => {
+  // A site's published file count says whether it recorded any file, not whether every file the
+  // reader owns for it was handed over, so the studio run never says there is nothing left.
+  test("a fully held library leaves the studio control pressable and claims nothing", async () => {
     const host = await renderNode(
       section({
         counts: { ...COUNTS_ON_THE_OTHER_GENERATION, notYetThere: 0, alreadyThere: 412 },
@@ -764,7 +765,7 @@ describe("the section reads in the noun the run registers", () => {
       }),
     );
 
-    expect(syncButton(host).textContent).toContain(SYNC_SITE_NOTHING_LEFT_TO_SYNC);
+    expect(syncButton(host).disabled).toBe(false);
     expect(syncButton(host).textContent).not.toContain(SYNC_NOTHING_LEFT_TO_SYNC);
   });
 
