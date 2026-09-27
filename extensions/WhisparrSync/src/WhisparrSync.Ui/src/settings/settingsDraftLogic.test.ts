@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SAVING_THE_GENERATION_RELOADS } from "../common/ui/copy";
 import type { WhisparrSyncSettingsView } from "../wire/api";
 import {
   draftFor,
@@ -85,7 +86,7 @@ describe("the sentence the bar shows", () => {
   it("adds the reload sentence when the generation is unsaved", () => {
     const summary = unsavedSummary(unsavedFields(STORED, draftFor(STORED, "v2")));
 
-    expect(summary).toContain("reloads the page");
+    expect(summary).toContain(SAVING_THE_GENERATION_RELOADS);
   });
 
   it("adds it for no other field", () => {
@@ -94,7 +95,7 @@ describe("the sentence the bar shows", () => {
     );
 
     expect(summary).toContain("replacement-file behaviour");
-    expect(summary).not.toContain("reloads the page");
+    expect(summary).not.toContain(SAVING_THE_GENERATION_RELOADS);
   });
 
   it("says nothing at all while nothing is unsaved", () => {
