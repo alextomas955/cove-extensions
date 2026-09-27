@@ -602,6 +602,80 @@ export function folderAgreementTriedSentence(tried: readonly string[]): string {
   return `Cove asked Whisparr about ${asked}.`;
 }
 
+/** The card holding the address Whisparr reports its imports to, named at its head. */
+export const WEBHOOK_TITLE = "Import webhook";
+
+/** What the card is for, stated under its title. */
+export const WEBHOOK_DESCRIPTION = "The address Whisparr calls when it finishes an import.";
+
+/** What the reader types: the address to hand the instance. */
+export const WEBHOOK_ADDRESS = "Callback address";
+
+/** The one reason to edit the address, and what to leave alone while doing it. */
+export const WEBHOOK_ADDRESS_HELPER =
+  "Change the address only if Whisparr reaches Cove somewhere other than you do. Leave the rest as it is.";
+
+/** The control that puts the address on the clipboard, for pasting into Whisparr by hand. */
+export const WEBHOOK_COPY = "Copy URL";
+
+/** Why that control cannot be pressed while the field is empty. */
+export const WEBHOOK_NOTHING_TO_COPY = "There is no callback address to copy.";
+
+/** The register control while the registration it started is in flight. */
+export const WEBHOOK_REGISTERING = "Registering…";
+
+/** The same control at rest. */
+export const WEBHOOK_REGISTER = "Register in Whisparr";
+
+/** While whether the instance holds the callback is being read. */
+export const WEBHOOK_READING_THE_STATUS = "Reading the callback status…";
+
+/** That read failed, which is not the same as the instance holding no callback. */
+export const WEBHOOK_STATUS_NOT_READ = "Cove could not read the callback status.";
+
+/** The address is on the clipboard. */
+export const WEBHOOK_ADDRESS_COPIED = "Copied.";
+
+/** The clipboard was not there to write to, so the address has to be taken by hand. */
+export const WEBHOOK_CLIPBOARD_NOT_REACHED =
+  "Cove could not reach the clipboard - select the address above and copy it.";
+
+/**
+ * The registration request did not get through, which says nothing about what the instance holds.
+ *
+ * @param message Cove's own account of why the request failed
+ */
+export function webhookRegistrationFailedSentence(message: string): string {
+  return `Cove could not register the callback: ${message}`;
+}
+
+/**
+ * The instance answered and declined.
+ *
+ * Carries Whisparr's own words, so the refusal reports what it said rather than a guess.
+ *
+ * @param refusal what the instance said, in its own spelling
+ */
+export function webhookRefusedSentence(refusal: string): string {
+  return `Whisparr refused it: ${refusal}`;
+}
+
+/** The card holding what a redelivery does to a scene already held, named at its head. */
+export const UPGRADE_TITLE = "When Whisparr replaces a file";
+
+/** What the card is for, stated under its title. */
+export const UPGRADE_DESCRIPTION =
+  "What happens to the scene Cove already holds when a better file arrives for it.";
+
+/** What the reader chooses between. */
+export const UPGRADE_FIELD = "Replacement files";
+
+/** The default choice, named for what it leaves behind. */
+export const UPGRADE_KEEP_BOTH = "Keep both files";
+
+/** The other choice, under the same rule. */
+export const UPGRADE_KEEP_ONLY_THE_NEW_FILE = "Keep only the new file";
+
 /** What the default upgrade behaviour does, in the terms the reader sees the result in. */
 export const UPGRADE_KEEPS_BOTH_FILES =
   "The new file joins the scene you already have, and Cove lists both until its own scan notices the old one is gone. Nothing is removed from disk.";
@@ -780,6 +854,31 @@ export const GENERATION_ADDRESS_NOT_READ_YET = "Not read yet";
 /** What it reads once they have arrived and hold no address. */
 export const GENERATION_NO_ADDRESS_STORED = "No address stored";
 
+/** What the bar at the foot of the settings page heads its summary of the edits with. */
+export const UNSAVED_CHANGES = "Unsaved changes";
+
+/** What the bar says once a save has landed. */
+export const SETTINGS_SAVED = "Settings saved.";
+
+/**
+ * A save that did not land, said on the bar that sent it.
+ *
+ * @param message Cove's own account of why the save failed
+ */
+export function settingsSaveFailedSentence(message: string): string {
+  return `Cove could not save: ${message}`;
+}
+
+/** Why nothing on the settings page can act yet: the stored connection is still on its way. */
+export const CONNECTION_IS_STILL_BEING_READ = "Cove is still reading the stored connection.";
+
+/** Why nothing on the page can act at all: what is stored could not be read. */
+export const NOTHING_CAN_ACT_ON_AN_UNREAD_CONNECTION =
+  "Cove could not read the stored connection, so nothing here can act on it yet.";
+
+/** The card holding how much of the library the instance knows about, named at its head. */
+export const SYNC_TITLE = "Sync your library to Whisparr";
+
 /** What the count control is called before any result exists. */
 export const SYNC_COUNT = "Count what would sync";
 
@@ -812,6 +911,16 @@ export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
 export const SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED =
   "A studio cannot be registered where your library carries no metadata id for it, or where the " +
   "metadata source names no site for that id. Identify more of your library and count again.";
+
+/**
+ * When the figures above were taken, and what to do about the ones the run skips.
+ *
+ * @param when how long ago the count was taken, as the page words an age
+ * @param remedy what a reader can do about the skipped row, resolved from what the run registers
+ */
+export function syncCountedSentence(when: string, remedy: string): string {
+  return `Counted ${when}. ${remedy}`;
+}
 
 /** While the count runs. */
 export const SYNC_COUNTING = "Counting what would sync.";

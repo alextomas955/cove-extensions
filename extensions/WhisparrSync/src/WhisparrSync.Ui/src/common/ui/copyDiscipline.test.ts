@@ -274,6 +274,7 @@ const RENDERED_BY_THE_SYNC_SECTION = {
   // Names neither noun. One declaration serves both ways unless the two runs do different things,
   // which is why the linking sentences are two and neither of them names what it registers.
   namesNeitherNoun: [
+    "SYNC_TITLE",
     "SYNC_COUNT",
     "SYNC_NOT_YET_IN_WHISPARR",
     "SYNC_ALREADY_IN_WHISPARR",
