@@ -6,7 +6,15 @@
 import { Field, SectionCard, Select, StatusText } from "@cove-extensions/ui-shared";
 
 import type { UpgradeBehavior } from "../wire/api";
-import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
+import {
+  UPGRADE_DESCRIPTION,
+  UPGRADE_DROPS_THE_SUPERSEDED_FILE,
+  UPGRADE_FIELD,
+  UPGRADE_KEEP_BOTH,
+  UPGRADE_KEEP_ONLY_THE_NEW_FILE,
+  UPGRADE_KEEPS_BOTH_FILES,
+  UPGRADE_TITLE,
+} from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 
 export interface ImportBehaviorSectionProps {
@@ -18,10 +26,10 @@ export interface ImportBehaviorSectionProps {
 }
 
 const CHOICES: readonly { value: UpgradeBehavior; label: string; consequence: string }[] = [
-  { value: "add", label: "Keep both files", consequence: UPGRADE_KEEPS_BOTH_FILES },
+  { value: "add", label: UPGRADE_KEEP_BOTH, consequence: UPGRADE_KEEPS_BOTH_FILES },
   {
     value: "replace",
-    label: "Keep only the new file",
+    label: UPGRADE_KEEP_ONLY_THE_NEW_FILE,
     consequence: UPGRADE_DROPS_THE_SUPERSEDED_FILE,
   },
 ];
@@ -34,14 +42,11 @@ export function ImportBehaviorSection({
   const chosen = CHOICES.find((choice) => choice.value === behavior) ?? null;
 
   return (
-    <SectionCard
-      title="When Whisparr replaces a file"
-      description="What happens to the scene Cove already holds when a better file arrives for it."
-    >
+    <SectionCard title={UPGRADE_TITLE} description={UPGRADE_DESCRIPTION}>
       <div className="space-y-2" title={sharedReason ?? undefined}>
         {/* The reason follows the label inside it, so the control is announced by its own name and
             then by why it cannot be used. It is off-screen because the page states it once. */}
-        <Field label="Replacement files" labelStyle="mono">
+        <Field label={UPGRADE_FIELD} labelStyle="mono">
           {(id) => (
             <>
               <Select

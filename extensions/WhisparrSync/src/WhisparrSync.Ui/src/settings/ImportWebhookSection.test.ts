@@ -3,6 +3,12 @@ import { expect, test } from "vitest";
 import { createElement } from "react";
 
 import { render } from "../common/lib/testRender";
+import {
+  WEBHOOK_ADDRESS,
+  WEBHOOK_READING_THE_STATUS,
+  WEBHOOK_REGISTER,
+  WEBHOOK_STATUS_NOT_READ,
+} from "../common/ui/copy";
 import type { CallbackView } from "../wire/api";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 
@@ -43,7 +49,7 @@ test("the callback address label is an uppercase mono micro-label", async () => 
   const host = await render(section({}));
 
   const label = [...host.querySelectorAll("span")].find(
-    (span) => span.textContent === "Callback address",
+    (span) => span.textContent === WEBHOOK_ADDRESS,
   );
   expect(label, "the section draws no label for the callback address").toBeDefined();
   expect([...(label?.classList ?? [])]).toEqual(
@@ -59,7 +65,7 @@ test("the section offers one accent control, and it is the one that registers", 
   const accent = buttons.filter((button) => button.className.split(" ").includes("bg-accent"));
   expect(accent, "the section draws more than one accent control").toHaveLength(1);
   expect(
-    accent[0].textContent.startsWith("Register in Whisparr"),
+    accent[0].textContent.startsWith(WEBHOOK_REGISTER),
     "the section's accent control is something other than the registration",
   ).toBe(true);
 });
@@ -68,7 +74,7 @@ test("a hairline closes the address off from the controls that hand it over", as
   const host = await render(section({}));
 
   const register = [...host.querySelectorAll("button")].find((button) =>
-    button.textContent.startsWith("Register in Whisparr"),
+    button.textContent.startsWith(WEBHOOK_REGISTER),
   );
   const divided = register?.closest(".border-t");
   expect(divided, "the controls are separated from the address by spacing alone").not.toBeNull();
@@ -84,10 +90,10 @@ test("the status tells reading, checked, never checked and unreadable apart", as
   const failed = await render(section({ view: null, readFailed: true }));
 
   const sentences = [reading, checked, never, failed].map((host) => host.textContent);
-  expect(sentences[0]).toContain("Reading the callback status…");
+  expect(sentences[0]).toContain(WEBHOOK_READING_THE_STATUS);
   expect(sentences[1]).toContain("Registered, and imports are reaching Cove through it.");
   expect(sentences[2]).toContain("Cove has not checked this instance for its callback yet.");
-  expect(sentences[3]).toContain("Cove could not read the callback status.");
+  expect(sentences[3]).toContain(WEBHOOK_STATUS_NOT_READ);
   expect(new Set(sentences).size, "two of the four read the same").toBe(4);
 });
 

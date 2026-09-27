@@ -1,6 +1,13 @@
 import { SaveBar, type SaveOutcome } from "@cove-extensions/ui-shared";
 
 import { useNow } from "../common/lib/useNow";
+import {
+  CONNECTION_IS_STILL_BEING_READ,
+  NOTHING_CAN_ACT_ON_AN_UNREAD_CONNECTION,
+  SETTINGS_SAVED,
+  settingsSaveFailedSentence,
+  UNSAVED_CHANGES,
+} from "../common/ui/copy";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
@@ -130,7 +137,7 @@ export function WhisparrSyncPage() {
         canSave={state.settings !== null}
         summary={
           <>
-            <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
+            <div className="text-sm font-semibold text-foreground">{UNSAVED_CHANGES}</div>
             <div className="mt-0.5 text-xs text-secondary">{unsavedSummary(unsaved)}</div>
           </>
         }
@@ -147,9 +154,9 @@ const BAR_GUTTER = "96px";
 
 function saveOutcome(save: SaveState): SaveOutcome {
   if (save.status === "failed") {
-    return { kind: "failed", message: `Cove could not save: ${save.message}` };
+    return { kind: "failed", message: settingsSaveFailedSentence(save.message) };
   }
-  return save.status === "saved" ? { kind: "saved", message: "Settings saved." } : { kind: "none" };
+  return save.status === "saved" ? { kind: "saved", message: SETTINGS_SAVED } : { kind: "none" };
 }
 
 // The bar's save control is not among them: nothing can be unsaved before the settings have
@@ -166,8 +173,8 @@ const SHARED_REASON_CONTROLS = CONTROLS_THE_SHARED_REASON_DISABLES.length;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null
-    ? "Cove is still reading the stored connection."
-    : "Cove could not read the stored connection, so nothing here can act on it yet.";
+    ? CONNECTION_IS_STILL_BEING_READ
+    : NOTHING_CAN_ACT_ON_AN_UNREAD_CONNECTION;
 }
 
 // A generation change reloads the page rather than re-reading each surface: every surface reads
