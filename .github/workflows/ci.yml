@@ -132,6 +132,17 @@ jobs:
 
       # Into a throwaway directory: the package receives only what the assemble step copies, so nothing
       # the build emits alongside the shipped files reaches a release undeclared.
+      # Read the resolved mode back rather than trusting the switch. A build that found a Cove checkout
+      # compiles a different set of references and still reports success. -getProperty evaluates the
+      # project without building it, and it has to name the .csproj: a .slnx fails with MSB1063.
+      - name: Check the build used no Cove source
+        run: |
+          mode=$(dotnet build "$PROJECT_PATH" -getProperty:UseLocalCoveSource -p:CoveSourceMode=none | tr -d '[:space:]')
+          if [[ "$mode" != "false" ]]; then
+            echo "::error::UseLocalCoveSource resolved to '$mode', so this build did not compile against the published Cove packages alone."
+            exit 1
+          fi
+
       - name: Publish
         run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
         env:
