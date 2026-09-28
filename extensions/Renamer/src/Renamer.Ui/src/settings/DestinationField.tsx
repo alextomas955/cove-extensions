@@ -96,7 +96,7 @@ export function DestinationField({
             placeholder="$studio/$year"
           />
           {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about
-              to become literal folder names, and this is the only line that says so — while naming a
+              to become literal folder names, and this is the only line that says so - while naming a
               control that is not on screen leaves the user nothing to act on. */}
           <PathShapeHint
             value={value.template}

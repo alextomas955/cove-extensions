@@ -35,7 +35,7 @@ public sealed class JournalPagingTests
         long cursor = long.MaxValue;
         while (true)
         {
-            Assert.True(pages.Count <= RowCount, "the cursor stopped advancing — see the guard note below");
+            Assert.True(pages.Count <= RowCount, "the cursor stopped advancing - see the guard note below");
             var page = await journal.ReadBatchPageAsync(RunId, cursor, PageLimit);
             if (page.Count == 0)
             {

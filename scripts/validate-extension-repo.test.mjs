@@ -708,7 +708,7 @@ test("the hand-mirrored fixture baselines still describe the real catalog and ma
 
   assert.ok(
     entries.length > 0,
-    "extensions/catalog.json declares no extensions — this check inspected nothing, which is a failure, not a pass",
+    "extensions/catalog.json declares no extensions - this check inspected nothing, which is a failure, not a pass",
   );
 
   const baselineEntryFields = Object.keys(validEntry("com.example.foo", "Foo"));
@@ -718,7 +718,7 @@ test("the hand-mirrored fixture baselines still describe the real catalog and ma
     for (const field of baselineEntryFields) {
       assert.ok(
         field in entry,
-        `validEntry models catalog field "${field}", which the real entry "${entry.id}" does not have — ` +
+        `validEntry models catalog field "${field}", which the real entry "${entry.id}" does not have - ` +
           `the fixtures describe a shape that no longer exists, so the cases above prove nothing about it`,
       );
     }
@@ -729,7 +729,7 @@ test("the hand-mirrored fixture baselines still describe the real catalog and ma
     for (const field of baselineManifestFields) {
       assert.ok(
         field in manifest,
-        `validManifest models manifest field "${field}", which ${entry.manifestPath} does not have — ` +
+        `validManifest models manifest field "${field}", which ${entry.manifestPath} does not have - ` +
           `same drift, on the manifest side`,
       );
     }
