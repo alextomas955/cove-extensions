@@ -40,8 +40,14 @@ import {
  * Configured per describe rather than inside a test body. A body runs after its fixtures are built,
  * so a budget raised there never covers the container stack, which is the slowest part of the setup
  * and the part that outruns the default on a loaded machine.
+ *
+ * Wide enough for the slowest spec and no wider. The slowest single test measured is about a
+ * minute, on the two-worker runner as well as locally, and the longest wait any one spec is allowed
+ * is four minutes. A budget far above that does not make a slow spec pass; it only decides how long
+ * a wedged one sits before it reports. A locator naming an element that no longer exists never
+ * resolves, and the run's whole job is what pays for the wait.
  */
-export const SPEC_BUDGET_MS = 900_000;
+export const SPEC_BUDGET_MS = 300_000;
 
 /**
  * Collects a stop per resource and unwinds them newest first.

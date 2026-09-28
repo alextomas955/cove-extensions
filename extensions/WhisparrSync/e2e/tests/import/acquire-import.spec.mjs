@@ -49,7 +49,9 @@ import { startFakeIndexer } from "../../lib/fake-indexer.mjs";
 import { startQBittorrent } from "../../lib/qbittorrent-container.mjs";
 import { identityOf, sharedBetweenBothProducts } from "../../lib/tree-steps.mjs";
 
-const SPEC_BUDGET_MS = 1_800_000;
+// Above this file's own waits added together, a download and an import, and no higher. What the
+// budget decides is how long a wedged spec sits before it reports, not whether a slow one passes.
+const SPEC_BUDGET_MS = 600_000;
 
 // Configured for the file rather than set inside each test. A test body runs AFTER its fixtures are
 // built, so a budget raised there never covers the setup - and the setup here is a container stack,
