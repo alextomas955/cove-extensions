@@ -55,6 +55,7 @@ internal sealed record LinkedTally(
     int GivenAFolder = 0,
     int Linked = 0,
     int OnAnotherDevice = 0,
+    int Refused = 0,
     int Removed = 0,
     int Waiting = 0,
     IReadOnlyList<string>? RootsWithNoTree = null)
@@ -116,6 +117,13 @@ public static class ReflectOwnedJob
     internal const string OnAnotherDeviceSentence =
         "Some files were not linked: they are not on the drive Cove keeps their entity's folder "
         + "on, and nothing was copied.";
+
+    // Names no file and no user: the line is durable. It states what the reader has to change,
+    // because the refusal is a property of the library's own permissions rather than of any one
+    // file, and every file under the same owner meets it.
+    internal const string LinksRefusedSentence =
+        "Some files were not linked: the filesystem gave Cove no second name for them, and the "
+        + "user Cove runs as has to be able to write a file to be given one.";
 
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
@@ -441,6 +449,7 @@ public static class ReflectOwnedJob
                 run.EntitiesGivenAFolder,
                 run.LinksMade + run.LinksAlreadyThere,
                 run.LinksOnAnotherDevice,
+                run.LinksRefused,
                 run.LinksRemoved,
                 run.LinksWaiting,
                 run.RootsWithNoTree),
@@ -504,6 +513,7 @@ public static class ReflectOwnedJob
 
         reasons = Carrying(reasons, tally.LeftUnderAnotherRoot, LeftUnderAnotherRootSentence);
         reasons = Carrying(reasons, tally.OnAnotherDevice, OnAnotherDeviceSentence);
+        reasons = Carrying(reasons, tally.Refused, LinksRefusedSentence);
         reasons = Carrying(reasons, tally.WithoutAnEntry, WithoutAnEntrySentence);
 
         return Carrying(reasons, tally.NamesNotComposedHere, NamesNotComposedHereSentence);
