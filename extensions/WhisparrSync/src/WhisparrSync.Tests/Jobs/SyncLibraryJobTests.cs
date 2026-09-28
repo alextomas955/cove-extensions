@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
+using WhisparrSync.Linking;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -44,6 +45,28 @@ public sealed class SyncLibraryJobTests
             SyncLibraryJob.Decode(new Dictionary<string, string> { ["alsoMonitor"] = "yes" })
                 .AlsoMonitor);
     }
+
+    // A build that linked every file and a build the filesystem refused every link of both leave
+    // the linked figure at zero, because neither made a name the run counts. The refusal is the
+    // only thing that tells them apart, so a build report dropping it describes a clean pass over
+    // a library nothing was linked in. What refuses it is the library's own permissions, which
+    // refuse every file under the same owner, so the run is red on the whole library or on none of
+    // it.
+    [Fact]
+    public void ABuildRefusedEveryLinkSaysSoRatherThanReportingACleanPass()
+        => Assert.Equal(
+            "1 given a folder of their own, 0 recorded by Whisparr, 0 refused. Some files were "
+                + "not linked: the filesystem gave Cove no second name for them, and the user "
+                + "Cove runs as has to be able to write a file to be given one.",
+            ReflectOwnedJob.SummaryOf(
+                SyncLibraryJob.ReportedBuild(
+                    new TreeBuild(
+                        "/library/.wsync-v3/1",
+                        Linked: 0,
+                        AlreadyThere: 0,
+                        OnAnotherDevice: 0,
+                        Refused: 2),
+                    "/library")));
 
     [Fact]
     public async Task TheRunOffersEveryIdentifierTheLibraryStreamYields()

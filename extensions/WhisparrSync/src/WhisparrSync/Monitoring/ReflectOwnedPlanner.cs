@@ -87,6 +87,10 @@ internal sealed record ReflectOwnedRun(
     // Files the folder for their entity is not on the drive of. Nothing is copied for one, so a
     // reader is told rather than left with a file the instance never records.
     int LinksOnAnotherDevice = 0,
+    // Files the filesystem gave no second name for, and files whose identity could not be read.
+    // Both leave the entity's folder short of the file, so a run reporting only the names it did
+    // make reads as a clean pass over a library it linked none of.
+    int LinksRefused = 0,
     // Library roots no folder could be built under. One line per root, not per entity: a root that
     // cannot be written under refuses every entity beneath it, and a line per entity would grow
     // with the library.
@@ -118,6 +122,7 @@ internal sealed record ReflectOwnedRun(
             LinksMade + other.LinksMade,
             LinksAlreadyThere + other.LinksAlreadyThere,
             LinksOnAnotherDevice + other.LinksOnAnotherDevice,
+            LinksRefused + other.LinksRefused,
             Union(RootsWithNoTree, other.RootsWithNoTree, root => root));
     }
 
