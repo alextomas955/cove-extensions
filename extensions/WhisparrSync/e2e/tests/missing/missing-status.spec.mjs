@@ -48,7 +48,7 @@ import { visit } from "../../lib/steps.mjs";
 // The tab's label and the four pill words, transcribed by hand from the shipped vocabulary. A spec
 // importing the constants the product declares would be asserting that a string equals itself.
 const TAB_LABEL = "Missing";
-const UNKNOWN_PILL = "Status unknown";
+const UNKNOWN_PILL = "Unknown";
 /** The sentence the tab states when the instance could not be asked, with its slot filled out. */
 const CATALOGUE_NOT_READ_SENTENCE = WHISPARR_CATALOGUE_NOT_READ.split("{entity}")[0];
 

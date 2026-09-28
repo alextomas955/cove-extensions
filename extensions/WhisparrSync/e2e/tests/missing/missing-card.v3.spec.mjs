@@ -37,8 +37,7 @@ const TAB_LABEL = "Missing";
 
 // The sentences and control names this spec asserts on, transcribed by hand from the shipped copy.
 // A spec importing the constants would be asserting that a string equals itself.
-const SEARCH_WITH_NO_ENTRY =
-  "Whisparr has no entry for this scene yet, so there is nothing to search for";
+const SEARCH_WITH_NO_ENTRY = "Add this to Whisparr and monitor it before searching.";
 const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 const SELECT_SCENE = "Select scene";
 const DESELECT_SCENE = "Deselect scene";

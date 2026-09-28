@@ -81,7 +81,7 @@ const MONITORED = "Monitored";
 const UNMONITORED = "Unmonitored";
 const NOT_ADDED = "Not added";
 const EXCLUDED = "Excluded";
-const STATUS_UNKNOWN = "Status unknown";
+const STATUS_UNKNOWN = "Unknown";
 
 // The control names and the one confirmation sentence, transcribed by hand from the shipped copy. A
 // spec importing the constants would be asserting that a string equals itself.
