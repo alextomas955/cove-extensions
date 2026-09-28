@@ -4,16 +4,31 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <!-- The single declared host floor, from which the SDK package version derives. It names the host
-         release the extensions are built and tested against, which is not necessarily the oldest one
-         that would work: raising it drops users below it, so it moves on purpose, never incidentally.
+    <!-- The single declared host floor, from which an extension without its own manifest floor takes
+         its SDK package version. It names the host release the extensions are built and tested
+         against, which is not necessarily the oldest one that would work: raising it drops users
+         below it, so it moves on purpose, never incidentally.
 
-         Declaration order is load-bearing and nothing guards it. MSBuild evaluates properties top to
-         bottom, so reversing these two lines expands $(CoveMinVersion) before it holds a value and every
-         Cove package reference silently takes an empty version. -->
+         Declaration order is load-bearing. MSBuild evaluates properties top to bottom, so a floor
+         declared after the derivation below expands before it holds a value, every Cove package
+         reference takes an empty version, and restore fails with NU1604. -->
     <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.5.0</CoveMinVersion>
-    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
+  </PropertyGroup>
 
+  <!--
+    An extension compiles against the floor its own extension.json declares, so a host member added
+    after the repo floor resolves on the clean-clone path. A project with no manifest beside it, or a
+    manifest naming no floor, takes the repo floor. The optional group is what makes a missing key
+    answer empty: Regex.Replace returns its whole input when nothing matches.
+  -->
+  <PropertyGroup>
+    <ExtensionManifestPath>$(MSBuildProjectDirectory)\extension.json</ExtensionManifestPath>
+    <ExtensionDeclaredFloor Condition="Exists('$(ExtensionManifestPath)')">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText($(ExtensionManifestPath))), '(?s)^(?:.*&quot;minCoveVersion&quot;\s*:\s*&quot;([^&quot;]+)&quot;)?.*$', '$1'))</ExtensionDeclaredFloor>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == '' AND '$(ExtensionDeclaredFloor)' != ''">$(ExtensionDeclaredFloor)</CoveSdkVersion>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- Where a released Cove image comes from. The version tested against is never set here: CI and
          the e2e harness resolve each tag from the minCoveVersion an extension declares. -->
     <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
@@ -99,7 +114,7 @@
 
     <!-- Needed so IDE0005 (dead usings) is reported on build. CS1591 (missing XML doc) is silenced:
          we want dead-using detection, not a doc-comment mandate. Docs are earned by judgment, not
-         forced — see the "Comments and doc tags" policy in CLAUDE.md. -->
+         forced - see the "Comments and doc tags" policy in CLAUDE.md. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
