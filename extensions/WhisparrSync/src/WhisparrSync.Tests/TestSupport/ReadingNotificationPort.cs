@@ -7,13 +7,13 @@ namespace WhisparrSync.Tests.TestSupport;
 // business: nothing that reaches it registers anything.
 internal sealed class ReadingNotificationPort : IWhisparrNotificationPort
 {
-    private readonly RegistrationStatus status;
-    private readonly Exception? failure;
+    private readonly RegistrationStatus _status;
+    private readonly Exception? _failure;
 
     private ReadingNotificationPort(RegistrationStatus status, Exception? failure)
     {
-        this.status = status;
-        this.failure = failure;
+        _status = status;
+        _failure = failure;
     }
 
     internal List<WhisparrGeneration> Reads { get; } = [];
@@ -34,8 +34,8 @@ internal sealed class ReadingNotificationPort : IWhisparrNotificationPort
         ArgumentNullException.ThrowIfNull(binding);
         Reads.Add(binding.Generation);
 
-        return failure is not null
-            ? Task.FromException<CallbackRegistrationOutcome>(failure)
-            : Task.FromResult(new CallbackRegistrationOutcome(status, null, false, null));
+        return _failure is not null
+            ? Task.FromException<CallbackRegistrationOutcome>(_failure)
+            : Task.FromResult(new CallbackRegistrationOutcome(_status, null, false, null));
     }
 }
