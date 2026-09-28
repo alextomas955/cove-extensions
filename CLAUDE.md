@@ -111,10 +111,10 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Code shape
 
-- Classify every module as one of: feature slice, pure domain logic, data or wire model,
-  infrastructure (I/O), UI primitive, tooling. Dependencies point toward models and to shared code,
-  never the other way and never to a sibling feature. `eslint.config.mjs` enforces the sibling rule
-  for UI code.
+- Dependencies point toward models and to shared code, never the other way and never to a sibling
+  feature. `eslint.config.mjs` enforces the sibling rule for UI code.
+  `website/docs/contributing/authoring-patterns.md` carries the responsibilities to place a module
+  by.
 - C#: capability slices at the project root beside foundation folders (`Api/`, `Contracts/`,
   `Options/`). One rich capability may layer by domain instead, as Renamer's `Engine/`, `Planner/`,
   `Execution/` do. Name folders for what the code does, never for an entity.
@@ -132,9 +132,9 @@ Libraries reach millions of files. Nothing may grow with the library.
 - A partial class file is named for the one thing it holds, and holds only that. A job body lives
   with the work it runs, never with the endpoint that enqueues it.
 - An interface member with no production caller is deleted, not kept for symmetry. A seam that only
-  a test double implements is not a boundary. Keep an interface for a real dependency inversion:
-  Renamer's data port exists because its planner and engine work only in Renamer-owned records and
-  take no dependency on Cove.Core entities.
+  a test double implements is not a boundary.
+- Renamer's data port exists because production takes no runtime dependency on Cove.Core entities.
+  An interface here is a dependency inversion of that kind, not a test seam.
 
 ## UI conventions
 
@@ -164,8 +164,8 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Tests
 
-- Tests mirror source folders. `TestSupport/`, the cross-cutting suites (`Concurrency/`,
-  `Preview/`, `Wire/`) and e2e sit outside the mirror.
+- A test mirrors its source folder. A group that tests no single source unit gets a folder of its
+  own instead: test support, the wire document, cross-cutting invariants, concurrency, e2e.
 - An extension has one backend test project. It references Cove's own source unconditionally, so the
   suite needs a checkout and refuses to build without one rather than running a smaller set.
 - The cove-absent CI leg builds and publishes the extension and runs no tests. It proves the shipped
