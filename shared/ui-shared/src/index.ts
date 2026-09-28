@@ -8,13 +8,8 @@ export * from "./entityPickerLogic";
 // `postAction` is deliberately not re-exported - it is reached through its own `./postAction` subpath,
 // so importing this barrel never pulls `@cove/extension-sdk` into the consumer's graph.
 export * from "./actions";
-// Re-export the pure logic functions explicitly: `primitivesLogic` also declares a `RegexValidity`
+// Re-exported by name: `primitivesLogic` also declares a `RegexValidity`
 // result interface whose name coincides with the `RegexValidity` presentational component in
 // `primitives`, so a blanket `export *` would collide. Consumers use the component by that name; the
 // result interface stays internal to the module (it is only `isRegexValid`'s return shape).
-export {
-  filterByText,
-  isRegexValid,
-  isAbsolutePathShape,
-  extensionShapeAdvisory,
-} from "./primitivesLogic";
+export { extensionShapeAdvisory } from "./primitivesLogic";
