@@ -475,7 +475,7 @@ async function resolveTags({ report }) {
       const merged = leg.role.split("+");
       lines.push(
         `  leg ${leg.role}: ${leg.tag}${leg.advisory ? " (advisory)" : ""}${
-          merged.length > 1 ? ` — ${merged.length} roles resolved to this one image` : ""
+          merged.length > 1 ? ` - ${merged.length} roles resolved to this one image` : ""
         }`,
       );
       include.push({ extension: entry, cove: leg });
