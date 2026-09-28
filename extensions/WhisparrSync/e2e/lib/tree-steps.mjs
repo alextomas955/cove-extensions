@@ -55,15 +55,22 @@ async function shell(container, line) {
 }
 
 /**
- * Lets both products write the library root they share.
+ * Lets both products write the library root they share, and the files under it.
  *
  * The instance owns what it imports and the host builds the tree, so both write the same volume. An
  * installation arranges that with a shared group or a matching user; the fixture hands the volume to
  * the instance's user alone, which leaves the host unable to create anything at the root and the
  * tree unbuildable for a reason that has nothing to do with the product.
+ *
+ * The files need it as much as the root does. `fs.protected_hardlinks` refuses a second name for a
+ * file to anyone who neither owns it nor can write it, so a library the host can only read is one
+ * the host can link none of. Set here rather than left to the seeded file's own mode, which is the
+ * mode the fixture media carries on whichever filesystem the suite was checked out on: a mode git
+ * records as 0644 and Node reports as 0666 on Windows, which is the whole difference between a
+ * linking suite that passes and one that cannot link a single file.
  */
 export async function sharedBetweenBothProducts(container, root) {
-  await shell(container, `chmod a+rwx '${root}'`);
+  await shell(container, `chmod -R a+rwX '${root}'`);
 }
 
 /**
