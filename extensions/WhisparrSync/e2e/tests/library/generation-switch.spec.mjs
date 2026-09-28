@@ -47,7 +47,7 @@ const HIDE_STATUS = "Hide Whisparr status";
  * A spec importing the constants the product declares would be asserting that a string equals
  * itself.
  */
-const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Status unknown"];
+const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Unknown"];
 
 const GRID_BUDGET_MS = 60_000;
 const BADGE_BUDGET_MS = 90_000;
