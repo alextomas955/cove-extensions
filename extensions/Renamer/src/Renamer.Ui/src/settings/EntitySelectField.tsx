@@ -12,14 +12,8 @@
  *
  * The wrapper is a `FieldGroup`, not a label element. The host draws each chip's Remove button ahead
  * of its input, so a label around it would name that button and a click on the heading would remove
- * a chip. The block carries the name instead.
- *
- * The input the host draws therefore carries no accessible name of its own: the selector exposes
- * neither an id to point `htmlFor` at nor a name hook on the Cove floor this extension declares, and
- * a group's name does not reach a textbox nested inside it. That gap is recorded twice - here, and
- * executably as the named allowance in `settingsFieldNaming.test.ts`, which fails when it matches
- * nothing. A Cove release exposing a name hook on the selector closes it: pass the label through,
- * then delete the allowance, which will by then be failing.
+ * a chip. The block carries the name, and the label also goes to the search input directly, because
+ * a group's name does not reach a textbox nested inside it.
  *
  * No state, no searching, no filtering, no results list and no chip rendering live here. All of that
  * is the host's.
@@ -55,6 +49,7 @@ export function EntitySelectField({
     onChange,
     placeholder,
     excludeIds,
+    inputAriaLabel: label,
     allowCreate: false,
     inputClassName: INPUT_CLASS,
   };
