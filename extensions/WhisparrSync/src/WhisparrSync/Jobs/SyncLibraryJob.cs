@@ -395,6 +395,7 @@ public static class SyncLibraryJob
             LinksMade = built.Linked,
             LinksAlreadyThere = built.AlreadyThere,
             LinksOnAnotherDevice = built.OnAnotherDevice,
+            LinksRefused = built.Refused,
             RootsWithNoTree = built.EntityFolder is null ? [coveRoot] : null,
         };
     }
