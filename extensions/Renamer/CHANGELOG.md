@@ -108,6 +108,8 @@ computed, which it could not before.
   from it. It used to remove one with no message shown and nothing to put it back.
 - The note beside **Undo last rename** now says what undo does: it reverts the most recent rename
   that still has files to put back. It used to say only one batch is kept, which was out of date.
+- A screen reader now announces the name of each tag, performer and studio list's search box, for
+  example "Exclude by tag". The box used to be read with no name.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 

@@ -284,8 +284,12 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toHaveCount(1);
   await expect(
     excludeTagCard,
-    "the field's block carries no accessible name, so the heading a user reads names nothing - the host's own input inside it is named by neither, which is a known gap on the declared floor",
+    "the field's block carries no accessible name, so the heading a user reads names nothing",
   ).toHaveAccessibleName("Exclude by tag");
+  await expect(
+    excludeTagCard.getByRole("combobox", { name: "Exclude by tag", exact: true }),
+    "the host selector's search input carries no name of its own - a group's name does not reach a control nested inside it, so the field label has to be passed to the input",
+  ).toHaveCount(1);
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
   const tagDestinations = toggleCard(page, "Per-tag destinations");
