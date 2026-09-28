@@ -49,3 +49,6 @@ tests/e2e/docker/shared-media/
 # Local scratch/audit directories - never part of a release.
 .bg-shell/
 .gsd/
+
+# Host runtime declarations, emitted from a Cove checkout by scripts/generate-host-types.mjs.
+.host-types/

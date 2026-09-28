@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 /**
- * Class-discipline + XSS gate for an extension's panel sources - one shared copy for every UI.
+ * Class-discipline gate for an extension's panel sources - one shared copy for every UI.
  *
  * Fails (exit 1) if any panel .tsx contains:
- *   1. A Tailwind utility class the host does NOT emit - those would silently render unstyled,
- *      because the host's Tailwind JIT never scans this bundle (it only generates classes it sees
- *      in its own source). Arbitrary-value classes (e.g. `w-[123px]`) are the common trap.
- *   2. The raw-HTML React prop (dangerouslySetInnerHTML) - filenames/diff/flags must render as
- *      escaped text nodes only, never as raw HTML, to avoid an injection vector.
+ *   1. A class on the FORBIDDEN list below - each one measured absent from a host this extension
+ *      supports. This is a deny list, not a comparison against the host stylesheet: a class nobody
+ *      has measured passes, including one that is simply invented. What a host emits depends on
+ *      what Cove's own source writes, and there is no manifest of it to read.
+ *   2. An arbitrary-value class (`w-[123px]`), which the host's Tailwind JIT never emits for this
+ *      bundle because it only scans its own source. This part IS general: the shape is the
+ *      evidence, so no measurement is needed.
  *
- * The consuming package's `src/` and the shared UI module's `src/` are both scanned (this bundle
- * renders the shared primitives, so class-discipline + XSS must hold over them here too).
+ * The consuming package's `src/` and the shared UI module's `src/` are both scanned: this bundle
+ * renders the shared primitives, so class discipline must hold over them here too.
+ *
+ * The raw-HTML prop (dangerouslySetInnerHTML) is not checked here. eslint.config.mjs bans it over the
+ * same two surfaces through AST selectors, which also catch the spread and createElement forms that a
+ * text scan walks past.
  *
  * Usage:
  *   node check-classes.cjs [--allow <class>]... [--src <dir>]
@@ -83,10 +89,6 @@ function usesClass(text, cls) {
   return false;
 }
 
-// The raw-HTML React prop - banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
-// it merely appears in a comment/doc string (e.g. "NO dangerouslySetInnerHTML"). Render escaped only.
-const RAW_HTML_RE = /dangerouslySetInnerHTML\s*[:=]/;
-
 // Arbitrary-value Tailwind utilities like `grid-cols-[1.4fr_1fr]` / `w-[300px]` render NO css because the
 // host Tailwind JIT never scans this bundle. Flag any `prefix-[...]` arbitrary utility appearing inside a
 // className string literal. Allows bracket usage OUTSIDE className (e.g. TS index types).
@@ -117,10 +119,6 @@ for (const full of PANEL_FILES) {
       failed = true;
     }
   }
-  if (RAW_HTML_RE.test(text)) {
-    console.error(`FORBIDDEN raw-HTML prop (dangerouslySetInnerHTML) used in src/${file}`);
-    failed = true;
-  }
   for (const cls of classNameLiterals(text)) {
     const hits = (cls.match(ARBITRARY_CLASS_RE) ?? []).filter(
       (h) => !HOST_EMITTED_ARBITRARY.has(h),
@@ -138,4 +136,6 @@ if (failed) {
   console.error("check-classes: FAILED");
   process.exit(1);
 }
-console.log("check-classes: OK (no host-absent classes, no raw-HTML rendering)");
+console.log(
+  `check-classes: OK (none of the ${FORBIDDEN.length} classes measured absent, no arbitrary-value class)`,
+);

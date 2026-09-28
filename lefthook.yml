@@ -32,6 +32,13 @@ pre-commit:
       glob: "*.{ts,tsx}"
       run: node scripts/check-host-imports.mjs
 
+    # Every module the host's import map serves must be externalized, or the bundle ships its own copy
+    # and breaks hook identity with no build failure. Reads Cove's own runtime contract, so it skips
+    # with a notice when no ../cove sibling is present. ci.yml's ui-verify job is the gate.
+    check-host-externals:
+      glob: "{shared/ui-shared/vite/*,scripts/check-host-externals.mjs}"
+      run: node scripts/check-host-externals.mjs
+
     # Single monorepo-wide ESLint (root eslint.config.mjs): every extension's TS/React UI + all
     # first-party .mjs/.cjs helper/build/test scripts. Type-aware, so it resolves each UI's installed
     # deps on the dev box.

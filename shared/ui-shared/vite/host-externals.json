@@ -1,0 +1,18 @@
+[
+  "@cove/runtime/react",
+  "@cove/runtime/react-dom",
+  "@cove/runtime/react-dom-client",
+  "@cove/runtime/react-jsx-runtime",
+  "@cove/runtime/react-jsx-dev-runtime",
+  "@cove/runtime/react-query",
+  "@cove/runtime/lucide-react",
+  "@cove/runtime/components",
+  "@cove/runtime/api",
+  "react",
+  "react-dom",
+  "react-dom/client",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "@tanstack/react-query",
+  "lucide-react"
+]
