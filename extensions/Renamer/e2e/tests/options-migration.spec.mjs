@@ -138,13 +138,13 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     });
     expect(
       created.ok,
-      `POST /api/performers "${names[key]}" answered ${created.status}: ${created.text} — a 409 here means this host folds performer names by case even with distinct disambiguations, which would make the case-collapse assertion below unreachable rather than merely failing`,
+      `POST /api/performers "${names[key]}" answered ${created.status}: ${created.text} - a 409 here means this host folds performer names by case even with distinct disambiguations, which would make the case-collapse assertion below unreachable rather than merely failing`,
     ).toBe(true);
     ids[key] = created.json.id;
   }
   expect(
     ids.caseFirst < ids.caseSecond,
-    `the case-variant performers were created as ${ids.caseFirst} and ${ids.caseSecond} — not ascending, so the collapse below has no predictable survivor`,
+    `the case-variant performers were created as ${ids.caseFirst} and ${ids.caseSecond} - not ascending, so the collapse below has no predictable survivor`,
   ).toBe(true);
 
   // ── The blob a pre-migration install left behind ────────────────────────────────────────────────
@@ -217,7 +217,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toHaveCount(1);
   await expect(
     field(tagsCard, "Never include").getByRole("button", { name: /^Remove / }),
-    "the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
+    "the empty legacy Blacklist a real install always emitted must convert to an empty id list - not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
   const performersCard = groupCard(page, "Performers");
@@ -235,7 +235,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toBeVisible();
   await expect(
     performerOnlyInclude.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
-    "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one performer where it covered two, and that narrowing is what the changelog discloses",
+    "both case variants survived as separate chips - the two stored names resolve to one id, so this rule now covers one performer where it covered two, and that narrowing is what the changelog discloses",
   ).toHaveCount(0);
   await expect(
     performerOnlyInclude.getByRole("button", { name: /^Remove / }),
@@ -246,7 +246,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
       name: `Remove ${names.performerBlock}`,
       exact: true,
     }),
-    "the performer blacklist rule did not survive as a named chip — the two groups convert independently, so a whitelist that landed says nothing about a blacklist that did not",
+    "the performer blacklist rule did not survive as a named chip - the two groups convert independently, so a whitelist that landed says nothing about a blacklist that did not",
   ).toBeVisible();
 
   // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
@@ -260,7 +260,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toBeVisible({ timeout: 15_000 });
   await expect(
     excludeTagCard.getByRole("button", { name: /^Remove / }),
-    "the exclusion list holds more than the one rule that could resolve — a name matching nothing in the library must be dropped, because it could never have matched anything",
+    "the exclusion list holds more than the one rule that could resolve - a name matching nothing in the library must be dropped, because it could never have matched anything",
   ).toHaveCount(1);
   const excludeText = await excludeTagCard.innerText();
   expect(excludeText, `the dropped name "${vanishedTag}" is still on the panel`).not.toContain(
@@ -268,7 +268,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   );
   expect(
     excludeText,
-    "a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like — the conversion wrote an id the library does not have",
+    "a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like - the conversion wrote an id the library does not have",
   ).not.toContain("Loading tag...");
 
   // A `<label>` forwards a click anywhere inside it to the first labelable descendant, and the host
@@ -280,11 +280,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   await excludeTagCard.getByText("Exclude by tag", { exact: true }).click();
   await expect(
     excludeTagCard.getByRole("button", { name: /^Remove / }),
-    "clicking the field's heading text deleted a configured exclusion — the rule is gone with no message shown and nothing to put it back",
+    "clicking the field's heading text deleted a configured exclusion - the rule is gone with no message shown and nothing to put it back",
   ).toHaveCount(1);
   await expect(
     excludeTagCard,
-    "the field's block carries no accessible name, so the heading a user reads names nothing — the host's own input inside it is named by neither, which is a known gap on the declared floor",
+    "the field's block carries no accessible name, so the heading a user reads names nothing - the host's own input inside it is named by neither, which is a known gap on the declared floor",
   ).toHaveAccessibleName("Exclude by tag");
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
@@ -299,7 +299,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     .last();
   await expect(
     routedRow,
-    "the committed per-tag destination row is gone — its map key did not survive re-keying from the tag name to that tag's id",
+    "the committed per-tag destination row is gone - its map key did not survive re-keying from the tag name to that tag's id",
   ).toBeVisible({ timeout: 15_000 });
   await expect(
     routedRow.getByText(names.tagRoute, { exact: true }),
@@ -321,7 +321,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
     settings.filenameTemplateInput,
-    "the filename template changed across a conversion that has no business touching it — this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
+    "the filename template changed across a conversion that has no business touching it - this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
   ).toHaveValue(legacyBlob.FilenameTemplate);
   const advancedRouting = toggleCard(page, "Source-path destinations");
   await expect(

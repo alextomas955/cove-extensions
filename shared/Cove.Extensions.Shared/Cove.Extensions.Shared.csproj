@@ -21,7 +21,7 @@
     host-provided shared framework, never copy-local/bundled.
 
     Cove.Sdk (transitively Cove.Plugins + Cove.Core, Private=false) and the host-assembly strip
-    target are wired here by the root Directory.Build.targets because this is a non-.Tests project —
+    target are wired here by the root Directory.Build.targets because this is a non-.Tests project -
     this csproj therefore restates neither a direct Cove reference nor the sibling ../cove path math.
   -->
   <ItemGroup>

@@ -218,7 +218,7 @@ test("assembles into an absent package directory, and into an existing empty one
 
     const r = assemble(fixture);
 
-    assert.equal(r.ok, true, form + " — " + r.failures.join("; "));
+    assert.equal(r.ok, true, form + " - " + r.failures.join("; "));
     assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...DECLARED].sort(), form);
   }
 });
@@ -257,7 +257,7 @@ test("fails HARD: an empty artifacts array, rather than reporting a green zero-f
   assert.equal(
     r.ok,
     false,
-    "an assemble that copies nothing inspected nothing — it must not exit green",
+    "an assemble that copies nothing inspected nothing - it must not exit green",
   );
   assert.equal(r.copied.length, 0);
   assert.ok(
@@ -352,17 +352,17 @@ test("refuses a shipped json carrying a network share path, in the spelling a ge
     const fixture = leakyFixture(value);
     const r = assemble(fixture);
 
-    assert.equal(r.ok, false, form + " — a network share path is absolute and must be refused");
+    assert.equal(r.ok, false, form + " - a network share path is absolute and must be refused");
     assert.ok(
       r.failures.some(
         (f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:"),
       ),
-      form + " — expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
+      form + " - expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
     );
     assert.equal(
       fs.existsSync(fixture.packageDir),
       false,
-      form + " — the refused json must not reach the package",
+      form + " - the refused json must not reach the package",
     );
   }
 });
@@ -450,7 +450,7 @@ test("rejects a declared name that escapes the package, before any source is rea
 // These are the replacement for the two checks that went with the deleted strip-verification gate, so
 // each one names the property rather than the gate.
 
-test("fails: a declaration with no source manifest — the host cannot load a package without one", () => {
+test("fails: a declaration with no source manifest - the host cannot load a package without one", () => {
   const fixture = fixtureRoot({ artifacts: ["Fixture.deps.json"] });
   const r = assemble(fixture);
 
@@ -645,7 +645,7 @@ test("the three real caller shapes still assemble", () => {
     const overrides = shape.build(fixture);
     const r = assemble(fixture, overrides);
 
-    assert.equal(r.ok, true, shape.name + " — " + r.failures.join("; "));
+    assert.equal(r.ok, true, shape.name + " - " + r.failures.join("; "));
     assert.deepEqual(fs.readdirSync(overrides.packageDir).sort(), [...DECLARED].sort(), shape.name);
   }
 });
@@ -804,7 +804,7 @@ test("CLI: invoked through an aliased path, no arguments still prints usage and 
     run.status,
     0,
     form +
-      " — a run that assembled nothing must not exit 0; stdout: " +
+      " - a run that assembled nothing must not exit 0; stdout: " +
       JSON.stringify(run.stdout) +
       " stderr: " +
       JSON.stringify(run.stderr),
@@ -812,7 +812,7 @@ test("CLI: invoked through an aliased path, no arguments still prints usage and 
   assert.match(
     run.stderr,
     /Usage:/,
-    form + " — expected usage on stderr, got: " + JSON.stringify(run.stderr),
+    form + " - expected usage on stderr, got: " + JSON.stringify(run.stderr),
   );
 });
 
@@ -823,6 +823,6 @@ test("CLI: invoked through an aliased path, a full invocation still assembles th
 
   const run = runCli(fixture, fullArgv(fixture), aliased);
 
-  assert.equal(run.status, 0, form + " — " + run.stdout + run.stderr);
+  assert.equal(run.status, 0, form + " - " + run.stdout + run.stderr);
   assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...DECLARED].sort(), form);
 });
