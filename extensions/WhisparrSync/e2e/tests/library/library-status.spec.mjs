@@ -43,11 +43,10 @@ const HIDE_STATUS = "Hide Whisparr status";
 /**
  * The reason the control states for the whole page when nothing answered, transcribed the same way.
  *
- * The second sentence is the one this measurement is about: a page of cards that simply drew no
- * badge would read as a library Whisparr holds nothing for.
+ * That a reason is stated at all is what this measurement is about: a page of cards that simply
+ * drew no badge would read as a library Whisparr holds nothing for.
  */
-const COULD_NOT_BE_READ =
-  "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
+const COULD_NOT_BE_READ = "Couldn't reach Whisparr, so no card can show a status.";
 
 /**
  * What the control says in a display mode that mounts no card slot, transcribed the same way.
