@@ -34,7 +34,7 @@ const ACTION_REFLECT_OWNED = "Reflect owned";
 const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";
 const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whisparr v3 (Eros)";
 const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
-  "Monitoring all scenes monitors every scene Whisparr already lists for this entity, which spends indexer traffic and disk.";
+  "This monitors every scene Whisparr already lists, which spends indexer traffic and disk.";
 const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
   "Narrowing the scope back to new releases only does not undo this: a scene already monitored stays monitored.";
 

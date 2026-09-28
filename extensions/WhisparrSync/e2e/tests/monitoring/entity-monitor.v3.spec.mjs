@@ -57,7 +57,7 @@ import {
 const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 const WHISPARR_MONITORED = "Whisparr, monitored";
 const NO_IDENTITY_IN_THIS_NAMESPACE =
-  "Cove holds no link for this entity that the connected Whisparr can identify it by.";
+  "Whisparr can't identify this entity from the links Cove holds.";
 const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
 const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 const UNMONITOR = "Unmonitor";
