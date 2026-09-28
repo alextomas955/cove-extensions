@@ -7,9 +7,14 @@ paths:
 
 `.claude/rules/comments.md` carries the comment rules. This file adds the `///` ones.
 
-Write XML docs only on the SDK-facing surface: the `IExtension` boundary, interfaces, shared
-contract types. Skip them on internal code, tests, and generated code. Write a tag only where it
-states something the signature cannot. No `<param>` that restates a parameter name.
+Write XML docs on a boundary a caller has to satisfy without reading the other side: the
+`IExtension` surface, the shared package, wire contract types, and the ports and roles this
+extension calls outward or downward through. What earns the block is the contract, not the
+interface keyword: what throws, what a blank or absent value answers, what must not be collected,
+which implementations differ and how. A type carrying none of that needs no doc.
+
+Skip docs on tests and generated code. Write a tag only where it states something the signature
+cannot. No `<param>` that restates a parameter name.
 
 A record documents all its positional parameters or none. `CS1573` is an error here, so a partial
 set fails the build, and completing the set reintroduces name-restating tags. Put the substance in

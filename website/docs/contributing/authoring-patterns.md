@@ -9,9 +9,23 @@ contract, and the correctness rules every extension shares. It is the reasoning 
 in the repo-root `CLAUDE.md`; when you add an extension or reshape one, follow those rules and read here
 for the why.
 
-## Classify a module, then place it
+## Keep related code together
 
-Every module is exactly one of six kinds:
+Extract a module when it isolates substantial domain logic, an external dependency, shared state,
+or behavior with multiple callers. A small feature can remain in a few files. Naming conventions
+do not require a separate layer, interface, or helper for every operation. Keep trivial expressions
+with their caller, and test them through the behavior they affect.
+
+Use the simplest implementation for current supported cases. Add configuration and extension points
+for demonstrated requirements. Naming conventions guide placement; they do not justify renaming or
+splitting working code on their own. Existing code may predate this guidance, so preserve its behavior
+without copying unnecessary structure or comment density.
+
+Investigate configuration and dependency problems before adding compensating code. Record the removal
+condition for a necessary workaround. Validate external inputs at boundaries; within trusted code,
+rely on established invariants and avoid default values that conceal programming errors.
+
+Use these responsibilities to place modules that need to exist:
 
 | Kind               | What it is                                                          |
 | ------------------ | ------------------------------------------------------------------- |
@@ -162,6 +176,10 @@ comment.
 Mirror the source folders so a test is easy to find from its subject. An extension has one backend
 test project, and it references Cove's own source unconditionally, so every test in it compiles and
 runs together. There is no mode that silently drops a test from the set.
+
+The folder convention does not require one test file per source file. Group tests around observable
+behavior and meaningful failure modes. [Testing](./testing#choose-what-to-test) describes test
+selection and synchronization.
 
 What the tests need from Cove is the configured context, not the type. `CoveContextFactory`
 constructs a real `CoveContext` and hands it back as `DbContext`, which is the type the host supplies
