@@ -28,7 +28,7 @@ if (!existsSync(shim)) {
     process.exit(1);
   }
   console.log(
-    `check-host-imports: SKIPPED — no host shim at ${shim} (set COVE_REPO or add a ../cove sibling)`,
+    `check-host-imports: SKIPPED - no host shim at ${shim} (set COVE_REPO or add a ../cove sibling)`,
   );
   process.exit(0);
 }
@@ -88,7 +88,7 @@ if (missing.length > 0) {
     const alt = [...hostExports]
       .filter((e) => e.includes(name.replace(/Icon$/, "")) || name.includes(e))
       .slice(0, 3);
-    const offers = alt.length ? ` — the host offers: ${alt.join(", ")}` : "";
+    const offers = alt.length ? ` - the host offers: ${alt.join(", ")}` : "";
     console.error(`  ${file}\n    "${name}" is absent from the host runtime shim${offers}`);
   }
   console.error(

@@ -269,7 +269,7 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
         </div>
       </CollapsibleSection>
 
-      {/* Excludes — the pre-routing skip list, sibling to routing so the two stay parallel.
+      {/* Excludes - the pre-routing skip list, sibling to routing so the two stay parallel.
             These are evaluated before any routing rule; a matching item is dropped from the batch
             entirely (neither renamed nor moved), so they are the safest way to fence off items you
             never want this extension to touch. All three flow through set() like every other control. */}
@@ -336,7 +336,7 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
         </SubBlock>
       </CollapsibleSection>
 
-      {/* Field rewriting — shapes a token's value BEFORE the template renders (mirroring the
+      {/* Field rewriting - shapes a token's value BEFORE the template renders (mirroring the
             ordering note on "Destination routing"/"Excludes"): literal per-token replaces, leading-
             article stripping, the name-shaping toggles, and the per-token whitespace map. All flow
             through set() like every other control. */}

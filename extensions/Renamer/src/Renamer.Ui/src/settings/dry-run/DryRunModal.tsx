@@ -125,7 +125,7 @@ export function DryRunModal({
             <>
               {/* Segmented filter: isolate "what's actually happening" from the noise. Counts are
                   from the scan's own aggregate, so they stay put when the filter changes, and they
-                  are the only place the modal states them. `All` always renders — the row exists
+                  are the only place the modal states them. `All` always renders - the row exists
                   only once something was scanned. */}
               <div id={DESC_ID} className="mb-4 flex flex-wrap gap-2">
                 {SEGMENTS.map((seg) => {
@@ -204,7 +204,7 @@ export function DryRunModal({
 
       {/* The rename reads the saved settings, while this scan previewed whatever was on screen when
           it opened. Starting a rename from rows that describe different settings runs an operation
-          nobody previewed — a kind excluded in these rows is renamed anyway. The panel-level button
+          nobody previewed - a kind excluded in these rows is renamed anyway. The panel-level button
           refuses on the same terms. */}
       {dirty || scanIsStale ? (
         <p className="mt-6 text-sm text-amber-400">

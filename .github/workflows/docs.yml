@@ -13,7 +13,7 @@ name:
   Docs site
 
   # The site does NOT build from `website/` alone: docusaurus.config.ts sources each extension's own
-  # docs/ folder, and a page there may import a file from the extension root — Renamer's changelog
+  # docs/ folder, and a page there may import a file from the extension root - Renamer's changelog
   # page imports its CHANGELOG.md. A `website/**` filter therefore cannot see the files that break
   # the build, which is not hypothetical: a changelog edit broke it and stayed broken. The globs are
   # per-extension-shaped, so a new extension is covered by adding its folder.
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Configure Pages queries the repository's Pages settings, and a permissions block sets every
-    # unlisted scope to none — hence the explicit pages:read. No write scope: this job cannot
+    # unlisted scope to none - hence the explicit pages:read. No write scope: this job cannot
     # deploy, on any event.
     permissions:
       contents: read
@@ -65,8 +65,8 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       # Publish preparation, skipped on a pull request: there is no deploy to hand an artifact to.
-      # The built site does not depend on it — docusaurus.config.ts carries `url` and `baseUrl` as
-      # literals and reads no environment — so the pull-request path skips these two steps and
+      # The built site does not depend on it - docusaurus.config.ts carries `url` and `baseUrl` as
+      # literals and reads no environment - so the pull-request path skips these two steps and
       # still builds the same site the publish path builds.
       - name: Configure Pages
         if: github.event_name != 'pull_request'
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token,
-    # so id-token:write is inseparable from pages:write here. No contents scope — it checks nothing
+    # so id-token:write is inseparable from pages:write here. No contents scope - it checks nothing
     # out.
     permissions:
       pages: write

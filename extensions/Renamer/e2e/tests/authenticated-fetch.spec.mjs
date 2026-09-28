@@ -76,7 +76,7 @@ async function dropAmbientAuthority(page) {
   await page.context().clearCookies({ name: ACCESS_COOKIE });
   expect(
     (await page.context().cookies()).map((c) => c.name),
-    `the ${ACCESS_COOKIE} cookie survived clearCookies — ambient authority is still in play, so a 200 below would prove nothing`,
+    `the ${ACCESS_COOKIE} cookie survived clearCookies - ambient authority is still in play, so a 200 below would prove nothing`,
   ).not.toContain(ACCESS_COOKIE);
 }
 
@@ -106,7 +106,7 @@ async function saveAndAwaitWrite(page, settings, optionsPathname) {
   const headers = await response.request().allHeaders();
   expect(
     headers.authorization ?? "",
-    "the PUT carried no bearer of its own — it was authenticated by something other than the host authenticated fetch",
+    "the PUT carried no bearer of its own - it was authenticated by something other than the host authenticated fetch",
   ).toMatch(/^Bearer /);
   expect(
     headers.cookie ?? "",
@@ -174,7 +174,7 @@ test("the settings panel reads and writes its options through an authenticated r
   const firstWriteStatus = await saveAndAwaitWrite(page, settings, optionsPathname);
   expect(
     firstWriteStatus,
-    `the panel's PUT to ${optionsPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`,
+    `the panel's PUT to ${optionsPathname} answered ${firstWriteStatus} with no access cookie in play - an extension request that carries no credential of its own cannot write to the host store`,
   ).toBe(204);
 
   const afterFirstSave = await readStoredOptions(harness, dataPathname);

@@ -228,7 +228,7 @@ export default defineConfig(
             {
               regex: "^[^.]",
               message:
-                "A pure-logic module stays pure (L0): relative imports only — no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
+                "A pure-logic module stays pure (L0): relative imports only - no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
             },
           ],
         },

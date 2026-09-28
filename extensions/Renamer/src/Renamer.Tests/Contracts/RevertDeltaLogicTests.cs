@@ -83,12 +83,12 @@ public sealed class RevertDeltaLogicTests
     [Fact]
     public void ANonAsciiPath_SurvivesBothDirections()
     {
-        const string stored = "s|/média/Amélie — 2001/clip.srt|/média/Amélie — 2001/Amélie.srt";
+        const string stored = "s|/média/Amélie - 2001/clip.srt|/média/Amélie - 2001/Amélie.srt";
 
         Assert.True(RevertDelta.TryParse(stored, out var delta));
         var sidecar = Assert.Single(delta.Sidecars);
-        Assert.Equal("/média/Amélie — 2001/clip.srt", sidecar.FromPath);
-        Assert.Equal("/média/Amélie — 2001/Amélie.srt", sidecar.ToPath);
+        Assert.Equal("/média/Amélie - 2001/clip.srt", sidecar.FromPath);
+        Assert.Equal("/média/Amélie - 2001/Amélie.srt", sidecar.ToPath);
 
         Assert.Equal(stored, new RevertDelta([sidecar], []).Serialize());
     }
