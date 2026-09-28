@@ -77,7 +77,7 @@ const WINDOW_SETTLE_BUDGET_MS = 30_000;
  * A spec importing the constants the product declares would be asserting that a string equals
  * itself.
  */
-const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Status unknown"];
+const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Unknown"];
 
 /**
  * What a card reads where the library holds no id the connected generation could name it by.

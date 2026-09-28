@@ -46,7 +46,7 @@ import { visit } from "../../lib/steps.mjs";
 const TAB_LABEL = "Missing";
 
 // The four words a status pill can carry, transcribed from the shipped vocabulary the same way.
-const PILL_WORDS = ["Monitored", "Unmonitored", "Not added", "Status unknown"];
+const PILL_WORDS = ["Monitored", "Unmonitored", "Not added", "Unknown"];
 
 // The studio this spec reads a catalogue for. A real StashDB studio with a real catalogue, so a page
 // of cards is reachable when a credential is available; the uuid is what Cove stores as its remote

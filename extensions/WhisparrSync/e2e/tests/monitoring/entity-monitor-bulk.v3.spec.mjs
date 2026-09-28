@@ -49,7 +49,7 @@ import { visit } from "../../lib/steps.mjs";
 // Transcribed by hand from the extension's own registration and copy module, never imported.
 const BULK_ACTION_LABEL = "Whisparr";
 const BULK_CANCEL = "Cancel";
-const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
+const SCOPE_FUTURE_SCENES = "New releases only";
 const UNMONITOR = "Unmonitor";
 const SEARCH_ALL_MONITORED = "Search all monitored";
 

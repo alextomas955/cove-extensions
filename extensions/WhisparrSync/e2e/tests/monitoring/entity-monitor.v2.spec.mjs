@@ -27,8 +27,8 @@ import { visit } from "../../lib/steps.mjs";
 // constant the component renders would be asserting that a string equals itself.
 const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 const WHISPARR_MONITORED = "Whisparr, monitored";
-const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
-const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
+const SCOPE_FUTURE_SCENES = "New releases only";
+const SCOPE_ALL_SCENES = "All scenes";
 const ACTION_ADD_ALL_MISSING = "Add all missing";
 const ACTION_REFLECT_OWNED = "Reflect owned";
 const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";

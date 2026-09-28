@@ -58,8 +58,8 @@ const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 const WHISPARR_MONITORED = "Whisparr, monitored";
 const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Whisparr can't identify this entity from the links Cove holds.";
-const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
-const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
+const SCOPE_FUTURE_SCENES = "New releases only";
+const SCOPE_ALL_SCENES = "All scenes";
 const UNMONITOR = "Unmonitor";
 const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
   "Narrowing the scope back to new releases only does not undo this: a scene already monitored stays monitored.";

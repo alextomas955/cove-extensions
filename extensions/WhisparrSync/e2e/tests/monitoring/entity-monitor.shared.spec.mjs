@@ -26,7 +26,7 @@ import { visit } from "../../lib/steps.mjs";
 // constant the component renders would be asserting that a string equals itself.
 const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 const WHISPARR_MONITORED = "Whisparr, monitored";
-const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
+const SCOPE_FUTURE_SCENES = "New releases only";
 const UNMONITOR = "Unmonitor";
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
