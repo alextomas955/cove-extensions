@@ -12,12 +12,6 @@ export interface ActionPayload {
 export type HandlerResult<TSuccess extends object = Record<string, never>> =
   { cancelled: true } | TSuccess;
 
-/** The queued-job envelope the background-job routes return. */
-export interface QueuedJob {
-  jobId?: string;
-  description?: string;
-}
-
 /** Route builder bound to one extension id: `extensionApi(id)("preview")` → `/extensions/<id>/preview`. */
 export function extensionApi(extensionId: string): (route: string) => string {
   return (route) => `/extensions/${extensionId}/${route}`;

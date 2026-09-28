@@ -545,43 +545,6 @@ export function SegmentedReplace({
   );
 }
 
-export function Checkbox({
-  label,
-  checked,
-  onChange,
-  helper,
-  ariaLabel,
-}: {
-  label?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  helper?: string;
-  ariaLabel?: string;
-}) {
-  const id = useId();
-  // A label-less checkbox (an overlay control with no visible text) names itself through aria-label on the
-  // input, mirroring Toggle - otherwise the visible label span carries the accessible name.
-  const hasVisibleLabel = Boolean(label);
-  return (
-    <div>
-      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
-        <input
-          id={id}
-          type="checkbox"
-          checked={checked}
-          aria-label={hasVisibleLabel ? undefined : ariaLabel}
-          onChange={(e) => {
-            onChange(e.target.checked);
-          }}
-          className="h-4 w-4 rounded border-border bg-card text-accent focus:ring-0"
-        />
-        {hasVisibleLabel ? <span>{label}</span> : null}
-      </label>
-      {helper ? <p className="mt-1 text-xs text-secondary">{helper}</p> : null}
-    </div>
-  );
-}
-
 export function Toggle({
   label,
   checked,

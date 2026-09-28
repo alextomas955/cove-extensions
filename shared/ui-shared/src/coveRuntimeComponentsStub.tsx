@@ -12,6 +12,7 @@
 /** Marks the block the host selector draws, so a caller can address exactly its input. */
 export const HOST_SELECTOR_MARK = "data-host-entity-selector";
 
+/** @public */
 export function EntityReferenceMultiSelector({
   values,
   placeholder,
@@ -30,10 +31,12 @@ export function EntityReferenceMultiSelector({
   );
 }
 
+/** @public */
 export function EntityReferenceValue({ value }: Readonly<{ value: unknown }>) {
   return <span>{`entity ${String(value)}`}</span>;
 }
 
+/** @public */
 export function ConfirmDialog({
   open,
   title,

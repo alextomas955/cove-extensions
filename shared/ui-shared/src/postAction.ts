@@ -6,8 +6,7 @@ import { request, ApiError } from "./extensionRequest";
 /**
  * POST an extension route. Contract: a real {@link ApiError} is rethrown (the host's onError alert
  * shows it); an empty 2xx response body resolves `{}` as success, as does any other non-ApiError
- * raised after a 2xx. Background-job routes answer with a real body (a {@link QueuedJob}) that is
- * returned as-is.
+ * raised after a 2xx. Background-job routes answer with a real body, which is returned as-is.
  */
 export async function postAction<T extends object = Record<string, never>>(
   path: string,

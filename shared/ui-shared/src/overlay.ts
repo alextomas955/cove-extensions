@@ -164,6 +164,8 @@ export function useOverlayKeys(
  * of their own. Renders `render(finish)` into a body-attached root; `finish` is single-shot (a
  * settled guard), unmounts the root, removes the container, and resolves the promise. `null` is the
  * cancel value.
+ *
+ * @public
  */
 export function presentOverlay<T>(
   render: (finish: (result: T | null) => void) => ReactElement,

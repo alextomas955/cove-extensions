@@ -7,9 +7,8 @@
     },
     "extensions/Renamer/src/Renamer.Ui": {
       "vite": false,
-      "entry": ["src/index.ts", "src/settings/options.ts"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["@vitejs/plugin-react"]
+      "entry": ["src/index.ts", "src/settings/options.ts", "vite.config.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "shared/ui-shared": {
       "entry": [
@@ -17,6 +16,7 @@
         "scripts/*.{mjs,cjs}",
         "src/coveRuntime*Stub.{ts,tsx}"
       ],
+      "includeEntryExports": true,
       "project": ["src/**/*.{ts,tsx}", "vite/**/*.ts", "scripts/**/*.{mjs,cjs}"],
       "ignoreDependencies": [
         "react",
