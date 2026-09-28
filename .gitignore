@@ -64,3 +64,6 @@ tests/e2e/docker/shared-media/
 # Python bytecode from the e2e seeders that run inside the instance containers.
 __pycache__/
 *.pyc
+
+# Host runtime declarations, emitted from a Cove checkout by scripts/generate-host-types.mjs.
+.host-types/

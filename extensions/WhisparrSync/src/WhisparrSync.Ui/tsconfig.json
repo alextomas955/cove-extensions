@@ -25,6 +25,8 @@
         "../../../../shared/ui-shared/src/extensionStore.ts"
       ],
       "@cove-extensions/ui-shared/overlay": ["../../../../shared/ui-shared/src/overlay.ts"],
+      "@cove/runtime/components": ["../../../../.host-types/components/extension-shared.d.ts"],
+      "@cove/runtime/api": ["../../../../.host-types/extensions/extension-api.d.ts"],
       "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
