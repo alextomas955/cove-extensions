@@ -58,8 +58,10 @@ export const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
  * Configured per file rather than inside a test body. A body runs AFTER its fixtures are built, so a
  * budget raised there never covers the setup - and the setup here is a container stack, which is the
  * slowest part and the part that outruns the default when the machine is loaded.
+ *
+ * Held at the same figure as the shared fixture's, and set for the same reason. See its own note.
  */
-export const SPEC_BUDGET_MS = 900_000;
+export const SPEC_BUDGET_MS = 300_000;
 
 /**
  * A connected instance of v2, with one site and one scene in its catalogue and the
