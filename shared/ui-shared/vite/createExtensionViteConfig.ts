@@ -21,22 +21,14 @@ export interface ExtensionViteOptions {
 // `@cove/extension-sdk` is intentionally absent - it is not in the host import-map, so it must ship
 // bundled.
 //
-// The mixed spelling is deliberate, and each host module is named here exactly once. The seven bare
-// names are host modules the import map also serves under a bare alias; neither `@cove/runtime/api`
-// nor `@cove/runtime/components` carries such an alias, so the canonical name is the only spelling
-// that reaches them. Do not collapse this to a `@cove/runtime/` prefix match: it matches none of the
-// seven bare names, which would silently bundle a second React with no build failure.
-const HOST_EXTERNALS = [
-  "react",
-  "react-dom",
-  "react-dom/client",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-  "@tanstack/react-query",
-  "lucide-react",
-  "@cove/runtime/api",
-  "@cove/runtime/components",
-];
+// Both spellings of every module the import map serves: the canonical `@cove/runtime/*` name and the
+// bare alias where one exists. A specifier missing from the list is bundled rather than resolved
+// against the host, and an external is a name match, so the build reports nothing. The set is
+// therefore the host's whole import map, not the spellings this repo happens to import today.
+//
+// It sits in JSON so `scripts/check-host-externals.mjs` reads the same bytes this config does and
+// compares them against Cove's own runtime contract, which is where the names come from.
+import HOST_EXTERNALS from "./host-externals.json";
 
 /**
  * The Vite library-mode config every extension UI bundle shares: React plugin, the shared-UI-module

@@ -149,11 +149,8 @@ jobs:
         if: matrix.extension.uiPath != ''
         run: node scripts/generate-wire-types.mjs --extension "$EXTENSION_ID"
 
-      - name: Verify frontend
-        if: matrix.extension.uiPath != ''
-        working-directory: ${{ matrix.extension.uiPath }}
-        run: npm run verify
-
+      # No frontend verify here. Its typecheck resolves `@cove/runtime/*` through declarations emitted
+      # from a Cove checkout, which this job deliberately does without. ui-verify owns that run.
       - name: Build frontend bundle
         if: matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
@@ -432,21 +429,42 @@ jobs:
         with:
           globs: ""
 
-  # Prettier, ESLint, syncpack, knip and jscpd from the repo root. The type-aware rules need each UI's
-  # dependencies and generated wire types to build the TypeScript program.
+  # Prettier, ESLint, syncpack, knip and jscpd from the repo root. ESLint is type-aware, so it needs
+  # each UI's dependencies, the generated wire types and the host declarations under `.host-types/` to
+  # build the TypeScript program. Without those declarations `@cove/runtime/*` resolves to `error`:
+  # some rules then report, and the rules that need a real type, such as no-floating-promises, stop
+  # evaluating and leave the job green on checks it did not run. So this job checks this repository
+  # out at ./extensions with Cove beside it, exactly as ui-verify does.
   js-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: ./extensions/.github/actions/checkout-cove
       - uses: actions/setup-node@v7
         with:
-          node-version-file: package.json
+          node-version-file: extensions/package.json
+
+      # The declarations name types from react, lucide-react and react-query, so the host's own
+      # dependencies have to be present for the emit to resolve them.
+      - name: Install Cove UI deps and generate the host runtime shims
+        working-directory: cove/ui
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run generate:extension-runtime
+
       - name: Install root lint tooling
+        working-directory: extensions
         run: npm ci --no-workspaces --ignore-scripts
+
       - name: Prettier (whole monorepo)
+        working-directory: extensions
         run: npm run format:check
+
       - name: Install each extension's UI deps
+        working-directory: extensions
         run: |
           mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
           for ui in "${uiPaths[@]}"; do
@@ -454,19 +472,120 @@ jobs:
             (cd "$ui" && npm ci --ignore-scripts)
             echo "::endgroup::"
           done
+
       - name: Generate wire types
+        working-directory: extensions
         run: node scripts/generate-wire-types.mjs
+
+      - name: Generate the host declarations
+        working-directory: extensions
+        env:
+          COVE_REPO: ${{ github.workspace }}/cove
+        run: node scripts/generate-host-types.mjs
+
+      # Read the result rather than trusting the step above: the two files the UI tsconfigs map are
+      # what decide whether ESLint runs its type-aware rules or silently skips them.
+      - name: Check the host declarations arrived
+        working-directory: extensions
+        run: |
+          for f in .host-types/components/extension-shared.d.ts .host-types/extensions/extension-api.d.ts; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::$f is missing, so @cove/runtime/* resolves to \`error\` and ESLint's type-aware rules would report on some call sites and stop evaluating on the rest."
+              exit 1
+            fi
+          done
+
       - name: ESLint (whole monorepo)
+        working-directory: extensions
         run: npm run lint
+
+      # dangerouslySetInnerHTML is the half of this that nothing else catches, and lefthook is the
+      # only other place it ran. A hook is absent with no warning when npm withholds install scripts.
+      - name: check-classes (raw HTML and class discipline)
+        working-directory: extensions
+        run: |
+          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::check-classes $ui"
+            (cd "$ui" && npm run check-classes)
+            echo "::endgroup::"
+          done
+
       - name: syncpack (dependency-version drift)
+        working-directory: extensions
         run: npm run syncpack
+
       # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test from a workspace.
       - name: Install workspaces
+        working-directory: extensions
         run: npm ci --ignore-scripts
+
       - name: knip (dead files, exports and dependencies)
+        working-directory: extensions
         run: npm run knip
+
       - name: jscpd (copy-paste)
+        working-directory: extensions
         run: npm run jscpd
+
+  # Each UI bundle's own suite: typecheck, Prettier, class discipline, lucide names and vitest. It sits
+  # apart from `build` because the typecheck resolves `@cove/runtime/*` through declarations emitted
+  # from a Cove checkout, and `build` proves the opposite property - that the shipped artifact needs no
+  # Cove source. Without the checkout the typecheck fails rather than checking a smaller set, which is
+  # how the C# suite already treats a missing Cove.
+  ui-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: ./extensions/.github/actions/checkout-cove
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: extensions/package.json
+
+      # The emitted declarations name types from react, lucide-react and react-query, so the host's own
+      # dependencies have to be present for the emit to resolve them. The runtime shims are what
+      # check-host-imports reads, and COVE_REPO below makes a missing one a failure rather than a skip.
+      - name: Install Cove UI deps and generate the host runtime shims
+        working-directory: cove/ui
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run generate:extension-runtime
+
+      - name: Install root tooling (wire-type generator)
+        working-directory: extensions
+        run: npm ci --no-workspaces --ignore-scripts
+
+      - name: Install each extension's UI deps
+        working-directory: extensions
+        run: |
+          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::npm ci $ui"
+            (cd "$ui" && npm ci --ignore-scripts)
+            echo "::endgroup::"
+          done
+
+      # One list for the whole repo, so this runs once rather than per bundle.
+      - name: Check the host import-map externals
+        working-directory: extensions
+        env:
+          COVE_REPO: ${{ github.workspace }}/cove
+        run: node scripts/check-host-externals.mjs
+
+      - name: Verify each UI bundle
+        working-directory: extensions
+        env:
+          COVE_REPO: ${{ github.workspace }}/cove
+        run: |
+          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::verify $ui"
+            (cd "$ui" && npm run verify)
+            echo "::endgroup::"
+          done
 
   # Every lucide-react icon an extension imports must exist in the module the host serves: a name only
   # the local copy has typechecks and builds, then fails the whole bundle at load. The shim is generated
@@ -504,6 +623,7 @@ jobs:
         csharp-format,
         markdown-lint,
         js-lint,
+        ui-verify,
         host-imports,
       ]
     if: always()

@@ -145,9 +145,10 @@ Two consequences follow from "raw source, no install", and both are load-bearing
 `node_modules` of its own, so anything it imports must either be externalized to the host import map
 or pinned to the consuming UI's own copy - which is why the React plugin arrives as a parameter rather
 than being imported there, and why the SDK alias points into the consuming UI's vendored copy. And the
-externals list names each host module exactly once, in the spelling the host import map serves, because
-a prefix match that missed a bare name would silently bundle a second React with no build failure and
-break hook identity at runtime.
+externals list names every spelling the host import map serves, canonical and bare alike, because an
+external is a name match: a spelling nobody listed is bundled rather than resolved against the host,
+which ships a second React and breaks hook identity at runtime with no build failure.
+`scripts/check-host-externals.mjs` compares the list against Cove's own runtime contract.
 
 Test support sits beside these two and is not part of the shipped layer. Helpers needing no Cove types
 are an ordinary project a test project references.

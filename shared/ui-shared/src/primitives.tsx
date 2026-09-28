@@ -1,7 +1,17 @@
 /**
- * Field primitives re-implemented locally, because the host's settings primitives are not exported to
- * extensions. Every class string matches Cove's own, so the panel reads as native and every utility
- * resolves against the host's emitted stylesheet: no CSS bundle ships.
+ * Field primitives kept local, because the host set a settings panel can reach is thinner than this
+ * one needs. `@cove/runtime/components` does export `Field`, `TextInput`, `TextArea`, `NumberInput`
+ * and `SelectInput`, so check them before adding anything here. What they do not cover:
+ *
+ * - Host `Field` takes `children: ReactNode` and pairs its label by nesting. A `<label>` forwards a
+ *   click to its first labelable descendant, so over a chip row it flips whichever chip is drawn
+ *   first. {@link Field} hands the control an id instead, and {@link FieldGroup} takes the blocks a
+ *   label must not wrap at all.
+ * - Host `TextInput` takes no `id`, `aria-label`, ref, `onFocus` or mono variant.
+ * - Host `NumberInput` does not clamp to min/max and has no blank-when-zero rendering.
+ *
+ * Every class string matches Cove's own, so the panel reads as native and every utility resolves
+ * against the host's emitted stylesheet: no CSS bundle ships.
  *
  * Focus uses Cove's `focus:border-accent focus:outline-none`. The host stylesheet emits no
  * `focus-visible:ring-*` utilities.

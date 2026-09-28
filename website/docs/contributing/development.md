@@ -47,21 +47,28 @@ Then run the tests - see [Testing](./testing).
 Run these from the extension's UI directory, `extensions/Renamer/src/Renamer.Ui/`:
 
 ```sh
-npm run typecheck   # generates the wire types, then tsc --noEmit
+npm run typecheck   # generates the wire and host types, then tsc --noEmit
 npm run test        # generates the wire types, then one Vitest run
 npm run verify      # typecheck, Prettier check, class check, host-import check, tests
 npm run build       # rebuilds dist/index.mjs
 ```
 
-`verify` is what the pull-request build runs for a UI bundle, so clear it before you push. `dist/` is
+`typecheck` needs a Cove checkout and stops without one. Cove ships no types for the
+`@cove/runtime/*` modules it serves, so `generate:host-types` emits them from that checkout into the
+gitignored `.host-types/`, and the tsconfig maps the two specifiers there. Your call sites are then
+checked against the host's real component props. The generator reads `COVE_REPO`, falling back to a
+`../cove` sibling, and Cove's own `ui/` needs its dependencies installed because the declarations
+name types from react, lucide-react and react-query.
+
+`verify` is what the `ui-verify` job runs for a UI bundle, so clear it before you push. `dist/` is
 build output and is gitignored - a normal source change never builds or commits a bundle, because CI
 rebuilds it from source and packages what it built.
 
 Two of the checks inside `verify` are worth knowing separately:
 
-- `check-classes` fails on a Tailwind utility class the host does not emit, and on the raw-HTML React
-  prop. The host's Tailwind pass never scans this bundle, so a class the host does not already emit
-  renders unstyled with nothing reported anywhere.
+- `check-classes` fails on a Tailwind utility class the host does not emit. The host's Tailwind pass
+  never scans this bundle, so a class the host does not already emit renders unstyled with nothing
+  reported anywhere. The raw-HTML React prop is banned by ESLint rather than here.
 - `check-host-imports` resolves each host import-map external against the module the host actually
   serves, read out of a Cove checkout. A name can typecheck, build, and pass every other check while
   the shipped bundle fails to load in the browser. With no `../cove` sibling it prints a skip and
@@ -197,7 +204,7 @@ push; run all of them if you touched root tooling.
 | Host imports       | A `lucide-react` icon import the host's runtime shim does not export                                                     | `node scripts/check-host-imports.mjs`                                  | repo root        |
 | UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                       | the UI directory |
 
-The C# analyzers row needs a Cove source checkout. Its `-p:CoveSourceMode=source` refuses to fall
+The UI verify and C# analyzers rows both need a Cove source checkout. Its `-p:CoveSourceMode=source` refuses to fall
 back, so on a clone without one the command fails before it compiles anything. A `../cove` sibling
 supplies a checkout by auto-detect, and `COVE_REPO` names one explicitly; [Configuration
 reference](./configuration#cove-source-selection) has both knobs and the precedence between them. CI
@@ -288,6 +295,11 @@ Each of these is stated symptom first, because the symptom is what you arrive wi
   files you never touched.** The generated wire types are absent. They are gitignored, so a fresh
   clone and a new worktree both start without them. Run `npm ci --no-workspaces` and then
   `npm run generate:wire` at the repo root.
+- **The UI typecheck stops with `generate-host-types: no Cove checkout`.** Cove ships no types for
+  the `@cove/runtime/*` modules, so the typecheck emits them from a checkout and refuses to run
+  without one. Add a `../cove` sibling or set `COVE_REPO`.
+- **The UI typecheck stops with `has no installed TypeScript`.** The checkout is there but its `ui/`
+  has no dependencies. Run `npm ci` in Cove's `ui/` directory.
 - **The UI typecheck cannot find the type definitions for `react-dom`.** The UI project is not an npm
   workspace, so a root install never reaches it, and its `tsconfig.json` names its type packages
   explicitly. Run `npm ci` inside the UI directory, using `cd <dir> && npm ci` rather than the
