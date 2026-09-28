@@ -2,8 +2,7 @@
 // Invariants over the whole settings panel, on the real sections and primitives. A label never
 // forwards a click to a button that is one control among several: a label activates its first
 // labelable descendant, so a heading over a chip row would activate a chip. Every text input, select
-// and textarea has an accessible name, save the one recorded allowance. Every label names exactly one
-// control by an id that resolves.
+// and textarea has an accessible name. Every label names exactly one control by an id that resolves.
 import { test, expect } from "vitest";
 import { createElement, createRef, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -200,15 +199,6 @@ function namesOnlyThatControl(label: HTMLLabelElement, target: Element): boolean
   return labelable.length === 1 && labelable[0] === target;
 }
 
-// The gap this allowance records: the host draws the entity selector's input, and on the Cove floor
-// this extension declares it exposes neither an id to point `htmlFor` at nor a name hook, so that
-// input carries no accessible name of its own. Its block is named instead, and a group name does not
-// name a nested textbox. A Cove release exposing a name hook on the selector closes it.
-const HOST_SELECTOR_INPUT = {
-  reason: "the host entity selector's own search input, unnamed on the declared Cove floor",
-  matches: (el: Element) => el.closest(`[${HOST_SELECTOR_MARK}]`) !== null,
-};
-
 test("no label forwards a click to a button that is one control among several", async () => {
   const view = await renderPanel();
 
@@ -233,24 +223,21 @@ test("no label forwards a click to a button that is one control among several", 
   view.unmount();
 });
 
-test("every text input, select and textarea is named, save the recorded host-selector gap", async () => {
+test("every text input, select and textarea is named, including the host selector's own input", async () => {
   const view = await renderPanel();
 
-  const allowed: Element[] = [];
+  const selectorInputs: Element[] = [];
   const unnamed: string[] = [];
   for (const control of view.container.querySelectorAll<HTMLElement>(
     'input:not([type="hidden"]):not([type="checkbox"]), select, textarea',
   )) {
+    if (control.closest(`[${HOST_SELECTOR_MARK}]`)) selectorInputs.push(control);
     if (accessibleName(control)) continue;
-    if (HOST_SELECTOR_INPUT.matches(control)) {
-      allowed.push(control);
-      continue;
-    }
     unnamed.push(`${sectionOf(control)} / <${control.tagName.toLowerCase()}>`);
   }
 
-  // An allowance matching nothing means the gap closed and the exemption outlived it.
-  expect(allowed.length, HOST_SELECTOR_INPUT.reason).toBeGreaterThan(0);
+  // The host draws the selector's input, so the stand-in must have drawn one for this to cover it.
+  expect(selectorInputs.length, "no host selector input was rendered").toBeGreaterThan(0);
 
   expect(unnamed, "an unnamed control").toEqual([]);
 
