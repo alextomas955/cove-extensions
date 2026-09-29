@@ -73,6 +73,8 @@ public sealed class MissingPagePlannerTests
         Assert.Empty(view.Cards);
     }
 
+    // An instance that did not answer is never read as an empty catalogue: the size stays at zero
+    // rather than being reported as a measurement.
     [Fact]
     public async Task AnInstanceThatDidNotAnswerIsHeldApartFromAnEntityItDoesNotHold()
     {
@@ -83,6 +85,7 @@ public sealed class MissingPagePlannerTests
 
         Assert.Equal(MissingRefusalKind.WhisparrCatalogueNotRead, view.Refusal);
         Assert.Empty(view.Cards);
+        Assert.Equal(0, view.CatalogueSize);
     }
 
     [Fact]

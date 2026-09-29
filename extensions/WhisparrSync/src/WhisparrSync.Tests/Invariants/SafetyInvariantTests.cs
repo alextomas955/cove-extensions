@@ -666,8 +666,9 @@ public sealed class SafetyInvariantTests
         await DeriveAsync(scenes, [], exclusionReading);
 
         Assert.Equal(1, exclusionReading.Calls);
-        var asked = Assert.Single(exclusionReading.AskedAbout);
-        Assert.Equal(40, asked.Count);
+        Assert.Equal(
+            scenes.Select(scene => scene.ProviderSceneId),
+            Assert.Single(exclusionReading.AskedAbout));
     }
 
     [Fact]
