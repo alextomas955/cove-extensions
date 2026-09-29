@@ -48,7 +48,6 @@ public sealed partial class WhisparrSync
                         stored.InstanceSettingsOrEmptyFor(generation).OutboundRefusals,
                         refused,
                         addressed),
-                    RootsEstablished = true,
                 }),
             CancellationToken.None).ConfigureAwait(false);
     }
