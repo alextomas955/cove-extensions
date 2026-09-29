@@ -8,49 +8,54 @@ import { createApiClient } from "./apiClient.mjs";
 export { createApiClient };
 
 /**
- * Per-test fixtures giving a test its own Cove instance with `extension` already installed, torn down
- * after the test: `isolatedHarness`, and `baseUrl` pointed at that instance.
+ * One per-test fixture giving a test its own Cove instance with `extension` already installed, torn
+ * down after the test. The caller names it, so a spec that already has an `isolatedHarness` can
+ * mount this under a name of its own.
  *
- * Use them for a test that changes a global extension setting, or the extension's installed state. The
+ * Use it for a test that changes a global extension setting, or the extension's installed state. The
  * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
  * silently alters its behaviour. This costs a container boot per test.
- *
- * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the worker
- * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
- * reported against a host the test never drove.
  *
  * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes -
  * including one an extension reads for itself. An extension passes its own through a wrapper of its
  * own, so the value is decided once rather than at each fixture that names it.
  */
+export function isolatedHarnessFixture(extension, env) {
+  return [
+    async ({}, use, testInfo) => {
+      // The container pair exists from startHarness() onward, so every later step belongs inside the
+      // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
+      // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
+      // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
+      // the one that actually broke.
+      const isolatedHarness = await startHarness({ env });
+      try {
+        isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
+        await isolatedHarness.installExtension(extension);
+        await use(isolatedHarness);
+      } finally {
+        // Repeated here for a test that drives this instance without a `page`, which is the fixture
+        // that otherwise reports an unreachable host.
+        await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
+        await isolatedHarness.stop();
+      }
+    },
+    { scope: "test" },
+  ];
+}
+
+/**
+ * The pair a spec usually wants: `isolatedHarness`, and `baseUrl` pointed at that instance.
+ *
+ * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the worker
+ * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
+ * reported against a host the test never drove.
+ */
 export function isolatedHarnessFixtures(extension, env) {
   return {
-    isolatedHarness: [
-      async ({}, use, testInfo) => {
-        // The container pair exists from startHarness() onward, so every later step belongs inside the
-        // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
-        // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
-        // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
-        // the one that actually broke.
-        const isolatedHarness = await startHarness({ env });
-        try {
-          isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-          await isolatedHarness.installExtension(extension);
-          await use(isolatedHarness);
-        } finally {
-          // Repeated here for a test that drives this instance without a `page`, which is the fixture
-          // that otherwise reports an unreachable host.
-          await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
-          await isolatedHarness.stop();
-        }
-      },
-      { scope: "test" },
-    ],
+    isolatedHarness: isolatedHarnessFixture(extension, env),
     baseUrl: async ({ isolatedHarness }, use) => {
       await use(isolatedHarness.baseUrl);
-    },
-  };
-}
     },
   };
 }
