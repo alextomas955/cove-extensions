@@ -48,17 +48,6 @@ public sealed class SceneDetailProjectorTests
         """;
 
     [Fact]
-    public void AFileTheInstanceHoldsIsNamedByTheInstancesOwnQualityName()
-    {
-        var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithALeafCutoff), excluded: false);
-
-        Assert.Equal("WEBDL-1080p", view.QualityName);
-        Assert.True(view.Present);
-        Assert.True(view.Monitored);
-    }
-
-    [Fact]
     public void ASceneWithNoFileNamesNoQuality()
     {
         var view = SceneDetailProjector.Project(
@@ -122,34 +111,24 @@ public sealed class SceneDetailProjectorTests
         Assert.Null(view.Monitored);
     }
 
-    [Fact]
-    public void TheProfileTheSceneNamesCarriesItsOwnNameAndTheQualityItsCutoffResolvesTo()
+    // A cutoff is an id on the profile, and a group is one of the things that id can name. The
+    // scene's own quality comes off the file rather than off the profile, so it reads the same on
+    // every row.
+    [Theory]
+    [InlineData(ProfileWithALeafCutoff, "WEBDL-1080p")]
+    [InlineData(ProfileWithAGroupCutoff, "WEB 1080p")]
+    [InlineData(ProfileWhoseCutoffNamesNothing, null)]
+    public void TheProfileTheSceneNamesCarriesItsOwnNameAndTheQualityItsCutoffResolvesTo(
+        string profile, string? cutoffName)
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithALeafCutoff), excluded: false);
+            Json(HeldWithAFile), Json(profile), excluded: false);
 
+        Assert.Equal("WEBDL-1080p", view.QualityName);
+        Assert.True(view.Present);
+        Assert.True(view.Monitored);
         Assert.Equal("HD-1080p", view.QualityProfileName);
-        Assert.Equal("WEBDL-1080p", view.CutoffName);
-    }
-
-    // A cutoff is an id on the profile, and a group is one of the things that id can name.
-    [Fact]
-    public void ACutoffNamingAGroupResolvesToTheGroupsOwnName()
-    {
-        var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithAGroupCutoff), excluded: false);
-
-        Assert.Equal("WEB 1080p", view.CutoffName);
-    }
-
-    [Fact]
-    public void ACutoffNoItemAnswersToIsNamedByNothing()
-    {
-        var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWhoseCutoffNamesNothing), excluded: false);
-
-        Assert.Equal("HD-1080p", view.QualityProfileName);
-        Assert.Null(view.CutoffName);
+        Assert.Equal(cutoffName, view.CutoffName);
         Assert.False(view.ProfileReadDidNotComplete);
     }
 

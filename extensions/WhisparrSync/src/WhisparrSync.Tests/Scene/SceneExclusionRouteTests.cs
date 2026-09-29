@@ -35,6 +35,7 @@ public sealed class SceneExclusionRouteTests
         var result = await host.SceneActionAsync(coveId, Exclude);
 
         Assert.Equal(SceneRefusalKind.None, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
         Assert.Equal([SceneId], host.Client.ExclusionLookups);
         Assert.Empty(host.Client.Acting);
     }
@@ -69,6 +70,7 @@ public sealed class SceneExclusionRouteTests
         Assert.Equal(nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync), sent.Verb);
         Assert.Equal(ExclusionOnTheInstance, sent.EntityId);
         Assert.Null(sent.ForeignId);
+        Assert.False(result.SearchIsWithWhisparr);
     }
 
     [Fact]
@@ -143,21 +145,6 @@ public sealed class SceneExclusionRouteTests
         Assert.Equal(SceneRefusalKind.DidNotReachWhisparr, view.Refusal);
         Assert.Null(view.Present);
         Assert.Null(view.Monitored);
-    }
-
-    [Theory]
-    [InlineData(Exclude)]
-    [InlineData(RemoveExclusion)]
-    public async Task NeitherHalfReportsASearch(string verb)
-    {
-        await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrCore.RemoveSceneExclusionAsync), MonitorHost.Json(200, "{}"));
-        var coveId = await SeedSceneAsync(host);
-        host.Client.ExclusionIdByScene[SceneId] = ExclusionOnTheInstance;
-
-        var result = await host.SceneActionAsync(coveId, verb);
-
-        Assert.False(result.SearchIsWithWhisparr);
     }
 
     private static async Task<int> SeedSceneAsync(MonitorHost host)
