@@ -41,8 +41,9 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureClassifier.Classify(
                 ConnectionObservation.Answered(403, contentType: null, document: null)));
 
-    // A wrong address answers 200 text/html, so a status test cannot reach this. An empty
-    // content-type on a non-401 lands here too, the measured shape of a 404 under /api/v3.
+    // A wrong address, and an unknown path at the site root, both answer 200 text/html on either
+    // build, so a status test cannot reach this. An empty content-type on a non-401 lands here too,
+    // the measured shape of a 404 under /api/v3.
     [Theory]
     [InlineData(200, "text/html")]
     [InlineData(200, "text/html; charset=utf-8")]
