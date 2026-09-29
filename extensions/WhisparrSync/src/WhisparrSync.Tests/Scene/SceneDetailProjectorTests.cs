@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
@@ -88,10 +89,37 @@ public sealed class SceneDetailProjectorTests
         var view = SceneDetailProjector.Project(
             Json(NotHeld), Json(ProfileWithALeafCutoff), excluded: false);
 
+        Assert.Equal(SceneRefusalKind.None, view.Refusal);
         Assert.False(view.Present);
         Assert.Null(view.QualityProfileName);
         Assert.Null(view.CutoffName);
         Assert.False(view.ProfileReadDidNotComplete);
+    }
+
+    // A read that established nothing is not a scene with no facts.
+    [Fact]
+    public void ASceneReadTheInstanceDeclinedIsReportedAsAFailedRead()
+    {
+        var view = SceneDetailProjector.Project(
+            new WhisparrResponse(500, JsonContentType, "nope"),
+            Json(ProfileWithALeafCutoff),
+            excluded: false);
+
+        Assert.Equal(SceneRefusalKind.DidNotReachWhisparr, view.Refusal);
+        Assert.Null(view.Present);
+        Assert.Null(view.Monitored);
+    }
+
+    // An answer that will not parse establishes as little as one the instance declined.
+    [Fact]
+    public void ASceneAnswerThatWillNotParseIsReportedAsAFailedRead()
+    {
+        var view = SceneDetailProjector.Project(
+            Json("{not json"), Json(ProfileWithALeafCutoff), excluded: false);
+
+        Assert.Equal(SceneRefusalKind.DidNotReachWhisparr, view.Refusal);
+        Assert.Null(view.Present);
+        Assert.Null(view.Monitored);
     }
 
     [Fact]

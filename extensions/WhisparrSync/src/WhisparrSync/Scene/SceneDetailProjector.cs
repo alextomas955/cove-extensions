@@ -6,7 +6,8 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Scene;
 
 // The state comes off the same row read the catalogue surface uses, so the two surfaces cannot
-// disagree about one scene.
+// disagree about one scene. A read that established nothing is classified here, on that same row,
+// rather than reaching the browser as a scene with no facts.
 internal static class SceneDetailProjector
 {
     // A null profiles answer and one that cannot be read are both reported as a profile read that
@@ -17,6 +18,19 @@ internal static class SceneDetailProjector
         WhisparrResponse scene, WhisparrResponse? profiles, bool excluded)
     {
         var row = SceneStatusPort.ReadRow(scene);
+        if (row.State == MissingSceneState.StatusUnknown)
+        {
+            return new SceneDetailView(
+                SceneRefusalKind.DidNotReachWhisparr,
+                Excluded: false,
+                Present: null,
+                Monitored: null,
+                QualityName: null,
+                QualityProfileName: null,
+                CutoffName: null,
+                ProfileReadDidNotComplete: false);
+        }
+
         var held = HeldValuesIn(scene);
         var named = SceneCutoffProjector.Project(profiles, held.QualityProfileId);
 
