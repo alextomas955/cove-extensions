@@ -78,18 +78,9 @@ public sealed class RegistrationIdempotencyTests
         Assert.Equal(7, update.Id);
         Assert.Equal(Instance, update.BaseAddress);
         Assert.Equal(MovedAddress, UrlFieldOf(update.Body!));
-    }
 
-    // The instance enforces uniqueness itself, so this code does not reimplement the check.
-    [Fact]
-    public async Task TheListIsReadToFindAndToReadBackAndForNothingElse()
-    {
-        var client = ClientAnswering(
-            listBefore: ListHolding(Address), listAfter: ListHolding(MovedAddress));
-
-        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
-            .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
-
+        // The instance enforces uniqueness itself, so this code does not reimplement the check: the
+        // list is read to find and to read back, and for nothing else.
         Assert.Equal(
             2,
             client.Notifications.Count(call => call.Verb == nameof(IWhisparrClient.ListNotificationsAsync)));

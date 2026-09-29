@@ -30,6 +30,12 @@ public sealed class InstanceFolderReadTests
         var target = Assert.Single(handler.Targets);
         Assert.Contains("path=%2fdata%2fBlue+Harbor%2f", target, StringComparison.Ordinal);
         Assert.Contains("includeFiles=true", target, StringComparison.Ordinal);
+
+        // The cast in Role() already fails where the generation does not hold the role; the
+        // capability is declared beside it.
+        Assert.Contains(
+            WhisparrCapability.ReadInstanceFilesystem,
+            GenerationCapabilities.CapabilitiesOf(generation));
     }
 
     // Without the trailing separator the instance treats the spelling as a partial name and
@@ -59,20 +65,6 @@ public sealed class InstanceFolderReadTests
             () => Role(client).ReadInstanceFolderAsync("  ", TestCt));
 
         Assert.Empty(handler.Requests);
-    }
-
-    [Theory]
-    [InlineData(WhisparrGeneration.V3)]
-    [InlineData(WhisparrGeneration.V2)]
-    public void BothGenerationsHoldTheFilesystemRole(WhisparrGeneration generation)
-    {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, Listing);
-        var client = TestWhisparrClient.Over(handler, generation: generation);
-
-        Assert.IsAssignableFrom<IWhisparrInstanceFilesystemReading>(client);
-        Assert.Contains(
-            WhisparrCapability.ReadInstanceFilesystem,
-            GenerationCapabilities.CapabilitiesOf(generation));
     }
 
     private static IWhisparrInstanceFilesystemReading Role(IWhisparrClient client)

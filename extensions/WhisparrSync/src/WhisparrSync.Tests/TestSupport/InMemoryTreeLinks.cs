@@ -31,11 +31,11 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
     /// What a reader deleting a file leaves behind: a link in the tree is then the only name the
     /// file has, which is the one state a name may be taken back in.
     /// </remarks>
-    internal void Forget(string path) => _deleted.Add(PathCandidateGuard.Normalize(path));
+    internal void Forget(string path) => _deleted.Add(TreePathSpelling.Spelled(path));
 
     public ProbedLink? Identify(string path)
     {
-        var spelled = PathCandidateGuard.Normalize(path);
+        var spelled = TreePathSpelling.Spelled(path);
         if (_links.TryGetValue(spelled, out var pointsAt))
         {
             return Reading(pointsAt, _deleted.Contains(pointsAt) ? 1 : 2);
@@ -46,8 +46,8 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
 
     public LinkOutcome Link(string existingPath, string newPath)
     {
-        var source = PathCandidateGuard.Normalize(existingPath);
-        var name = PathCandidateGuard.Normalize(newPath);
+        var source = TreePathSpelling.Spelled(existingPath);
+        var name = TreePathSpelling.Spelled(newPath);
 
         if (_links.ContainsKey(name) || !InATree(name))
         {
@@ -71,13 +71,13 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
 
     public bool EnsureFolder(string path)
     {
-        _folders.Add(PathCandidateGuard.Normalize(path));
+        _folders.Add(TreePathSpelling.Spelled(path));
         return true;
     }
 
     public IEnumerable<string> NamesIn(string folder)
     {
-        var prefix = PathCandidateGuard.Normalize(folder).TrimEnd('/') + "/";
+        var prefix = TreePathSpelling.PrefixOf(folder);
 
         return [.. _links.Keys
             .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -88,7 +88,7 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
 
     public IEnumerable<string> FoldersIn(string folder)
     {
-        var prefix = PathCandidateGuard.Normalize(folder).TrimEnd('/') + "/";
+        var prefix = TreePathSpelling.PrefixOf(folder);
 
         return [.. _folders
             .Concat(_links.Keys)
@@ -108,14 +108,14 @@ internal sealed class InMemoryTreeLinks : ITreeLinkPort
             return NameRemoval.Refused;
         }
 
-        return _links.Remove(PathCandidateGuard.Normalize(path))
+        return _links.Remove(TreePathSpelling.Spelled(path))
             ? NameRemoval.Removed
             : NameRemoval.NotThere;
     }
 
     public bool WriteIgnore(string treeRoot)
     {
-        _ignoreFiles[PathCandidateGuard.Normalize(treeRoot)] = "*";
+        _ignoreFiles[TreePathSpelling.Spelled(treeRoot)] = "*";
         return true;
     }
 

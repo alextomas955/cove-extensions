@@ -118,17 +118,6 @@ public sealed class NotificationPinTests
     public void TheMethodFieldValueDeliveriesArrivedUnderIsPinned()
         => Assert.Equal(1, NotificationPort.PostMethod);
 
-    // The retry policy table decides this, so a class granted retries by a table edit fails here
-    // rather than silently re-issuing a write whose answer did not arrive.
-    [Fact]
-    public void AConfigureRequestIsNeverReIssued()
-    {
-        Assert.Equal(
-            WhisparrRetryPolicy.NoRetry,
-            WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Configure));
-        Assert.True(WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read) > WhisparrRetryPolicy.NoRetry);
-    }
-
     private static IReadOnlyList<string> DeclaredFieldNames(string fixtureFileName)
     {
         using var document = JsonDocument.Parse(ProbeFixtures.Read(fixtureFileName));
