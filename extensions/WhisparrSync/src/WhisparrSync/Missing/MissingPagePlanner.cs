@@ -317,8 +317,11 @@ internal sealed class MissingPagePlanner(
             return new HashSet<string>(StringComparer.Ordinal);
         }
 
-        return await SceneExclusionPort
-            .ReadExcludedAsync(reading, [.. kept.Select(scene => scene.ProviderSceneId)], ct)
+        // The instance narrows its exclusion list by no parameter, so the read is the whole list.
+        // It is consumed as it arrives and each row is reduced to whether it names one of this
+        // page's own identifiers, so nothing kept here grows with what the instance holds.
+        return await reading
+            .ReduceExclusionsAsync([.. kept.Select(scene => scene.ProviderSceneId)], ct)
             .ConfigureAwait(false);
     }
 

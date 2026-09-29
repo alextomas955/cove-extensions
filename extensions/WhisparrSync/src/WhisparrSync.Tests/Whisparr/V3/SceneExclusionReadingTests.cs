@@ -5,9 +5,9 @@ using System.Text.Json.Nodes;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Tests.Missing;
+namespace WhisparrSync.Tests.Whisparr.V3;
 
-public sealed class SceneExclusionPortTests
+public sealed class SceneExclusionReadingTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-exclusions.json";
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
