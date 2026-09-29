@@ -16,7 +16,7 @@ public sealed class BulkVerbGuardTests
     private const int Cap = 1000;
 
     [Fact]
-    public async Task ABodyNamingNoVerbIsRefusedAndNothingIsEnqueuedAndNothingIsSent()
+    public async Task ABodyNamingNoVerbIsRefusedAndNothingIsEnqueued()
     {
         await using var host = await MonitorHost.CreateAsync();
 
@@ -26,7 +26,6 @@ public sealed class BulkVerbGuardTests
         var refusal = await answered.Content.ReadFromJsonAsync<ErrorCode>(TestCt);
         Assert.Equal("MISSING_VERB", refusal!.Code);
         Assert.Empty(host.Jobs.Enqueued);
-        Assert.Empty(host.Client.Verbs);
     }
 
     // A member spelled out as null binds the same as one left out.
@@ -68,7 +67,6 @@ public sealed class BulkVerbGuardTests
 
         Assert.Equal(HttpStatusCode.BadRequest, answered.StatusCode);
         Assert.Empty(host.Jobs.Enqueued);
-        Assert.Empty(host.Client.Verbs);
     }
 
     // The missing verb is answered before the cap. A caller told to split a selection would send

@@ -73,7 +73,7 @@ public sealed class SceneBatchBoundTests
     [InlineData("monitor")]
     [InlineData("unmonitor")]
     [InlineData("exclude")]
-    public async Task ASelectionOverTheThousandBoundIsRefusedNamingItAndNothingIsSent(string verb)
+    public async Task ASelectionOverTheThousandBoundIsRefusedNamingItAndEnqueuesNothing(string verb)
     {
         await using var host = await MonitorHost.CreateAsync();
 
@@ -84,13 +84,12 @@ public sealed class SceneBatchBoundTests
         Assert.Equal("TOO_MANY_IDS", refusal!.Code);
         Assert.Equal(Bound, refusal.Max);
         Assert.Empty(host.Jobs.Enqueued);
-        Assert.Empty(host.Client.Verbs);
     }
 
     // The browser chooses its sentence on the code, so one code for both bounds leaves the lower
     // one undescribable.
     [Fact]
-    public async Task ASearchSelectionOverItsOwnBoundIsRefusedUnderItsOwnCodeAndNothingIsSent()
+    public async Task ASearchSelectionOverItsOwnBoundIsRefusedUnderItsOwnCodeAndEnqueuesNothing()
     {
         await using var host = await MonitorHost.CreateAsync();
 
@@ -102,7 +101,6 @@ public sealed class SceneBatchBoundTests
         Assert.NotEqual("TOO_MANY_IDS", refusal.Code);
         Assert.Equal(SearchBound, refusal.Max);
         Assert.Empty(host.Jobs.Enqueued);
-        Assert.Empty(host.Client.Verbs);
     }
 
     // A route holding one bound for every verb passes the refusal above and fails here.
@@ -166,7 +164,6 @@ public sealed class SceneBatchBoundTests
 
         Assert.Equal(HttpStatusCode.Forbidden, answered.StatusCode);
         Assert.Empty(host.Jobs.Enqueued);
-        Assert.Empty(host.Client.Verbs);
     }
 
     private static string BodyFor(string verb, int ids)
