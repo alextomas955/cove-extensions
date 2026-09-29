@@ -19,11 +19,6 @@ internal static class SceneExclusionPort
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(providerSceneIds);
 
-        if (providerSceneIds.Count == 0)
-        {
-            return new HashSet<string>(StringComparer.Ordinal);
-        }
-
         return await reading.ReduceExclusionsAsync(providerSceneIds, ct).ConfigureAwait(false);
     }
 }

@@ -122,17 +122,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal(page, reading.AskedAbout[0]);
     }
 
-    [Fact]
-    public async Task AnEmptyPageIssuesNoRequestAtAll()
-    {
-        var reading = new RecordingExclusionReading();
-
-        var excluded = await SceneExclusionPort.ReadExcludedAsync(reading, [], TestCt);
-
-        Assert.Empty(excluded);
-        Assert.Equal(0, reading.Calls);
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.InternalServerError)]
