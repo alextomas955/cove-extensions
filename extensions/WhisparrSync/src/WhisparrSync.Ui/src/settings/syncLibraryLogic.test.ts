@@ -155,9 +155,9 @@ describe("the confirmation names the figures and the consequence", () => {
     );
   });
 
-  it("reads at one as it does at any other size", () => {
+  it("reads as a singular sentence at one", () => {
     expect(syncConfirmation({ ...FULLY_HELD, withNoFileRecorded: 1 }, false, SCENES)).toContain(
-      "1 of those have no file in Whisparr yet.",
+      "1 of those has no file in Whisparr yet.",
     );
   });
 

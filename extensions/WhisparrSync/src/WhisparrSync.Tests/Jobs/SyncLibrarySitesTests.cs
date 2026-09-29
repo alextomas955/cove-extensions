@@ -528,7 +528,7 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(0, run.SplitAcrossRoots);
         Assert.Empty(run.RootsLeftBehind);
         Assert.Equal(
-            "1 sites registered, 1 already in Whisparr, 0 refused.", summary, StringComparer.Ordinal);
+            "1 site registered, 1 already in Whisparr, 0 refused.", summary, StringComparer.Ordinal);
     }
 
     [Fact]

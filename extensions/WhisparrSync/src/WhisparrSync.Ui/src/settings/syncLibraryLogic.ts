@@ -198,7 +198,7 @@ export function syncConfirmation(
   const outstanding =
     counts.withNoFileRecorded === 0
       ? ""
-      : `${syncStillToHandOver(groupThousands(counts.withNoFileRecorded))} `;
+      : `${syncStillToHandOver(groupThousands(counts.withNoFileRecorded), counts.withNoFileRecorded)} `;
 
   const monitoring = monitorAlso
     ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
