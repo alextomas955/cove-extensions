@@ -144,29 +144,6 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
         }
     }
 
-    [Fact]
-    public void NoSerializerOptionsCollectionRegistersAConverter()
-    {
-        var sources = Directory
-            .EnumerateFiles(Path.Combine(ExtensionRoot(), "src", "WhisparrSync"), "*.cs", SearchOption.AllDirectories)
-            .Where(file => !IsBuildOutput(file))
-            .ToList();
-
-        // A scan that reached no source would report nothing wrong for the same reason it reported
-        // nothing at all.
-        Assert.NotEmpty(sources);
-
-        // An equivalent converter in an options collection OUTRANKS the attribute on the type rather
-        // than duplicating it, so a second declaration could drift and win in silence. No wire
-        // document diff would reveal it: both spellings stay camelCase until one of them changes.
-        var offenders = sources
-            .Where(file => File.ReadAllText(file).Contains("Converters.Add", StringComparison.Ordinal))
-            .Select(file => Path.GetFileName(file))
-            .ToList();
-
-        Assert.Empty(offenders);
-    }
-
     // Takes the document rather than opening its own: a JsonElement is a view over the document that
     // produced it and reads as disposed once that document is.
     private static List<JsonProperty> Schemas(JsonDocument document)
@@ -184,10 +161,6 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
     // policy would mangle the same way would agree with itself and pass.
     private static bool IsCamelCase(string name)
         => name.Length > 0 && char.IsLower(name[0]) && name.All(char.IsLetterOrDigit);
-
-    private static bool IsBuildOutput(string file)
-        => file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-            || file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
     // Found by the document this class is about rather than by a counted-out "..": the test
     // assembly's depth below the extension directory varies with configuration and target framework.

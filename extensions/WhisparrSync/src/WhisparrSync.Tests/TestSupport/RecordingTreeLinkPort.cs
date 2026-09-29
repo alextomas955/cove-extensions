@@ -28,34 +28,34 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
 
     /// <summary>Puts a file at <paramref name="path"/> with an identity of its own.</summary>
     public void Place(string path, FileIdentity identity, DateTimeOffset changed)
-        => _placed[Spelled(path)] = new PlacedFile(identity, changed);
+        => _placed[TreePathSpelling.Spelled(path)] = new PlacedFile(identity, changed);
 
     /// <summary>Puts a second name at <paramref name="path"/> for the file already at <paramref name="ofPath"/>.</summary>
     public void PlaceLink(string path, string ofPath)
-        => _placed[Spelled(path)] = Held(ofPath, "place a link to");
+        => _placed[TreePathSpelling.Spelled(path)] = Held(ofPath, "place a link to");
 
     /// <summary>Makes a link attempt at <paramref name="newPath"/> answer <paramref name="outcome"/>.</summary>
     public void AnswerLink(string newPath, LinkOutcome outcome)
-        => _linkAnswers[Spelled(newPath)] = outcome;
+        => _linkAnswers[TreePathSpelling.Spelled(newPath)] = outcome;
 
     /// <summary>Makes an identity read at <paramref name="path"/> answer nothing.</summary>
-    public void AnswerNothingFor(string path) => _unreadable.Add(Spelled(path));
+    public void AnswerNothingFor(string path) => _unreadable.Add(TreePathSpelling.Spelled(path));
 
     /// <summary>Takes the name at <paramref name="path"/> away, as a reader deleting it does.</summary>
     /// <remarks>
     /// Not a call through the seam and not recorded as one: it is how a test states what happened
     /// to a reader's library between two passes.
     /// </remarks>
-    public void Forget(string path) => _placed.Remove(Spelled(path));
+    public void Forget(string path) => _placed.Remove(TreePathSpelling.Spelled(path));
 
     /// <summary>Makes a removal at <paramref name="path"/> answer that the name is still there.</summary>
-    public void RefuseRemovalOf(string path) => _refusedRemovals.Add(Spelled(path));
+    public void RefuseRemovalOf(string path) => _refusedRemovals.Add(TreePathSpelling.Spelled(path));
 
     public ProbedLink? Identify(string path)
     {
         Calls.Add(new TreeLinkCall("identify", path));
 
-        if (_unreadable.Contains(Spelled(path)))
+        if (_unreadable.Contains(TreePathSpelling.Spelled(path)))
         {
             return null;
         }
@@ -71,19 +71,19 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
         // Derived from what is there rather than taken, the way the name count is: a name already
         // held is the answer a second pass over one library turns on, and a test that could state
         // it could state the case it was written to prove.
-        if (_placed.ContainsKey(Spelled(newPath)))
+        if (_placed.ContainsKey(TreePathSpelling.Spelled(newPath)))
         {
             return LinkOutcome.NameAlreadyThere;
         }
 
-        if (!_linkAnswers.TryGetValue(Spelled(newPath), out var outcome))
+        if (!_linkAnswers.TryGetValue(TreePathSpelling.Spelled(newPath), out var outcome))
         {
             throw new InvalidOperationException($"No link outcome was arranged for {newPath}.");
         }
 
         if (outcome is LinkOutcome.Linked)
         {
-            _placed[Spelled(newPath)] = Held(existingPath, "link");
+            _placed[TreePathSpelling.Spelled(newPath)] = Held(existingPath, "link");
         }
 
         return outcome;
@@ -102,7 +102,7 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     {
         Calls.Add(new TreeLinkCall("names", folder));
 
-        var prefix = Spelled(folder).TrimEnd('/') + "/";
+        var prefix = TreePathSpelling.PrefixOf(folder);
         return _placed.Keys
             .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(path => path[prefix.Length..])
@@ -117,12 +117,12 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
     {
         Calls.Add(new TreeLinkCall("folders", folder));
 
-        var prefix = Spelled(folder).TrimEnd('/') + "/";
+        var prefix = TreePathSpelling.PrefixOf(folder);
 
         return _placed.Keys
             .Select(path => Below(path, prefix))
             .Where(tail => tail?.Contains('/', StringComparison.Ordinal) is true)
-            .Concat(Folders.Select(made => Below(Spelled(made), prefix)))
+            .Concat(Folders.Select(made => Below(TreePathSpelling.Spelled(made), prefix)))
             .OfType<string>()
             .Select(tail => tail.Split('/', 2)[0])
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -135,12 +135,12 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
         Calls.Add(new TreeLinkCall("remove", path, treeRoot));
 
         if (PathCandidateGuard.TailBelow(path, treeRoot) is null
-            || _refusedRemovals.Contains(Spelled(path)))
+            || _refusedRemovals.Contains(TreePathSpelling.Spelled(path)))
         {
             return NameRemoval.Refused;
         }
 
-        return _placed.Remove(Spelled(path)) ? NameRemoval.Removed : NameRemoval.NotThere;
+        return _placed.Remove(TreePathSpelling.Spelled(path)) ? NameRemoval.Removed : NameRemoval.NotThere;
     }
 
     public bool WriteIgnore(string treeRoot)
@@ -150,7 +150,6 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
         return true;
     }
 
-    private static string Spelled(string path) => PathCandidateGuard.Normalize(path);
 
     private static string? Below(string path, string prefix)
         => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
@@ -158,7 +157,7 @@ internal sealed class RecordingTreeLinkPort : ITreeLinkPort
             : null;
 
     private PlacedFile Held(string path, string act)
-        => _placed.TryGetValue(Spelled(path), out var file)
+        => _placed.TryGetValue(TreePathSpelling.Spelled(path), out var file)
             ? file
             : throw new InvalidOperationException($"Nothing was placed at {path} to {act}.");
 

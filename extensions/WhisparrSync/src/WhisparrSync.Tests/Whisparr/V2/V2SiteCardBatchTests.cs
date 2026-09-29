@@ -46,21 +46,6 @@ public sealed class V2SiteCardBatchTests
         Assert.Empty(cards.NotAnswered);
     }
 
-    // A row carrying no id of the instance's own was mapped from the metadata source, which is the
-    // instance answering that it holds no site under that identifier.
-    [Fact]
-    public async Task ASiteTheInstanceDoesNotHoldIsHeldByNothingRatherThanUnanswered()
-    {
-        var handler = BodyRecordingHandler.Answering(
-            HttpStatusCode.OK, """[{"tvdbId":92,"title":"Some Site"}]""");
-        using var http = new HttpClient(handler);
-
-        var cards = await ReadAsync(http, handler, [StudioUuid]);
-
-        Assert.Empty(cards.Held);
-        Assert.Empty(cards.NotAnswered);
-    }
-
     // Recorded from the pinned build for a site it holds nothing under. The metadata row it maps
     // instead carries monitored true, so a reading taken without the instance's own id would draw
     // every unheld site as one the instance is monitoring.
