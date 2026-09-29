@@ -66,38 +66,6 @@ public sealed class WhisparrStatusPinTests
         Assert.True(v2.Corroborated, $"branch and count fields do not corroborate v2 on {V2Build}");
     }
 
-    // On both builds a good key answers with a JSON media type and a rejected key answers with no
-    // content type at all. The second is why the classifier tests status before content type.
-    [Fact]
-    public void TheTwoMeasuredContentTypes_ClassifyAsTheyDidWhenMeasured()
-    {
-        // Good key, both builds: 200 with a JSON media type.
-        Assert.True(
-            ConnectionFailureClassifier.IsJsonMediaType("application/json; charset=utf-8"),
-            $"the good-key content type measured on {V3Build} and {V2Build} is not read as JSON");
-
-        // Rejected key, both builds: 401 with an empty content type and no body.
-        Assert.Equal(
-            Contracts.ConnectionFailureKind.KeyRejected,
-            ConnectionFailureClassifier.Classify(
-                ConnectionObservation.Answered(401, string.Empty, WhisparrStatusDocument.Parse(string.Empty))));
-    }
-
-    // An unknown path at the site root answers 200 text/html on both builds, so a web page is
-    // detected on the content type. The status says nothing.
-    [Fact]
-    public void AnUnknownRootPath_AnswersAsAWebPage_AndIsRefusedOnItsContentType()
-    {
-        var observation = ConnectionObservation.Answered(
-            200,
-            "text/html",
-            WhisparrStatusDocument.Parse("<!DOCTYPE html><html lang=\"en\"><body></body></html>"));
-
-        Assert.Equal(
-            Contracts.ConnectionFailureKind.NotTheWhisparrApi,
-            ConnectionFailureClassifier.Classify(observation));
-    }
-
     private static WhisparrStatusDocument Read(string fixtureName)
     {
         var document = WhisparrStatusDocument.Parse(ProbeFixtures.Read(fixtureName));

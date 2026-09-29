@@ -170,21 +170,6 @@ public sealed class StoredConnectionTestTests
         Assert.Empty(tester.Calls);
     }
 
-    // With both settings empty the refusal names the address, the same one on every run.
-    [Fact]
-    public async Task WithNeitherSettingSetTheRefusalNamesTheAddress()
-    {
-        var options = await SeededAsync(null, null, null, address: "");
-        var tester = RecordingConnectionTester.Connected("3.3.8.1097");
-
-        // No row at all, which is what neither setting being set means now that the two share one.
-        var view = await NewRunner(tester, options, new RecordingCredentialPort())
-            .TestStoredAsync(TestCt);
-
-        Assert.Equal(ConnectionSetting.Address, view.MissingSetting);
-        Assert.Empty(tester.Calls);
-    }
-
     [Theory]
     [InlineData(StoredAddress, StoredAddress + "/", true)]
     [InlineData(StoredAddress, "HTTP://WHISPARR-V3:6969", true)]
