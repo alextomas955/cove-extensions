@@ -145,14 +145,11 @@ internal static class MonitoringProjector
 
     // Null is distinct from zero. Zero is the instance stating it has linked no file, which a
     // caller acts on by asking for the catalogue to be read again; null is no count at all, which a
-    // caller sends nothing on.
-    internal static int? FileCountIn(string? body)
+    // caller sends nothing on. A generation whose reader holds no count reading answers null too.
+    internal static int? FileCountIn(WhisparrGeneration generation, string? body)
         => AsObject(body) is { } entity
-            && entity["statistics"] is JsonObject statistics
-            && statistics["episodeFileCount"] is JsonValue counted
-            && counted.TryGetValue<int>(out var files)
-            && files >= 0
-                ? files
+            && WhisparrInstanceFactory.ReadingFor(generation) is IWhisparrHeldFileCountReading reading
+                ? reading.FileCountIn(entity)
                 : null;
 
     // Null is not a scope. It says which one is in force is unknown, so a caller paints no state

@@ -4,7 +4,8 @@ using WhisparrSync.Contracts;
 namespace WhisparrSync.Whisparr;
 
 // What this generation's instance sends, read where it sends it.
-internal sealed class V3PayloadReader : IWhisparrPayloadReading, IWhisparrScopeReading
+internal sealed class V3PayloadReader
+    : IWhisparrPayloadReading, IWhisparrScopeReading, IWhisparrOwnedQualityReading
 {
     internal static V3PayloadReader Reading { get; } = new();
 
@@ -75,4 +76,20 @@ internal sealed class V3PayloadReader : IWhisparrPayloadReading, IWhisparrScopeR
 
         return entity["afterDate"] is null ? MonitorScope.AllScenes : MonitorScope.FutureScenes;
     }
+
+    // The quality is required by the submit that attaches the file, and this generation's instance
+    // is handed the unknown quality when it is asked to read a file. It answers that one back
+    // unchanged where it read none, so the value it was given is the one answer that states
+    // nothing.
+    public bool StatesAQuality(JsonObject quality)
+    {
+        ArgumentNullException.ThrowIfNull(quality);
+        return QualityIdIn(quality) is not (null or V3BodyProjector.UnknownQualityId);
+    }
+
+    private static int? QualityIdIn(JsonObject quality)
+        => quality["quality"] is JsonObject named && named["id"] is JsonValue id
+            && id.TryGetValue<int>(out var value)
+                ? value
+                : null;
 }

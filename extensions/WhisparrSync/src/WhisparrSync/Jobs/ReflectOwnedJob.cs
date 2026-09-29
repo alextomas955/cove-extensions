@@ -361,7 +361,8 @@ public static class ReflectOwnedJob
         // Each batch is sent as it is composed. The whole folder held back until the last file was
         // read would show nothing for as long as the reads took and lose all of it on a stop.
         await foreach (var planned in ReflectOwnedPlanner
-            .ComposedFilesAsync(onInstance, identified, instanceRoots, aimed.ReadFile, ct)
+            .ComposedFilesAsync(
+                aimed.Generation, onInstance, identified, instanceRoots, aimed.ReadFile, ct)
             .ConfigureAwait(false))
         {
             leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
