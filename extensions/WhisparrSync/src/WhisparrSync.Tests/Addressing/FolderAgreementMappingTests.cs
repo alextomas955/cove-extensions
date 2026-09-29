@@ -50,27 +50,18 @@ public sealed class FolderAgreementMappingTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    // An operator who states where a root is has settled it. Joining the two lists would
+    // reintroduce the ambiguity the mapping was supplied to remove.
     [Fact]
-    public async Task AMappedRootIsAskedAboutOnePathUnderTheMapping()
+    public async Task AMappedRootIsAskedAboutOnePathUnderTheMappingAndReadsTheDeclaredRootsNotAtAll()
     {
-        var (port, handler, _) = await OverMappingAsync(HoldingTheSample, "/mnt/media");
+        var (port, handler, declared) = await OverMappingAsync(HoldingTheSample, "/mnt/media");
 
         var addressed = await port.AddressAsync(Target(handler), CoveRoot + "/Blue Harbor", TestCt);
 
         Assert.Null(addressed.Refusal);
         Assert.Equal("/mnt/media/Blue Harbor", addressed.InstancePath);
         Assert.Equal(["/mnt/media/Blue Harbor/scene.mp4"], addressed.Tried);
-    }
-
-    // An operator who states where a root is has settled it. Joining the two lists would
-    // reintroduce the ambiguity the mapping was supplied to remove.
-    [Fact]
-    public async Task AMappedRootReadsTheRootsTheInstanceDeclaresNotAtAll()
-    {
-        var (port, handler, declared) = await OverMappingAsync(HoldingTheSample, "/mnt/media");
-
-        await port.AddressAsync(Target(handler), CoveRoot + "/Blue Harbor", TestCt);
-
         Assert.Equal(0, declared.Reads);
     }
 
@@ -145,41 +136,21 @@ public sealed class FolderAgreementMappingTests
     }
 
     // A different connection address points this extension at a filesystem the previous instance's
-    // reading says nothing about.
-    [Fact]
-    public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherOne()
-    {
-        var options = await StoringAsync("/mnt/media");
-        var cache = new FolderAgreementCache(TimeProvider.System);
-        var declared = new CountingInstanceRoots(["/data"]);
-        var first = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
-        var mapped = await Port(options, declared, cache)
-            .AddressAsync(Target(first), CoveRoot + "/Blue Harbor", TestCt);
-        Assert.Equal("/mnt/media/Blue Harbor", mapped.InstancePath);
-
-        var second = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingNothing);
-
-        var addressed = await Port(options, declared, cache).AddressAsync(
-            Target(second, new Uri("http://other-whisparr:6969")),
-            CoveRoot + "/Blue Harbor",
-            TestCt);
-
-        Assert.Null(addressed.InstancePath);
-        Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
-        Assert.Equal(1, Probes(second));
-    }
-
-    // Two Whisparrs behind one reverse proxy differ by their base path alone. A reading kept for
-    // the authority would answer the second instance with the first one's filesystem spelling.
-    [Fact]
-    public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherUrlBase()
+    // reading says nothing about. Two Whisparrs behind one reverse proxy differ by their base path
+    // alone, so a reading kept for the authority would answer the second with the first one's
+    // filesystem spelling.
+    [Theory]
+    [InlineData("http://whisparr:6969", "http://other-whisparr:6969")]
+    [InlineData("http://proxy:443/whisparr-a", "http://proxy:443/whisparr-b")]
+    public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherOne(
+        string firstAddress, string secondAddress)
     {
         var options = await StoringAsync("/mnt/media");
         var cache = new FolderAgreementCache(TimeProvider.System);
         var declared = new CountingInstanceRoots(["/data"]);
         var first = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
         var mapped = await Port(options, declared, cache).AddressAsync(
-            Target(first, new Uri("http://proxy:443/whisparr-a")),
+            Target(first, new Uri(firstAddress)),
             CoveRoot + "/Blue Harbor",
             TestCt);
         Assert.Equal("/mnt/media/Blue Harbor", mapped.InstancePath);
@@ -187,7 +158,7 @@ public sealed class FolderAgreementMappingTests
         var second = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingNothing);
 
         var addressed = await Port(options, declared, cache).AddressAsync(
-            Target(second, new Uri("http://proxy:443/whisparr-b")),
+            Target(second, new Uri(secondAddress)),
             CoveRoot + "/Blue Harbor",
             TestCt);
 
@@ -274,7 +245,7 @@ public sealed class FolderAgreementMappingTests
     private static FolderAddressPort Port(
         OptionsStore options, IReportedRootPort declared, FolderAgreementCache? cache = null)
         => new FolderAddressPort(
-            new StubSampleFiles(new SampleFile(Sample, SampleSize)),
+            new CountingSampleFiles(new SampleFile(Sample, SampleSize)),
             new RecordingLibrary(reached: true, [CoveRoot]),
             declared,
             options,
@@ -310,23 +281,5 @@ public sealed class FolderAgreementMappingTests
         var declared = new CountingInstanceRoots(["/data"]);
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, listing);
         return (Port(options, declared), handler, declared);
-    }
-
-    private sealed class StubSampleFiles(SampleFile? answer) : ISampleFilePort
-    {
-        public Task<SampleFile?> ReadSampleFileAsync(string coveRoot, CancellationToken ct)
-            => Task.FromResult(answer);
-    }
-
-    private sealed class CountingInstanceRoots(IReadOnlyList<string> roots) : IReportedRootPort
-    {
-        public int Reads { get; private set; }
-
-        public Task<IReadOnlyList<string>?> ReadAsync(
-            WhisparrGeneration generation, CancellationToken ct)
-        {
-            Reads++;
-            return Task.FromResult<IReadOnlyList<string>?>(roots);
-        }
     }
 }

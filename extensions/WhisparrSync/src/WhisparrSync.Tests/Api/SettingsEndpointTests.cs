@@ -20,6 +20,8 @@ public sealed class SettingsEndpointTests
     private static readonly DateTimeOffset Verified = new(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
 
+    // Never verified and verified-then-failed are different answers, so the page can say which it
+    // is holding.
     [Fact]
     public async Task AReadAsAConfigureTierCallerAnswersWithTheStoredConnections()
     {
@@ -36,21 +38,10 @@ public sealed class SettingsEndpointTests
         Assert.Equal(Verified, view.V3.VersionVerifiedAtUtc);
         Assert.False(view.V2.KeyIsSet);
         Assert.Equal("", view.V2.Address);
-        Assert.Equal(writesBefore, store.SetCallCount);
-    }
-
-    // Never verified and verified-then-failed are different answers, so the page can say which it
-    // is holding.
-    [Fact]
-    public async Task AGenerationNeverTestedReportsNoVerifiedInstantRatherThanAnOldOne()
-    {
-        var (_, options) = await SeededAsync();
-
-        var view = await ReadAsync(options, new RecordingCredentialPort(), Configure());
-
         Assert.Null(view.V2.RecordedVersion);
         Assert.Null(view.V2.VersionVerifiedAtUtc);
         Assert.Null(view.V2.LastReachableAtUtc);
+        Assert.Equal(writesBefore, store.SetCallCount);
     }
 
     [Fact]
@@ -222,29 +213,15 @@ public sealed class SettingsEndpointTests
     // from and the host's trusted-host list, none of which this product can read. The risk is
     // reported and the registration goes ahead: refusing on it blocked setups the host would have
     // allowed, including every containerised one.
-    [Fact]
-    public async Task ARegistrationGoesAheadAndReportsThatCoveMightLockItselfDown()
-    {
-        var (_, options) = await SeededAsync();
-        using var gate = new OptionsWriteGate();
-
-        var view = await RegisterAsync(
-            options,
-            gate,
-            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey),
-            new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
-            wouldLockDown: true);
-
-        Assert.False(view.RegistrationIsSafe);
-        Assert.Equal(RegistrationStatus.Registered, view.Status);
-    }
-
     // A Cove with sign-in off and no owner account yet is one nobody can be locked out of: the host
     // lets an outside call through so first-run setup can be finished from elsewhere. Refusing on
     // the sign-in setting alone would block that Cove, which the containerised suite runs against,
     // for no gain.
-    [Fact]
-    public async Task ARegistrationGoesAheadWhereNoLockdownWouldFollow()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ARegistrationGoesAheadAndReportsWhetherCoveMightLockItselfDown(
+        bool wouldLockDown, bool registrationIsSafe)
     {
         var (_, options) = await SeededAsync();
         using var gate = new OptionsWriteGate();
@@ -254,9 +231,9 @@ public sealed class SettingsEndpointTests
             gate,
             new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey),
             new DeliveringNotificationPort(options, gate, CallbackSecretPosition.OutOfBand),
-            wouldLockDown: false);
+            wouldLockDown);
 
-        Assert.True(view.RegistrationIsSafe);
+        Assert.Equal(registrationIsSafe, view.RegistrationIsSafe);
         Assert.Equal(RegistrationStatus.Registered, view.Status);
     }
 
@@ -338,11 +315,6 @@ public sealed class SettingsEndpointTests
                 new FixedClock(Now),
                 TestCt));
 
-    private sealed class Lockdown(bool wouldLockDown) : IHostLockdownPort
-    {
-        public Task<bool> WouldLockDownAsync(CancellationToken ct) => Task.FromResult(wouldLockDown);
-    }
-
     private static async Task<CallbackView> RegisterAsync(
         OptionsStore options,
         OptionsWriteGate gate,
@@ -352,7 +324,7 @@ public sealed class SettingsEndpointTests
         => ValueOf<CallbackView>(
             await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
                 new RegisterCallbackRequest(null),
-                RequestFrom(CoveOrigin),
+                TestRequest.From(CoveOrigin),
                 Configure(),
                 ExtensionId,
                 new CallbackAddressing(
@@ -366,15 +338,6 @@ public sealed class SettingsEndpointTests
                     notifications,
                     new RegistrationGate()),
                 TestCt));
-
-    private static DefaultHttpContext RequestFrom(string origin)
-    {
-        var at = new Uri(origin);
-        var http = new DefaultHttpContext();
-        http.Request.Scheme = at.Scheme;
-        http.Request.Host = new HostString(at.Authority);
-        return http;
-    }
 
     // A v3 connection that has been tested once, and a v2 that has never been configured.
     private static async Task<(FakeStore Store, OptionsStore Options)> SeededAsync()
@@ -397,10 +360,5 @@ public sealed class SettingsEndpointTests
 
         store.GetKeys.Clear();
         return (store, options);
-    }
-
-    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }
