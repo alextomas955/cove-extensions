@@ -14,6 +14,8 @@ import type {
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import {
   CONNECT_KEY_REJECTED,
+  CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS,
+  CONNECT_NEEDS_AN_ADDRESS_FIRST,
   CONNECT_NOT_CONFIGURED,
   connectNotTheWhisparrApiSentence,
   connectUnreachableSentence,
@@ -23,6 +25,7 @@ import {
   INSTANCE_HAS_NOT_ANSWERED_YET,
   lastReachableSentence,
   recordedVersionSentence,
+  TEST_IS_STILL_RUNNING,
   VERSION_NOT_VERIFIED_YET,
 } from "../common/ui/copy";
 import { describeInstant } from "./relativeTimeLogic";
@@ -262,4 +265,36 @@ export function describeRecorded(
         ? INSTANCE_HAS_NOT_ANSWERED_YET
         : lastReachableSentence(reachableAt.text),
   };
+}
+
+/**
+ * Why Test cannot be pressed, or null where it can.
+ *
+ * A stored key cannot be sent back, so testing a changed address needs a typed key. Testing the
+ * address as stored does not, because that test asks about the stored connection.
+ *
+ * @param shared the reason several controls on the page share, which outranks every reason below
+ * @param running whether a test is still on its way
+ * @param address the address as typed
+ * @param apiKey the key typed this session, which is blank where the stored one is to stand
+ * @param testsStored whether Test asks about the stored connection rather than the typed pair
+ */
+export function testUnavailability({
+  shared,
+  running,
+  address,
+  apiKey,
+  testsStored,
+}: {
+  shared: string | null;
+  running: boolean;
+  address: string;
+  apiKey: string;
+  testsStored: boolean;
+}): string | null {
+  if (shared !== null) return shared;
+  if (running) return TEST_IS_STILL_RUNNING;
+  if (address.trim() === "") return CONNECT_NEEDS_AN_ADDRESS_FIRST;
+  if (!testsStored && apiKey === "") return CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS;
+  return null;
 }

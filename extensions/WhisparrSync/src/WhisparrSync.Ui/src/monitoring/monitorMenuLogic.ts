@@ -34,6 +34,7 @@ import {
   INSTANCE_REFUSED,
   MENU_MONITOR,
   MENU_UNMONITOR,
+  MONITORING_COULD_NOT_BE_READ,
   NO_AGREED_ROOT_FOR_THIS_ENTITY,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
@@ -47,6 +48,7 @@ import {
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 import { membersOf } from "../common/lib/totalTableLogic";
+import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
 
 /** A scope a caller can actually choose. The wire type admits null, which is "take the default". */
 export type MonitorScopeChoice = NonNullable<MonitorScope>;
@@ -439,6 +441,25 @@ export function controlNotice({
   const refused = refusal === null ? null : refusalNoticeFor(refusal);
   if (refused !== null) return refused;
   return skip === null ? null : describeReflectOwnedSkip(skip);
+}
+
+/**
+ * Why the control cannot be pressed, or null where it can.
+ *
+ * A failed read says so rather than falling back to the unmonitored look, and a read still in
+ * flight names no reason: the control is dimmed while it runs and there is nothing yet to state.
+ *
+ * @param region which of the four states the entity's own read is in
+ * @param menu the entity's menu, or null before its read answered
+ */
+export function controlUnavailability(
+  region: AsyncRegionState,
+  menu: MonitorMenu | null,
+): string | null {
+  if (region.status === "failed") return MONITORING_COULD_NOT_BE_READ;
+  if (region.status === "reading") return null;
+  if (menu === null || menu.available) return null;
+  return menu.reason ?? MONITORING_COULD_NOT_BE_READ;
 }
 
 /**
