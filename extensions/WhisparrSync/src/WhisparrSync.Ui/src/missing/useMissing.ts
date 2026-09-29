@@ -289,7 +289,11 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     postAction<MissingBulkEnqueued>(monitorAllRouteFor(entity, { page, sort, q, filters }))
       .then((answered) => {
         store.bulkSettled(entity, selectionOutcomeIn(answered));
-        void whenRunEnds(answered.jobId ?? undefined).then(() => {
+        if (answered.jobId === null || answered.jobId === "") {
+          return;
+        }
+
+        void whenRunEnds(answered.jobId).then(() => {
           refresh();
           store.runEnded(entity);
         });
