@@ -81,8 +81,26 @@ public sealed class CallbackOutboundPairTests
         Assert.Empty(notifications.Registrations);
     }
 
+    [Fact]
+    public async Task TheRegisteredAddressCarriesNoneOfTheCredentialsTheEditedOneDid()
+    {
+        var notifications = new RecordingNotificationPort();
+        var credentials = new RecordingCredentialPort()
+            .Holding(WhisparrGeneration.V3, MovedAddress, MovedKey);
+
+        await RegisterCallbackAsync(
+            credentials, notifications, "http://someone:hunter2@cove.example:8080");
+
+        var sent = Assert.Single(notifications.Registrations);
+        Assert.StartsWith("http://cove.example:8080/", sent.CallbackAddress, StringComparison.Ordinal);
+        Assert.DoesNotContain("someone", sent.CallbackAddress, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", sent.CallbackAddress, StringComparison.Ordinal);
+    }
+
     private static async Task<CallbackView> RegisterCallbackAsync(
-        ICredentialPort credentials, IWhisparrNotificationPort notifications)
+        ICredentialPort credentials,
+        IWhisparrNotificationPort notifications,
+        string? editedAddress = null)
     {
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
@@ -95,7 +113,7 @@ public sealed class CallbackOutboundPairTests
         using var registrations = new RegistrationGate();
         return ValueOf(
             await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
-                new RegisterCallbackRequest(null),
+                new RegisterCallbackRequest(editedAddress),
                 RequestFrom(CoveOrigin),
                 FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure),
                 ExtensionId,

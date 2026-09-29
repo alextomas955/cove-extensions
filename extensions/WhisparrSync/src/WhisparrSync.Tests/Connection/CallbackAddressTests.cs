@@ -37,12 +37,32 @@ public sealed class CallbackAddressTests
     // A default port for the scheme reduces to one spelling, so a saved value does not depend on
     // how it was typed.
     [InlineData("http://cove:80/cove", "http://cove/cove")]
+    [InlineData("http://cove:80/", "http://cove")]
+    [InlineData("http://cove/", "http://cove")]
+    [InlineData("https://cove:443", "https://cove")]
     public void TheMergeTakesSchemeHostPortAndPathPrefix(string edited, string expected)
         => Assert.Equal(expected, CallbackAddress.HostPartOf(edited, ExtensionId));
+
+    // Credentials a user embedded cannot reach a log line, a response body or the outbound request.
+    [Theory]
+    [InlineData("http://user:pass@cove:5073/", "http://cove:5073")]
+    [InlineData("https://user:pass@media.example.com/cove", "https://media.example.com/cove")]
+    [InlineData("http://user@cove:5073", "http://cove:5073")]
+    public void AnAddressCarryingCredentialsIsStoredWithoutThem(string edited, string expected)
+    {
+        var stored = CallbackAddress.HostPartOf(edited, ExtensionId);
+
+        Assert.Equal(expected, stored);
+        Assert.DoesNotContain("user", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("pass", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("@", stored, StringComparison.Ordinal);
+    }
 
     [Theory]
     [InlineData("http://cove:5073")]
     [InlineData("https://media.example.com/cove/")]
+    [InlineData("http://user:pass@cove:5073/")]
+    [InlineData("http://cove:80/")]
     [InlineData("https://media.example.com/cove/api/extensions/com.alextomas955.whisparrsync/callback")]
     [InlineData("not-a-url")]
     public void TheMergeIsAFixedPoint(string edited)
