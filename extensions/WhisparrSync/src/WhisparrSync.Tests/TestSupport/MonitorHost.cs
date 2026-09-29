@@ -167,7 +167,7 @@ internal sealed class MonitorHost : IAsyncDisposable
                 SelectedGeneration = generation,
                 DefaultMonitorScope = defaultScope,
             }.WithConnectionFor(
-                generation, new WhisparrSyncGenerationConnection { Address = StoredAddress }),
+                generation, new WhisparrSyncGenerationConnection()),
             TestCt);
 
         // The address goes in beside the key, which is what a save writes. A row holding the key

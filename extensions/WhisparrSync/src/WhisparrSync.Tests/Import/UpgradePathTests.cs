@@ -137,12 +137,14 @@ public sealed class UpgradePathTests
         var stored = SettingsProjector.Apply(
             new WhisparrSyncOptions(),
             new WhisparrSyncSettingsSaveRequest(
-                WhisparrGeneration.V3, null, null, UpgradeBehavior.Replace));
+                WhisparrGeneration.V3, null, null, UpgradeBehavior.Replace),
+            null,
+            null);
 
         Assert.Equal(UpgradeBehavior.Replace, stored.UpgradeBehavior);
         Assert.Equal(
             UpgradeBehavior.Replace,
-            SettingsProjector.ToView(stored, v3KeyIsSet: false, v2KeyIsSet: false).UpgradeBehavior);
+            SettingsProjector.ToView(stored, null, null).UpgradeBehavior);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

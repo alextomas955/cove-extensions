@@ -35,15 +35,10 @@ internal sealed class BackstopPass(
         // has to know whether the record is still this instance.
         var walkedAddress = binding.BaseAddress.ToString();
 
-        // The stored mark is a position in the history of the instance the blob names. Where the row
-        // names another, the walk starts with no position rather than declaring that instance's
-        // older records read; it reaches one page, records nothing and reports the position lost.
-        var walkedElsewhere = !ConnectionTester.IsSameAddress(connection?.Address, walkedAddress);
-
-        var walk = await WalkAsync(
-            binding,
-            walkedElsewhere ? null : connection?.BackstopWatermarkUtc,
-            ct)
+        // The mark is a position in the history of the instance this record was written against, and
+        // a save that moves the address clears the record it wrote. So a mark that is here belongs
+        // to the instance the row now names, and no comparison is made at this point.
+        var walk = await WalkAsync(binding, connection?.BackstopWatermarkUtc, ct)
             .ConfigureAwait(false);
 
         // A refused pass leaves the mark where it was. Moving it over pages the walk declined to
@@ -271,9 +266,16 @@ internal sealed class BackstopPass(
         CancellationToken ct)
     {
         var containedAt = contained == 0 ? null : (DateTimeOffset?)clock.GetUtcNow();
-        await gate.MutateAsync(
+        var stillThere = false;
+        await gate.MutateAfterAsync(
             whisparr.Options,
-            stored => Marked(stored, generation, walkedAddress, mark) with
+            async (_, readCt) =>
+            {
+                var held = await whisparr.Credentials
+                    .ReadConnectionAsync(generation, readCt).ConfigureAwait(false);
+                stillThere = ConnectionTester.IsSameAddress(held?.Address, walkedAddress);
+            },
+            stored => Marked(stored, generation, stillThere, mark) with
             {
                 ImportHealth = stored.ImportHealth with
                 {
@@ -287,16 +289,21 @@ internal sealed class BackstopPass(
             ct).ConfigureAwait(false);
     }
 
+    // Folded onto a record made here where the blob holds none. A generation with no record is one
+    // nothing has been learnt about yet, and refusing the mark over that would leave every pass a
+    // first connect, each writing a mark that the next one could not find.
     private static WhisparrSyncOptions Marked(
         WhisparrSyncOptions stored,
         WhisparrGeneration generation,
-        string walkedAddress,
+        bool stillThere,
         DateTimeOffset? mark)
-        => mark is { } reached
-            && stored.ConnectionFor(generation) is { } connection
-            && ConnectionTester.IsSameAddress(connection.Address, walkedAddress)
-                ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = reached })
-                : stored;
+        => mark is { } reached && stillThere
+            ? stored.WithConnectionFor(
+                generation,
+                (stored.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())
+                    with
+                { BackstopWatermarkUtc = reached })
+            : stored;
 
     private async Task RecordFailureAsync(BackstopPassOutcome outcome, CancellationToken ct)
     {

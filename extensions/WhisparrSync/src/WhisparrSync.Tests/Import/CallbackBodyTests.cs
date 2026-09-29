@@ -219,9 +219,9 @@ public sealed class CallbackBodyTests
             new WhisparrSyncOptions
             {
                 SelectedGeneration = selected,
-                V3 = new WhisparrSyncGenerationConnection { Address = "http://whisparr-v3:6969" },
+                V3 = new WhisparrSyncGenerationConnection(),
                 V2 = storeV2Connection
-                    ? new WhisparrSyncGenerationConnection { Address = "http://whisparr-v2:6969" }
+                    ? new WhisparrSyncGenerationConnection()
                     : null,
             },
             TestCt);
