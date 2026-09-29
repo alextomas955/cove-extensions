@@ -86,6 +86,7 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   page,
   baseUrl,
   connected,
+  provider: _provider,
 }) => {
   // The fixture holds the instance the read establishes a status against: with nothing connected the
   // route answers a whole-grid refusal rather than a catalogue.
