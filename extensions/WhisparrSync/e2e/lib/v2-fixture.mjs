@@ -41,7 +41,7 @@ import {
  * paths, because what it measures is the extension re-rooting a path the instance reported; here the
  * traffic goes the other way, and a folder this product names is one the instance has to recognise.
  */
-export const SHARED_MOUNT = "/shared";
+const SHARED_MOUNT = "/shared";
 export const WHISPARR_ROOT = `${SHARED_MOUNT}/media`;
 
 /**
@@ -163,5 +163,4 @@ export async function sceneRows(whisparrApi, seriesId) {
 // The site read lives beside the fixture that owns a connected installation, because the shared
 // scenarios read the same row through it.
 export { siteRow } from "./connected-fixture.mjs";
-export { V2_CAPABILITIES } from "./capability-sets.mjs";
 export { expect, extensionRoute, seedCoveVideo } from "./whisparr-sync-fixtures.mjs";

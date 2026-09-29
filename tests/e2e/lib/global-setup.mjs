@@ -18,7 +18,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 /** The base name; each slot appends its own index. */
-export const NETWORK_BASE = process.env.COVE_E2E_NETWORK || "cove-e2e-shared";
+const NETWORK_BASE = process.env.COVE_E2E_NETWORK || "cove-e2e-shared";
 
 /**
  * The network for one parallel slot.
