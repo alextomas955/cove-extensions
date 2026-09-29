@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Renamer.Tests.TestSupport;
+namespace Cove.Extensions.Shared.Testing;
 
 public sealed class CapturingLogger<T> : ILogger<T>
 {

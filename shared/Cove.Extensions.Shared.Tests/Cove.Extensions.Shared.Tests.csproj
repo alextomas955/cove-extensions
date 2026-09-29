@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project must RUN, so it keeps its full runtime closure. The shared package's Cove.Sdk
+      reference would otherwise strip Cove.Plugins from this project's output, and xUnit would fail to
+      load the assembly. Directory.Build.targets turns this into what Cove.Sdk reads.
+    -->
+    <CoveStripHostProvidedAssemblies>false</CoveStripHostProvidedAssemblies>
+    <!-- The "Shared" namespace segment is a VB keyword; this assembly is never consumed from VB. -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <!--
+    No Cove source checkout is needed: nothing here touches Cove.Data, so this suite builds and runs
+    against the published Cove packages as well as against a checkout.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Cove.Extensions.Shared\Cove.Extensions.Shared.csproj" />
+    <ProjectReference Include="..\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
+  </ItemGroup>
+
+  <!-- The principal fake needs only Cove.Core's auth types, which the published packages carry; its
+       sibling CoveContextFactory needs Cove.Data and stays out. -->
+  <ItemGroup>
+    <Compile Include="..\Cove.Extensions.Shared.Testing.Cove\FakePrincipalAccessor.cs" LinkBase="Shared" />
+  </ItemGroup>
+</Project>

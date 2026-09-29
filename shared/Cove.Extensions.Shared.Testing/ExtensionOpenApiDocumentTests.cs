@@ -80,9 +80,9 @@ public abstract class ExtensionOpenApiDocumentTests
         var extension = CreateExtension();
         extension.MapEndpoints(app);
 
-        // mandatory. A WebApplication's route registrations are not folded into the DI
-        // EndpointDataSource until routing middleware is built at start, so without this the data
-        // source is empty and the provider still returns a valid document with zero paths.
+        // A WebApplication's route registrations are not folded into the DI EndpointDataSource until
+        // routing middleware is built at start, so without this the data source is empty and the
+        // provider still returns a valid document with zero paths.
         await app.StartAsync();
 
         var routes = app.Services
@@ -103,21 +103,16 @@ public abstract class ExtensionOpenApiDocumentTests
 
         Assert.Equal(routes.Count, operations.Count);
 
-        // Every mounted route must also say what it returns. Both counts are compared against the live
-        // route table, never against each other, and the Assert.NotEmpty above rules out the empty
-        // document that would otherwise satisfy this by having nothing to disagree about. No allowlist
-        // of documented routes: that is the shape that lets a gate lose a route in silence.
+        // Every mounted route must also say what it returns. The Assert.NotEmpty above rules out the
+        // empty document that would otherwise satisfy this by having nothing to disagree about. No
+        // allowlist of documented routes: that is the shape that lets a gate lose a route in silence.
         var withoutResponseSchema = operations
             .Where(entry => entry.Operation.Responses?.Values
                 .Any(response => response.Content is { Count: > 0 }) != true)
             .Select(entry => $"{entry.Method} {entry.Path}")
             .ToList();
 
-        Assert.True(
-            operations.Count - withoutResponseSchema.Count == routes.Count,
-            $"{routes.Count} route(s) are mounted but only {operations.Count - withoutResponseSchema.Count} "
-                + "operation(s) describe a response body. These say nothing about what they return: "
-                + string.Join(", ", withoutResponseSchema));
+        Assert.Empty(withoutResponseSchema);
 
         var writer = new StringWriter();
         document.SerializeAsV31(new OpenApiJsonWriter(writer));
