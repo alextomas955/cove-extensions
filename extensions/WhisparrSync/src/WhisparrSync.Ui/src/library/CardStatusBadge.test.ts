@@ -5,7 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../common/lib/testRender";
-import { MARKER_NOT_LINKED } from "../common/ui/copy";
+import { MARKER_NOT_LINKED, STATE_STATUS_UNKNOWN } from "../common/ui/copy";
 import type { LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -115,4 +115,16 @@ test("the answered reading is drawn on the card, and a row with none says it is 
     createElement(WhisparrStudioCardBadge, { studio: { ...HOST_OBJECT, id: 8 } }),
   );
   expect(unlinked.textContent).toContain(MARKER_NOT_LINKED);
+});
+
+test("a card whose status could not be read says so rather than claiming no link", async () => {
+  // What the server sends for a card whose batch was dropped or whose read failed: it is on the
+  // list, and neither presence nor the monitored flag was established.
+  answering([{ coveId: 7, reading: { excluded: false, present: null, monitored: null } }]);
+  showBadges();
+
+  const drawn = await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
+
+  expect(drawn.textContent).toContain(STATE_STATUS_UNKNOWN);
+  expect(drawn.textContent).not.toContain(MARKER_NOT_LINKED);
 });

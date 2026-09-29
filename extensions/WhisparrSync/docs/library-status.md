@@ -30,10 +30,14 @@ artwork.
 | ○ Unmonitored | Whisparr holds it and is not monitoring it.                       |
 | – Not added   | Whisparr has no entry for it.                                     |
 | ⊘ Excluded    | The scene is on your Whisparr's exclusion list. Scene cards only. |
+| ? Unknown     | The status of this one card could not be read.                    |
 
 These are the same words the Whisparr button and the Missing tab use. **Not added** and
 **Unmonitored** are different answers: the first means your Whisparr has never heard of the entity,
 the second means it holds it and is leaving it alone.
+
+**Unknown** is a card whose own read did not come back, while the rest of the page was answered
+for. It says nothing about what your Whisparr holds. Press the button again to ask again.
 
 A studio or performer card never reads **Excluded**. Whisparr Sync reads your Whisparr's exclusion
 list for scenes only, so a badge on either of those cards would be claiming something your instance
@@ -67,8 +71,9 @@ nothing, or names more than one series, nothing about the card is established an
 The button states no reason for it. Your instance answered every request it was given, and which of
 those two it was is a fact about that one card rather than about your connection.
 
-**The status could not be read.** No card claims anything, and the reason is on the button rather
-than on every card. Which reason it gives says what happened:
+**The whole page could not be read.** No card claims anything, and the reason is on the button
+rather than on every card. A card whose own read failed while the rest of the page was answered for
+reads **Unknown** instead of staying blank. Which reason the button gives says what happened:
 
 | On the button                                                                                                   | What happened                                                                          |
 | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
