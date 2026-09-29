@@ -333,6 +333,10 @@ public sealed class SearchGrabbingRouteTests
             "(" + nameof(IWhisparrSearchGrabbing) + ")",
         ];
 
+        // A row naming the role names it as a type, which is a declaration of what the role
+        // expresses rather than a caller taking an instance in it.
+        var naming = "typeof(" + nameof(IWhisparrSearchGrabbing) + ")";
+
         return
         [
             .. Directory
@@ -340,6 +344,7 @@ public sealed class SearchGrabbingRouteTests
                 .OrderBy(file => file, StringComparer.Ordinal)
                 .SelectMany(file => File.ReadLines(file)
                     .Select((text, index) => (File: file, Number: index + 1, Text: text))
+                    .Where(line => !line.Text.Contains(naming, StringComparison.Ordinal))
                     .Where(line => reaching.Any(
                         token => line.Text.Contains(token, StringComparison.Ordinal)))
                     .Select(line => $"{Path.GetFileName(line.File)}:{line.Number}"))
