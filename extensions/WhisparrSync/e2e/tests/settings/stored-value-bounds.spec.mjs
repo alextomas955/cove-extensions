@@ -1,7 +1,7 @@
 // What this extension actually persists, enumerated after a run that exercised every ingest path
 // this product has - not read off the code that writes it.
 //
-// The enumeration goes through Cove's OWN bulk extension-data route, which serialises every value an
+// The enumeration goes through Cove's own bulk extension-data route, which serialises every value an
 // extension owns, whole, with no projection and no paging. That is the route the settings page reads,
 // so a value that would fail there fails here in the same way and for the same reason.
 //
@@ -34,7 +34,7 @@ import {
   videosIn,
 } from "../../lib/steps.mjs";
 
-// A HAND-SET CEILING, not a measurement of what is stored today. A number derived from the current
+// A hand-set ceiling, not a measurement of what is stored today. A number derived from the current
 // size would agree with the code forever and report nothing.
 const STORED_BYTES_CEILING = 8192;
 
@@ -347,7 +347,7 @@ test("what the extension persists is one bounded key, after a run that exercised
       `the run that is supposed to have driven refusals recorded none: ${JSON.stringify(outstanding)}`,
     ).toBeGreaterThan(1);
 
-    // ---- ENUMERATION ONE ----
+    // Enumeration one.
     const first = await storedData(api);
 
     expect(
@@ -393,7 +393,7 @@ test("what the extension persists is one bounded key, after a run that exercised
       beforeTheRest.length + FURTHER_IMPORTS,
     );
 
-    // ---- ENUMERATION TWO ----
+    // Enumeration two.
     const second = await storedData(api);
 
     expect(

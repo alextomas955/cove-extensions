@@ -1,16 +1,16 @@
 // What a catalogue page says about the instance, in a real containerized host.
 //
-// WHY THIS SPEC EXISTS. The tab draws the same four words whether the connected instance answered
+// The tab draws the same four words whether the connected instance answered
 // and reported nothing, or cannot answer at all. Those are different facts and a reader acts on them
 // differently: one clears on a retry and the other never will. The page carries the difference in
 // its own fields, and this spec is the evidence that a real host and a real instance produce them.
 //
-// WHAT IS DRIVEN, AND WHAT IS READ. The tab is driven in the browser, because whether it mounts on
+// The tab is driven in the browser, because whether it mounts on
 // each page type is only observable there. The refusal is read off the extension's own route
 // through the host, because a pill's four words are the same string for two of the cases and the
 // field beside them is what tells them apart.
 //
-// WHAT EACH GENERATION'S READ REACHES. Both sources are stood in for by a container answering to
+// Both sources are stood in for by a container answering to
 // that source's own name on this installation's network, so this spec needs no credential on the
 // machine running it. The two reach different distances, and the difference is a property of the
 // product rather than of the stubs:
@@ -20,7 +20,7 @@
 // resolves to something the instance can be asked about: a studio by its own id on v3, a site by
 // its number on v2. Neither stub is ever asked for a catalogue, and the v2 arm asserts that.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomInt, randomUUID } from "node:crypto";
@@ -204,7 +204,7 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
     ).toEqual([]);
 
-    // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page draws cards
+    // A connected instance. The catalogue is read, the instance answers, and the page draws cards
     // rather than stating a reason.
     const connectedPage = await readMissingPage(coveApi, "studio", studio.id);
     expect(
@@ -275,7 +275,7 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the stub standing in for v2's source was asked for a catalogue, so this spec's account of where v2 reads one is out of date",
     ).toEqual([]);
 
-    // THE INSTANCE STOPPED. The instance is where the catalogue comes from, so stopping it leaves
+    // The instance stopped. The instance is where the catalogue comes from, so stopping it leaves
     // no catalogue to draw and no card to carry a status. The page says which of the two happened:
     // the scenes could not be read at all, and a retry could still answer.
     await connectWhisparr(coveApi, whisparr, "v3");

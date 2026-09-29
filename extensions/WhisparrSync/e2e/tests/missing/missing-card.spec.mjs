@@ -1,11 +1,11 @@
 // The catalogue card's three controls in a real containerized host: where the keyboard goes, what
 // each control paints, and what a press leaves behind.
 //
-// WHY THIS SPEC EXISTS. The unit suite runs in a node environment and renders no `.tsx`, so a focus
+// The unit suite runs in a node environment and renders no `.tsx`, so a focus
 // order, a painted ring and a rendered height are provable nowhere else. None of it was reachable
 // before the grid mounted each card with its selection and verb handlers.
 //
-// WHERE THE CATALOGUE COMES FROM. The tab's own page read is answered at the network with a
+// The tab's own page read is answered at the network with a
 // recorded page. The grid is otherwise fed by a live provider read with no seam for a 500-character
 // title, and the scenes have to be the same on every run for a focus walk to mean anything.
 // Intercepting the extension's own route keeps that seam inside this file: the shipped bundle
@@ -13,13 +13,13 @@
 // real ones. The file keeps its unsuffixed name for that reason: the instance behind it is a real
 // one, and one of the presses below reaches it.
 //
-// WHICH PRESSES REACH THE INSTANCE. The Search case does: a scene the connected Whisparr holds no
+// The Search case is the press that reaches the instance: a scene the connected Whisparr holds no
 // entry for is an answer only the server can give, and it is the one this spec drives end to end.
 // The two Monitor cases are answered at the network, because what is under test there is the dimmed
 // control, the settled pill and the tone the refusal reads in. What the server answers for each
 // refusal is covered by its own integration suite.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -193,7 +193,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
   ).toBe(true);
   await expect(cards(page)).toHaveCount(drawn.length);
 
-  // CASE 7, taken first because it is the only one a press could disturb. A hostile title and a
+  // Case 7, taken first because it is the only one a press could disturb. A hostile title and a
   // hostile studio name leave the card the same height as its neighbours.
   const heights = [];
   for (let index = 0; index < drawn.length; index++) {
@@ -206,7 +206,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
   ).toBeCloseTo(heights[1], 0);
   expect(heights[1]).toBeCloseTo(heights[2], 0);
 
-  // CASE 1. Focus order within one card is exactly three stops, in the order checkbox, Monitor,
+  // Case 1. Focus order within one card is exactly three stops, in the order checkbox, Monitor,
   // Search, walked from the keyboard with no pointer interaction inside the grid first.
   const walk = [];
   let entered = false;
@@ -226,7 +226,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
     "the card offers three stops, in the order the design contract fixes",
   ).toEqual([SELECT_SCENE, monitorName(HOSTILE_TITLE), searchName(HOSTILE_TITLE)]);
 
-  // CASE 2. Each of those three paints a ring. Read as a computed box shadow, because the class
+  // Case 2. Each of those three paints a ring. Read as a computed box shadow, because the class
   // being present in the markup says nothing about whether the host's stylesheet declares it.
   for (const stop of walk) {
     expect(
@@ -236,7 +236,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
     expect(stop.shadow?.length ?? 0).toBeGreaterThan(0);
   }
 
-  // CASE 3. A ticked card draws its selection ring and its control reads as pressed.
+  // Case 3. A ticked card draws its selection ring and its control reads as pressed.
   const firstCard = cards(page).first();
   await firstCard.getByRole("button", { name: SELECT_SCENE }).click();
   await expect(firstCard.getByRole("button", { name: DESELECT_SCENE })).toHaveAttribute(
@@ -249,7 +249,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
   ).toHaveClass(/ring-2/);
   await expect(cards(page).nth(1)).not.toHaveClass(/ring-2/);
 
-  // CASE 5, before the recorded verb answers are installed. A search on a scene the connected
+  // Case 5, before the recorded verb answers are installed. A search on a scene the connected
   // instance holds no entry for is answered by the server itself.
   await cards(page).nth(1).getByRole("button", { name: SEARCH }).click();
   const noEntry = cards(page).nth(1).getByText(SEARCH_WITH_NO_ENTRY, { exact: false });
@@ -262,7 +262,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
   ).toHaveClass(/text-secondary/);
   await expect(noEntry).not.toHaveClass(/text-red-400/);
 
-  // CASE 4. Pressing Monitor dims that card's Monitor and no other card's, then settles into the
+  // Case 4. Pressing Monitor dims that card's Monitor and no other card's, then settles into the
   // pill. The answer is held in flight, so the assertion is about what the card does while it waits
   // rather than about how fast the instance answers.
   let held = null;
@@ -301,7 +301,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
     timeout: REGION_BUDGET_MS,
   });
 
-  // CASE 6. A press the instance refuses puts the card back as it was and states the reason beneath
+  // Case 6. A press the instance refuses puts the card back as it was and states the reason beneath
   // the action row.
   const refused = cards(page).nth(2);
   await refused.getByRole("button", { name: MONITOR }).click();

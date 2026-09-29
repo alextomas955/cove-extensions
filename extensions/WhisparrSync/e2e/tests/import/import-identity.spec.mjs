@@ -6,7 +6,7 @@
 // not make: the first delivery below is the arrangement, and the reads taken between the two are
 // what the redelivery is compared against.
 //
-// Every assertion is on the COVE side, read back through Cove's own video API. The callback's status
+// Every assertion is on the Cove side, read back through Cove's own video API. The callback's status
 // is checked only so a refused delivery surfaces as itself rather than as a poll timeout.
 //
 // The harness Cove is configured with NO metadata source, which is Cove's own default. That is the
@@ -15,7 +15,7 @@
 //
 // A limit worth stating rather than leaving to be discovered: with no source configured, the
 // resolution of the stamp's spelling falls back to the provider's standard address, which is the same
-// answer the option's value alone would have given. So this spec does NOT discriminate between those
+// answer the option's value alone would have given. So this spec does not discriminate between those
 // two rules. What discriminates them is the unit test that configures a source at another spelling.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
