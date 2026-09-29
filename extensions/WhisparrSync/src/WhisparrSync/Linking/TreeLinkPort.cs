@@ -285,7 +285,7 @@ internal sealed partial class TreeLinkPort : ITreeLinkPort
 
     [LibraryImport("libc", EntryPoint = "stat", SetLastError = true,
         StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int Stat(string path, byte[] buffer);
+    private static partial int Stat(string path, [Out] byte[] buffer);
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", SetLastError = true,
         StringMarshalling = StringMarshalling.Utf16)]
