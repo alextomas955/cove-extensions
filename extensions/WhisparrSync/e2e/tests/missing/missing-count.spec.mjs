@@ -1,21 +1,15 @@
 // The grid's read behaviour and its pager, in a real containerized host.
 //
-// WHY THIS SPEC EXISTS. The unit suite runs in a node environment and renders no `.tsx`, so nothing
-// below is provable there. Three properties of the grid are only true of a rendered page: that a
-// page change does not blank the cards already on screen, that a failed refresh keeps them and says
-// they are stale rather than replacing them with an error, and that the last page the pager offers
-// carries rows the previous page did not.
+// The unit suite runs in a node environment and renders no `.tsx`, so nothing below is provable
+// there. Three properties of the grid are only true of a rendered page: that a page change does not
+// blank the cards already on screen, that a failed refresh keeps them and says they are stale
+// rather than replacing them with an error, and that the last page the pager offers carries rows
+// the previous page did not.
 //
-// WHAT IS CONDITIONAL, AND WHY. Every assertion over a page of cards needs a real StashDB
-// credential, lifted read-only from this machine's own Cove install. A machine with none is the
-// ordinary case off this desk, and each conditional assertion names its reason in an annotation
-// rather than passing silently.
+// The catalogue is served by a stub on the installation's own network, so every assertion over a
+// page of cards runs wherever this suite runs and needs no credential of anybody's.
 //
-// The count line is asserted only where the tab mounts one. The grid draws it from the page it was
-// given, and the tab shell that supplies the provider and entity names is the surface that turns it
-// on; until it does, this spec says so in an annotation instead of asserting an absence.
-//
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -77,7 +71,7 @@ const rangeInTheBar = (page) => page.getByRole("status").filter({ hasText: /\d+.
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
 
-/** The identifiers of the cards on screen, in the order the grid drew them. */
+/** The title of the first card on screen, as the grid drew it. */
 async function firstCardTitle(page) {
   return (await cards(page).first().innerText()).trim();
 }
