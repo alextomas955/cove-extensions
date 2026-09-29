@@ -87,7 +87,7 @@ const SWEEPABLE_AFTER_MS = 2 * 60 * 60 * 1000;
  * For a run killed between creating a volume and removing it. Docker refuses to remove one a
  * container still holds, and the age bound covers the window before it holds it.
  */
-export async function sweepSharedVolumes(now = Date.now()) {
+async function sweepSharedVolumes(now = Date.now()) {
   const client = await getContainerRuntimeClient();
   const listed = await client.container.dockerode.listVolumes({
     filters: { label: [`${LABEL}=true`] },
