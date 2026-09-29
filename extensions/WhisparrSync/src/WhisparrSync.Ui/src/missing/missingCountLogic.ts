@@ -1,16 +1,16 @@
 /**
- * What the count line states, taken from the page the provider answered.
+ * What the count line states, taken from the page the server answered.
  *
- * The figures are the provider's own, never the number of cards on screen. Owned scenes are
- * removed after a page arrives, so a page can hold thirty-one cards while the range still reads
- * one to forty.
+ * The figures are the page's own, never the number of cards on screen. The server subtracts what
+ * the library holds and what the reader excluded over the whole catalogue before it pages, so the
+ * total is what a reader could page through and the range is a window into it.
  */
 import type { MissingPageView } from "../wire/api";
 
 export interface CountLineParts {
   readonly from: number;
   readonly to: number;
-  /** How many scenes the provider lists, which is not the number missing. */
+  /** How many scenes the page was drawn from, which is what a reader can page through. */
   readonly total: number;
   /** The total is a floor rather than a count, so the sentence renders it with a trailing plus. */
   readonly atCeiling: boolean;
