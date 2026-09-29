@@ -284,6 +284,7 @@ internal static class ReflectOwnedPlanner
 
         var reading = WhisparrInstanceFactory.ReadingFor(generation);
         var files = new JsonArray();
+        var attached = 0;
         var leftUnderAnotherRoot = 0;
         var withoutAnEntry = 0;
         foreach (var row in rows.OfType<JsonObject>())
@@ -301,10 +302,11 @@ internal static class ReflectOwnedPlanner
             }
 
             files.Add(entry);
+            attached++;
         }
 
         return new PlannedFiles(
-            files.Count == 0 ? null : files, leftUnderAnotherRoot, withoutAnEntry);
+            attached == 0 ? null : files, leftUnderAnotherRoot, withoutAnEntry);
     }
 
     // The entries for the rows one chunk of addresses answers for, handed over a batch at a time.
@@ -335,6 +337,7 @@ internal static class ReflectOwnedPlanner
     {
         var reading = WhisparrInstanceFactory.ReadingFor(generation);
         var files = new JsonArray();
+        var attached = 0;
         var leftUnderAnotherRoot = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
@@ -350,19 +353,21 @@ internal static class ReflectOwnedPlanner
             }
 
             files.Add(entry);
-            if (files.Count < FilesAttachedAtOnce)
+            attached++;
+            if (attached < FilesAttachedAtOnce)
             {
                 continue;
             }
 
             yield return new PlannedFiles(files, leftUnderAnotherRoot);
             files = [];
+            attached = 0;
             leftUnderAnotherRoot = 0;
         }
 
-        if (files.Count > 0 || leftUnderAnotherRoot > 0)
+        if (attached > 0 || leftUnderAnotherRoot > 0)
         {
-            yield return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+            yield return new PlannedFiles(attached == 0 ? null : files, leftUnderAnotherRoot);
         }
     }
 
@@ -402,6 +407,7 @@ internal static class ReflectOwnedPlanner
 
         var folderName = FolderNameOf(instanceFolder);
         var files = new JsonArray();
+        var attached = 0;
         var leftUnderAnotherRoot = 0;
         foreach (var (fileName, scene) in identified)
         {
@@ -440,20 +446,22 @@ internal static class ReflectOwnedPlanner
                 ["indexerFlags"] = 0,
                 ["movieId"] = scene.EntityId,
             });
+            attached++;
 
-            if (files.Count < FilesAttachedAtOnce)
+            if (attached < FilesAttachedAtOnce)
             {
                 continue;
             }
 
             yield return new PlannedFiles(files, leftUnderAnotherRoot);
             files = [];
+            attached = 0;
             leftUnderAnotherRoot = 0;
         }
 
-        if (files.Count > 0 || leftUnderAnotherRoot > 0)
+        if (attached > 0 || leftUnderAnotherRoot > 0)
         {
-            yield return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
+            yield return new PlannedFiles(attached == 0 ? null : files, leftUnderAnotherRoot);
         }
     }
 
