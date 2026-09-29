@@ -42,8 +42,10 @@ public sealed class SiteRootRegistrationTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    // The root is a property of the studio and the profile is a property of the run, so choosing the
+    // root per studio must not drag the profile along with it.
     [Fact]
-    public async Task TheAddCarriesTheRootTheStudiosOwnFilesSitUnder()
+    public async Task TheAddCarriesTheRootTheStudiosOwnFilesSitUnderAndTheProfileTheRunChose()
     {
         var (host, _) = await RunAsync();
         await using var driven = host;
@@ -52,18 +54,6 @@ public sealed class SiteRootRegistrationTests
 
         Assert.Equal(SecondInstanceRoot, body["rootFolderPath"]!.GetValue<string>());
         Assert.NotEqual(FirstInstanceRoot, body["rootFolderPath"]!.GetValue<string>());
-    }
-
-    // The root is a property of the studio and the profile is a property of the run, so choosing the
-    // root per studio must not drag the profile along with it.
-    [Fact]
-    public async Task TheProfileBesideItIsStillTheOneTheInstanceOfferedFirst()
-    {
-        var (host, _) = await RunAsync();
-        await using var driven = host;
-
-        var body = Assert.IsType<JsonObject>(JsonNode.Parse(SingleAdd(host).Body));
-
         Assert.Equal(OfferedProfileId, body["qualityProfileId"]!.GetValue<int>());
     }
 

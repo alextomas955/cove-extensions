@@ -283,6 +283,22 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(0, run.Monitored);
         Assert.Empty(instance.MonitorAsked);
         Assert.DoesNotContain("monitored", progress.Summaries[0], StringComparison.Ordinal);
+
+        // The same register with a monitor slot supplied does name it, so the absence above is
+        // about the slot rather than about the register's own noun.
+        var asked = new Instance(_ => Accepted) { MonitorAnswers = _ => Monitored };
+        var askedProgress = new RecordingJobProgress();
+        await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
+            new SyncLibrarySource<string>(
+                ct => Streamed([FirstScene], ct),
+                identity => identity,
+                asked.RegisterAsync,
+                asked.MonitorAsync),
+            askedProgress,
+            TestCt);
+
+        Assert.Contains("monitored", askedProgress.Summaries[0], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -299,27 +315,6 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(1, run.Monitored);
         Assert.Equal(1, run.MonitorRefused);
         Assert.Equal(1, run.Refused);
-    }
-
-    [Fact]
-    public async Task TheSummaryNamesMonitoringOnlyWhereItWasAskedFor()
-    {
-        var asked = new Instance(_ => Accepted) { MonitorAnswers = _ => Monitored };
-        var progress = new RecordingJobProgress();
-        await SyncLibraryPlanner.RunAsync(
-            SyncRegisters.Scenes,
-            new SyncLibrarySource<string>(
-                ct => Streamed([FirstScene], ct),
-                identity => identity,
-                asked.RegisterAsync,
-                asked.MonitorAsync),
-            progress,
-            TestCt);
-
-        var (_, without, _) = await RunOver([FirstScene], _ => Accepted);
-
-        Assert.Contains("monitored", progress.Summaries[0], StringComparison.Ordinal);
-        Assert.DoesNotContain("monitored", without.Summaries[0], StringComparison.Ordinal);
     }
 
     private static WhisparrResponse Accepted

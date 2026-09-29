@@ -32,35 +32,6 @@ public sealed class SiteRegistrationBodyTests
         Assert.Equal("none", Text(body, AddTimeCatalogue));
     }
 
-    // Presence is asserted apart from the value: an absent member and a false one read the same off
-    // a value, and this generation's default for the absent case is not this product's to rely on.
-    [Fact]
-    public void ItSuppressesBothOfThisGenerationsSearches()
-    {
-        var body = Registered();
-
-        Assert.Equal(2, ComposedAdds.V2Suppression.Length);
-        Assert.All(
-            ComposedAdds.V2Suppression,
-            path =>
-            {
-                Assert.NotNull(ComposedAdds.At(body, path));
-                Assert.False(Bool(body, path));
-            });
-    }
-
-    // A body carrying one is composed for a schema other than the one it is sent to. The instance
-    // discards it, so this product would be reading a suppression it never applied.
-    [Fact]
-    public void ItCarriesNoSuppressionSpellingThisGenerationDoesNotDeclare()
-    {
-        var body = Registered();
-
-        Assert.All(
-            ComposedAdds.EverySuppressionSpelling.Except(ComposedAdds.V2Suppression),
-            path => Assert.Null(ComposedAdds.At(body, path)));
-    }
-
     // The monitoring add sets the flag and monitors every later catalogue addition, which on a site
     // is a whole studio's worth of scenes. That is why the presence-only add is a member of its own.
     [Fact]

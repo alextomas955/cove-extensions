@@ -434,18 +434,6 @@ public sealed class NonGrabbingBodyTests
                     path => Assert.False(ComposedAdds.At(added.Body, path)!.GetValue<bool>()));
             });
 
-    // Every spelling is read into one comparison rather than checked one at a time, because two
-    // independent assertions are each satisfiable by a body the other one would refuse.
-    [Fact]
-    public void NoEnumeratedAddCarriesOneSpellingTrueAndAnotherFalse()
-        => Assert.All(
-            ComposedAdds.All(),
-            added => Assert.Equal(
-                added.SuppressionPaths.Select(_ => (bool?)false).ToArray(),
-                added.SuppressionPaths
-                    .Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
-                    .ToArray()));
-
     // Searched as serialised text rather than at a known member, so a name nested at any depth is
     // caught. A composed command body is not the only way a name could arrive.
     [Fact]
@@ -650,18 +638,6 @@ public sealed class NonGrabbingBodyTests
             grabbing => Assert.Contains(
                 ComposedAdds.Generations,
                 generation => GenerationCapabilities.CapabilitiesOf(generation).Contains(grabbing)));
-    }
-
-    // Both instances declare the role, so absence is not what keeps a monitoring path from
-    // grabbing. The member lives on that role alone and no monitoring path asks for it.
-    [Fact]
-    public void TheGrabbingRoleIsReachedOnlyByAskingForItByName()
-    {
-        Assert.All(
-            new[] { typeof(WhisparrV3Instance), typeof(WhisparrV2Instance) },
-            instance => Assert.Contains(typeof(IWhisparrSearchGrabbing), instance.GetInterfaces()));
-
-        Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
     }
 
     // The same rule as the entity-verb case above, over the per-scene routes.

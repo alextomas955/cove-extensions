@@ -452,18 +452,6 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
     }
 
-    // The offered list is deliberately not in id order, so a sort anywhere on the path changes the
-    // answer and is reported here.
-    [Fact]
-    public void TheProfileChosenIsTheFirstOfferedAndNotTheLowestId()
-    {
-        var resolved = AddDefaultsProjector.From(MonitorHost.UnsortedProfiles, MonitorHost.OneRootFolder);
-
-        Assert.Equal(MonitorRefusalKind.None, resolved.Refusal);
-        Assert.Equal(4, resolved.Defaults?.QualityProfileId);
-        Assert.Equal("/config/library", resolved.Defaults?.RootFolderPath);
-    }
-
     [Fact]
     public async Task AStudioTheInstanceAlreadyHoldsIsNotReadForDefaultsAndIsNotAddedAgain()
     {

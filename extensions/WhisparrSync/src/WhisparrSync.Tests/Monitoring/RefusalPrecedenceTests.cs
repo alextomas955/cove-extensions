@@ -10,63 +10,37 @@ namespace WhisparrSync.Tests.Monitoring;
 // by hand. A table computed from the function it checks agrees with it whatever the order is.
 public sealed class RefusalPrecedenceTests
 {
-    // The identity slot carries the narrowest identity kind. The other identity kinds ride the same
-    // slot and are covered separately.
-    public static TheoryData<bool, bool, bool, MonitorRefusalKind> EveryCombination => new()
+    // The identity slot carries the kind itself, so the precedence is shown never to narrow one: a
+    // kind rewritten on the way through would collapse two different sentences into one.
+    public static TheoryData<bool, bool, MonitorRefusalKind, MonitorRefusalKind> EveryCombination => new()
     {
-        // no connection, generation gap, no metadata link, then the one kind answered
-        { false, false, false, MonitorRefusalKind.None },
-        { false, false, true, MonitorRefusalKind.NoIdentityInThisNamespace },
-        { false, true, false, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
-        { false, true, true, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
-        { true, false, false, MonitorRefusalKind.NotConfigured },
-        { true, false, true, MonitorRefusalKind.NotConfigured },
-        { true, true, false, MonitorRefusalKind.NotConfigured },
-        { true, true, true, MonitorRefusalKind.NotConfigured },
+        // no connection, generation gap, the identity slot, then the one kind answered
+        { false, false, MonitorRefusalKind.None, MonitorRefusalKind.None },
+        { false, false, MonitorRefusalKind.NoIdentityInThisNamespace, MonitorRefusalKind.NoIdentityInThisNamespace },
+        { false, false, MonitorRefusalKind.SeveralIdentitiesInThisNamespace, MonitorRefusalKind.SeveralIdentitiesInThisNamespace },
+        { false, true, MonitorRefusalKind.None, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
+        { false, true, MonitorRefusalKind.NoIdentityInThisNamespace, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
+        { false, true, MonitorRefusalKind.SeveralIdentitiesInThisNamespace, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
+        { true, false, MonitorRefusalKind.None, MonitorRefusalKind.NotConfigured },
+        { true, false, MonitorRefusalKind.NoIdentityInThisNamespace, MonitorRefusalKind.NotConfigured },
+        { true, true, MonitorRefusalKind.None, MonitorRefusalKind.NotConfigured },
+        { true, true, MonitorRefusalKind.NoIdentityInThisNamespace, MonitorRefusalKind.NotConfigured },
     };
 
     [Theory]
     [MemberData(nameof(EveryCombination))]
     public void EveryCombinationOfTheThreeReasonsAnswersExactlyOneTranscribedKind(
-        bool noConnection, bool generationGap, bool noMetadataLink, MonitorRefusalKind expected)
+        bool noConnection,
+        bool generationGap,
+        MonitorRefusalKind identityRefusal,
+        MonitorRefusalKind expected)
     {
         var answered = MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(
             NoConnectionConfigured: noConnection,
             CapabilityAbsentOnThisGeneration: generationGap,
-            IdentityRefusal: noMetadataLink
-                ? MonitorRefusalKind.NoIdentityInThisNamespace
-                : MonitorRefusalKind.None));
+            IdentityRefusal: identityRefusal));
 
         Assert.Equal(expected, answered);
-    }
-
-    // The precedence chooses between the three reasons and never narrows one of them. An identity
-    // kind rewritten on the way through would collapse two different sentences into one.
-    [Theory]
-    [InlineData(MonitorRefusalKind.NoIdentityInThisNamespace)]
-    [InlineData(MonitorRefusalKind.SeveralIdentitiesInThisNamespace)]
-    public void AnIdentityKindPassesThroughUnchangedWhenNoEarlierReasonHolds(
-        MonitorRefusalKind identity)
-    {
-        Assert.Equal(
-            identity,
-            MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(
-                NoConnectionConfigured: false,
-                CapabilityAbsentOnThisGeneration: false,
-                IdentityRefusal: identity)));
-    }
-
-    [Theory]
-    [InlineData(MonitorRefusalKind.NoIdentityInThisNamespace)]
-    [InlineData(MonitorRefusalKind.SeveralIdentitiesInThisNamespace)]
-    public void TheGenerationGapWinsOverEveryIdentityKind(MonitorRefusalKind identity)
-    {
-        Assert.Equal(
-            MonitorRefusalKind.CapabilityAbsentOnThisGeneration,
-            MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(
-                NoConnectionConfigured: false,
-                CapabilityAbsentOnThisGeneration: true,
-                IdentityRefusal: identity)));
     }
 
     // Iterates the enum rather than a literal list, so a kind added later fails here until something
