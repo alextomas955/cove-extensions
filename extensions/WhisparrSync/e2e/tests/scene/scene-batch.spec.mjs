@@ -1,33 +1,31 @@
 // The Whisparr button on the videos selection bar, in a real containerized host.
 //
-// TWO TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On v3 the button opens this
-// extension's own overlay, one row starts a background run, and a refused row states its refusal
-// there and leaves the selection alone. On v2 the registration never reaches the
-// manifest, so nothing extension-shaped reaches the selection bar: not the button, and not the
-// host's own contributed-action button with nothing in it. Those are different DOM states and only
-// one of them is what is promised.
+// The button opens this extension's own overlay, one row starts a background run, and a refused row
+// states its refusal there and leaves the selection alone. What v2 draws in its place is the
+// subject of scene-batch.v2.spec.mjs.
 //
-// WHY THIS SPEC EXISTS. Nothing below the browser can see the whole path. The host matches an
-// action's declared entity types by literal membership against the spelling its own selection bar
-// passes, and it normalizes only the two media plurals - so a video selection arrives SINGULAR while
-// a studio selection arrives plural. It then resolves the action's handler name against the bundle's
-// own map by exact string and dispatches nothing, with no error, when the two differ. Both facts are
-// invisible to every tier inside this repository.
+// Nothing below the browser can see the whole path. The host matches an action's declared entity
+// types by literal membership against the spelling its own selection bar passes, and it normalizes
+// only the two media plurals, so a video selection arrives singular while a studio selection
+// arrives plural. It then resolves the action's handler name against the bundle's own map by exact
+// string and dispatches nothing, with no error, when the two differ. Both facts are invisible to
+// every tier inside this repository.
 //
-// THE ROW ORDER IS ASSERTED AS A SEQUENCE, not as a membership. Safest first and the only row that
-// can download fourth is the promise; a set comparison passes a menu that has been re-sorted.
+// The row order is asserted as a sequence rather than as a membership. Safest first and the only
+// row that can download fourth is the promise; a set comparison passes a menu that has been
+// re-sorted.
 //
-// THE REFUSAL IS DRIVEN AGAINST A STUBBED ANSWER, and the reason is the harness rather than a
+// The refusal is driven against a stubbed answer, and the reason is the harness rather than a
 // preference: the search row's bound is 100 scenes and this harness seeds a handful, so a selection
 // that exceeds it cannot be made by clicking. What is under test on the browser's side is which
 // sentence a code produces, that it is stated in the same overlay, and that the selection survives
 // it - so the route is pointed at the answer the route itself gives above the bound. That the route
 // gives that answer is settled in the backend suite.
 //
-// NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC. The one row that can download is chosen only against
+// No search is executed anywhere in this spec. The one row that can download is chosen only against
 // the stubbed refusal, which sends nothing.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { attemptUntil } from "@cove-extensions/e2e/poll";
@@ -71,10 +69,6 @@ const BATCH_ROUTE = extensionRoute("scenes/batch");
 // What the route answers above the search row's bound, and the code the browser chooses its sentence
 // on. Transcribed from the route rather than imported for the reason every other literal here is.
 const OVER_THE_SEARCH_BOUND = '{"code":"TOO_MANY_SEARCH_IDS","max":100}';
-
-// The spelling the host's videos selection bar passes, and the one a scene bulk action has to
-// declare to be matched. Transcribed by hand from the registration, like every literal here.
-const VIDEOS_SELECTION_TYPE = "video";
 
 // The host's own job list, and how this extension's runs are typed in it.
 const HOST_JOBS = "/api/jobs";
@@ -127,32 +121,6 @@ const contributedSelectionButtons = (page) =>
 
 /** Every card's own selection toggle on a list page, in DOM order. */
 const cardToggles = (page) => page.getByRole("button", { name: /^(Select|Deselect) item$/ });
-
-/**
- * Every bulk action this extension registers for a VIDEO selection in the manifest the browser is
- * served.
- *
- * The DOM cannot report this on its own: the host draws no selection bar at all while nothing is
- * selected, so an absent button and an absent registration look alike from the page.
- *
- * Narrowed to the videos bar rather than every bulk action, because the studio and performer
- * monitoring buttons are registered on BOTH generations and refuse in place there. Only the scene
- * selection's own button is absent on v2.
- */
-async function registeredVideoBulkActions(api) {
-  const manifest = await api.get("/api/extensions/manifest");
-  expect(manifest.status, `GET the extension manifest answered ${String(manifest.status)}`).toBe(
-    200,
-  );
-  return (manifest.json?.actions ?? [])
-    .filter(
-      (entry) =>
-        entry.extensionId === EXTENSION_ID &&
-        entry.actionType === "bulk" &&
-        (entry.entityTypes ?? []).includes(VIDEOS_SELECTION_TYPE),
-    )
-    .map((entry) => entry.id);
-}
 
 /**
  * Selects the first `count` cards, addressing each by position and reading the selection back.
@@ -458,47 +426,5 @@ test.describe("scene batch", () => {
       after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
       `the instance's command roster holds a searching command after this spec ran. The whole roster was ${JSON.stringify(after.commandNames)}`,
     ).toEqual([]);
-  });
-
-  // Its own block, so this execution starts the v2 container and not the v3 one.
-  test.describe("connected to v2", () => {
-    test.use({ generation: "v2" });
-
-    test("v2 draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
-      page,
-      baseUrl,
-      connected,
-    }) => {
-      const { api: coveApi } = connected;
-
-      // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
-      // seeded entry would make an absent button look like a button with nothing to say.
-      await seedCoveVideo(coveApi, {
-        title: `V2 ${randomUUID().slice(0, 8)}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
-      });
-
-      // The registration is what removes the surface, so the set the page was built from is read
-      // before the page is. The host draws no selection bar at all while nothing is selected, so an
-      // absent button and an absent registration are indistinguishable from the page alone.
-      expect(
-        await registeredVideoBulkActions(coveApi),
-        "v2 registers a videos selection action, so a surface it has no meaning on reached the manifest the host served",
-      ).toEqual([]);
-
-      await visit(page, baseUrl, "/videos", cardToggles(page).first(), "the videos page");
-      await selectFirstCards(page, 1, "the videos page on v2");
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-
-      await expect(
-        batchButton(page),
-        `v2 drew a ${BATCH_BUTTON_LABEL} button on the videos selection bar, so the registration is not conditional on the stored generation`,
-      ).toHaveCount(0);
-
-      await expect(
-        contributedSelectionButtons(page),
-        "the host drew its own button for a contributed selection action, so this surface renders empty rather than being absent",
-      ).toHaveCount(0);
-    });
   });
 });

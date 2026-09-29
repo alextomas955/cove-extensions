@@ -1,38 +1,33 @@
 // The scene tab on a video detail page, in a real containerized host.
 //
-// THREE TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On v3 the tab states what the
-// instance holds, and its four controls are pressed against a real instance. On v2 the
-// registration never reaches the manifest, so nothing Whisparr-shaped reaches the page: not the
-// control, and not a host wrapper left behind with nothing in it. Those are different DOM states
-// and only one of them is what is promised.
+// The tab states what the instance holds, and its four controls are pressed against a real
+// instance. What v2 draws in its place is the subject of scene-tab.v2.spec.mjs.
 //
-// WHY THIS SPEC EXISTS. Nothing below the browser can see the whole path this tab needs. Four
-// strings bind it across two repositories: the manifest's page type, its tab key, its component
-// name and the key the bundle registers a component under. The host resolves the last pair by exact
-// string and renders nothing, with no error anywhere, when they differ. Behind the tab sit the read
-// route, the identity resolution off the library's own stored row, the read against the instance
-// and the projection, and a break in any one of them shows up as a tab that draws nothing.
+// Nothing below the browser can see the whole path this tab needs. Four strings bind it across two
+// repositories: the manifest's page type, its tab key, its component name and the key the bundle
+// registers a component under. The host resolves the last pair by exact string and renders nothing,
+// with no error anywhere, when they differ. Behind the tab sit the read route, the identity
+// resolution off the library's own stored row, the read against the instance and the projection,
+// and a break in any one of them shows up as a tab that draws nothing.
 //
-// WHAT IT NEEDS. A Cove container, an installed extension and a real Whisparr instance. No metadata
-// credential: the identifier the scene is named by is the library's own stored row, and this surface
-// reaches no provider at all.
+// What it needs: a Cove container, an installed extension and a real Whisparr instance. No metadata
+// credential, because the identifier the scene is named by is the library's own stored row and this
+// surface reaches no provider at all.
 //
-// THE ASSERTED STATE IS THE INSTANCE'S OWN. The seed answers with the entity as the instance
+// The asserted state is the instance's own. The seed answers with the entity as the instance
 // projects it, and the expected chip label is derived from that answer. A label derived from what
 // the seed asked for would agree with itself if the read or the projection dropped the value.
 //
-// WHY THE TITLE MATTERS. Playwright's --grep matches the concatenated title and never the filename,
-// so the describe title below is what selects this file's tests. Every test added here goes inside
-// the same block.
+// Playwright's --grep matches the concatenated title and never the filename, so the describe title
+// below is what selects this file's tests. Every test added here goes inside the same block.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
 
 import {
   expect,
-  EXTENSION_ID,
   seedCoveVideo,
   SETTLE_DWELL_MS,
   SPEC_BUDGET_MS,
@@ -106,30 +101,6 @@ const whisparrTab = (page) => page.getByRole("tab", { name: TAB_LABEL, exact: tr
 
 /** The host's own detail-tab strip, which tells a page that has rendered from one still loading. */
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
-
-/**
- * The host's own placeholder for a contributed tab whose component it could not resolve.
- *
- * The empty-versus-absent distinction in its tab form. A registration the host kept and could not
- * fill draws this; a registration that never reached the manifest draws nothing at all.
- */
-const unresolvedExtensionComponent = (page) => page.getByText(/Extension component not found/i);
-
-/**
- * Every video-page tab this extension registers in the manifest the browser is served.
- *
- * The DOM cannot report this on its own: which tab strip a detail page draws follows its viewport,
- * so a registration is read from the manifest the page was built from.
- */
-async function registeredVideoTabs(api) {
-  const manifest = await api.get("/api/extensions/manifest");
-  expect(manifest.status, `GET the extension manifest answered ${String(manifest.status)}`).toBe(
-    200,
-  );
-  return (manifest.json?.tabs ?? [])
-    .filter((entry) => entry.extensionId === EXTENSION_ID && entry.pageType === "video")
-    .map((entry) => entry.key);
-}
 
 /**
  * Seeds one scene on both sides and answers with the Cove video and the state the INSTANCE reports.
@@ -636,53 +607,6 @@ test.describe("scene tab", () => {
       loadFailures,
       `the browser reported a bundle-load failure: ${loadFailures.join(" | ")}`,
     ).toEqual([]);
-  });
-
-  // Its own block, so this execution starts the v2 container and not the v3 one.
-  test.describe("connected to v2", () => {
-    test.use({ generation: "v2" });
-
-    test("v2 draws no scene tab, and no wrapper for one either", async ({
-      page,
-      baseUrl,
-      connected,
-    }) => {
-      const { api: coveApi } = connected;
-
-      // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
-      // seeded entry would make an absent tab look like a tab with nothing to say.
-      const video = await seedCoveVideo(coveApi, {
-        title: `V2 ${randomUUID().slice(0, 8)}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
-      });
-
-      // The registration is what removes the surface, so the set the page was built from is read
-      // before the page is. The tab strip a page draws depends on its viewport, and the
-      // registration does not.
-      expect(
-        await registeredVideoTabs(coveApi),
-        "v2 registers a video-page tab, so a surface it has no meaning on reached the manifest the host served",
-      ).toEqual([]);
-
-      await visit(
-        page,
-        baseUrl,
-        `/video/${String(video.id)}`,
-        hostDetailTabs(page),
-        "the video detail page on v2",
-      );
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-
-      await expect(
-        whisparrTab(page),
-        `v2 drew a ${TAB_LABEL} tab on the video detail page, so the registration is not conditional on the stored generation`,
-      ).toHaveCount(0);
-
-      await expect(
-        unresolvedExtensionComponent(page),
-        "the host drew its placeholder for a contributed tab it could not resolve, so a tab surface renders empty rather than being absent",
-      ).toHaveCount(0);
-    });
   });
 
   // FIVE CASES IN ONE TEST, and the reason is cost rather than convenience. Each case needs a Cove
