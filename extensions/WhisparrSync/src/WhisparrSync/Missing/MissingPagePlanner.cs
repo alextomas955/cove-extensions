@@ -111,7 +111,7 @@ internal sealed class MissingPagePlanner(
             page.LastPage,
             page.RangeFrom,
             page.RangeTo,
-            MissingRefusalKind.None,
+            derived.Refusal,
             [.. menus.Select(MenuFor)],
             [.. InstanceCatalogueLogic.Sorts.Select(
                 sort => new MissingSortOption(sort.Value, sort.Label))],
@@ -260,8 +260,9 @@ internal sealed class MissingPagePlanner(
     // the page subtracted the exclusions and the figure did not, so a tab could carry a count its
     // own list could not account for.
     //
-    // Null names a refusal rather than an empty set, which is the instance listing a catalogue this
-    // reader is missing none of.
+    // Null names a refusal that left no set at all, which is distinct from an empty one: an empty
+    // set is the instance listing a catalogue this reader is missing none of. A set answered beside
+    // a refusal is one the refusal says something about rather than one it withheld.
     private async Task<(List<WhisparrCatalogueScene>? Remaining, MissingRefusalKind Refusal)>
         RemainingAsync(
             WhisparrEntityKind kind,
@@ -282,11 +283,12 @@ internal sealed class MissingPagePlanner(
             .ConfigureAwait(false);
         var excluded = await ReadExcludedAsync(context, missing, ct).ConfigureAwait(false);
 
-        // Refused rather than answered without the subtraction. A list that did not arrive whole
-        // would put back the scenes this reader excluded, with nothing saying so.
+        // An exclusion list that did not arrive whole answers the set without the subtraction, under
+        // the refusal naming what could not be read. The scenes this reader excluded are back in it,
+        // so the surface says so rather than presenting the list as the missing set.
         if (!excluded.ReadCompleted)
         {
-            return (null, MissingRefusalKind.WhisparrExclusionsNotRead);
+            return (missing, MissingRefusalKind.WhisparrExclusionsNotRead);
         }
 
         return (

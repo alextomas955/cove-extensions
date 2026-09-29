@@ -522,22 +522,23 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(2, count.Count);
     }
 
-    // An exclusion list that did not arrive whole would put back the scenes this reader excluded.
-    // Refused rather than listed, and the figure answers nothing rather than a number drawn from a
-    // set that could not be derived.
+    // An exclusion list that did not arrive whole leaves the scenes this reader excluded in the set.
+    // The catalogue was read and only the subtraction was lost, so the list is still answered, under
+    // the refusal naming what could not be read. The figure counts what the list carries, so the two
+    // still agree.
     [Fact]
-    public async Task AnExclusionListThatDidNotArriveRefusesThePageAndTheCount()
+    public async Task AnExclusionListThatDidNotArriveIsListedUnderItsOwnRefusal()
     {
         var instance = new RecordingInstance(ScenesNamed("a", "b"));
         var planner = PlannerOver();
-        var context = Context(instance, exclusions: new StubExclusions(false));
+        var context = Context(instance, exclusions: new StubExclusions(false, "b"));
 
         var view = await planner.PlanAsync(Request(), context, NullLogger.Instance, TestCt);
         var count = await planner.CountAsync(Request(), context, TestCt);
 
         Assert.Equal(MissingRefusalKind.WhisparrExclusionsNotRead, view.Refusal);
-        Assert.Empty(view.Cards);
-        Assert.Null(count.Count);
+        Assert.Equal(["a", "b"], view.Cards.Select(card => card.ProviderSceneId));
+        Assert.Equal(2, count.Count);
     }
 
     // The held catalogue carries the row ids the instance addresses its own scenes by, and a mark
