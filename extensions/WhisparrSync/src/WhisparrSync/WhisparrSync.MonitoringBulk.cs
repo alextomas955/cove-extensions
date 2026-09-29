@@ -305,6 +305,8 @@ public sealed partial class WhisparrSync
         private int _entriesLeftUnderAnotherRoot;
 
         private int _filesWithoutAnEntry;
+
+        private int _filesRefused;
         private bool _rootsCouldNotBeRead;
 
         internal IReadOnlyList<FolderAddressRefusal> AddressRefusals => [.. _refusalByRoot.Values];
@@ -321,7 +323,8 @@ public sealed partial class WhisparrSync
                 AddressRefusals,
                 _entriesLeftUnderAnotherRoot,
                 _rootsCouldNotBeRead,
-                _filesWithoutAnEntry)
+                _filesWithoutAnEntry,
+                _filesRefused)
             : null;
 
         internal async Task LinkAsync(
@@ -371,6 +374,7 @@ public sealed partial class WhisparrSync
             _foldersRefused += linked.FoldersRefused;
             _entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
             _filesWithoutAnEntry += linked.FilesWithoutAnEntry;
+            _filesRefused += linked.FilesRefused;
             _rootsCouldNotBeRead |= linked.RootsCouldNotBeRead;
 
             foreach (var root in linked.AddressedRoots ?? [])
