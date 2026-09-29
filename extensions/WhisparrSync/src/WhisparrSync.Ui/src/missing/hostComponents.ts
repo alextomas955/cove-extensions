@@ -9,10 +9,6 @@
 export {
   ConfirmDialog,
   DetailListPagination,
-  PerformerTile,
-  TagBadge,
   useKeySequence,
   useMultiSelect,
-  toggleOptionsFromEvent,
-  withOrderedToggle,
 } from "@cove/runtime/components";
