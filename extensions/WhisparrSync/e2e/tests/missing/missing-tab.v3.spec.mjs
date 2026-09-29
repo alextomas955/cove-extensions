@@ -98,6 +98,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
   page,
   baseUrl,
   connected,
+  provider: _provider,
 }) => {
   const { api: coveApi, whisparr } = connected;
 
