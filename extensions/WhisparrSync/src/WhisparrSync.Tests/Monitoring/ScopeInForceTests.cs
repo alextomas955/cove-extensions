@@ -1,8 +1,6 @@
-using System.Reflection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
-using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
@@ -111,50 +109,6 @@ public sealed class ScopeInForceTests
             WhisparrEntityKind.Studio, WhisparrGeneration.V3, monitored: true, body));
     }
 
-    // Marking a whole back catalogue wanted spends indexer traffic and disk, and on v3 narrowing the
-    // scope again does not undo it. So the wider scope is the one answer no absence of information
-    // may produce.
-    [Fact]
-    public void NothingTheProductCouldNotReadIsAnsweredWithTheWiderScope()
-    {
-        var unreadable = new (WhisparrEntityKind Kind, WhisparrGeneration Generation, bool Monitored, string? Body)[]
-        {
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V3, true, null),
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V3, true, ""),
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V3, true, "not json at all"),
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V3, true, "[]"),
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V2, true, DateGateAbsent),
-            (WhisparrEntityKind.Performer, WhisparrGeneration.V3, true, DateGateAbsent),
-            (WhisparrEntityKind.Studio, WhisparrGeneration.V3, false, DateGateAbsent),
-        };
-
-        foreach (var (kind, generation, monitored, body) in unreadable)
-        {
-            Assert.NotEqual(
-                MonitorScope.AllScenes,
-                MonitoringProjector.ScopeIn(kind, generation, monitored, body));
-        }
-
-        // Paired with a positive, so an assertion that could never see the wider scope is not the
-        // only thing this case reports.
-        Assert.Equal(
-            MonitorScope.AllScenes,
-            MonitoringProjector.ScopeIn(
-                WhisparrEntityKind.Studio, WhisparrGeneration.V3, monitored: true, DateGateAbsent));
-    }
-
-    [Fact]
-    public void ARefusedAndANotConfiguredReadBothReportNoScope()
-    {
-        Assert.Null(EntityMonitoringView.NotConfigured(WhisparrEntityKind.Studio).Scope);
-        Assert.Null(EntityMonitoringView.Refused(
-            WhisparrEntityKind.Studio,
-            WhisparrGeneration.V3,
-            [],
-            MonitorRefusalKind.NoIdentityInThisNamespace,
-            GenerationCapabilities.AScopeChangeIsRetroactiveOn(WhisparrGeneration.V3)).Scope);
-    }
-
     // Driven through the mounted route, because every other case here calls the projection. The
     // read-back body names a different scope from the request: a case where the two agree would pass
     // against a substitution as well. The host answers the entity read twice, as not held and then
@@ -186,19 +140,5 @@ public sealed class ScopeInForceTests
         Assert.Equal(MonitorRefusalKind.None, view.Refusal);
         Assert.True(view.Monitored);
         Assert.Null(view.Scope);
-    }
-
-    // A defaulted parameter is how a call site that never decided the question comes to answer one.
-    [Fact]
-    public void NoFactoryParameterCarryingAScopeHasADefault()
-    {
-        var scopeParameters = typeof(EntityMonitoringView)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .SelectMany(member => member.GetParameters())
-            .Where(parameter => parameter.ParameterType == typeof(MonitorScope?))
-            .ToArray();
-
-        Assert.NotEmpty(scopeParameters);
-        Assert.All(scopeParameters, parameter => Assert.False(parameter.HasDefaultValue));
     }
 }

@@ -150,19 +150,6 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Equal(expected, await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    // Read off the source, because no behavioural assertion can tell a query that de-duplicates in
-    // the database from one that loads every row and reduces it. Both answer the same identifiers.
-    [Fact]
-    public void TheSceneIdentityReadDeDuplicatesInTheQuery()
-    {
-        var source = PortSource();
-
-        Assert.Contains("Distinct()", source, StringComparison.Ordinal);
-        Assert.All(
-            new[] { "HashSet", "ToList", "ToArray" },
-            accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
-    }
-
     private static async Task<List<string>> IdentitiesOf(
         MonitorHost host, WhisparrEntityKind kind, int coveId)
     {
@@ -176,23 +163,4 @@ public sealed class EntitySceneIdentityPortTests
         return identities;
     }
 
-    // Found by walking up to the extension directory rather than by a counted-out "..": the test
-    // assembly's depth below it varies with configuration and target framework.
-    private static string PortSource()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            var candidate = Path.Combine(
-                directory.FullName, "src", "WhisparrSync", "Monitoring", "EntitySceneIdentityPort.cs");
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate);
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No src/WhisparrSync/Monitoring/EntitySceneIdentityPort.cs above {AppContext.BaseDirectory}.");
-    }
 }

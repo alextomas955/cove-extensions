@@ -32,21 +32,11 @@ public sealed class OutboundFolderPathTests
 
         Assert.Contains("folder=%2fdata%2fBlue+Harbor", importable, StringComparison.Ordinal);
         Assert.DoesNotContain("Downloads", importable, StringComparison.OrdinalIgnoreCase);
-    }
 
-    [Fact]
-    public async Task TheInstanceIsAskedAboutTheCandidateBeforeItIsHandedAFolder()
-    {
-        var (host, _) = await RunAsync();
-        await using var driven = host;
-
-        var probe = host.Bytes!.Targets.FindIndex(
+        var probe = host.Bytes.Targets.FindIndex(
             sent => sent.Contains("filesystem", StringComparison.Ordinal));
-        var listing = host.Bytes.Targets.FindIndex(
-            sent => sent.Contains("manualimport", StringComparison.Ordinal));
-
         Assert.True(probe >= 0);
-        Assert.True(listing > probe);
+        Assert.True(host.Bytes.Targets.IndexOf(importable) > probe);
     }
 
     // The instance answers an empty directory, which is what a real container answers for a path it

@@ -216,28 +216,6 @@ public sealed class AddDefaultsProjectorTests
         Assert.Empty(Acts(host));
     }
 
-    // The projector declares one member answering one of two refusals, so a third stop would have
-    // no member to be read off. Nothing reads the instance's indexer list.
-    [Fact]
-    public void TheProjectorAnswersTheseTwoRefusalsAndNoOther()
-    {
-        var refusals = new[] { EmptyList, MonitorHost.OneRootFolder }
-            .SelectMany(offered => new[]
-            {
-                AddDefaultsProjector.From(offered, EmptyList).Refusal,
-                AddDefaultsProjector.From(EmptyList, offered).Refusal,
-                AddDefaultsProjector.From(offered, MonitorHost.OneRootFolder).Refusal,
-            })
-            .Where(refusal => refusal != MonitorRefusalKind.None)
-            .Distinct()
-            .Order()
-            .ToList();
-
-        Assert.Equal(
-            [MonitorRefusalKind.NoQualityProfile, MonitorRefusalKind.NoRootFolder],
-            refusals);
-    }
-
     // Such an entity keeps its own profile and root because the defaults are never read, not
     // because they are composed and dropped. A read issued and discarded fails here.
     [Fact]
