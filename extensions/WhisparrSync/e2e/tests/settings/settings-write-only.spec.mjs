@@ -54,12 +54,16 @@ test("a saved key reaches neither the settings response nor the host's bulk data
 
   expect(bulk.status, `GET ${DATA_ROUTE} answered: ${bulk.text}`).toBe(200);
   // The discriminating control: the bulk route DID return this extension's stored values, so its
-  // silence about the key is about the key rather than about an empty answer.
+  // silence about the key is about the key rather than about an empty answer. Matched on a member
+  // name rather than a quoted one: the blob arrives as a JSON string inside the answer, so every
+  // quote in it is escaped.
   expect(
     bulk.text,
     "the bulk data route returned nothing of this extension, so it is no evidence about the key",
-  ).toContain(SAVED_ADDRESS);
+  ).toContain("SelectedGeneration");
   expect(bulk.text).not.toContain(SAVED_KEY);
+  // The address is held in the credential row with the key, and the row is not served here.
+  expect(bulk.text).not.toContain(SAVED_ADDRESS);
 });
 
 test("the other version's key is write-only too, and is stored in its own slot", async ({
@@ -91,8 +95,9 @@ test("the other version's key is write-only too, and is stored in its own slot",
   expect(
     bulk.text,
     "the bulk data route returned nothing of this extension, so it is no evidence about the key",
-  ).toContain(SAVED_ADDRESS);
+  ).toContain("SelectedGeneration");
   expect(bulk.text).not.toContain(V2_SAVED_KEY);
+  expect(bulk.text).not.toContain(SAVED_ADDRESS);
 
   // The slots are separate: storing one leaves the other where it was, which is what makes a
   // connection to one version survive a switch to the other.

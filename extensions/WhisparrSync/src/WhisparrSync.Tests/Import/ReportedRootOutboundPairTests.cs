@@ -8,12 +8,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Import;
 
-// The address and the key are two writes in two stores. A root read running while a save moves both
-// can read one from either side of that save, and the key of the instance being moved to would then
-// be presented to the instance being moved from.
+// The address and the key are one row, and that row is the only place either is stored. A root read
+// binds to the pair it holds, so it cannot present one instance's key to another.
 public sealed class ReportedRootOutboundPairTests
 {
-    private const string StoredAddress = "http://whisparr:6969";
     private const string MovedAddress = "http://whisparr-elsewhere:6969";
     private const string MovedKey = "2a4a2a4a2a4a2a4a2a4a2a4a2a4a2a4a";
     private const string V2Address = "http://whisparr-v2:6969";
@@ -79,10 +77,10 @@ public sealed class ReportedRootOutboundPairTests
             new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }
                 .WithConnectionFor(
                     WhisparrGeneration.V3,
-                    new WhisparrSyncGenerationConnection { Address = StoredAddress })
+                    new WhisparrSyncGenerationConnection())
                 .WithConnectionFor(
                     WhisparrGeneration.V2,
-                    new WhisparrSyncGenerationConnection { Address = StoredAddress }),
+                    new WhisparrSyncGenerationConnection()),
             TestCt);
 
         await new ReportedRootPort(

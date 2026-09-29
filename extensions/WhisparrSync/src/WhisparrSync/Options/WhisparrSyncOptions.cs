@@ -47,14 +47,19 @@ public enum UpgradeBehavior
 /// from the other.
 /// </para>
 /// </remarks>
+/// <summary>What this extension has learnt about one generation's instance, beside the connection.</summary>
+/// <remarks>
+/// The address is not here. It is stored once, in the credential row an outbound request is built
+/// from, so the settings page and the request cannot describe different instances. Every member
+/// below describes whichever instance that row named when it was written, and a save that moves the
+/// address clears them.
+/// </remarks>
 public sealed record WhisparrSyncGenerationConnection
 {
     /// <summary>The longest reported version string this keeps.</summary>
     public const int RecordedVersionMaxLength = 64;
 
     private readonly string? _recordedVersion;
-
-    public string Address { get; init; } = "";
 
     /// <summary>The version string the instance sent, or null while no test has read one.</summary>
     /// <remarks>

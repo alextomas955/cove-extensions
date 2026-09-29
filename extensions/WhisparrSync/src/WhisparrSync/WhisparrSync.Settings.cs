@@ -142,25 +142,36 @@ public sealed partial class WhisparrSync
         // read off the load taken inside it. Written outside, two saves could interleave their
         // rows and leave one generation from each while the blob described only one of them.
         var now = clock.GetUtcNow();
+        string? v3Before = null;
+        string? v2Before = null;
         var persisted = await gate
             .MutateAfterAsync(
                 options,
-                (before, writeCt) => credentials.ApplyAsync(
-                    [
-                        new CredentialApply(
-                            WhisparrGeneration.V3,
-                            SettingsProjector.CredentialWriteFor(request.V3),
-                            SettingsProjector.AddressFor(
-                                request.V3, before.ConnectionFor(WhisparrGeneration.V3))),
-                        new CredentialApply(
-                            WhisparrGeneration.V2,
-                            SettingsProjector.CredentialWriteFor(request.V2),
-                            SettingsProjector.AddressFor(
-                                request.V2, before.ConnectionFor(WhisparrGeneration.V2))),
-                    ],
-                    now,
-                    writeCt),
-                stored => SettingsProjector.Apply(stored, request),
+                async (_, writeCt) =>
+                {
+                    // The addresses this save replaces, read inside the gate. They decide whether
+                    // the blob's record still describes the instance it was written against, so a
+                    // read taken before the gate could clear a record the save did not move.
+                    v3Before = await AddressStoredForAsync(
+                        credentials, WhisparrGeneration.V3, writeCt).ConfigureAwait(false);
+                    v2Before = await AddressStoredForAsync(
+                        credentials, WhisparrGeneration.V2, writeCt).ConfigureAwait(false);
+
+                    await credentials.ApplyAsync(
+                        [
+                            new CredentialApply(
+                                WhisparrGeneration.V3,
+                                SettingsProjector.CredentialWriteFor(request.V3),
+                                SettingsProjector.AddressFor(request.V3, v3Before)),
+                            new CredentialApply(
+                                WhisparrGeneration.V2,
+                                SettingsProjector.CredentialWriteFor(request.V2),
+                                SettingsProjector.AddressFor(request.V2, v2Before)),
+                        ],
+                        now,
+                        writeCt).ConfigureAwait(false);
+                },
+                stored => SettingsProjector.Apply(stored, request, v3Before, v2Before),
                 ct)
             .ConfigureAwait(false);
 
@@ -333,7 +344,11 @@ public sealed partial class WhisparrSync
 
         return SettingsProjector.ToView(
             stored,
-            await credentials.HasKeyAsync(WhisparrGeneration.V3, ct).ConfigureAwait(false),
-            await credentials.HasKeyAsync(WhisparrGeneration.V2, ct).ConfigureAwait(false));
+            await credentials.ReadConnectionAsync(WhisparrGeneration.V3, ct).ConfigureAwait(false),
+            await credentials.ReadConnectionAsync(WhisparrGeneration.V2, ct).ConfigureAwait(false));
     }
+
+    private static async Task<string?> AddressStoredForAsync(
+        ICredentialPort credentials, WhisparrGeneration generation, CancellationToken ct)
+        => (await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false))?.Address;
 }

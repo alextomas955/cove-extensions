@@ -185,7 +185,7 @@ public sealed class RefusalBeforeRequestTests
             new WhisparrSyncOptions
             {
                 SelectedGeneration = WhisparrGeneration.V3,
-                V3 = new WhisparrSyncGenerationConnection { Address = address },
+                V3 = new WhisparrSyncGenerationConnection(),
             },
             TestCt);
 
@@ -284,7 +284,7 @@ public sealed class RefusalBeforeRequestTests
         string? apiKey,
         WhisparrGeneration generation = WhisparrGeneration.V3)
     {
-        var connection = new WhisparrSyncGenerationConnection { Address = address };
+        var connection = new WhisparrSyncGenerationConnection();
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
             new WhisparrSyncOptions

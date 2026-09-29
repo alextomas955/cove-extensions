@@ -24,6 +24,16 @@ public sealed class SettingsProjectionTests
         var options = new OptionsStore(store);
         var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, "http://whisparr-v3:6969", key);
 
+        // A reading the blob keeps, so what the blob does not hold is read against a blob that holds
+        // something. Without it a save at this address stores nothing, and every absence would pass.
+        await options.SaveAsync(
+            new WhisparrSyncOptions
+            {
+                SelectedGeneration = WhisparrGeneration.V3,
+                V3 = new WhisparrSyncGenerationConnection { RecordedVersion = "3.3.8.1097" },
+            },
+            TestContext.Current.CancellationToken);
+
         await WhisparrSyncFixture.Create().SaveSettingsAsync(
             new WhisparrSyncSettingsSaveRequest(
                 WhisparrGeneration.V3,
@@ -51,9 +61,13 @@ public sealed class SettingsProjectionTests
         Assert.Contains("\"keyIsSet\":true", body, StringComparison.Ordinal);
         Assert.DoesNotContain(key, body, StringComparison.OrdinalIgnoreCase);
 
+        // The blob holds neither the key nor the address: both live in the credential row, which
+        // the host's bulk extension-data route does not serve. The generation is the control, so
+        // the blob's silence about the two is not an empty answer.
         var stored = await store.GetAllAsync(TestContext.Current.CancellationToken);
         var blob = string.Join('\n', stored.Values);
-        Assert.Contains("whisparr-v3:6969", blob, StringComparison.Ordinal);
+        Assert.Contains("3.3.8.1097", blob, StringComparison.Ordinal);
+        Assert.DoesNotContain("whisparr-v3:6969", blob, StringComparison.Ordinal);
         Assert.DoesNotContain(key, blob, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -111,8 +111,8 @@ public sealed class AdvancedOptionDefaultsTests
                 },
             ]);
 
-        AssertTheyMatch(defaults, SettingsProjector.Apply(defaults, save));
-        AssertTheyMatch(configured, SettingsProjector.Apply(configured, save));
+        AssertTheyMatch(defaults, SettingsProjector.Apply(defaults, save, null, null));
+        AssertTheyMatch(configured, SettingsProjector.Apply(configured, save, null, null));
     }
 
     public static TheoryData<WhisparrSyncSettingsSaveRequest> SavesThePageCanSubmit()

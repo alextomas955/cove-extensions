@@ -13,15 +13,21 @@ namespace WhisparrSync.Connection;
 public static class SettingsProjector
 {
     /// <summary>The settings page's view of <paramref name="options"/>.</summary>
+    /// <remarks>
+    /// The addresses come from the credential rows rather than the blob, because that is where an
+    /// outbound request reads them. The page then names the instance a request would reach.
+    /// </remarks>
     public static WhisparrSyncSettingsView ToView(
-        WhisparrSyncOptions options, bool v3KeyIsSet, bool v2KeyIsSet)
+        WhisparrSyncOptions options,
+        WhisparrStoredConnection? v3Stored,
+        WhisparrStoredConnection? v2Stored)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         return new WhisparrSyncSettingsView(
             options.SelectedGeneration,
-            ViewOf(options.V3, v3KeyIsSet),
-            ViewOf(options.V2, v2KeyIsSet),
+            ViewOf(options.V3, v3Stored),
+            ViewOf(options.V2, v2Stored),
             options.UpgradeBehavior);
     }
 
@@ -35,7 +41,10 @@ public static class SettingsProjector
     /// the stored one, so the connection form can save without restating a setting it does not show.
     /// </remarks>
     public static WhisparrSyncOptions Apply(
-        WhisparrSyncOptions stored, WhisparrSyncSettingsSaveRequest request)
+        WhisparrSyncOptions stored,
+        WhisparrSyncSettingsSaveRequest request,
+        string? v3AddressBefore,
+        string? v2AddressBefore)
     {
         ArgumentNullException.ThrowIfNull(stored);
         ArgumentNullException.ThrowIfNull(request);
@@ -43,8 +52,8 @@ public static class SettingsProjector
         return stored with
         {
             SelectedGeneration = request.SelectedGeneration,
-            V3 = ApplyToGeneration(stored.V3, request.V3),
-            V2 = ApplyToGeneration(stored.V2, request.V2),
+            V3 = ApplyToGeneration(stored.V3, request.V3, v3AddressBefore),
+            V2 = ApplyToGeneration(stored.V2, request.V2, v2AddressBefore),
             UpgradeBehavior = request.UpgradeBehavior ?? stored.UpgradeBehavior,
         };
     }
@@ -55,15 +64,15 @@ public static class SettingsProjector
     /// to <see cref="CredentialWrite.FromSubmitted"/>, so the rule that a submitted blank keeps the
     /// stored key stays in one place.
     /// </remarks>
-    /// <summary>The address this save leaves stored for a generation, normalised as the blob holds it.</summary>
+    /// <summary>The address this save leaves stored for a generation, normalised as the row holds it.</summary>
     /// <remarks>
-    /// Read from the same request the blob is projected from, so the row written beside the key and
-    /// the blob the page reads cannot name different instances.
+    /// A generation the save omits keeps the address already stored for it, which is why the stored
+    /// one is passed in rather than read as an empty string.
     /// </remarks>
     public static string AddressFor(
-        WhisparrSyncGenerationSaveRequest? save, WhisparrSyncGenerationConnection? stored)
+        WhisparrSyncGenerationSaveRequest? save, string? storedAddress)
         => save is null
-            ? stored?.Address ?? ""
+            ? storedAddress ?? ""
             : ConnectionTester.NormaliseAddress(save.Address);
 
     public static CredentialWrite CredentialWriteFor(WhisparrSyncGenerationSaveRequest? save)
@@ -74,26 +83,34 @@ public static class SettingsProjector
             _ => CredentialWrite.Keep,
         };
 
+    // A row exists once either column is held, so a key with no address still reports a key.
     private static WhisparrSyncGenerationSettingsView ViewOf(
-        WhisparrSyncGenerationConnection? connection, bool keyIsSet)
+        WhisparrSyncGenerationConnection? connection, WhisparrStoredConnection? stored)
         => new(
-            connection?.Address ?? "",
-            keyIsSet,
+            stored?.Address ?? "",
+            !string.IsNullOrEmpty(stored?.ApiKey),
             connection?.RecordedVersion,
             connection?.VersionVerifiedAtUtc,
             connection?.LastReachableAtUtc);
 
+    // What the record describes is whichever instance the credential row named when it was written,
+    // so the address before this save is what decides whether it still describes one.
     private static WhisparrSyncGenerationConnection? ApplyToGeneration(
-        WhisparrSyncGenerationConnection? stored, WhisparrSyncGenerationSaveRequest? save)
+        WhisparrSyncGenerationConnection? stored,
+        WhisparrSyncGenerationSaveRequest? save,
+        string? addressBefore)
     {
         if (save is null)
         {
             return stored;
         }
 
+        // A save that names a generation leaves a record for it, empty where nothing has been learnt
+        // yet. The record is what a later reading is written onto, and its absence is a generation
+        // this reader has never configured.
         var address = ConnectionTester.NormaliseAddress(save.Address);
-        return stored is not null && ConnectionTester.IsSameAddress(stored.Address, address)
-            ? stored
-            : new WhisparrSyncGenerationConnection { Address = address };
+        return ConnectionTester.IsSameAddress(addressBefore, address)
+            ? stored ?? new WhisparrSyncGenerationConnection()
+            : new WhisparrSyncGenerationConnection();
     }
 }

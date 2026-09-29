@@ -113,39 +113,29 @@ public sealed class BackstopPassTests
 
         var stored = await pass.StoredAsync();
         Assert.Equal(Noon, result.Watermark);
-        Assert.Equal(MovedAddress, stored.V3?.Address);
         Assert.Null(stored.V3?.BackstopWatermarkUtc);
     }
 
-    // The key and the address are two writes in two stores, and the row holding the key is the one
-    // an outbound request is built from. Reading the address from the options blob instead would
-    // send this key to the instance the blob still names. The stored mark is a position in the
-    // history of the instance the blob names, so handing it to a walk against a different instance
-    // would declare that instance's older records already read and nothing would go back for them.
-    // The instant itself came out of the instance the row names, and the record it would be written
-    // onto describes the one the blob names.
+    // A connection this reader has just configured has a record holding nothing, and on an upgrade
+    // it may have no record at all. The first pass has to leave a mark either way: a pass that could
+    // not write one would be a first connect again on the next run, and every run after it.
     [Fact]
-    public async Task AWalkAgainstTheAddressAMovedRowNamesStartsWithNoPositionAndWritesTheMarkNowhere()
+    public async Task AFirstPassOverAGenerationWithNoRecordStillLeavesTheMark()
     {
-        var mark = Noon.AddMinutes(-5);
-        var pass = new Pass(mark, rowAddress: MovedAddress);
+        var pass = new Pass(mark: null);
+        pass.WithoutTheStoredRecord();
         pass.Answering(Page(Descending(3)));
 
         var result = await pass.RunAsync();
 
-        var binding = Assert.Single(pass.Instances.Bindings);
-        Assert.True(ConnectionTester.IsSameAddress(MovedAddress, binding.BaseAddress.ToString()));
-
         Assert.Equal(BackstopPassOutcome.FirstConnect, result.Outcome);
-        Assert.Empty(pass.Core.Ingested);
-
-        var stored = await pass.StoredAsync();
-        Assert.Equal(Address, stored.V3?.Address);
-        Assert.Equal(mark, stored.V3?.BackstopWatermarkUtc);
+        Assert.NotNull((await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    // Control for the case above: a row naming the address the blob already holds is the ordinary
-    // shape, and a pass that treated every row address as a move would never advance.
+    // The address is stored once, in the row an outbound request is built from, so a mark that is
+    // present belongs to the instance that row names: a save that moves the address clears the
+    // record the mark sits in. The ordinary shape, and a pass that read every walk as a move would
+    // never advance.
     [Fact]
     public async Task ARowNamingTheStoredAddressWalksFromTheStoredMark()
     {
@@ -794,6 +784,7 @@ public sealed class BackstopPassTests
             string? rowAddress = null)
         {
             _requestBudget = requestBudget;
+            Generation = generation;
             _credentials = new RecordingCredentialPort()
                 .Holding(generation, rowAddress ?? address, ApiKey);
             // A case that leaves the address empty is one where nothing is sent, so the recorder
@@ -811,7 +802,6 @@ public sealed class BackstopPassTests
                         generation,
                         new WhisparrSyncGenerationConnection
                         {
-                            Address = address,
                             BackstopWatermarkUtc = mark,
                         }),
                     TestContext.Current.CancellationToken)
@@ -819,6 +809,17 @@ public sealed class BackstopPassTests
                 .GetResult();
         }
 
+
+        public WhisparrGeneration Generation { get; }
+
+        // The blob as an upgrade from a state that held no record for this generation leaves it.
+        public void WithoutTheStoredRecord()
+            => _options
+                .SaveAsync(
+                    new WhisparrSyncOptions { SelectedGeneration = Generation },
+                    TestContext.Current.CancellationToken)
+                .GetAwaiter()
+                .GetResult();
 
         public FakeStore Store { get; } = new();
 
@@ -872,11 +873,38 @@ public sealed class BackstopPassTests
             return _competing is { } save ? new SavingClient(client, () => CommitAsync(save)) : client;
         }
 
+        // What a settings save does: the credential row and the blob, under one hold of the gate.
+        // Folding the blob alone would leave the row naming the instance the walk is reaching, and
+        // the move this constructs would not be one.
         private Task<WhisparrSyncOptions> CommitAsync(WhisparrSyncSettingsSaveRequest save)
-            => Gate.MutateAsync(
+        {
+            var ct = TestContext.Current.CancellationToken;
+            string? before = null;
+            return Gate.MutateAfterAsync(
                 _options,
-                stored => SettingsProjector.Apply(stored, save),
-                TestContext.Current.CancellationToken);
+                async (_, writeCt) =>
+                {
+                    before = (await _credentials.ReadConnectionAsync(Generation, writeCt))?.Address;
+                    await _credentials.ApplyAsync(
+                        [
+                            new CredentialApply(
+                                Generation,
+                                SettingsProjector.CredentialWriteFor(SaveFor(save)),
+                                SettingsProjector.AddressFor(SaveFor(save), before)),
+                        ],
+                        Now,
+                        writeCt);
+                },
+                stored => SettingsProjector.Apply(
+                    stored,
+                    save,
+                    Generation == WhisparrGeneration.V3 ? before : null,
+                    Generation == WhisparrGeneration.V2 ? before : null),
+                ct);
+
+            WhisparrSyncGenerationSaveRequest? SaveFor(WhisparrSyncSettingsSaveRequest request)
+                => Generation == WhisparrGeneration.V3 ? request.V3 : request.V2;
+        }
     }
 
     // The other verbs raise: a pass makes history reads and nothing else, so a call reaching one of them
