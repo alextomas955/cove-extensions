@@ -309,11 +309,11 @@ export const WHISPARR_CATALOGUE_NOT_READ =
   "Couldn't read what Whisparr lists for {entity}. Try again shortly.";
 
 /**
- * The instance was asked which scenes it excludes and nothing whole arrived, so which of the
- * catalogue is missing could not be worked out.
+ * The instance was asked which scenes it excludes and nothing whole arrived, so the list below
+ * carries the scenes this reader excluded as well as the ones missing.
  */
 export const WHISPARR_EXCLUSIONS_NOT_READ =
-  "Couldn't read what you've excluded in Whisparr, so this list would show scenes you removed. " +
+  "Couldn't read what you've excluded in Whisparr, so this list may include scenes you excluded. " +
   "Try again shortly.";
 
 /** The connected generation addresses no entity of this kind, so it can track none. */
