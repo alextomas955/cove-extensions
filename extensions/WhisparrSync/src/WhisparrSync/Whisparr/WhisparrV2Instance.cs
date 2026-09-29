@@ -11,8 +11,17 @@ using V2Model = Whisparr2.Net.Model;
 namespace WhisparrSync.Whisparr;
 
 // One v2 instance, bound to the address and key it answers on. It declares the roles v2 holds and
-// no others, so there is no performer member here, no per-scene search and no scene record. No
-// member takes an address, key or generation: all three arrive on the binding, so a read and the
+// no others, and the capabilities this generation offers are read from that list.
+//
+// Measured against a real v2: it answers a not-found on every performer and per-scene route, adds
+// no catalogue item, and keeps no scene exclusions, so there is no performer member here, no
+// per-scene search and no scene record. It does keep a row per scene, under a site and named by the
+// provider's number, so the per-scene monitor and the site-row read are held. What it lacks is a
+// route reaching a scene without its site. Site registration and the held-site read are v2's alone,
+// a site being its unit of presence and its list the only route answering presence for many sites
+// at once.
+//
+// No member takes an address, key or generation: all three arrive on the binding, so a read and the
 // write after it cannot name different instances.
 //
 // Requests go through the Whisparr 2 generated client, except the two notification verbs, which are
