@@ -300,10 +300,14 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     timeout: REGION_BUDGET_MS,
   });
   expect(await selectedCount(page), "a refused run threw the selection away").toBe(before);
-  // Where focus ends up is not asserted. The bar disables both verbs while a run is in flight, and
-  // the browser moves focus to the document body when the focused control is disabled, so a refused
-  // run leaves the reader reaching for the pointer to press again. That is a defect in the bar
-  // rather than in this spec, and the reading that would have caught it belongs with the fix.
+  // Read as the focused element's own identity: the document's text carries the verb from the bar,
+  // the toolbar and every card, so a text read passes with focus on the body. The bar disables the
+  // verb it was pressed from, which the browser blurs, and a reader who cannot press again from
+  // where they are has to reach for the pointer.
+  await expect(
+    monitorSelection,
+    "focus moved off the button, so pressing again after fixing the cause needs the pointer",
+  ).toBeFocused();
 
   await page.unroute(/\/missing\/bulk-monitor$/);
 

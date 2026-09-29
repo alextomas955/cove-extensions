@@ -10,7 +10,7 @@
  * `border` shorthand resets the colour. Focus uses `focus:ring-*`, because the host stylesheet
  * emits no `focus-visible` ring utility.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Spinner } from "@cove-extensions/ui-shared";
 
 import {
@@ -79,6 +79,26 @@ export function MissingSelectionBar({
   // the run: a bar that freed itself at the press would invite a second run over the same scenes.
   const inFlight = outcome.kind === "inFlight" || runUnderWay;
 
+  const monitorRef = useRef<HTMLButtonElement>(null);
+  const unmonitorRef = useRef<HTMLButtonElement>(null);
+  const pressed = useRef<"monitor" | "unmonitor" | null>(null);
+
+  // The browser blurs a control the moment it is disabled, so the press that starts a run takes
+  // focus to the document body and nothing puts it back. A reader on the keyboard would have to
+  // find the bar again to press a refused verb a second time.
+  useEffect(() => {
+    if (inFlight) return;
+
+    const control = pressed.current === "monitor" ? monitorRef.current : unmonitorRef.current;
+    const wasPressed = pressed.current !== null;
+    pressed.current = null;
+
+    // Only where the press is what lost the focus. A reader who has moved on keeps where they are.
+    if (!wasPressed || control === null) return;
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
+    control.focus();
+  }, [inFlight]);
+
   const bindings = useMemo(
     () =>
       actions.map((action) => ({
@@ -117,10 +137,14 @@ export function MissingSelectionBar({
                 announces why. */}
             <button
               type="button"
+              ref={monitorRef}
               className={VERB_CLASS}
               title={inFlight ? WAITING_FOR_WHISPARR : undefined}
               disabled={inFlight}
-              onClick={onMonitorSelection}
+              onClick={() => {
+                pressed.current = "monitor";
+                onMonitorSelection();
+              }}
             >
               {inFlight ? <Spinner className="h-3 w-3" /> : <MonitorGlyph className="h-3 w-3" />}
               {SELECTION_MONITOR}
@@ -128,10 +152,14 @@ export function MissingSelectionBar({
             </button>
             <button
               type="button"
+              ref={unmonitorRef}
               className={VERB_CLASS}
               title={inFlight ? WAITING_FOR_WHISPARR : undefined}
               disabled={inFlight}
-              onClick={onUnmonitorSelection}
+              onClick={() => {
+                pressed.current = "unmonitor";
+                onUnmonitorSelection();
+              }}
             >
               {inFlight ? <Spinner className="h-3 w-3" /> : <UnmonitorGlyph className="h-3 w-3" />}
               {SELECTION_UNMONITOR}
