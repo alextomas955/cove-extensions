@@ -78,22 +78,12 @@ internal sealed class MissingPagePlanner(
                 catalogue);
         }
 
-        var listed = await CatalogueAsync(
-            request.Kind, providerEntityId, context, log, ct).ConfigureAwait(false);
-        if (listed.Scenes is not { } scenes)
+        var derived = await RemainingAsync(
+            request.Kind, providerEntityId, provider, context, log, ct).ConfigureAwait(false);
+        if (derived.Remaining is not { } remaining)
         {
-            return Refused(request, RefusalFor(listed.Refusal), catalogue);
+            return Refused(request, derived.Refusal, catalogue);
         }
-
-        // What the library already holds has left the missing set, and so has anything the reader
-        // excluded on the instance. Both are applied over the whole catalogue rather than one page,
-        // so the figure beside the tab is the number missing and not the catalogue's size.
-        var missing = await MissingAmongAsync(provider.IdentityEndpoint, scenes, ct)
-            .ConfigureAwait(false);
-        var excluded = await ReadExcludedAsync(context, missing, ct).ConfigureAwait(false);
-        var remaining = excluded.Count == 0
-            ? missing
-            : [.. missing.Where(scene => !excluded.Contains(scene.ProviderSceneId))];
 
         var page = InstanceCatalogueLogic.PageOf(
             remaining,
@@ -253,20 +243,57 @@ internal sealed class MissingPagePlanner(
             return new MissingCountView(null);
         }
 
-        // The instance's own list, minus what the library holds: the figure beside the tab is the
-        // number missing rather than the size of a catalogue.
-        var listed = await CatalogueAsync(
-            request.Kind, providerEntityId, context, NullLogger.Instance, ct).ConfigureAwait(false);
+        // Derived the way the page under the tab derives it, so the figure cannot count a scene the
+        // page does not show. A figure the reader cannot reconcile with the list is worse than none.
+        var derived = await RemainingAsync(
+            request.Kind, providerEntityId, context.Provider, context, NullLogger.Instance, ct)
+            .ConfigureAwait(false);
+
+        return new MissingCountView(derived.Remaining?.Count);
+    }
+
+    // The entity's missing set before any narrowing or paging: what the instance lists, less what
+    // the library already holds, less what the reader excluded on the instance. Both subtractions
+    // are applied over the whole catalogue rather than one page.
+    //
+    // The page and the figure beside the tab both derive from here. Derived twice, they drifted:
+    // the page subtracted the exclusions and the figure did not, so a tab could carry a count its
+    // own list could not account for.
+    //
+    // Null names a refusal rather than an empty set, which is the instance listing a catalogue this
+    // reader is missing none of.
+    private async Task<(List<WhisparrCatalogueScene>? Remaining, MissingRefusalKind Refusal)>
+        RemainingAsync(
+            WhisparrEntityKind kind,
+            string providerEntityId,
+            ResolvedProvider provider,
+            MissingPageContext context,
+            ILogger log,
+            CancellationToken ct)
+    {
+        var listed = await CatalogueAsync(kind, providerEntityId, context, log, ct)
+            .ConfigureAwait(false);
         if (listed.Scenes is not { } scenes)
         {
-            return new MissingCountView(null);
+            return (null, RefusalFor(listed.Refusal));
         }
 
-        var missing = await MissingAmongAsync(context.Provider.IdentityEndpoint, scenes, ct)
+        var missing = await MissingAmongAsync(provider.IdentityEndpoint, scenes, ct)
             .ConfigureAwait(false);
-        int? size = missing.Count;
+        var excluded = await ReadExcludedAsync(context, missing, ct).ConfigureAwait(false);
 
-        return new MissingCountView(size);
+        // Refused rather than answered without the subtraction. A list that did not arrive whole
+        // would put back the scenes this reader excluded, with nothing saying so.
+        if (!excluded.ReadCompleted)
+        {
+            return (null, MissingRefusalKind.WhisparrExclusionsNotRead);
+        }
+
+        return (
+            excluded.Excluded.Count == 0
+                ? missing
+                : [.. missing.Where(scene => !excluded.Excluded.Contains(scene.ProviderSceneId))],
+            MissingRefusalKind.None);
     }
 
     internal async Task<MissingFacetSearchView> SearchFacetValuesAsync(
@@ -308,13 +335,14 @@ internal sealed class MissingPagePlanner(
     internal static MissingFacetSearchView NoFacetValues(MissingFacetSearchOutcome outcome)
         => new([], 0, outcome);
 
-    // A generation holding no exclusion role keeps no scene exclusions, so no request is issued.
-    private static async Task<IReadOnlySet<string>> ReadExcludedAsync(
+    // A generation holding no exclusion role keeps no scene exclusions, so no request is issued and
+    // the answer is a complete reading of none rather than one that did not arrive.
+    private static async Task<SceneExclusionReading> ReadExcludedAsync(
         MissingPageContext context, List<WhisparrCatalogueScene> kept, CancellationToken ct)
     {
         if (context.ExclusionReading is not { } reading || kept.Count == 0)
         {
-            return new HashSet<string>(StringComparer.Ordinal);
+            return SceneExclusionReading.Naming(new HashSet<string>(StringComparer.Ordinal));
         }
 
         // The instance narrows its exclusion list by no parameter, so the read is the whole list.

@@ -38,12 +38,13 @@ public sealed class SceneExclusionReadingTests
         using var http = new HttpClient(handler);
         var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(page, TestCt);
+        var reading = await client.ReduceExclusionsAsync(page, TestCt);
 
+        Assert.True(reading.ReadCompleted);
         Assert.True(
-            excluded.Count <= page.Count,
-            $"{excluded.Count} identifiers came back for a page of {page.Count}.");
-        Assert.Equal([.. page.Order()], [.. excluded.Order()]);
+            reading.Excluded.Count <= page.Count,
+            $"{reading.Excluded.Count} identifiers came back for a page of {page.Count}.");
+        Assert.Equal([.. page.Order()], [.. reading.Excluded.Order()]);
     }
 
     [Fact]
@@ -55,9 +56,10 @@ public sealed class SceneExclusionReadingTests
         using var http = new HttpClient(handler);
         var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync([.. named, "a-scene-nothing-excluded"], TestCt);
+        var reading = await client.ReduceExclusionsAsync([.. named, "a-scene-nothing-excluded"], TestCt);
 
-        Assert.Equal([.. named.Order()], [.. excluded.Order()]);
+        Assert.True(reading.ReadCompleted);
+        Assert.Equal([.. named.Order()], [.. reading.Excluded.Order()]);
     }
 
     [Fact]
@@ -70,11 +72,11 @@ public sealed class SceneExclusionReadingTests
         using var http = new HttpClient(handler);
         var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(page, TestCt);
+        var reading = await client.ReduceExclusionsAsync(page, TestCt);
 
-        Assert.NotEmpty(excluded);
+        Assert.NotEmpty(reading.Excluded);
         Assert.All(
-            excluded,
+            reading.Excluded,
             named => Assert.Contains(page, asked => ReferenceEquals(asked, named)));
     }
 
@@ -87,31 +89,54 @@ public sealed class SceneExclusionReadingTests
                 .Where(field => typeof(System.Collections.IEnumerable).IsAssignableFrom(field.FieldType))
                 .Select(field => $"{field.DeclaringType?.Name}.{field.Name}"));
 
+    // Not an empty list. A caller told nothing is excluded removes nothing from what it shows and
+    // states on every card that the reader excluded none of them, which no answer supported.
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.Unauthorized)]
-    public async Task AnUnsuccessfulAnswerExcludesNothing(HttpStatusCode status)
+    public async Task AnUnsuccessfulAnswerEstablishesNoExclusion(HttpStatusCode status)
     {
         var handler = BodyRecordingHandler.Answering(status, RecordedRows());
         using var http = new HttpClient(handler);
         var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
+        var reading = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
 
-        Assert.Empty(excluded);
+        Assert.False(reading.ReadCompleted);
+        Assert.Empty(reading.Excluded);
     }
 
     [Fact]
-    public async Task ABodyThatIsNotTheExpectedShapeExcludesNothing()
+    public async Task ABodyThatIsNotTheExpectedShapeEstablishesNoExclusion()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "<!doctype html><html></html>");
         using var http = new HttpClient(handler);
         var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
 
-        var excluded = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
+        var reading = await client.ReduceExclusionsAsync(PageOfForty(), TestCt);
 
-        Assert.Empty(excluded);
+        Assert.False(reading.ReadCompleted);
+        Assert.Empty(reading.Excluded);
+    }
+
+    // The rows before the stream stopped are accurate and the rest were never seen. Answered as a
+    // reading that did not complete, so a caller cannot take the identifiers it never reached as
+    // ones nobody excluded.
+    [Fact]
+    public async Task AnAnswerCutShortEstablishesNoExclusion()
+    {
+        var rows = RecordedRowsElement();
+        var page = ForeignIdsFrom(rows, 40);
+        var whole = ManyRowsAround(rows, 5_000);
+        var handler = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK, whole[..(whole.Length / 2)]);
+        using var http = new HttpClient(handler);
+        var client = (IWhisparrSceneExclusionReading)TestWhisparrClient.Over(http);
+
+        var reading = await client.ReduceExclusionsAsync(page, TestCt);
+
+        Assert.False(reading.ReadCompleted);
     }
 
     private static string[] PageOfForty()

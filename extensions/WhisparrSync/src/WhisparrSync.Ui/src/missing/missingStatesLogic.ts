@@ -16,6 +16,7 @@ import {
   PROVIDER_UNREACHABLE,
   READ_IS_STALE,
   WHISPARR_CATALOGUE_NOT_READ,
+  WHISPARR_EXCLUSIONS_NOT_READ,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -34,6 +35,7 @@ export type MissingGridStateKind =
   | "noInstanceConnected"
   | "entityNotInWhisparr"
   | "whisparrCatalogueNotRead"
+  | "whisparrExclusionsNotRead"
   | "readIsStale";
 
 export interface MissingGridState {
@@ -142,6 +144,12 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
     replacesTheGrid: true,
     ...NEITHER_ESCAPE,
   },
+  whisparrExclusionsNotRead: {
+    sentence: WHISPARR_EXCLUSIONS_NOT_READ,
+    refreshIsOffered: true,
+    replacesTheGrid: true,
+    ...NEITHER_ESCAPE,
+  },
   readIsStale: {
     sentence: READ_IS_STALE,
     refreshIsOffered: true,
@@ -196,6 +204,8 @@ export function deriveGridState(situation: MissingGridSituation): MissingGridSta
       return "entityNotInWhisparr";
     case "whisparrCatalogueNotRead":
       return "whisparrCatalogueNotRead";
+    case "whisparrExclusionsNotRead":
+      return "whisparrExclusionsNotRead";
     case "whisparrKeepsNoSceneRecords":
       // Stated above the cards, so it is only the answer while there are cards.
       if (view.cards.length > 0) {
