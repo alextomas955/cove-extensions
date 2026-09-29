@@ -75,6 +75,9 @@ const NARROW_VIEWPORT = { width: 360, height: 740 };
 const MONITORED = "Monitored";
 const UNMONITORED = "Unmonitored";
 const NOT_ADDED = "Not added";
+
+// What the tab states when the instance turned a press down, transcribed the same way.
+const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 const EXCLUDED = "Excluded";
 const STATUS_UNKNOWN = "Unknown";
 
@@ -680,6 +683,15 @@ test.describe("scene tab", () => {
     }
 
     await sceneControl(page, ADD).click();
+
+    // The instance's answer to the press, which the chip alone cannot report. The instance resolves
+    // an add's identifier against its own metadata service before it will create a row, and no
+    // stand-in for that service is wired here, so the add is refused and the chip stays as it was.
+    // Without this line a press that reached nothing at all agrees with the chip and passes.
+    await expect(
+      page.getByText(INSTANCE_REFUSED, { exact: false }),
+      "the press produced no answer from the instance, so nothing is known to have reached it",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
     await chipAgreesWithInstance(page, instance, absentRemoteId, "after Add");
 
     // CASE 2. Monitor, on a scene the instance holds and is not monitoring. The instance's answer
