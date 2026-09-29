@@ -54,11 +54,11 @@ export interface MissingGridCards {
 }
 
 // The reasons no retry and no change of view could answer.
-const NEVER_ANSWERS: readonly MissingGridStateKind[] = [
+const NEVER_ANSWERS: ReadonlySet<MissingGridStateKind> = new Set([
   "noProviderIdForEntity",
   "noMetadataProviderConfigured",
   "noInstanceConnected",
-];
+]);
 
 export function MissingGrid({
   read,
@@ -95,7 +95,7 @@ export function MissingGrid({
 
   // A surface with no possible answer is omitted, not given an empty state that would read as a
   // factual zero.
-  const canAnswer = kind === null || !NEVER_ANSWERS.includes(kind);
+  const canAnswer = kind === null || !NEVER_ANSWERS.has(kind);
   const replacesTheGrid = state?.replacesTheGrid === true;
   // The region carries the reason in its own empty, failed or outage slot where it has one. The
   // rest are stated above it, as is every reason whose region is omitted.

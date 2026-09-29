@@ -54,7 +54,8 @@ export function useMissingUrlState(): [MissingView, (view: MissingView) => void]
 
   const write = useCallback((next: MissingView) => {
     const search = writeMissingView(window.location.search, next);
-    const address = `${window.location.pathname}${search === "" ? "" : `?${search}`}${window.location.hash}`;
+    const query = search === "" ? "" : `?${search}`;
+    const address = `${window.location.pathname}${query}${window.location.hash}`;
     window.history.replaceState(window.history.state, "", address);
 
     // Read back rather than answered with what was asked for, so a navigation and a control's
