@@ -13,6 +13,7 @@ import {
   INSTANCE_HOLDS_NO_SUCH_ENTRY,
   MENU_MONITOR,
   MENU_UNMONITOR,
+  MONITORING_COULD_NOT_BE_READ,
   REFLECT_OWNED_SKIPPED,
   REFLECT_OWNED_SKIPPED_RENAME_SETTING_UNREADABLE,
   REFLECT_OWNED_SKIPPED_RENAMING_ON,
@@ -26,6 +27,7 @@ import {
   bulkMonitorActions,
   capabilityBehindAction,
   controlNotice,
+  controlUnavailability,
   describeMonitorRefusal,
   describeReflectOwnedSkip,
   marksTheBackCatalogue,
@@ -39,6 +41,7 @@ import {
   MONITOR_REFUSAL_KINDS,
   SCOPE_ORDER,
   SECONDARY_ACTIONS,
+  type MonitorMenu,
   type MonitorMenuItem,
   type MonitorScopeChoice,
   type ReflectOwnedSkip,
@@ -675,5 +678,48 @@ describe("no count reaches this layer", () => {
     for (const text of menu.items.map((item) => item.label)) {
       expect(/\d/.test(text), text).toBe(false);
     }
+  });
+});
+
+describe("why the control cannot be pressed", () => {
+  const offered: MonitorMenu = { available: true, reason: null, items: [] };
+  const withheld: MonitorMenu = {
+    available: false,
+    reason: "No instance is connected.",
+    items: [],
+  };
+
+  it("states the read failed, whatever the menu says", () => {
+    for (const menu of [null, offered, withheld]) {
+      expect(controlUnavailability({ status: "failed", outage: false }, menu)).toBe(
+        MONITORING_COULD_NOT_BE_READ,
+      );
+    }
+  });
+
+  // Dimmed while the read runs, and nothing stated: there is no fact yet to state, and the reader
+  // would hear a reason that the next moment withdraws.
+  it("names nothing while the read is still running", () => {
+    for (const menu of [null, offered, withheld]) {
+      expect(controlUnavailability({ status: "reading", outage: false }, menu)).toBeNull();
+    }
+  });
+
+  it("names nothing before the read answered, because no menu withholds anything yet", () => {
+    expect(controlUnavailability({ status: "content", outage: false }, null)).toBeNull();
+  });
+
+  it("passes the menu's own reason on where the menu withholds itself", () => {
+    expect(controlUnavailability({ status: "content", outage: false }, withheld)).toBe(
+      withheld.reason,
+    );
+    expect(controlUnavailability({ status: "content", outage: false }, offered)).toBeNull();
+  });
+
+  // A dimmed control with nothing to hear is the one state this rule exists to prevent.
+  it("falls back to the read sentence where the menu withholds itself and names no reason", () => {
+    expect(
+      controlUnavailability({ status: "content", outage: false }, { ...withheld, reason: null }),
+    ).toBe(MONITORING_COULD_NOT_BE_READ);
   });
 });

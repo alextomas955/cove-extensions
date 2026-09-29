@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { ConnectionTestView, WhisparrSyncGenerationSettingsView } from "../wire/api";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
-import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "../common/ui/copy";
+import {
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS,
+  CONNECT_NEEDS_AN_ADDRESS_FIRST,
+  TEST_IS_STILL_RUNNING,
+} from "../common/ui/copy";
 import {
   affordancesForKind,
   clearsTransientResult,
@@ -14,6 +19,7 @@ import {
   recordedRead,
   REFUSAL_KINDS,
   sentenceForKind,
+  testUnavailability,
   valuesForCard,
   valuesOf,
   type RefusalValues,
@@ -292,5 +298,48 @@ describe("the four-way read the recorded lines render through", () => {
 
     expect(read).toEqual({ reading: false, failed: false, hasContent: false });
     expect(deriveAsyncRegionState(read)).toEqual({ status: "empty", outage: false });
+  });
+});
+
+describe("why Test cannot be pressed", () => {
+  const READY = {
+    shared: null,
+    running: false,
+    address: "http://whisparr:6969",
+    apiKey: "typed",
+    testsStored: false,
+  } as const;
+
+  it("offers the press where the pair is complete", () => {
+    expect(testUnavailability(READY)).toBeNull();
+  });
+
+  // The page states its shared reason once, at its own notice, so every control repeats that one
+  // rather than reaching its own conclusion underneath it.
+  it("repeats the page's shared reason over every reason of its own", () => {
+    const shared = "The settings could not be read.";
+
+    expect(testUnavailability({ ...READY, shared })).toBe(shared);
+    expect(testUnavailability({ ...READY, shared, running: true })).toBe(shared);
+    expect(testUnavailability({ ...READY, shared, address: "", apiKey: "" })).toBe(shared);
+  });
+
+  it("names the test still running before it looks at the pair", () => {
+    expect(testUnavailability({ ...READY, running: true, address: "" })).toBe(
+      TEST_IS_STILL_RUNNING,
+    );
+  });
+
+  it("asks for an address that is blank or space alone", () => {
+    for (const address of ["", "   "]) {
+      expect(testUnavailability({ ...READY, address })).toBe(CONNECT_NEEDS_AN_ADDRESS_FIRST);
+    }
+  });
+
+  // A stored key cannot be sent back, so only a test against the stored connection may go without
+  // a typed one.
+  it("asks for a key only where the test does not ask about the stored connection", () => {
+    expect(testUnavailability({ ...READY, apiKey: "" })).toBe(CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS);
+    expect(testUnavailability({ ...READY, apiKey: "", testsStored: true })).toBeNull();
   });
 });

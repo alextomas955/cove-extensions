@@ -19,8 +19,6 @@ import {
   CONNECT_CLEAR_STORED_KEY,
   CONNECT_DESCRIPTION,
   CONNECT_KEEP_STORED_KEY,
-  CONNECT_NEEDS_AN_ADDRESS_FIRST,
-  CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS,
   CONNECT_READING_THE_STORED_CONNECTION,
   CONNECT_STORED_CONNECTION_NOT_READ,
   CONNECT_TEST,
@@ -33,7 +31,6 @@ import {
   KEY_WILL_BE_REMOVED_ON_SAVE,
   NEW_KEY_WILL_BE_SAVED,
   READ_IS_STALE,
-  TEST_IS_STILL_RUNNING,
 } from "../common/ui/copy";
 import { GenerationRow } from "./GenerationRow";
 import { KeyStateField } from "./KeyStatePill";
@@ -43,6 +40,7 @@ import {
   generationLabel,
   recordedRead,
   sentenceForKind,
+  testUnavailability,
   valuesForCard,
   valuesOf,
   type CardGeneration,
@@ -88,17 +86,13 @@ export function ConnectionSection({
   const testing = test.phase === "running";
   const stored = valuesForCard(settings, card);
 
-  // A stored key cannot be sent back, so testing a changed address needs a typed key. Testing the
-  // address as stored does not, because that test asks about the stored connection.
-  const testReason =
-    sharedReason ??
-    (testing
-      ? TEST_IS_STILL_RUNNING
-      : draft.address.trim() === ""
-        ? CONNECT_NEEDS_AN_ADDRESS_FIRST
-        : !testsStored && draft.apiKey === ""
-          ? CONNECT_NEEDS_A_KEY_FOR_THIS_ADDRESS
-          : null);
+  const testReason = testUnavailability({
+    shared: sharedReason,
+    running: testing,
+    address: draft.address,
+    apiKey: draft.apiKey,
+    testsStored,
+  });
 
   return (
     <SectionCard title={CONNECT_TITLE} description={CONNECT_DESCRIPTION}>

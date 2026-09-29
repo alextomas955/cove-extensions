@@ -15,7 +15,6 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   ACTION_ABSENT_IN_THIS_VERSION,
   allScenesConfirmation,
-  MONITORING_COULD_NOT_BE_READ,
   WHISPARR_MONITORED,
   WHISPARR_NOT_MONITORED,
 } from "../common/ui/copy";
@@ -25,6 +24,7 @@ import { ConfirmDialog } from "./hostComponents";
 import {
   allScenesIsAOneWayDoor,
   controlNotice,
+  controlUnavailability,
   marksTheBackCatalogue,
   monitorMenu,
   routeFor,
@@ -92,15 +92,8 @@ function EntityMonitorControl({
   const menu = view === null ? null : monitorMenu(view, inFlight);
 
   // A reason disables and an absent reason enables, so the control cannot be dimmed with nothing
-  // to hear. A failed read says so rather than falling back to the unmonitored look.
-  const unavailable =
-    region.status === "failed"
-      ? MONITORING_COULD_NOT_BE_READ
-      : region.status === "reading"
-        ? null
-        : (menu?.available ?? true)
-          ? null
-          : (menu?.reason ?? MONITORING_COULD_NOT_BE_READ);
+  // to hear.
+  const unavailable = controlUnavailability(region, menu);
 
   // With no visible label the accessible name is the only name the control has, so it leads and
   // the reason follows it. The hover text is that same string.
