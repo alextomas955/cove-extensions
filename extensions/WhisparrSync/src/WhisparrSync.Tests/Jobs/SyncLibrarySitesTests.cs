@@ -199,15 +199,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(SyncRegisters.Sites, counted.Registers);
     }
 
-    // The bound is on how many of one site's scene reads are outstanding, not on how many the pass
-    // issues. It is read from the constant rather than restated.
-    [Fact]
-    public void ThePacingBoundIsOneReadInFlightAndBoundsNoTotal()
-    {
-        Assert.Equal(1, SyncPreviewJob.SiteSceneReadsInFlight);
-        Assert.True(SyncPreviewJob.SiteSceneReadsInFlight < SyncPreviewJob.ChunkSize);
-    }
-
     // The three counts arrive together or not at all. A site put in the not-yet-there column
     // because its read failed is a number a reader cannot tell from a real one.
     [Fact]

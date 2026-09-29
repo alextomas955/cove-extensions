@@ -43,11 +43,6 @@ public static class SyncPreviewJob
     // bound above is arithmetic a test can re-derive.
     internal const int MeasuredBytesPerHit = 2370;
 
-    // A pacing bound, not a ceiling on how many reads are issued: every scene the reader owns on
-    // the site is read. One, the instance's request queue being the shared resource. A ceiling
-    // would leave part of the library unmonitored and report a total that reads complete.
-    internal const int SiteSceneReadsInFlight = 1;
-
     // A pacing bound, not a ceiling: every studio the library yields is resolved. Measured against
     // a 525-studio library: at four, 522 resolved and none was rate-limited; at eight, 144 were
     // rejected. Not a second rate bound, ProviderPacer already holding the rate to the host's
