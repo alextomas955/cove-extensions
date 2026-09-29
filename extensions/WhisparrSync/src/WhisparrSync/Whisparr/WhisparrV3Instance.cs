@@ -501,9 +501,14 @@ internal sealed class WhisparrV3Instance(
 
         foreach (var row in rows ?? [])
         {
+            if (row is null)
+            {
+                continue;
+            }
+
             // The identifier is read off the row's stash id, falling back to its foreign id: both
             // carry the same uuid and which one an instance fills in varies.
-            var named = row?.StashId is { Length: > 0 } stashed ? stashed : row?.ForeignId;
+            var named = row.StashId is { Length: > 0 } stashed ? stashed : row.ForeignId;
             if (named is not { Length: > 0 } spelled || !asked.TryGetValue(spelled, out var asAsked))
             {
                 continue;
@@ -514,7 +519,7 @@ internal sealed class WhisparrV3Instance(
             // A row carrying no member for it reads as one recording no file: the instance stating
             // nothing is the same fact to a reader as it stating a no, and the other reading would
             // report a file it never claimed.
-            if (row?.HasFile != true)
+            if (!row.HasFile)
             {
                 recordingNoFile.Add(asAsked);
             }
