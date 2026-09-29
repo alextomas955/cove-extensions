@@ -17,9 +17,19 @@ import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
 
+// The connection card's own heading, transcribed by hand from the shipped copy.
+const CONNECTION_TITLE = "Connection";
+
 // The generation row names each option for the generation it is, and its control for the generation
 // it selects.
 const GENERATION_LABELS = { v3: "Whisparr v3 (Eros)", v2: "Whisparr v2" };
+
+/** The connection card, which every control this spec drives is drawn inside. */
+function connectionSection(page) {
+  return page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: CONNECTION_TITLE, exact: true }) });
+}
 
 /**
  * The option the row marks as the generation the form holds.
@@ -28,7 +38,7 @@ const GENERATION_LABELS = { v3: "Whisparr v3 (Eros)", v2: "Whisparr v2" };
  * taken: the line holding the generation's own name beside the mark.
  */
 function draftedGenerationIn(page) {
-  return page.locator("div").filter({ hasText: "Selected" }).last();
+  return connectionSection(page).locator("div").filter({ hasText: "Selected" }).last();
 }
 
 // The builds this extension's classifier pins were transcribed from. Hand-written here, so a moved
@@ -90,7 +100,7 @@ async function openPanel(page, baseUrl, generation) {
 
   return {
     addressField,
-    keyField: page.locator('input[type="password"]'),
+    keyField: connectionSection(page).locator('input[type="password"]'),
     testButton: page.getByRole("button", { name: "Test connection" }),
   };
 }
@@ -121,14 +131,18 @@ for (const generation of ["v3", "v2"]) {
       await keyField.fill(whisparr.apiKey);
       await testButton.click();
 
+      const connectedLine = page.getByText(`Connected to Whisparr ${reported}`, { exact: false });
       await expect(
-        page.getByText(`Connected to Whisparr ${reported}`, { exact: false }),
+        connectedLine,
         `the panel never reported ${reported} for ${instance.internalBaseUrl}`,
       ).toBeVisible({ timeout: ATTEMPT_BUDGET_MS });
 
       // The generation, so a pass cannot mean the panel merely echoed a version it never classified,
       // and so that one generation's instance cannot pass as the other's.
-      await expect(page.getByText(`(${generation})`, { exact: false })).toBeVisible();
+      await expect(
+        connectedLine,
+        `the line reporting the connection does not name ${generation}`,
+      ).toContainText(`(${generation})`);
     });
 
     test(`a wrong key on ${generation} reads as a turned-down key rather than an unreachable address`, async ({
