@@ -270,14 +270,16 @@ public sealed record ImportRootRefusals
 
     /// <summary>The newest offending paths, newest first.</summary>
     /// <remarks>
-    /// Emptied here rather than by an initialiser, which runs only for an absent key: a stored blob
-    /// naming this member as null binds it as null, and the load path's non-null restore does not
-    /// descend into a collection's elements to replace it.
+    /// Emptied and bounded here rather than by an initialiser, which runs only for an absent key: a
+    /// stored blob naming this member as null binds it as null, and the load path's non-null restore
+    /// does not descend into a collection's elements to replace it.
     /// </remarks>
     public List<ImportRefusalEntry> NewestPaths
     {
         get => _newestPaths;
-        init => _newestPaths = value ?? [];
+        init => _newestPaths = value is null || value.Count <= NewestPathsKept
+            ? value ?? []
+            : [.. value.Take(NewestPathsKept)];
     }
 
     /// <summary>
