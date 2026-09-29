@@ -23,6 +23,15 @@ test("a settled read that answered no state says the entity is not linked", () =
   expect(badgeChipFor(AT_REST)).toBe("notLinked");
 });
 
+// The unknown reading belongs to the tally above the grid. On the card it would report a read that
+// failed as a status the instance gave, and falling through to "not linked" would claim the library
+// holds no identifier.
+test("a card whose own read established nothing draws neither a state nor not linked", () => {
+  expect(badgeChipFor({ ...AT_REST, state: "statusUnknown" })).toBeNull();
+  expect(badgeChipFor({ ...AT_REST, state: "statusUnknown", settled: false })).toBeNull();
+  expect(badgeChipFor({ ...AT_REST, state: "statusUnknown", pageRefused: true })).toBeNull();
+});
+
 // An unsettled read has established nothing, and a reason drawn there would be a claim about an
 // answer that has not arrived.
 test("a read still in flight draws nothing at all", () => {
