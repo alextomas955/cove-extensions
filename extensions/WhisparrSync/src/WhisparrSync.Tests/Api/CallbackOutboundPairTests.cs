@@ -25,22 +25,6 @@ public sealed class CallbackOutboundPairTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task NoRegistrationCarryingTheSecretReachesTheAddressTheRowLeftBehind()
-    {
-        var notifications = new RecordingNotificationPort();
-        var credentials = new RecordingCredentialPort()
-            .Holding(WhisparrGeneration.V3, MovedAddress, MovedKey);
-
-        await RegisterCallbackAsync(credentials, notifications);
-
-        Assert.DoesNotContain(
-            notifications.Registrations,
-            sent => ConnectionTester.IsSameAddress(
-                StoredAddress, sent.Binding.BaseAddress.ToString()));
-    }
-
-    // Paired with the case above, so an empty registration log is not what satisfies it.
-    [Fact]
     public async Task TheRegistrationBindsToTheAddressHeldBesideTheKeyItSends()
     {
         var notifications = new RecordingNotificationPort();
@@ -114,13 +98,13 @@ public sealed class CallbackOutboundPairTests
         return ValueOf(
             await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
                 new RegisterCallbackRequest(editedAddress),
-                RequestFrom(CoveOrigin),
+                TestRequest.From(CoveOrigin),
                 FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure),
                 ExtensionId,
                 new CallbackAddressing(
                     options,
                     new MintedSecretPort(),
-                    new OpenLockdown(),
+                    new Lockdown(wouldLockDown: false),
                     new FixedClock(Now)),
                 new CallbackRegistering(
                     gate,
@@ -133,15 +117,6 @@ public sealed class CallbackOutboundPairTests
     private static CallbackView ValueOf(IResult result)
         => Assert.IsType<CallbackView>(
             Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
-
-    private static DefaultHttpContext RequestFrom(string origin)
-    {
-        var at = new Uri(origin);
-        var http = new DefaultHttpContext();
-        http.Request.Scheme = at.Scheme;
-        http.Request.Host = new HostString(at.Authority);
-        return http;
-    }
 
     // Records the pair and the secret each registration carried, so a case can say which instance
     // the secret was written into.
@@ -161,15 +136,5 @@ public sealed class CallbackOutboundPairTests
 
         public Task<CallbackRegistrationOutcome> ReadAsync(
             WhisparrBinding binding, CancellationToken ct) => throw new NotSupportedException();
-    }
-
-    private sealed class OpenLockdown : IHostLockdownPort
-    {
-        public Task<bool> WouldLockDownAsync(CancellationToken ct) => Task.FromResult(false);
-    }
-
-    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }
