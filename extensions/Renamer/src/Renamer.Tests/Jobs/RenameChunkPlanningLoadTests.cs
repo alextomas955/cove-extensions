@@ -107,8 +107,8 @@ public sealed class RenameChunkPlanningLoadTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, firstId, firstFileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw one.mkv", "First Film");
-            var second = new Video { Title = "Second Film", Organized = true };
+                db, folderPath, "raw one.mkv", "Twin");
+            var second = new Video { Title = "Twin", Organized = true };
             db.Set<Video>().Add(second);
             await db.SaveChangesAsync();
             var secondFileId = await ExecutorTestSeed.SeedAdditionalFileAsync(
@@ -116,23 +116,25 @@ public sealed class RenameChunkPlanningLoadTests
             File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "bytes-1");
             File.WriteAllText(Path.Combine(dir.Root, "raw two.mkv"), "bytes-2");
 
+            // One worker executes the units in planned order, so the entity planned first takes the
+            // shared name and the other is suffixed.
             var ext = await BuildAsync(
                 provider,
                 new RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
             var progress = new FakeJobProgress();
 
-            // The absent id sits between the two real ones: the walk must pass over it and still plan
-            // the id after it.
             int absent = second.Id + 500;
             await ext.RunRenamerBatchAsync(
-                RenamerFileKind.Video, [firstId, absent, second.Id], progress, default);
+                RenamerFileKind.Video, [second.Id, absent, firstId], progress, default);
 
-            Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
-            Assert.True(File.Exists(Path.Combine(dir.Root, "Second Film.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "raw one.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "raw two.mkv")));
+            Assert.Equal("bytes-2", File.ReadAllText(Path.Combine(dir.Root, "Twin.mkv")));
+            Assert.Equal("bytes-1", File.ReadAllText(Path.Combine(dir.Root, "Twin (1).mkv")));
             var (firstBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, firstFileId);
             var (secondBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, secondFileId);
-            Assert.Equal("First Film.mkv", firstBasename);
-            Assert.Equal("Second Film.mkv", secondBasename);
+            Assert.Equal("Twin (1).mkv", firstBasename);
+            Assert.Equal("Twin.mkv", secondBasename);
 
             // Every id ticks the planning bar, the absent one included, so the bar matches the count
             // the caller asked for.

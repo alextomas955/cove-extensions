@@ -74,32 +74,6 @@ public sealed class UndoOperationTests
         FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite, Permissions.ImagesWrite);
 
     [Fact]
-    public async Task AWholeLibraryRun_WritesOneOperationIdAcrossEveryKindsBatch()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            await SeedVideoAndImageAsync(db, dir);
-            var ext = await NewExtensionAsync(conn, new RecordingAuthorizationService());
-
-            await ext.RunRenamerLibraryJobAsync(
-                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
-                [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
-
-            var batches = await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync();
-            Assert.Equal(2, batches.Count);
-            var operationId = Assert.Single(batches.Select(b => b.OperationId).Distinct());
-            Assert.NotEqual("", operationId);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task TheSummary_IsTheOperationsTotals_AndItsEarliestTimestamp()
     {
         using var dir = new TempDir();
@@ -116,7 +90,8 @@ public sealed class UndoOperationTests
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
 
-            // Both kinds' files, summed - not the last kind's batch alone.
+            // Both kinds' files, summed - not the last kind's batch alone. A run whose kinds opened
+            // batches under different operations would report only the latest kind's one file here.
             Assert.True(summary.HasBatch);
             Assert.Equal(2, summary.Count);
             Assert.Equal(2, summary.RemainingCount);

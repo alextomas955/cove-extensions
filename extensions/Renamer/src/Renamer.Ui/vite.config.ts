@@ -51,7 +51,7 @@ export default defineConfig({
         test: {
           name: "renamer-ui",
           root: __dirname,
-          include: ["src/**/*.test.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
           environment: "node",
           alias: hostRuntimeStubs,
           // The vendored SDK ships extensionless relative imports, which a bundler resolves and
@@ -65,7 +65,7 @@ export default defineConfig({
         test: {
           name: "ui-shared",
           root: sharedUiRoot,
-          include: ["src/**/*.test.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
           environment: "node",
         },
       },

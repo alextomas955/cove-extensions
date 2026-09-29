@@ -9,7 +9,7 @@ using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
-namespace Renamer.Tests.Execution.Journal;
+namespace Renamer.Tests.Api;
 
 public sealed class UndoRetryTests
 {
@@ -78,7 +78,7 @@ public sealed class UndoRetryTests
             var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(1, undo.Undone);
-            // The count is what the response states and what a caller reads; the sample is only where
+            Assert.Equal(1, undo.SkippedCount);
             var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 

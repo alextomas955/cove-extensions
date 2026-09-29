@@ -85,9 +85,11 @@ public sealed class OptionsEndpointTests
 
         var options = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!.AsObject();
         var declared = typeof(RenamerOptions)
-            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Length;
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Select(p => JsonNamingPolicy.CamelCase.ConvertName(p.Name))
+            .Order(StringComparer.Ordinal);
 
-        Assert.Equal(declared, options.Count);
+        Assert.Equal(declared, options.Select(entry => entry.Key).Order(StringComparer.Ordinal));
     }
 
     // The per-kind map is keyed by an enum, so its key crosses the same spelling boundary the property
@@ -111,6 +113,27 @@ public sealed class OptionsEndpointTests
         var stored = JsonNode.Parse((await store.GetAsync(OptionsStore.Key))!)!;
         Assert.Equal(["Video"], stored["Kinds"]!.AsObject().Select(entry => entry.Key));
         Assert.False((bool?)stored["Kinds"]!["Video"]!["Enabled"]);
+    }
+
+    // A save stores what a load would answer, so no reader of the raw blob, and no build whose load
+    // repairs less, sees a null list or a zero length cap.
+    [Fact]
+    public async Task Put_StoresTheRepairedOptions_NotANullListOrAZeroCap()
+    {
+        var store = new FakeStore();
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
+
+        var put = await host.Client.PutAsync(
+            Route, JsonBody("""{"FilenameTemplate":"$title","FilenameMax":0,"FullPathMax":0,"DropOrder":null}"""));
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+
+        var stored = JsonNode.Parse((await store.GetAsync(OptionsStore.Key))!)!;
+        Assert.Equal("$title", (string?)stored["FilenameTemplate"]);
+        Assert.Equal(255, (int?)stored["FilenameMax"]);
+        Assert.Equal(259, (int?)stored["FullPathMax"]);
+        Assert.Equal(
+            ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"],
+            stored["DropOrder"]!.AsArray().Select(field => (string?)field));
     }
 
     [Fact]

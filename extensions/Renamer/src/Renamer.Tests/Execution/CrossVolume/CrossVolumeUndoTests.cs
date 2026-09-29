@@ -19,7 +19,7 @@ public sealed class CrossVolumeUndoTests
         try
         {
             const string original = "cross-undo bytes that must come back intact";
-            // The file currently lives at new (the renamed location on the subst root); undo moves it
+            // The file currently lives at new (the renamed location on the second volume); undo moves it
             // back to old on the temp root.
             string oldFull = Path.Combine(oldDir.Root, "raw.mkv");
             string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
@@ -68,7 +68,7 @@ public sealed class CrossVolumeUndoTests
             var (port, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
 
             // Inject the post-copy fault via the CrossVolumeMover test-only fault-seam ctor: flip one
-            // byte of the copy-back's in-flight file after copy but before verify. Same length → caught
+            // byte of the copy-back's in-flight file after copy but before verify. Same length, so caught
             // only by the hash. The seam also records the minted path for the leftover assertion.
             var minted = new List<string>();
             var faultMover = new CrossVolumeMover((path, _) =>
@@ -85,10 +85,10 @@ public sealed class CrossVolumeUndoTests
             var replayer = new UndoReplayer(port, undoBus, cross: faultMover);
             var result = await replayer.RevertAsync(batch, default);
 
-            // The reverse move reports !Moved (VerifyFailed) → reported skip, never Undone.
+            // The reverse move reports VerifyFailed, a reported skip, never Undone.
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
-            Assert.Single(result.Skipped);
+            Assert.Equal(UndoStopReason.ReverseMoveVerifyFailed, Assert.Single(result.Skipped).Stop);
             Assert.Empty(undoBus.Published);
 
             // centerpiece: the file is not lost - the new copy survives byte-for-byte, and the old slot
@@ -122,7 +122,7 @@ public sealed class CrossVolumeUndoTests
 
             var (_, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
 
-            // A port whose reverse save throws after the cross copy-back succeeds → the rollback path runs
+            // A port whose reverse save throws after the cross copy-back succeeds, so the rollback path runs
             // through CrossVolumeMover.RollbackAsync (cross-drive matching mover).
             var throwingPort = new ThrowOnSaveDataPort(db);
             var minted = new List<string>();
@@ -158,28 +158,26 @@ public sealed class CrossVolumeUndoTests
         try
         {
             const string original = "bytes whose OLD drive goes offline before the restore";
-            // The recorded old path lives on a SUBST drive; new lives on the temp root. We unmap the old
-            // subst mapping before the replay so the reverse write target's drive is gone ("offline").
+            // The recorded old path lives on the second volume; new lives on the temp root. Disposing
+            // the second volume before the replay takes the restore target away: on Windows it unmaps
+            // the subst drive, elsewhere it removes the directory.
             string oldFull = Path.Combine(oldDrive.Root, "raw.mkv");
             string newFull = Path.Combine(newDir.Root, "My Film.mkv");
             File.WriteAllText(newFull, original);
 
-            // Build the reverse batch (old on the subst root, new on the temp root) while old is still mapped.
             var (port, batch, _) = await SeedReverseBatchAsync(db, oldDrive.Root, newDir.Root, oldFull, newFull);
 
-            // Take the old drive "offline": unmap the subst mapping so its root no longer resolves.
             oldDrive.Dispose();
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover());
             var result = await replayer.RevertAsync(batch, default);
 
-            // A gone old drive is a reported skip (the dir-missing Directory.Exists check returns false on
-            // an unmapped drive - never throws - or the cross mover's IOException classify catches it).
-            // no catch(DriveNotFoundException): an offline drive surfaces as DirectoryNotFoundException : IOException.
+            // Directory.Exists answers false on an unmapped drive without throwing, so an offline drive
+            // stops at the missing-directory check before any move is tried.
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
-            Assert.Single(result.Skipped);
+            Assert.Equal(UndoStopReason.OriginalDirectoryUnavailable, Assert.Single(result.Skipped).Stop);
             Assert.Empty(undoBus.Published);
 
             // The file is not lost - it stays at new byte-for-byte.
@@ -193,8 +191,8 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    // Seeds the DB so the file currently sits at new (subst root, "My Film.mkv") and builds a
-    // RevertBatch whose single row records OldPath on the temp root and NewPath on the subst root.
+    // Seeds the DB so the file currently sits at new ("My Film.mkv" under newRoot) and builds a
+    // RevertBatch whose single row records OldPath under oldRoot.
     // The old folder is pre-seeded too so the reverse save's recomputed Path resolves to the old
     // path. Returns the live port, the batch, and (videoId, fileId).
     private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
@@ -203,9 +201,8 @@ public sealed class CrossVolumeUndoTests
         string oldFolder = oldRoot.Replace('\\', '/').TrimEnd('/');
         string newFolder = newRoot.Replace('\\', '/').TrimEnd('/');
 
-        // Sanity: the two roots are different path roots → cross-volume.
         Assert.False(VolumeClassifier.SameVolume(oldFull, newFull),
-            "precondition: the subst destination must be a different path root than the temp source");
+            "precondition: the two roots must be on different volumes");
 
         // Pre-seed the old folder (the reverse target) so GetOrCreateFolderId resolves it and the
         // recomputed Path after the reverse save equals the old path.
@@ -241,12 +238,5 @@ public sealed class CrossVolumeUndoTests
         {
             Assert.False(File.Exists(path), $"no in-flight copy may be left at {path}");
         }
-    }
-
-    private sealed class ThrowOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
-    {
-        public override Task<string> ApplyAndSaveAsync(
-            RenamerFileMutation mutation, CancellationToken ct = default)
-            => throw new InvalidOperationException("forced save failure");
     }
 }

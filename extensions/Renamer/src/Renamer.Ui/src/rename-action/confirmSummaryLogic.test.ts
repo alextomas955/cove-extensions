@@ -1,5 +1,5 @@
-// The confirm shown before a rename touches disk promises an undo only when the server says the batch
-// will be journalled.
+// The confirm shown before a selected-items rename touches disk: the counts and reasons a user
+// approves it against.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
@@ -66,21 +66,24 @@ ${text}`,
   });
 }
 
-const CONFIRM_LEVELS: readonly ConfirmLevel[] = ["light", "standard", "heavy"];
+// `undefined` is the call shape with no summary at all.
+const CONFIRM_LEVELS: readonly (ConfirmLevel | undefined)[] = [
+  "light",
+  "standard",
+  "heavy",
+  undefined,
+];
 
 for (const level of CONFIRM_LEVELS) {
-  test(`the ${level} call-to-action promises the undo every rename now records`, () => {
-    const { text } = buildConfirmSummary([RENAME_ITEM], summary({ confirmLevel: level }));
+  test(`the ${level ?? "summary-less"} call-to-action promises the undo every rename records`, () => {
+    const { text, willRenameCount } = buildConfirmSummary(
+      [RENAME_ITEM],
+      level === undefined ? undefined : summary({ confirmLevel: level }),
+    );
+    assert.equal(willRenameCount, 1);
     assert.match(text, /You can undo this afterwards\./);
   });
 }
-
-test("a confirm built without a summary still promises the undo", () => {
-  // The pre-summary call shape.
-  const { text, willRenameCount } = buildConfirmSummary([RENAME_ITEM]);
-  assert.equal(willRenameCount, 1);
-  assert.match(text, /You can undo this afterwards\./);
-});
 
 // The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
 // the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
@@ -101,17 +104,16 @@ test("a cross-drive batch whose temporary copies will not fit says so before the
   assert.match(text, /Shorten the destination folder or the filename template/);
 });
 
-test("a batch with no overflow says nothing about one", () => {
-  const { text } = buildConfirmSummary([RENAME_ITEM], summary());
-  assert.doesNotMatch(text, /cannot be copied across drives/);
-});
-
-test("a confirm built without a summary says nothing about an overflow either", () => {
-  // The pre-summary call shape has no aggregate at all, so the count is absent rather than zero. It must
-  // read as "no overflow" - inventing a warning from a missing field would fire it on every such confirm.
-  const { text } = buildConfirmSummary([RENAME_ITEM]);
-  assert.doesNotMatch(text, /cannot be copied across drives/);
-});
+// With no summary the count is absent rather than zero, and must still read as no overflow.
+for (const [name, given] of [
+  ["a zero count", summary()],
+  ["no summary", undefined],
+] as const) {
+  test(`a batch with ${name} says nothing about an overflow`, () => {
+    const { text } = buildConfirmSummary([RENAME_ITEM], given);
+    assert.doesNotMatch(text, /cannot be copied across drives/);
+  });
+}
 
 // The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
 // members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
@@ -124,6 +126,7 @@ const PLANNER_SKIP_STATUSES = [
   "skipGated",
   "skipCollision",
   "skipExcluded",
+  "skipRuleTimedOut",
   "skipMissingSource",
   "skipUnanchored",
   "skipRootMissing",
@@ -156,8 +159,8 @@ test("every planner skip status is inside the headline count, mixed with a renam
   );
 
   assert.equal(willRenameCount, 1);
-  // Eight skips, one per planner status. A tally that omits any of them reads lower than this.
-  assert.match(text, /⚠ 8 skipped/);
+  // One skip per planner status. A tally that omits any of them reads lower than this.
+  assert.match(text, /⚠ 9 skipped/);
 });
 
 test("a status this bundle does not know is counted rather than dropped", () => {

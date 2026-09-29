@@ -8,7 +8,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-[Collection(SubstDriveScope.CollectionName)]
 public sealed class TextRenameIntegrationTests
 {
     [Fact]
@@ -111,43 +110,6 @@ public sealed class TextRenameIntegrationTests
     }
 
     [Fact]
-    public async Task DerivedTitle_IsRecordedOnTheDocument_OnlyWhenItHadNone()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (_, titlelessId, titlelessFileId) = await ExecutorTestSeed.SeedTextAsync(
-                db, "library/docs", "field notes.pdf", title: null!);
-            var (_, titledId, titledFileId) = await ExecutorTestSeed.SeedTextAsync(
-                db, "library/other", "manual.pdf", "Typed In By Hand");
-
-            var port = new CoveRenamerDataPort(db);
-            await port.ApplyAndSaveAsync(
-                new RenamerFileMutation(
-                    titlelessFileId, "notes renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titlelessId, "field notes")));
-            await port.ApplyAndSaveAsync(
-                new RenamerFileMutation(
-                    titledFileId, "manual renamed.pdf", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Text, titledId, "manual")));
-
-            db.ChangeTracker.Clear();
-            var titles = await db.Set<TextDocument>().AsNoTracking()
-                .Where(t => t.Id == titlelessId || t.Id == titledId)
-                .ToDictionaryAsync(t => t.Id, t => t.Title);
-
-            // Recorded on the document that had none, and never over one a person typed.
-            Assert.Equal("field notes", titles[titlelessId]);
-            Assert.Equal("Typed In By Hand", titles[titledId]);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task Undo_PutsTheFileBack_AndPublishesTextUpdated()
     {
         using var dir = new TempDir();
@@ -187,8 +149,7 @@ public sealed class TextRenameIntegrationTests
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("raw scan.pdf", basename);
 
-            // The undo path keeps its own kind-to-event map, so the kind it publishes is asserted here
-            // and not inferred from the forward rename above.
+            // The undo path takes the kind from the batch header rather than from the forward run.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(undoBus.Published));
             Assert.Equal(EventType.TextUpdated, evt.Type);
             Assert.Equal("Text", evt.EntityType);

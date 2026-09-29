@@ -1,8 +1,6 @@
 using Cove.Core.Entities;
-using Cove.Core.Events;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -17,42 +15,14 @@ public sealed class ChunkedRenameTests
     // Nothing is denied here: this suite's subject is what the chunk walk does, not who may reach it.
     private static readonly global::Renamer.AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
 
-    private static Task<global::Renamer.Renamer> BuildAsync(
-        SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
-        => BuildAsync(shared, options, interceptor: null, libraryPaths);
-
-    private static async Task<global::Renamer.Renamer> BuildAsync(
-        SharedCacheSqlite shared, RenamerOptions options, CommandCountingInterceptor? interceptor,
-        params string[] libraryPaths)
-    {
-        var services = new ServiceCollection();
-        services.AddScoped<DbContext>(_ => shared.NewContext(interceptor));
-        services.AddLibraryPaths(libraryPaths);
-        services.AddSingleton<IEventBus>(new CapturingEventBus());
-        var provider = services.BuildServiceProvider();
-
-        var ext = RenamerFixture.Create();
-        var store = new ConcurrentFakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider);
-        return ext;
-    }
-
     // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", with real
     // bytes on disk. Their entity ids ascend with i, which is the order the walk pages them in.
     private static async Task SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
-        var (folderId, _, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw 0.mkv", "Film 0");
-        File.WriteAllText(Path.Combine(dirRoot, "raw 0.mkv"), "bytes-0");
-
-        for (int i = 1; i < count; i++)
+        await ExecutorTestSeed.SeedVideosAsync(db, count, i => (folderPath, $"raw {i}.mkv", $"Film {i}"));
+        for (int i = 0; i < count; i++)
         {
-            var video = new Video { Title = $"Film {i}", Organized = true };
-            db.Set<Video>().Add(video);
-            await db.SaveChangesAsync();
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
             File.WriteAllText(Path.Combine(dirRoot, $"raw {i}.mkv"), $"bytes-{i}");
         }
     }
@@ -71,7 +41,7 @@ public sealed class ChunkedRenameTests
             }
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var ext = await BuildAsync(shared, options);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(shared, options);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerKindAsync(
@@ -116,7 +86,8 @@ public sealed class ChunkedRenameTests
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
             var interceptor = new CommandCountingInterceptor();
-            var ext = await BuildAsync(shared, options, interceptor);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
+                shared, options, interceptor: interceptor);
             var progress = new FakeJobProgress();
 
             // Three chunks of two, two and one, so three batches open under one operation. The sweep is
@@ -163,7 +134,7 @@ public sealed class ChunkedRenameTests
             }
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var ext = await BuildAsync(shared, options);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(shared, options);
             using var cts = new CancellationTokenSource();
 
             // Half the bar is the end of the first chunk of two out of four.
@@ -213,7 +184,7 @@ public sealed class ChunkedRenameTests
             File.WriteAllText(Path.Combine(dir.Root, "b.mkv"), "bytes-b");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var ext = await BuildAsync(shared, options);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(shared, options);
 
             await ext.RunRenamerKindAsync(
                 new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, ChunkEntities: 1),
@@ -253,7 +224,7 @@ public sealed class ChunkedRenameTests
             }
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var ext = await BuildAsync(shared, options);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(shared, options);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerKindAsync(
@@ -320,7 +291,8 @@ public sealed class ChunkedRenameTests
                 ],
                 FreeSpaceHeadroomBytes = 0,
             };
-            var ext = await BuildAsync(shared, options, keepFwd, moveFwd, destRootFwd);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
+                shared, options, [keepFwd, moveFwd, destRootFwd]);
             var progress = new FakeJobProgress();
 
             // Only the second volume is short, so the first chunk's in-place rename is unaffected and

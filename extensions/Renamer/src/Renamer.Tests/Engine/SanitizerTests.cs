@@ -7,14 +7,6 @@ public class SanitizerTests
 {
     // ---- CleanSegment: illegal / control chars ----
 
-    [Fact]
-    public void CleanSegment_IllegalChar_RemovedByDefault()
-    {
-        // Default IllegalReplacement = "" => stripped.
-        var o = new RenamerOptions();
-        Assert.Equal("ab", Sanitizer.CleanSegment("a:b", o));
-    }
-
     [Theory]
     [InlineData("a<b")]
     [InlineData("a>b")]
@@ -141,13 +133,6 @@ public class SanitizerTests
     // ---- CleanSegment: character removal ----
 
     [Fact]
-    public void CleanSegment_RemoveSet_DropsConfiguredChars()
-    {
-        var o = new RenamerOptions { RemoveCharacters = "," };
-        Assert.Equal("ab", Sanitizer.CleanSegment("a,b", o));
-    }
-
-    [Fact]
     public void CleanSegment_RemoveSet_DropsEveryListedChar()
     {
         var o = new RenamerOptions { RemoveCharacters = ",#" };
@@ -155,17 +140,16 @@ public class SanitizerTests
     }
 
     [Theory]
-    [InlineData("plain title")]
-    [InlineData("a:b")]               // illegal strip still applies under an empty remove-set
-    [InlineData("a    b")]            // space collapse still applies
-    [InlineData("  .title. ")]        // edge trim still applies
-    public void CleanSegment_RemoveSet_Empty_IsByteIdenticalNoOp(string input)
+    [InlineData("a,b#c", "a,b#c")]
+    [InlineData("plain title", "plain title")]
+    [InlineData("a:b", "ab")]
+    [InlineData("a    b", "a b")]
+    [InlineData("  .title. ", "title")]
+    public void CleanSegment_RemoveSet_Empty_RemovesNothing_AndLeavesTheOtherStepsOn(
+        string input, string expected)
     {
-        // An empty RemoveCharacters must leave the output identical to the pre-change pipeline,
-        // both for a plain input and for ones that exercise illegal/space/trim handling.
-        var withEmpty = new RenamerOptions { RemoveCharacters = "" };
-        var withoutField = new RenamerOptions();
-        Assert.Equal(Sanitizer.CleanSegment(input, withoutField), Sanitizer.CleanSegment(input, withEmpty));
+        var o = new RenamerOptions { RemoveCharacters = "" };
+        Assert.Equal(expected, Sanitizer.CleanSegment(input, o));
     }
 
     [Fact]

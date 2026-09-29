@@ -26,6 +26,6 @@ internal static class SqliteJournalSchema
     }
 
     // Adds the operation column and its index to a table the first migration created.
-    public static Task AddOperationColumnAsync(DbContext db) =>
+    private static Task<int> AddOperationColumnAsync(DbContext db) =>
         db.Database.ExecuteSqlRawAsync(AddOperationIdSql);
 }

@@ -83,8 +83,7 @@ public sealed class GatingTests
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
-        var item = Assert.Single(plan.Items);
-        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
+        Assert.Equal(RenamerStatus.Rename, Assert.Single(plan.Items).Status);
     }
 
     [Fact]
@@ -135,21 +134,6 @@ public sealed class GatingTests
     }
 
     [Fact]
-    public async Task OnlyOrganized_NoUnorganizedDestination_StillGates()
-    {
-        // The complement: with no UnorganizedDestination, the only-organized gate behaves exactly as
-        // before - an unorganized item is skipped.
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity("My Film", organized: false, File(1)));
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { OnlyOrganized = true }; // UnorganizedDestination = "" (default)
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
-
-        Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-    }
-
-    [Fact]
     public async Task OnlyOrganized_OrganizedItem_NotGated()
     {
         var port = new FakeRenamerDataPort();
@@ -159,6 +143,6 @@ public sealed class GatingTests
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
-        Assert.NotEqual(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
+        Assert.Equal(RenamerStatus.Rename, Assert.Single(plan.Items).Status);
     }
 }

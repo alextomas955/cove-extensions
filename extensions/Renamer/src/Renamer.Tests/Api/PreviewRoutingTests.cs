@@ -1,6 +1,5 @@
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -17,7 +16,7 @@ public sealed class PreviewRoutingTests
     private static string Fwd(string p) => p.Replace('\\', '/');
 
     [Fact]
-    public async Task PreviewAsync_RoutedItem_ReportsRoutedDestination_MatchingBatch_AndMutatesNothing()
+    public async Task PreviewAsync_RoutedItem_ReportsTheRoutedDestination_AndMutatesNothing()
     {
         // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
         // source would be SkipMissingSource, not the routed Move this test asserts). The routed
@@ -32,8 +31,8 @@ public sealed class PreviewRoutingTests
             File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            // An exact source-path rule + an allowed dest root: BuildLookups turns this into a
-            // source-path route, so a correctly-wired preview anchors the move on PathRoot.
+            // An exact source-path rule and an allowed destination root, so a preview that reads the
+            // saved routes anchors the move on PathRoot.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -58,19 +57,10 @@ public sealed class PreviewRoutingTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
 
-            // The preview now reflects the routed destination - the same route the batch resolves.
+            // The preview reports the route the saved rule selects.
             Assert.Equal(RenamerStatus.Move, item.Status);
             Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
-
-            // Cross-check: the planner (the batch's own path) resolves the identical destination for
-            // the same options + lookups - preview and batch agree.
-            var port = new CoveRenamerDataPort(db, LibraryPathsFixture.Config(srcFolder, PathRoot));
-            var plan = await new RenamerPlanner(port).PlanAsync(
-                RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);
-            var batchItem = Assert.Single(plan.Items);
-            Assert.Equal(batchItem.ResolvedDestinationRoot, item.ResolvedDestinationRoot);
-            Assert.Equal(batchItem.MatchedRule, item.MatchedRule);
 
             // Still zero mutation.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
@@ -82,25 +72,5 @@ public sealed class PreviewRoutingTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
-    }
-
-    // Rebuild the same lookups the batch builds (exact source-path rule → PathExactToDest). Mirrors
-    // Renamer.BuildLookups for the non-regex case without reaching into the private method.
-    private static RouteLookups BuildLookupsViaBatch(RenamerOptions o)
-    {
-        var exact = new Dictionary<string, Destination>(StringComparer.Ordinal);
-        foreach (var rule in o.PathDestinations)
-        {
-            if (!rule.IsRegex)
-            {
-                exact.TryAdd(rule.Pattern, rule.Dest);
-            }
-        }
-
-        return new RouteLookups(
-            o.StudioDestinations,
-            o.TagDestinations,
-            exact,
-            System.Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
     }
 }

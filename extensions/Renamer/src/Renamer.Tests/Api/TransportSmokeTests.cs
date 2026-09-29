@@ -15,7 +15,6 @@ namespace Renamer.Tests.Api;
 public sealed class TransportSmokeTests
 {
     private const string Base = TransportHost.BaseRoute;
-    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     // Every route is driven off the mounted table, so a route added to MapEndpoints joins these tests on
     // its own. A list written beside the registration would be a copy of it, and the only thing keeping
@@ -80,10 +79,12 @@ public sealed class TransportSmokeTests
         var resp = await host.Client.GetAsync(Base + "/last-batch");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
+        // Read as the raw body: the Web deserializer ignores case, and false is what a missing member
+        // reads as, so a typed read would pass on a PascalCase or an empty body.
         var json = await resp.Content.ReadAsStringAsync();
-        var summary = JsonSerializer.Deserialize<LastBatchSummary>(json, Web);
-        Assert.NotNull(summary);
-        Assert.False(summary.HasBatch); // fresh store: no batch to undo
+        Assert.Contains("\"hasBatch\":false", json, StringComparison.Ordinal);
+        Assert.Contains("\"remainingCount\":0", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"HasBatch\":", json, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -91,8 +91,7 @@ test("an expiry is not a job failure, and its message says which happened", () =
 });
 
 test("read failures inside the allowance keep polling", () => {
-  // A transient blip is one or two unanswered polls, and the previous behaviour of swallowing them
-  // unconditionally is what made the unboundedness reachable.
+  // A transient blip is one or two unanswered polls.
   assert.deepEqual(decidePoll({ read: "failed" }, ctx({ consecutiveFailures: 1 })), {
     action: "continue",
   });
@@ -102,9 +101,8 @@ test("read failures inside the allowance keep polling", () => {
 });
 
 test("read failures at the allowance expire even while the stall budget has room", () => {
-  // The case that fixes the 1 Hz leak: a job id that stops resolving is not a job that is still
-  // running, and no amount of stall budget makes it one. msSinceProgress is 0 here precisely so the
-  // stall bound cannot be what ends the run.
+  // A job id that stops resolving is not a job that is still running, and no amount of stall budget
+  // makes it one. msSinceProgress is 0 here so the stall bound cannot be what ends the run.
   const decision = decidePoll(
     { read: "failed" },
     ctx({ consecutiveFailures: 5, msSinceProgress: 0 }),

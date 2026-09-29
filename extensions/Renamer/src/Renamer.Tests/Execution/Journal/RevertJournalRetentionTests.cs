@@ -93,7 +93,7 @@ public sealed class RevertJournalRetentionTests
     }
 
     [Fact]
-    public async Task TheWindowIsMeasuredFromTheBatchOpenTimestamp_NotFromItsRows()
+    public async Task OnePurge_RemovesOnlyTheBatchOpenedBeforeTheCutoff()
     {
         // Two batches, one either side of the same cutoff, purged in one call: the survivor proves the
         // purge selects by each batch's own open timestamp rather than sweeping everything it finds.

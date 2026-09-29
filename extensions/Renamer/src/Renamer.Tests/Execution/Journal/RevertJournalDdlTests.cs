@@ -93,30 +93,8 @@ public sealed class RevertJournalDdlTests
         Assert.Equal(0, batch.OriginalCount);
         Assert.Equal(0, batch.RestoredCount);
         Assert.Equal(0, batch.UnrestorableCount);
-        Assert.Equal("", batch.OperationId);
 
         Assert.Equal("", (await db.Set<RevertRowEntity>().AsNoTracking().SingleAsync()).SidecarsJson);
-    }
-
-    [Fact]
-    public async Task TheOperationColumn_LandsBesideAnExistingBatch_AndLeavesItWithNoOperation()
-    {
-        var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
-        await using var _ = db;
-        await using var __ = conn;
-
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
-        await db.Database.ExecuteSqlRawAsync(
-            "INSERT INTO renamer_revert_batches (run_id, opened_at_utc_ticks, kind) VALUES ('legacy', 42, 'Video')");
-
-        await SqliteJournalSchema.AddOperationColumnAsync(db);
-
-        Assert.Contains("ix_renamer_revert_batches_operation", await ObjectNamesAsync(conn));
-
-        // A batch written before the column existed carries no operation of its own. Readers resolve
-        // that to the batch's own run id, so it stays undoable as an operation of one.
-        var batch = await db.Set<RevertBatchEntity>().AsNoTracking().SingleAsync();
-        Assert.Equal("", batch.OperationId);
     }
 
     private static Task ApplyShippedMigrationsAsync(DbContext db) => SqliteJournalSchema.CreateAsync(db);

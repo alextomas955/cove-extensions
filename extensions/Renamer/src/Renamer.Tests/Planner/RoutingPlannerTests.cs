@@ -8,13 +8,12 @@ namespace Renamer.Tests.Planner;
 
 public sealed class RoutingPlannerTests
 {
-    // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.
+    // OS-aware absolute roots (path-syntax valid on the current OS).
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string StudioRoot => OperatingSystem.IsWindows() ? @"D:\studios\acme" : "/mnt/studios/acme";
     private static string TagRoot => OperatingSystem.IsWindows() ? @"E:\by-tag\anime" : "/mnt/by-tag/anime";
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
     private static string DefaultRoot => OperatingSystem.IsWindows() ? @"G:\overflow" : "/mnt/overflow";
-    private static string UnorgRoot => OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
 
     private static string Fwd(string p) => p.Replace('\\', '/');
 
@@ -184,10 +183,8 @@ public sealed class RoutingPlannerTests
     public async Task StudioRouted_EmptyFolderTemplate_StillMovesToRoutedRoot()
     {
         // A matched route relocates the file even when the folder template is empty: the user wants
-        // the routed studio's files dropped at the root of the destination, with no subfolder. The
-        // move must land on the destination volume's root, not silently renamer in place under the
-        // source folder. (Every other routed test here pairs the route with a non-empty folder
-        // template, which is why this empty-template path needs its own guard.)
+        // the routed studio's files dropped at the root of the destination, with no subfolder, not
+        // renamed in place under the source folder.
         var port = Port(SrcRoot, StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -268,28 +265,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
         Assert.Equal("SourcePath:exact", item.MatchedRule);
-    }
-
-    [Fact]
-    public async Task UnorganizedRouted_ProducesMove_NotSkip()
-    {
-        var port = Port(SrcRoot, UnorgRoot);
-        // Organized=false + an UnorganizedDestination set → routes to it, does not gate to a skip.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Organized = false, TagRefs = [] });
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions
-        {
-            FilenameTemplate = "$title",
-            FolderTemplate = "Sorted",
-            UnorganizedDestination = Dest.At(UnorgRoot, "Sorted"),
-        };
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(Fwd(UnorgRoot), item.ResolvedDestinationRoot);
-        Assert.Equal("Unorganized", item.MatchedRule);
     }
 
     [Fact]

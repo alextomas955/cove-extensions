@@ -13,18 +13,27 @@
 //   3. that the panel then renders the converted ids as entity names rather than as numbers, empty
 //      fields, or the host's "Loading tag..." placeholder.
 //
-// This spec is the only place all three are real at once. entity-id-rules.spec.mjs covers the
-// conversion's two decisive API-level outcomes - one field converting, and the refusal to convert
-// against an unreadable library. What is here is the rest of the blob (both groups, the exclusion
-// list, the destination map), the narrowing cases, and the render.
+// This spec is the only place all three are real at once. It also runs a rename over the converted
+// exclusion, because an exclude that converted but stopped matching is invisible in the blob. The
+// refusal to convert against an unreadable library is OptionsMigrationInitializeTests in the C# tier.
 //
 // What it is not: a test against data a real installation accumulated. The blob below is written by
 // this test, so it is realistic by construction rather than by history - six migrated fields in their
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof.
-import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import { expect, pollUntil, RENAMER_EXTENSION, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
+import { test as base, isolatedHarnessFixtures } from "@cove-extensions/e2e";
+import {
+  expect,
+  pollUntil,
+  seedVideo,
+  clientFor,
+  storedOptions,
+  RENAMER_EXTENSION,
+  EXTENSION_ID,
+  ROUTE,
+} from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 // Its own Cove instance, for a reason stronger than data isolation: this test restarts the host. A
 // restart re-binds the published port and invalidates every token minted before it, so running it
@@ -32,24 +41,7 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 // that worker. The fixture installs the extension with no stored blob, which is what makes the seed
 // below reachable: the conversion returns before stamping when there is nothing to convert, so the
 // schema stamp is still unset when this test writes its legacy blob.
-const test = base.extend({
-  migrationHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
-
-function clientFor(harness) {
-  return createApiClient(
-    () => harness.baseUrl,
-    () => harness.token,
-  );
-}
-
-/** The extension's stored options blob, parsed, or undefined when the key is absent. */
-async function storedOptions(api) {
-  const all = await api.get(`/api/extensions/${EXTENSION_ID}/data`);
-  expect(all.ok, `reading the extension store answered ${all.status}: ${all.text}`).toBe(true);
-  const blob = (all.json ?? {}).options;
-  return blob ? JSON.parse(blob) : undefined;
-}
+const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /**
  * The root element of a titled `GroupCard` - heading → title box → header row → card root, the hop
@@ -82,7 +74,7 @@ function field(scope, label) {
 
 test("a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names", async ({
   page,
-  migrationHarness,
+  isolatedHarness,
 }) => {
   // Two container lifecycles (a boot for the isolated instance, then a full restart on top of it)
   // plus a browser-driven panel run do not fit the project's default per-test budget.
@@ -92,7 +84,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   page.on("pageerror", (err) => errors.push(err.message));
 
   const stamp = Date.now();
-  const seedApi = clientFor(migrationHarness);
+  const seedApi = clientFor(isolatedHarness);
 
   // ── The library the stored names will be resolved against ───────────────────────────────────────
   const names = {
@@ -147,6 +139,33 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     `the case-variant performers were created as ${ids.caseFirst} and ${ids.caseSecond} - not ascending, so the collapse below has no predictable survivor`,
   ).toBe(true);
 
+  // Two titled videos for the rename run at the end: one carrying the tag the stored exclusion names,
+  // and one carrying nothing, which is what proves the run would have renamed the first.
+  const renameSubjects = {};
+  for (const key of ["excluded", "control"]) {
+    const video = await seedVideo({
+      container: isolatedHarness.container,
+      baseUrl: isolatedHarness.baseUrl,
+      token: isolatedHarness.token,
+    });
+    const update = await seedApi.put(`/api/videos/${video.id}`, {
+      Title: `Qzmig ${key} ${stamp}`,
+      TagIds: key === "excluded" ? [ids.tagExclude] : [],
+    });
+    expect(update.ok, `titling the ${key} video answered ${update.status}: ${update.text}`).toBe(
+      true,
+    );
+    renameSubjects[key] = {
+      id: video.id,
+      fileId: video.files[0].id,
+      originalPath: video.files[0].path,
+    };
+  }
+  expect(
+    (await seedApi.get(`/api/videos/${renameSubjects.excluded.id}`)).json.tags?.map((t) => t.id),
+    "the excluded video must actually carry the tag, or its staying put below proves nothing",
+  ).toContain(ids.tagExclude);
+
   // ── The blob a pre-migration install left behind ────────────────────────────────────────────────
   // All six migrated fields in their name-keyed form, both groups carrying both legacy keys including
   // the empty array a real install always emitted (the panel serialized its whole defaults object),
@@ -184,8 +203,8 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   // The conversion runs at InitializeAsync and nowhere else, so there is no way to reach it while the
   // host stays up. Everything after this reads the restarted instance's base URL: a restart can
   // re-bind the published port and re-mints the token.
-  await migrationHarness.restart();
-  const api = clientFor(migrationHarness);
+  await isolatedHarness.restart();
+  const api = clientFor(isolatedHarness);
 
   // The gate for every panel assertion below, and the first thing that fails when the conversion never
   // runs at all: the stored blob has flipped to the id-keyed vocabulary. Read from the store rather
@@ -200,7 +219,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     },
   );
 
-  const baseUrl = migrationHarness.baseUrl;
+  const baseUrl = isolatedHarness.baseUrl;
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
 
@@ -351,6 +370,43 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     sourcePathField.getByRole("textbox"),
     "clicking a plain field's heading text no longer put the cursor in its input, so the label element was taken off every Field rather than off the entity selectors alone",
   ).toBeFocused();
+
+  // ── The converted exclusion still decides a rename ──────────────────────────────────────────────
+  const subjectIds = [renameSubjects.excluded.id, renameSubjects.control.id];
+  const preview = await api.post(`${ROUTE}/preview`, {
+    EntityType: "video",
+    EntityIds: subjectIds,
+  });
+  expect(preview.status, `preview answered ${preview.status}: ${preview.text}`).toBe(200);
+  const statusOf = (subject) =>
+    preview.json.items.find((item) => item.fileId === subject.fileId)?.status;
+  expect(
+    statusOf(renameSubjects.excluded),
+    "the video carrying the converted exclusion's tag is not planned as excluded",
+  ).toBe("skipExcluded");
+  expect(
+    ["rename", "move"],
+    "the untagged video would not be renamed either, so the exclusion above decides nothing",
+  ).toContain(statusOf(renameSubjects.control));
+
+  const enqueue = await api.post(`${ROUTE}/renamer`, {
+    EntityType: "video",
+    EntityIds: subjectIds,
+  });
+  expect(enqueue.status, `the rename answered ${enqueue.status}: ${enqueue.text}`).toBe(202);
+  const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
+  expect(job.status.toLowerCase(), `the rename job ended ${job.status}: ${job.error}`).toBe(
+    "completed",
+  );
+  await pollUntil(
+    () => api.get(`/api/videos/${renameSubjects.control.id}`).then((r) => r.json),
+    (v) => v.files[0].path !== renameSubjects.control.originalPath,
+    { label: "the untagged video to be renamed" },
+  );
+  expect(
+    (await api.get(`/api/videos/${renameSubjects.excluded.id}`)).json.files[0].path,
+    "the excluded video was renamed - the converted exclusion no longer matches its tag",
+  ).toBe(renameSubjects.excluded.originalPath);
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

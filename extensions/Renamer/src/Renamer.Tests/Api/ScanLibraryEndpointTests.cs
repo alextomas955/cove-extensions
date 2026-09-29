@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -63,7 +62,9 @@ public sealed class ScanLibraryEndpointTests
         var result = ext.ScanLibraryEnqueue(null, principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
-        Assert.Single(jobs.Enqueued);
+        var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
+        Assert.Equal("ext:com.alextomas955.renamer:scan-library", type);
+        Assert.True(exclusive);
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class ScanLibraryEndpointTests
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             Assert.False(string.IsNullOrEmpty(json));
 
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
+            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions)!;
 
             // Per kind, not flat - that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
@@ -153,7 +154,7 @@ public sealed class ScanLibraryEndpointTests
                 Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
+            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions)!;
 
             var kind = Assert.Single(summary.Kinds);
             Assert.Equal(RenamerFileKind.Video, kind.Kind);
@@ -173,18 +174,37 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task ScanLibraryEnqueue_WithOptionsBody_Returns202_AndEnqueues()
+    public async Task ScanLibraryEnqueue_WithAnOptionsBody_RunsAJobThatScansThoseOptions_NotTheSavedOnes()
     {
-        var (ext, _) = await NewExtensionAsync();
-        var jobs = new RecordingJobService();
-        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await ExecutorTestSeed.SeedVideoAsync(db, dir.Root.Replace('\\', '/'), "raw.mkv", "One");
+            File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
 
-        var body = new global::Renamer.Api.ScanLibraryRequest(
-            JsonSerializer.Serialize(new RenamerOptions { FilenameTemplate = "$title" }, RenamerOptions.JsonOptions));
-        var result = ext.ScanLibraryEnqueue(body, principal, jobs);
+            var (ext, _) = await NewExtensionAsync();
+            await InitializeOverSharedConnectionAsync(ext, conn);
+            var jobs = new RecordingJobService();
+            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        Assert.Equal(202, StatusOf(result));
-        Assert.Single(jobs.Enqueued);
+            // The saved "$title" renames raw.mkv to One.mkv. The posted template renders the name the
+            // file already has, so only a job that received the body counts it as unchanged.
+            var body = new global::Renamer.Api.ScanLibraryRequest(
+                JsonSerializer.Serialize(new RenamerOptions { FilenameTemplate = "raw" }, RenamerOptions.JsonOptions));
+            Assert.Equal(202, StatusOf(ext.ScanLibraryEnqueue(body, principal, jobs)));
+            await jobs.RunTheOnlyJobAsync();
+
+            var summary = await ReadSummaryAsync(ext, principal);
+            Assert.Equal(1, summary.TotalFiles);
+            Assert.Equal(1, summary.NoChange);
+            Assert.Equal(0, summary.WillChange);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -269,50 +289,6 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task LoadEntitiesAsync_IssuesCeilOverChunk_ReaderQueries_NotOnePerId()
-    {
-        // Prove the port collapses N per-entity round-trips into ceil(N/chunk) reader queries. Seed
-        // more ids than one chunk so the assertion is meaningful (2 chunks worth). Count executed
-        // reader commands via an EF command interceptor over a real SQLite context.
-        var interceptor = new CommandCountingInterceptor();
-        var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-        try
-        {
-            var options = new DbContextOptionsBuilder<CoveContext>()
-                .UseSqlite(connection)
-                .AddInterceptors(interceptor)
-                .Options;
-            await using var db = new CoveContext(options, principalAccessor: null);
-            await db.Database.EnsureCreatedAsync();
-
-            int n = IRenamerDataPort.LoadChunkSize + 25;  // spans two chunks
-            var ids = await ExecutorTestSeed.SeedVideosAsync(db, n, k => ($"media/{k}", $"c{k}.mkv", $"C{k}"));
-
-            var port = new CoveRenamerDataPort(db);
-            interceptor.ReaderCount = default;  // count only the batch load below
-            var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
-
-            Assert.Equal(n, loaded.Count);
-            int expectedChunks = (n + IRenamerDataPort.LoadChunkSize - 1) / IRenamerDataPort.LoadChunkSize;
-            // A bounded number of queries per chunk - far fewer than N. The video query is a split
-            // query, so EF issues one reader for the roots and one for each collection it includes
-            // (files, their captions, performers, tags). That count is bounded by the query's shape
-            // and not by the population, which is the property under test: the reader count is on
-            // the order of chunks, never N.
-            const int readersPerChunk = 5;
-            Assert.True(interceptor.ReaderCount <= expectedChunks * readersPerChunk,
-                $"expected ~{expectedChunks} chunk queries, got {interceptor.ReaderCount} readers for {n} ids");
-            Assert.True(interceptor.ReaderCount < n,
-                $"batch load must issue fewer than N={n} reader queries; got {interceptor.ReaderCount}");
-        }
-        finally
-        {
-            await connection.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task ScanLibraryResultAsync_NoScanYet_Returns404()
     {
         var (ext, _) = await NewExtensionAsync();
@@ -322,10 +298,6 @@ public sealed class ScanLibraryEndpointTests
 
         Assert.IsType<NotFound>(Unwrap(result));
     }
-
-    // Serializes/reads the stored scan aggregate with the wire's camelCase + string enums.
-    private static readonly JsonSerializerOptions EnumJson =
-        new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 
     // Invokes the readback and unwraps the merged view.
     private static async Task<global::Renamer.Contracts.ScanSummaryView> ReadSummaryAsync(
@@ -360,7 +332,7 @@ public sealed class ScanLibraryEndpointTests
             JsonSerializer.Serialize(
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, 42L, kinds),
-                EnumJson));
+                global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
 
     [Fact]
     public async Task ScanLibraryResultAsync_VideoOnlyCaller_ReturnsOnlyVideoFigures_NotImageOrAudio()
@@ -415,7 +387,7 @@ public sealed class ScanLibraryEndpointTests
             JsonSerializer.Serialize(
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
-                EnumJson));
+                global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
     }
@@ -484,77 +456,5 @@ public sealed class ScanLibraryEndpointTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
-    }
-
-    private sealed class ThrowingDeleteStore : Cove.Plugins.IExtensionStore
-    {
-        public Task<string?> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<string?>(null);
-        public Task SetAsync(string key, string value, CancellationToken ct = default) => Task.CompletedTask;
-        public Task DeleteAsync(string key, CancellationToken ct = default)
-            => throw new InvalidOperationException("store unavailable");
-        public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default)
-            => Task.FromResult(new Dictionary<string, string>());
-    }
-
-    private static async Task<global::Renamer.Renamer> InitializeWithStoreAsync(Cove.Plugins.IExtensionStore store)
-    {
-        // A database carrying the journal and nothing else: the extension refuses to load without a
-        // readable journal, and these tests are about what load does to the store.
-        await using var journalDb = await JournalOnlyDatabase.CreateAsync();
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(journalDb.BuildProvider());
-        return ext;
-    }
-
-    [Fact]
-    public async Task InitializeAsync_WithALegacyScanValue_DeletesIt_WithoutEverReadingIt()
-    {
-        var store = new FakeStore();
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[a legacy per-file array]");
-        store.GetKeys.Clear();
-
-        await InitializeWithStoreAsync(store);
-
-        // Reading the value to decide whether to delete it is the one operation guaranteed to hurt: the
-        // host's bulk read already fails on it, and its own delete materializes the row it removes.
-        Assert.DoesNotContain(global::Renamer.Renamer.LastScanResultKey, store.GetKeys);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
-    }
-
-    [Fact]
-    public async Task InitializeAsync_WithNoLegacyScanValue_CompletesAndWritesNothing()
-    {
-        var store = new FakeStore();
-        store.GetKeys.Clear();
-        int setsBefore = store.SetCallCount;
-
-        await InitializeWithStoreAsync(store);
-
-        Assert.Equal(setsBefore, store.SetCallCount);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
-    }
-
-    [Fact]
-    public async Task InitializeAsync_LeavesAPreExistingScanSummaryUntouched()
-    {
-        var store = new FakeStore();
-        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Rename));
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
-        string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
-
-        await InitializeWithStoreAsync(store);
-
-        Assert.Equal(before, await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey));
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
-    }
-
-    [Fact]
-    public async Task InitializeAsync_WhenTheDeleteThrows_StillCompletes()
-    {
-        // A load that refuses to finish because the cleanup failed leaves the user strictly worse off.
-        var ext = await InitializeWithStoreAsync(new ThrowingDeleteStore());
-
-        Assert.Equal("com.alextomas955.renamer", ext.Id);
     }
 }

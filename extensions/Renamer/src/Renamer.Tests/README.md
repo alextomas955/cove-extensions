@@ -11,7 +11,7 @@ index, and Cove's `SaveChangesAsync` overrides, which derive every touched file'
 test, take the context as `DbContext` and name `CoveContext` only where you construct one.
 
 The folders mirror `../Renamer/`. `TestSupport/` and the folders named for what they exercise
-(`Concurrency/`, `Preview/`, `Wire/`) have no source counterpart.
+(`Concurrency/`, `Elevation/`, `Preview/`, `Wire/`) have no source counterpart.
 
 ## Platform skips
 

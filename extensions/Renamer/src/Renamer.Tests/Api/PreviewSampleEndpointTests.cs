@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Api;
@@ -15,8 +16,7 @@ public sealed class PreviewSampleEndpointTests
 {
     private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
-    // Builds an HttpRequest whose body is the given raw JSON - the endpoint now binds the raw
-    // request and parses the body itself (with JsonOptions), so tests drive it through a real body
+    // The endpoint binds the raw request and parses the body itself, so tests hand it a real body
     // stream rather than a pre-bound typed record.
     private static HttpRequest RequestWithBody(string json)
     {
@@ -66,14 +66,6 @@ public sealed class PreviewSampleEndpointTests
         var video = Sample(PreviewRaw(body), "Video");
 
         Assert.Equal("the example.mp4", video.NewName);
-    }
-
-    [Fact]
-    public void PreviewSample_BothCasingsOfTheDeclaredBody_ParseToTheSameOptions()
-    {
-        // The theory proves each casing parses; this proves they agree. Differing results would mean one
-        // spelling silently lost a member and fell back to its default.
-        Assert.Equal(PreviewRaw(PascalCaseEnvelope), PreviewRaw(CamelCaseEnvelope));
     }
 
     [Fact]
@@ -139,20 +131,6 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public void PreviewSample_ImageSample_DropsEmptyCodecGroups_NoStrayPunctuation()
-    {
-        // {} group with only empty tokens collapses entirely (incl. its inner literals) - the image
-        // sample has no codecs/duration, so the bracketed group disappears with no stray "[]".
-        var all = Preview(new RenamerOptions
-        {
-            FilenameTemplate = "$title{ [$videoCodec $audioCodec]}",
-        });
-
-        var image = Sample(all, "Image");
-        Assert.Equal("Sunset.jpg", image.NewName); // group dropped → no " []" left behind
-    }
-
-    [Fact]
     public void PreviewSample_TinyFilenameMax_FlagsLengthReduced_WithNamedDroppedFields()
     {
         // A template that uses early DropOrder fields + a tiny cap forces the reducer to drop them;
@@ -195,13 +173,16 @@ public sealed class PreviewSampleEndpointTests
         Assert.DoesNotContain(":", video.NewName); // proof the illegal char is gone
     }
 
-    [Fact]
-    public void PreviewSample_NullOptions_FallsBackToDefaults()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("""{ "Options": null }""")]
+    [InlineData("{}")]
+    public void PreviewSample_NoOptionsInTheBody_RendersTheDefaults(string body)
     {
-        var all = Preview(null); // null options → new RenamerOptions()
-        // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
-        // 2160 → $resolution "4K".
-        Assert.Equal("2021-03-14 - The Example [4K].mp4", Sample(all, "Video").NewName);
+        // The default template "{$date - }$title{ [$resolution]}" over the Video sample's date and its
+        // 2160-high frame.
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", Sample(PreviewRaw(body), "Video").NewName);
     }
 
     [Fact]
@@ -232,43 +213,6 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public void PreviewSample_StringEnumBody_Parses_Returns200_WithRenderedNames()
-    {
-        // The panel posts string enum values. The host's default minimal-API
-        // JsonSerializerOptions has no JsonStringEnumConverter, so typed binding would 400. The endpoint
-        // now parses with RenamerOptions.JsonOptions, so this must succeed and render the expected name.
-        const string body = """
-            {
-              "Options": {
-                "filenameTemplate": "$studio - $title [$resolution]",
-                "case": "None",
-                "performers": { "separator": ", ", "maxCount": 3, "onOverflow": "KeepFirst", "sort": "NameAsc" },
-                "tags": { "separator": " ", "onOverflow": "DropAll", "sort": "None" }
-              }
-            }
-            """;
-
-        var all = PreviewRaw(body);
-        Assert.Equal(3, all.Count);
-
-        var video = Sample(all, "Video");
-        // height 2160 → "4K" (engine is source of truth); proves the string-enum body deserialized and
-        // rendered (not a 400/throw).
-        Assert.Equal("Acme Studios - The Example [4K].mp4", video.NewName);
-    }
-
-    [Fact]
-    public void PreviewSample_LowerCaseStringEnum_AppliesCaseTransform()
-    {
-        // "case":"Lower" must deserialize to CaseTransform.Lower (not 400) and actually lower the name -
-        // proves the enum value flows through, not just that parsing didn't throw.
-        const string body = """{ "Options": { "filenameTemplate": "$title", "case": "Lower" } }""";
-
-        var video = Sample(PreviewRaw(body), "Video");
-        Assert.Equal("the example.mp4", video.NewName);
-    }
-
-    [Fact]
     public async Task PreviewSample_MalformedJson_Returns400()
     {
         var ext = RenamerFixture.CreateWithStore();
@@ -276,36 +220,8 @@ public sealed class PreviewSampleEndpointTests
 
         var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, default);
 
-        Assert.Equal(400, StatusOf(result)); // malformed body → clean 400, not an unhandled throw
-    }
-
-    [Fact]
-    public void PreviewSample_EmptyBody_FallsBackToDefaults_Returns200()
-    {
-        // No content (empty body) deserializes to null → safe defaults, not a 400.
-        // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
-        // 2160 → $resolution "4K".
-        var video = Sample(PreviewRaw(""), "Video");
-        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
-    }
-
-    [Fact]
-    public void PreviewSample_SingleCanonicalPascalCaseKey_RendersTheLiveTemplate()
-    {
-        // A body holding one PascalCase key per property renders with that value. A camelCase duplicate
-        // would win under case-insensitive last-write-wins binding, so the panel sends only this shape.
-        const string body = """
-            {
-              "Options": {
-                "FilenameTemplate": "$title LIVE",
-                "FolderTemplate": "",
-                "Case": "None"
-              }
-            }
-            """;
-
-        var video = Sample(PreviewRaw(body), "Video");
-        Assert.Equal("The Example LIVE.mp4", video.NewName);
+        var bad = Assert.IsType<BadRequest<ErrorCode>>(Unwrap(result));
+        Assert.Equal("INVALID_BODY", bad.Value!.Code);
     }
 
     private sealed class ThrowingStream : Stream

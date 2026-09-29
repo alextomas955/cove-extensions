@@ -10,43 +10,32 @@
 // Uses its own harness per test. It restarts the container (the only way to reach an initialize-time
 // path) and it empties the shared journal tables, either of which would corrupt a sibling spec
 // running against the same worker instance.
+import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import {
   test as base,
   expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
-import { RENAMER_EXTENSION, seedVideo, pollUntil, ROUTE } from "../lib/renamer-fixtures.mjs";
+  seedVideo,
+  pollUntil,
+  clientFor,
+  queryDb,
+  RENAMER_EXTENSION,
+  ROUTE,
+} from "../lib/renamer-fixtures.mjs";
 import { basename } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
-const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
+const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /** .NET UTC ticks for now: 100ns units since 0001-01-01, past 2^53 so it has to be a BigInt. */
 function utcNowTicks() {
   return (BigInt(Date.now()) + 62135596800000n) * 10000n;
 }
 
-/** Runs one statement in the database container and returns its stdout. */
-async function sql(harness, statement) {
-  const result = await harness.execDb(
-    ["sh", "-c", 'psql -tAX -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$STATEMENT"'],
-    { env: { STATEMENT: statement } },
-  );
-  expect(result.exitCode, `psql failed for: ${statement}\n${result.output}`).toBe(0);
-  return result.output.trim();
-}
-
 test("a stored journal carried by an upgrading install is migrated into the table, undoes, and never applies twice", async ({
   isolatedHarness,
 }) => {
   const harness = isolatedHarness;
-  const api = createApiClient(
-    () => harness.baseUrl,
-    () => harness.token,
-  );
+  const api = clientFor(harness);
 
   // A real rename, so the ids, the on-disk move and the recorded old path are the host's own rather
   // than values this test invented and could get subtly wrong.
@@ -63,14 +52,18 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   expect((await api.put(`/api/videos/${video.id}`, { Title: "Journal Migration Test" })).ok).toBe(
     true,
   );
-  await api.put(`${ROUTE}/data/options`, JSON.stringify({ FilenameTemplate: "$title" }));
+  expect(
+    (await api.put(`${ROUTE}/data/options`, JSON.stringify({ FilenameTemplate: "$title" }))).ok,
+  ).toBe(true);
 
   const enqueue = await api.post(`${ROUTE}/renamer`, {
     EntityType: "video",
     EntityIds: [video.id],
   });
   expect(enqueue.status).toBe(202);
-  await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
+  expect((await pollRenamerJob(api, ROUTE, enqueue.json.jobId)).status.toLowerCase()).toBe(
+    "completed",
+  );
 
   const renamed = await pollUntil(
     () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
@@ -81,7 +74,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
 
   // The row the rename actually journalled, read back so the blob below carries the same entity id,
   // file id and old path the table did.
-  const journalled = await sql(
+  const journalled = await queryDb(
     harness,
     "SELECT entity_id || '|' || file_id || '|' || old_path FROM renamer_revert_rows",
   );
@@ -89,7 +82,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
 
   // Rewind to the state an upgrading installation is in: the journal lives in the store, and the
   // table is empty because the code that writes it has not run here yet.
-  await sql(harness, "DELETE FROM renamer_revert_rows; DELETE FROM renamer_revert_batches;");
+  await queryDb(harness, "DELETE FROM renamer_revert_rows; DELETE FROM renamer_revert_batches;");
 
   const blob = [`#batch|legacy-run|${utcNowTicks()}|Video|open`, journalled].join("\n");
   expect((await api.put(`${ROUTE}/data/revertlog`, blob)).ok).toBe(true);
@@ -99,8 +92,8 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   await harness.restart();
 
   // (1) The stored journal landed in the table, whole.
-  expect(await sql(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
-  expect(await sql(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("1");
+  expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
+  expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("1");
 
   // (2) Both legacy keys are gone. This is what stops an oversized leftover breaking every settings
   // read for the extension, and it is also the migration's own idempotency marker.
@@ -134,8 +127,8 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   // to invent a batch - and a duplicate batch outranks the real one silently, which is why this is
   // asserted on the table rather than inferred from the keys being gone.
   await harness.restart();
-  expect(await sql(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
-  expect(await sql(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("0");
+  expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
+  expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("0");
 
   const afterSecondLoad = await api.get(`${ROUTE}/last-batch`);
   expect(afterSecondLoad.json.hasBatch).toBe(true);

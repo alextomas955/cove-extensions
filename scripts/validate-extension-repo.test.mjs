@@ -305,8 +305,7 @@ test("nonexistent projectPath produces a non-zero exit and the expected error", 
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
     plantProjects: false,
-    // The solution declares the very path under test, so the membership check has nothing to say
-    // here and the promise above - that only one error fires - survives.
+    // The solution declares the very path under test, so the membership check has nothing to say.
     solution: ["extensions/Foo/DoesNotExist.csproj"],
     extensionJsonByPath: {
       "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
@@ -682,6 +681,90 @@ test("two versions[] rows carrying the same version fail, naming the duplicated 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// One valid entry whose manifest carries `manifestOverrides`, run through the validator. Every case
+// below differs from a passing fixture by that one manifest field, so the error it asserts is the
+// only one the run can produce.
+function runWithManifest(manifestOverrides) {
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [validEntry("com.example.foo", "Foo")] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", manifestOverrides),
+    },
+  });
+  try {
+    return runValidator(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("the unmodified manifest baseline passes, so each refusal below is its own field's", () => {
+  const { status, stderr } = runWithManifest({});
+  assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+});
+
+test("a manifest missing entryDll, url or categories fails, naming the missing field", () => {
+  for (const [overrides, expected] of [
+    [{ entryDll: undefined }, /com\.example\.foo: extension\.json missing entryDll/],
+    [{ url: undefined }, /com\.example\.foo: extension\.json missing url/],
+    [{ categories: [] }, /com\.example\.foo: extension\.json missing categories/],
+    [{ categories: undefined }, /com\.example\.foo: extension\.json missing categories/],
+  ]) {
+    const { status, stderr } = runWithManifest(overrides);
+    assert.notEqual(status, 0, `${JSON.stringify(overrides)} passed`);
+    assert.match(stderr, expected);
+  }
+});
+
+test("a category that is not lowercase kebab-case fails, naming the category", () => {
+  for (const category of ["Utility", "file tools"]) {
+    const { status, stderr } = runWithManifest({ categories: ["utility", category] });
+    assert.notEqual(status, 0, `category "${category}" passed`);
+    assert.match(stderr, new RegExp(`category must be lowercase kebab-case: ${category}$`, "m"));
+  }
+});
+
+test("each malformed external dependency is refused with its own reason", () => {
+  for (const [externalDependencies, expected] of [
+    [{ id: "dep" }, /externalDependencies must be an array/],
+    [[{ name: "Dep" }], /external dependency missing id/],
+    [[{ id: "dep" }], /external dependency missing name/],
+    [[{ id: "dep", name: "Dep", optional: true }], /uses legacy optional; use required/],
+    [
+      [{ id: "dep", name: "Dep", settingsKey: "k" }],
+      /uses legacy settingsKey; use configurationKeys/,
+    ],
+    [[{ id: "dep", name: "Dep", configurationKeys: "k" }], /configurationKeys must be an array/],
+  ]) {
+    const { status, stderr } = runWithManifest({ externalDependencies });
+    assert.notEqual(status, 0, `${JSON.stringify(externalDependencies)} passed`);
+    assert.match(stderr, expected);
+  }
+
+  const wellFormed = runWithManifest({
+    externalDependencies: [{ id: "dep", name: "Dep", required: false, configurationKeys: ["k"] }],
+  });
+  assert.equal(wellFormed.status, 0, "a well-formed dependency was refused: " + wellFormed.stderr);
+});
+
+test("each malformed or legacy-shaped setting is refused with its own reason", () => {
+  for (const [settings, expected] of [
+    [{ name: "s" }, /extension\.json settings must be an array/],
+    [[{ displayName: "S" }], /setting missing name/],
+    [[{ name: "s", key: "s" }], /setting uses legacy key; use name/],
+    [[{ name: "s", label: "S" }], /setting uses legacy label; use displayName/],
+    [[{ name: "s", defaultValue: 1 }], /setting uses legacy defaultValue/],
+    [[{ name: "s", scope: "user" }], /setting uses legacy scope/],
+  ]) {
+    const { status, stderr } = runWithManifest({ settings });
+    assert.notEqual(status, 0, `${JSON.stringify(settings)} passed`);
+    assert.match(stderr, expected);
+  }
+
+  const wellFormed = runWithManifest({ settings: [{ name: "s", displayName: "S" }] });
+  assert.equal(wellFormed.status, 0, "a well-formed setting was refused: " + wellFormed.stderr);
 });
 
 // ── The fixtures themselves, checked against reality ─────────────────────────────────────────────

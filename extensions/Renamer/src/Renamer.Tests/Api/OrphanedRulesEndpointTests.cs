@@ -18,7 +18,7 @@ public sealed class OrphanedRulesEndpointTests
     // Builds the extension over the seeded connection, so the handler's own elevated scope resolves
     // a context on the same database - the wiring ScanLibraryEndpointTests uses.
     private static async Task<global::Renamer.Renamer> NewExtensionAsync(
-        SqliteConnection conn, RenamerOptions options)
+        SqliteConnection conn, RenamerOptions options, CommandCountingInterceptor? interceptor = null)
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
@@ -26,9 +26,16 @@ public sealed class OrphanedRulesEndpointTests
         ((IStatefulExtension)ext).SetStore(store);
 
         var services = new ServiceCollection();
-        services.AddScoped<DbContext>(_ => new CoveContext(
-            new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options,
-            principalAccessor: null));
+        services.AddScoped<DbContext>(_ =>
+        {
+            var builder = new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn);
+            if (interceptor is not null)
+            {
+                builder.AddInterceptors(interceptor);
+            }
+
+            return new CoveContext(builder.Options, principalAccessor: null);
+        });
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         await ext.InitializeAsync(services.BuildServiceProvider());
         return ext;
@@ -98,18 +105,21 @@ public sealed class OrphanedRulesEndpointTests
     }
 
     [Fact]
-    public async Task NoRulesAtAll_ReportsNothing()
+    public async Task NoRulesAtAll_ReportsNothing_WithoutQueryingTheLibrary()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var ext = await NewExtensionAsync(conn, new RenamerOptions());
+            var interceptor = new CommandCountingInterceptor();
+            var ext = await NewExtensionAsync(conn, new RenamerOptions(), interceptor);
+            interceptor.ReaderCount = 0;
 
             var view = Assert.IsType<Ok<OrphanedRulesView>>(
                 Unwrap(await ext.OrphanedRulesAsync(Reader()))).Value!;
 
             Assert.Empty(view.Studios);
             Assert.Empty(view.Tags);
+            Assert.Equal(0, interceptor.ReaderCount);
         }
         finally
         {

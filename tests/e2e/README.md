@@ -16,7 +16,8 @@ so every run starts from the same clean state and touches nothing on your machin
 
 - Docker (Docker Desktop on Windows/macOS, or native Docker on Linux) - running, with the daemon
   reachable from your shell.
-- Node.js 22+ and npm (already required elsewhere in this repo).
+- Node.js at the version the root `package.json` pins for Volta, and npm (already required elsewhere
+  in this repo).
 - The .NET SDK this repo builds with - `npm test` publishes each extension before the browser starts,
   and that is a `dotnet publish`.
 
@@ -30,7 +31,7 @@ drives/folders that machine's Docker is configured to share.
 ```sh
 npm install                       # run at the repo root - sets up the workspaces
 cd tests/e2e
-npx playwright install chromium   # one-time browser download
+npm run install:browsers          # one-time browser download, at the version the lockfile pins
 npm test
 ```
 
@@ -92,9 +93,9 @@ each against its own isolated Cove instance. This is safe because:
   when they land in the same worker.
 - Files that mutate shared extension state itself - install/enable/disable/uninstall - opt out of
   the shared-per-worker harness entirely and provision a fresh, isolated instance **per test**
-  instead, through `isolatedHarnessFixture` in `lib/fixtures.mjs`. Toggling or
-  removing the one shared extension install would otherwise race against any other test in the
-  same worker that's mid-assertion against it.
+  instead, through `isolatedHarnessFixtures` in `lib/fixtures.mjs`, which also points `baseUrl` at
+  that instance so the `page` fixture opens it. Toggling or removing the one shared extension install
+  would otherwise race against any other test in the same worker that's mid-assertion against it.
 - A test that only saves an extension setting stays on the shared harness and puts the stored
   document back when it ends, since a worker's tests run one at a time. Renamer's `restoredOptions`
   fixture in `extensions/Renamer/e2e/lib/renamer-fixtures.mjs` does this.
@@ -102,9 +103,8 @@ each against its own isolated Cove instance. This is safe because:
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
 than local.** Each worker brings up its own Docker Compose stack and a real browser. Every stack joins
 one shared network, so stacks do not draw on Docker's address pool; the cap is what a machine's CPU
-and memory can carry. On a 32-core host running nothing else, 8 workers ran the Renamer suite green
-twice at 2.0m against 6's 2.5m. A GitHub-hosted runner has 4 vCPU and 16GB, and the peak is twice the
-worker count because an isolated-harness spec starts a second stack alongside its worker's, so CI is
+and memory can carry. A GitHub-hosted runner has 4 vCPU and 16GB, and the peak is twice the worker
+count because an isolated-harness spec can start a second stack alongside its worker's, so CI is
 capped at 2. `retries: 2` and `trace: 'on-first-retry'` are also CI-only. Override with
 `--workers=N`.
 
@@ -148,8 +148,8 @@ test("your extension does the thing", async ({ api, page }) => {
   // api.get/post/put/delete talk straight to the running instance's REST API - no browser needed.
   const { json } = await api.get("/api/extensions");
 
-  // page is a real Playwright page already navigated to the running instance's home page, ALREADY
-  // signed in (see "Signing in" below) - use it for anything needing the real UI.
+  // page is a real Playwright page already navigated to the running instance's home page, past the
+  // first-run wizard (see "Signing in" below) - use it for anything needing the real UI.
   await page.goto(`${page.url()}settings`);
 });
 ```
@@ -164,8 +164,8 @@ produces, just without depending on your machine's file-sharing configuration) -
 set, it gets a clean instance with only Cove's built-in extensions installed.
 
 The option is **worker-scoped**, and the install runs once per worker inside the `harness` fixture
-rather than once per test. The install restarts Cove, so charging it per test cost every test in
-the worker a container restart - about 5.5s each, measured. Two consequences: an override in an
+rather than once per test. The install restarts Cove, so charging it per test would cost every test
+in the worker a container restart. Two consequences: an override in an
 extension's own fixtures file must declare `{ scope: "worker", option: true }` to match, and
 Playwright reuses a worker only across files whose worker fixtures agree, so two extensions' files
 never share one instance.
@@ -177,9 +177,9 @@ account exists - there is no button to dismiss it while `ownerMissing` is true (
 clicking "Skip setup for now" does nothing in that state). The `harness` fixture calls
 `bootstrapOwner()` once per worker before any test runs, and the `page` fixture pre-seeds
 `sessionStorage`'s `cove-setup-dismissed` flag via `addInitScript` so the wizard's _other_ gate
-(`needsSetup`, true whenever no library path is configured - genuinely the case for a fresh
-container) doesn't block every UI test either. You don't need to do anything for this - every
-`page` fixture use already lands on the real app, signed in. See `lib/harness.mjs`'s
+(`needsSetup`, which the host may raise for its own reasons on a fresh container) doesn't block every
+UI test either. Authentication is off by default (see "Scope" below), so no login is needed. You
+don't need to do anything for this - every `page` fixture use already lands on the real app. See `lib/harness.mjs`'s
 `bootstrapOwner()` doc comment for the full mechanism if you need to touch this.
 
 ### Available fixtures
@@ -188,19 +188,19 @@ container) doesn't block every UI test either. You don't need to do anything for
 | --------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) - a fresh random port every run                                 |
 | `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                              |
-| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                             |
+| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and past the first-run wizard                                     |
 | `harness` | The raw harness handle, if you need lower-level control (`container` for direct `exec`/file copy, `restart`, `stop`, etc.) |
 
 One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast -
 booting a fresh container per test would make even a small suite slow. This means your tests must
 not depend on a clean database between tests within the same file; seed your own uniquely-named
 test data per test instead of relying on an empty instance. If your test needs to mutate the
-extension install itself (enable/disable/uninstall), give it its OWN dedicated harness instead of
-the shared one - see `extension-lifecycle.spec.mjs` for the pattern.
+extension install itself (enable/disable/uninstall), give it a dedicated instance through
+`isolatedHarnessFixtures` - see `extension-lifecycle.spec.mjs` for the pattern.
 
 ## Running locally vs CI
 
-Locally: `npm test` (runs every project, 4 parallel workers) or `npm test -- --project=<name>` for
+Locally: `npm test` (runs every project, 6 parallel workers) or `npm test -- --project=<name>` for
 one extension - see Quick start and "One Playwright install, many extensions" above.
 
 CI: the `.github/workflows/ci.yml` `e2e` job runs `playwright test --project=<name>` for each
@@ -262,8 +262,7 @@ network there changes none of the host's interfaces or addresses.
   image + a `pgvector/pgvector` Postgres container, both using `tmpfs`/ephemeral state, published on
   a host port that defaults to `0`, letting Docker assign a free one, so parallel runs never collide
   (`COVE_E2E_PORT` overrides it). The
-  `cove` service also mounts a `tmpfs` at `/data2` - see `lib/harness.mjs` and
-  `cross-device-move.spec.mjs` for why.
+  `cove` service also mounts a `tmpfs` at `/data2`, and the compose file states why.
 - [`lib/harness.mjs`](lib/harness.mjs) - `startHarness()` uses
   [Testcontainers-node](https://node.testcontainers.org/)'s `DockerComposeEnvironment` (not a
   hand-rolled `docker compose` child_process wrapper - Testcontainers' Ryuk sidecar guarantees
@@ -286,11 +285,10 @@ network there changes none of the host's interfaces or addresses.
   `File.Exists` before doing anything else). `seedVideo()`, `seedImage()` and `seedText()` each copy
   a tiny real fixture (see `lib/fixtures-media/`) into the container and register it through that
   real API, so tests exercise the actual import path, not a shortcut around it.
-- [`lib/poll.mjs`](lib/poll.mjs) - `pollJob()`/`pollUntil()` for polling job status and eventually-
-  consistent reads. Some write paths are not read-your-writes on the very next request (observed
+- [`lib/poll.mjs`](lib/poll.mjs) - `pollUntil()` for eventually-consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo
   value) - poll instead of asserting on the first read, and never paper over this with a fixed
-  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long). Both are
+  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long). It is
   built on `attemptUntil()`, the one retry loop the harness's own waits also run through; a spec
   wanting a per-attempt abort bound can use it directly.
 

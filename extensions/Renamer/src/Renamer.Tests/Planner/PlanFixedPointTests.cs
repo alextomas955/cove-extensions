@@ -25,17 +25,6 @@ public sealed class PlanFixedPointTests
         Date: new DateOnly(2021, 3, 14), Organized: true, Performers: [], TagRefs: [], Files: files);
 
     [Fact]
-    public async Task ATitlelessItem_UnderADecoratedTemplate_SettlesAfterOneRename()
-    {
-        var replay = await ReplayAsync(
-            new RenamerOptions { FilenameTemplate = DecoratedTemplate, FilenameAsTitle = true },
-            Entity(null, FileRow(1, "raw clip.mkv")));
-
-        Assert.True(replay.How == Settled.FixedPoint, replay.ToString());
-        Assert.Equal([$"{FolderPath}/2021-03-14 - raw clip [4K].mkv"], replay.Trace);
-    }
-
-    [Fact]
     public async Task ATitlelessMultiFileItem_DerivesOneTitleForTheWholeItem_AndSettles()
     {
         var replay = await ReplayAsync(

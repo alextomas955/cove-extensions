@@ -18,10 +18,8 @@
 // session lasts days - and in that state the only credential left is the bearer the app holds, which
 // an extension can reach only through the host's authenticated fetch.
 //
-// Built on `@playwright/test` rather than the shared fixtures: taking their `page` would pull in the
-// worker-scoped auth-off harness and boot a second Cove instance this spec never talks to. The
-// setup-wizard pre-seed below is the one thing it borrows, because the no-library-path gate is
-// orthogonal to authentication and still fires here.
+// `baseUrl` is pointed at this spec's own instance, so the shared `page` fixture opens and diagnoses
+// that instance and never boots the worker's auth-off one.
 import { test as base, expect, loginThroughUi } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
@@ -47,6 +45,9 @@ const test = base.extend({
     },
     { scope: "test" },
   ],
+  baseUrl: async ({ authHarness }, use) => {
+    await use(authHarness.harness.baseUrl);
+  },
 });
 
 /** Writes the stored options blob out-of-band, as the host's own route wants it (double-encoded). */
@@ -138,10 +139,6 @@ test("the settings panel reads and writes its options through an authenticated r
   const seededTemplate = `$title [authenticated-${Date.now()}]`;
   await putStoredOptions(harness, dataPathname, { FilenameTemplate: seededTemplate });
 
-  await page.addInitScript(() => {
-    sessionStorage.setItem("cove-setup-dismissed", "true");
-  });
-  await page.goto(harness.baseUrl);
   await loginThroughUi(page);
 
   const settings = new RenamerSettingsPage(page, harness.baseUrl);

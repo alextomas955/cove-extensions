@@ -16,6 +16,9 @@ namespace Renamer;
 /// </summary>
 public sealed partial class Renamer
 {
+    // The journal rows an undo reads per page, in both the authorization walk and the replay.
+    internal int UndoPageSize { get; set; } = CoveRevertJournal.DefaultPageSize;
+
     internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
         ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
     {
@@ -71,7 +74,8 @@ public sealed partial class Renamer
         // would restore is authorized here, before the replayer exists, so a refusal has moved nothing.
         // One denied entity refuses the whole undo: restoring the rest leaves one user action half
         // reversed. The refusal names nothing, so it discloses no id.
-        if (!await AuthorizeOperationEntitiesAsync(journal, operationId, batch.Value, principal, authz, ct))
+        if (!await AuthorizeOperationEntitiesAsync(
+                journal, operationId, batch.Value, principal, authz, UndoPageSize, ct))
         {
             return new ForbiddenCode();
         }
@@ -95,7 +99,7 @@ public sealed partial class Renamer
 
     private static async Task<bool> AuthorizeOperationEntitiesAsync(
         CoveRevertJournal journal, string operationId, RevertBatchSummary first,
-        ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
+        ICurrentPrincipalAccessor principal, IAuthorizationService authz, int pageSize, CancellationToken ct)
     {
         RevertBatchSummary? authorizing = first;
         while (authorizing is not null)
@@ -104,7 +108,7 @@ public sealed partial class Renamer
             var (_, entityWritePermission) = PermissionsFor(current.Kind);
 
             var page = await journal.ReadBatchPageAsync(
-                current.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
+                current.RunId, belowSeq: long.MaxValue, pageSize, ct);
 
             while (page.Count > 0)
             {
@@ -124,7 +128,7 @@ public sealed partial class Renamer
                 }
 
                 page = await journal.ReadBatchPageAsync(
-                    current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
+                    current.RunId, page[^1].Seq, pageSize, ct);
             }
 
             // Its own cursor, so the replay still starts at the batch already read.
@@ -146,7 +150,7 @@ public sealed partial class Renamer
         {
             var current = batch.Value;
             var page = await journal.ReadBatchPageAsync(
-                current.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
+                current.RunId, belowSeq: long.MaxValue, UndoPageSize, ct);
 
             while (page.Count > 0)
             {
@@ -179,7 +183,7 @@ public sealed partial class Renamer
                 // rows strictly below it, so it decreases and the loop terminates whatever the outcomes
                 // were.
                 page = await journal.ReadBatchPageAsync(
-                    current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
+                    current.RunId, page[^1].Seq, UndoPageSize, ct);
             }
 
             // The outer cursor is this batch's (opened, run id) and decreases the same way.

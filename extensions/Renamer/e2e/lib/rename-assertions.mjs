@@ -16,6 +16,37 @@ export function dirname(path) {
   return idx <= 0 ? "/" : path.slice(0, idx);
 }
 
+/** Whether a regular file exists at `path` inside the Cove container. */
+export async function fileExists(container, path) {
+  return (await container.exec(["test", "-f", path])).exitCode === 0;
+}
+
+/**
+ * Asserts one item landed at exactly `expectedPath`: the DB record says so, the file is on disk there,
+ * and the path it came from is gone. `route` is the host's collection for the item's kind (`videos`,
+ * `images`, `texts`). Polls the record, so the read-after-write window is honored.
+ */
+export async function assertLandedAt({ api, container, route, id, expectedPath, originalPath }) {
+  const record = await pollUntil(
+    () => api.get(`/api/${route}/${id}`).then((r) => r.json),
+    (item) => item.files[0].path === expectedPath,
+    { label: `${route} ${id} to land at exactly "${expectedPath}"` },
+  );
+  expect(
+    record.files[0].path,
+    `DB record for ${route} ${id} should point at "${expectedPath}"`,
+  ).toBe(expectedPath);
+  expect(await fileExists(container, expectedPath), `"${expectedPath}" is missing from disk`).toBe(
+    true,
+  );
+  if (originalPath !== expectedPath) {
+    expect(
+      await fileExists(container, originalPath),
+      `Original path "${originalPath}" still exists on disk after the rename`,
+    ).toBe(false);
+  }
+}
+
 /**
  * Asserts a video renamed to exactly `expectedBasename`: the DB record's file basename matches, the
  * file exists on disk at that new path, and `originalPath` is gone from disk. Polls the record so the

@@ -5,9 +5,10 @@ import { buildUndoFeedback, buildUndoStatus, RETENTION_WINDOW_MS } from "./undoL
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 // The window in milliseconds, transcribed by hand rather than read from the module, and the same
-// number `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` transcribes on the server side. Three
-// hand-written copies of one constant is the price of it having no wire field; an expectation computed
-// from `RETENTION_WINDOW_MS` would agree with it however far it drifted from the server.
+// number `Renamer.Tests/Execution/Journal/RetentionWindowPinTests.cs` transcribes on the server side
+// in `RetentionWindow_IsSevenDays`. Three hand-written copies of one constant is the price of it
+// having no wire field; an expectation computed from `RETENTION_WINDOW_MS` would agree with it however
+// far it drifted from the server.
 const SEVEN_DAYS_MS = 604_800_000;
 
 // .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds.
@@ -103,42 +104,33 @@ test("an untouched batch states its size, its age and its expiry date", () => {
   assert.ok(!expiryClause(status.line).includes("2026"));
 });
 
-test("one file renamed is one item, not one items", () => {
-  const status = buildUndoStatus(summary(WRITTEN_MS, { count: 1, remainingCount: 1 }), WRITTEN_MS);
-  assert.ok(status);
-  assert.equal(lineBeforeExpiry(status.line), "1 item renamed · just now");
-});
-
-test("a partly restored batch states the split and offers only what is left", () => {
-  const status = buildUndoStatus(summary(WRITTEN_MS, { count: 12, remainingCount: 4 }), WRITTEN_MS);
-  assert.ok(status);
-  assert.equal(lineBeforeExpiry(status.line), "8 of 12 restored · 4 remaining · just now");
-  // The figure the confirm quotes is the outstanding work, never the size the batch started at.
-  assert.equal(status.remaining, 4);
-});
-
-test("files that can never come back are stated rather than folded into the restored figure", () => {
-  const status = buildUndoStatus(
-    summary(WRITTEN_MS, { count: 12, remainingCount: 4, unrestorableCount: 3 }),
-    WRITTEN_MS,
-  );
-  assert.ok(status);
-  assert.equal(
-    lineBeforeExpiry(status.line),
+test.each([
+  [
+    "one file renamed is one item, not one items",
+    { count: 1, remainingCount: 1 },
+    "1 item renamed · just now",
+  ],
+  [
+    "a partly restored batch states the split",
+    { count: 12, remainingCount: 4 },
+    "8 of 12 restored · 4 remaining · just now",
+  ],
+  [
+    "files that can never come back are stated rather than folded into the restored figure",
+    { count: 12, remainingCount: 4, unrestorableCount: 3 },
     "5 of 12 restored · 4 remaining · 3 could not be restored · just now",
-  );
-});
-
-test("an unrestorable file alone still switches the line to the split form", () => {
-  const status = buildUndoStatus(
-    summary(WRITTEN_MS, { count: 12, remainingCount: 11, unrestorableCount: 1 }),
-    WRITTEN_MS,
-  );
-  assert.ok(status);
-  assert.equal(
-    lineBeforeExpiry(status.line),
+  ],
+  [
+    "an unrestorable file alone still switches the line to the split form",
+    { count: 12, remainingCount: 11, unrestorableCount: 1 },
     "0 of 12 restored · 11 remaining · 1 could not be restored · just now",
-  );
+  ],
+])("%s", (_name, counts, line) => {
+  const status = buildUndoStatus(summary(WRITTEN_MS, counts), WRITTEN_MS);
+  assert.ok(status);
+  assert.equal(lineBeforeExpiry(status.line), line);
+  // The figure the confirm quotes is the outstanding work, never the size the batch started at.
+  assert.equal(status.remaining, counts.remainingCount);
 });
 
 test("the age clause names how long ago the batch opened", () => {
@@ -198,32 +190,37 @@ test("a clean undo reads as a success and counts the files it moved", () => {
   });
 });
 
-test("a partial undo counts the problems from the totals, never from the samples", () => {
-  const feedback = buildUndoFeedback(
+test.each([
+  [
+    // Two sample entries describing three hundred files: a sentence built from the array's length
+    // would tell the user two files could not come back.
+    "a partial undo counts the problems from the totals, never from the samples",
     undoResult({
       undone: 500,
       failedCount: 300,
-      // Two entries describing three hundred files: a sentence built from this array's length would
-      // tell the user two files could not come back.
       failedSample: [error("access denied"), error("in use")],
       skippedCount: 200,
       skippedSample: [error("gone")],
     }),
-  );
-  assert.deepEqual(feedback, {
-    kind: "error",
-    text: "Undo finished with problems: 500 files couldn't be moved back (access denied). The rest were restored.",
-  });
-});
-
-test("one problem file is one file", () => {
-  const feedback = buildUndoFeedback(
+    "Undo finished with problems: 500 files couldn't be moved back (access denied). The rest were restored.",
+  ],
+  [
+    "one problem file is one file",
     undoResult({ undone: 4, skippedCount: 1, skippedSample: [error("gone")] }),
-  );
-  assert.deepEqual(feedback, {
-    kind: "error",
-    text: "Undo finished with problems: 1 file couldn't be moved back (gone). The rest were restored.",
-  });
+    "Undo finished with problems: 1 file couldn't be moved back (gone). The rest were restored.",
+  ],
+  [
+    "a problem count with an empty sample names no reason rather than an undefined one",
+    undoResult({ undone: 0, failedCount: 7 }),
+    "Couldn't undo: unknown reason. Nothing was changed.",
+  ],
+  [
+    "an undo that restored nothing says nothing was changed",
+    undoResult({ undone: 0, failedCount: 3, failedSample: [error("access denied")] }),
+    "Couldn't undo: access denied. Nothing was changed.",
+  ],
+])("%s", (_name, result, text) => {
+  assert.deepEqual(buildUndoFeedback(result), { kind: "error", text });
 });
 
 test("the named reason comes from the failed channel before the skipped one", () => {
@@ -237,24 +234,6 @@ test("the named reason comes from the failed channel before the skipped one", ()
     }),
   );
   assert.ok(feedback.text.includes("(the failed reason)"));
-});
-
-test("a problem count with an empty sample names no reason rather than an undefined one", () => {
-  const feedback = buildUndoFeedback(undoResult({ undone: 0, failedCount: 7 }));
-  assert.deepEqual(feedback, {
-    kind: "error",
-    text: "Couldn't undo: unknown reason. Nothing was changed.",
-  });
-});
-
-test("an undo that restored nothing says nothing was changed", () => {
-  const feedback = buildUndoFeedback(
-    undoResult({ undone: 0, failedCount: 3, failedSample: [error("access denied")] }),
-  );
-  assert.deepEqual(feedback, {
-    kind: "error",
-    text: "Couldn't undo: access denied. Nothing was changed.",
-  });
 });
 
 test("a stranded companion is reported beside a run that otherwise succeeded", () => {

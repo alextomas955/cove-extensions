@@ -1,6 +1,6 @@
 // Accessibility regression for the hand-rolled dialog-mode overlay (shared/ui-shared `useOverlayKeys`,
-// `nav:"dialog"`) as wired into Renamer's `common/ui/Dialog` (the DryRunModal shell). It drives the real
-// primitive; it does not rebuild the trap.
+// `nav:"dialog"`) as wired into Renamer's `settings/dry-run/Dialog` (the DryRunModal shell). It drives
+// the real primitive; it does not rebuild the trap.
 //
 // Dialog mode's contract (distinct from menu mode): a Tab focus-trap that wraps first<->last, Escape-to-cancel,
 // focus restored to the opener on close, and - the induced-failure backstop - cancels suspended while an
@@ -13,6 +13,9 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
+// Callers take `restoredOptions`: the template saved here would otherwise render every later test's
+// names on this worker's instance.
+//
 // A "$title" template over a titled video guarantees at least one will-change row, so the scan lands with the
 // footer "Rename N files" enabled - the state the trap + induced-failure assertions need.
 async function openLoadedDryRun({ page, harness, baseUrl, api }) {
@@ -35,6 +38,7 @@ test("the dialog traps Tab focus, wraps at both ends, and Escape restores focus 
   harness,
   baseUrl,
   api,
+  restoredOptions: _restoredOptions,
 }) => {
   const settings = await openLoadedDryRun({ page, harness, baseUrl, api });
 
@@ -65,6 +69,7 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   harness,
   baseUrl,
   api,
+  restoredOptions: _restoredOptions,
 }) => {
   // Hold the rename request open to pin the modal in its in-flight (pending) state, then fail it - so the op
   // settles without the success path auto-closing the modal, leaving Escape to prove the cancel re-enables.

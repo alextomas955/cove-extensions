@@ -1,9 +1,18 @@
+using System.Data.Common;
+using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Execution.Journal;
 
@@ -129,18 +138,17 @@ public sealed class JournalPagingTests
     }
 
     [Fact]
-    public async Task AMultiPageRunWhereEveryRowStopsRetryably_Terminates_AndAttemptsEachRowExactlyOnce()
+    public async Task AMultiPageUndoWhereEveryRowStopsRetryably_Terminates_AttemptsEachRowOnce_AndLeavesThemAll()
     {
-        // The failure this case exists to catch does not fail an assertion - it hangs. A cursor that did
-        // not advance past rows which stayed pending would re-read the first page forever, and nothing
-        // retires to end it, because a retryable stop deliberately leaves its row in the table. The
-        // bounded page guard inside RunPagedUndoAsync is what turns that hang into a failure.
+        // A cursor that did not advance past rows which stayed pending would re-read the first page
+        // forever, because a retryable stop deliberately leaves its row in the table. The command
+        // budget turns that hang into a failure without depending on how loaded the machine is.
         using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        using var budget = new CommandBudget();
+        var (db, conn) = await ContextWithBudgetAsync(budget);
         try
         {
-            var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            await using var _ = journal;
+            var (ext, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
 
             // Occupy every restore slot: the reverse move refuses to clobber, so every row stops for a
             // cause the world can clear and none of them retires.
@@ -149,44 +157,31 @@ public sealed class JournalPagingTests
                 File.WriteAllText(s.OldFull, "someone else's file");
             }
 
-            var run = await RunPagedUndoAsync(db, journal);
-
-            Assert.Equal(0, run.Undone);
-
-            // Counted off what the run produced - each stop carries the identity of the row it stopped
-            // on - rather than off a number this test also supplied.
-            Assert.Equal(UndoRowCount, run.Attempts.Count);
-            Assert.Equal(UndoRowCount, run.Attempts.Distinct().Count());
-            Assert.True(run.Pages > 1, $"the batch spanned {run.Pages} page(s); the case needs more than one");
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task AMultiPageRunWhereEveryRowStopsRetryably_LeavesEveryRowInTheTable()
-    {
-        // What remains in the table is the work left, and paging must not quietly change that: a row
-        // that stopped for a clearable cause has to be offered again on the next undo.
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            await using var _ = journal;
-
-            foreach (var s in seeded)
+            budget.Arm(MaxUndoCommands);
+            UndoResult undo;
+            try
             {
-                File.WriteAllText(s.OldFull, "someone else's file");
+                undo = UndoValue(await ext.UndoAsync(
+                    Write, new RecordingAuthorizationService(), budget.Token));
+            }
+            catch (OperationCanceledException)
+            {
+                Assert.Fail(
+                    $"the undo issued over {MaxUndoCommands} commands for {UndoRowCount} rows, "
+                    + "so its paging cursor stopped advancing");
+                throw;
             }
 
-            await RunPagedUndoAsync(db, journal);
+            Assert.Equal(0, undo.Undone);
+            Assert.Equal(UndoRowCount, undo.SkippedCount);
+            Assert.Equal(
+                seeded.Select(s => s.FileId).Order(),
+                undo.SkippedSample.Select(e => e.FileId).Order());
 
-            var left = await JournalPageReader.ReadAllRowsAsync(journal, RunId, PageLimit);
-            Assert.Equal(UndoRowCount, left.Count);
+            // What remains in the table is the work left: a row that stopped for a clearable cause has
+            // to be offered again on the next undo.
+            await using var journal = new CoveRevertJournal(db);
+            Assert.Equal(UndoRowCount, (await JournalPageReader.ReadAllRowsAsync(journal, RunId, PageLimit)).Count);
 
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
@@ -201,20 +196,19 @@ public sealed class JournalPagingTests
     }
 
     [Fact]
-    public async Task AMultiPageRun_RestoresEveryRestorableRow_AndTheAggregateReconciles()
+    public async Task AMultiPageUndo_RestoresEveryRestorableRow_AndTheAggregateReconciles()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (journal, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
-            await using var _ = journal;
+            var (ext, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
 
-            var run = await RunPagedUndoAsync(db, journal);
+            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
-            Assert.True(run.Pages > 1, $"the batch spanned {run.Pages} page(s); the case needs more than one");
-            Assert.Equal(UndoRowCount, run.Undone);
-            Assert.Equal(UndoRowCount, run.Attempts.Distinct().Count());
+            Assert.Equal(UndoRowCount, undo.Undone);
+            Assert.Equal(0, undo.SkippedCount);
+            Assert.Equal(0, undo.FailedCount);
 
             // On disk, not merely in the response - a page boundary that dropped a row would leave its
             // file at the renamed path with the count still reading right.
@@ -224,6 +218,7 @@ public sealed class JournalPagingTests
                 Assert.False(File.Exists(s.NewFull));
             }
 
+            await using var journal = new CoveRevertJournal(db);
             Assert.Empty(await JournalPageReader.ReadAllRowsAsync(journal, RunId, PageLimit));
 
             var summary = await journal.ReadUndoTargetAsync();
@@ -242,57 +237,80 @@ public sealed class JournalPagingTests
         }
     }
 
-    private sealed record PagedRun(int Undone, int Pages, IReadOnlyList<(string RunId, long Seq)> Attempts);
+    // Far above what a correct undo of UndoRowCount rows issues, and reached within moments by a loop
+    // that re-reads the same page.
+    private const int MaxUndoCommands = 5_000;
 
-    // Pages the batch and reverse-replays each page, in the shape UndoAsync uses - a page below the
-    // cursor, a replay, retirement of the settled rows, then the cursor moved to the lowest
-    // sequence the page returned. Driven at PageLimit rather than at the shipped default so a
-    // handful of rows spans several pages. The guard is the point of the whole helper: a cursor
-    // that failed to advance would otherwise loop here without ever reaching an assertion.
-    private static async Task<PagedRun> RunPagedUndoAsync(DbContext db, CoveRevertJournal journal)
+    private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+
+    // The same context CoveContextFactory builds, with a command counter on it.
+    private static async Task<(DbContext db, SqliteConnection conn)> ContextWithBudgetAsync(CommandBudget budget)
     {
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), new CapturingEventBus());
+        var conn = new SqliteConnection("Data Source=:memory:");
+        await conn.OpenAsync(CancellationToken.None);
+        var options = new DbContextOptionsBuilder<CoveContext>()
+            .UseSqlite(conn)
+            .AddInterceptors(budget)
+            .ReplaceService<IModelCacheKeyFactory, CoveModelCacheKeyFactory>()
+            .Options;
+        var db = new CoveContext(options, principalAccessor: null);
+        await db.Database.EnsureCreatedAsync(CancellationToken.None);
+        return (db, conn);
+    }
 
-        var attempts = new List<(string RunId, long Seq)>();
-        int undone = 0;
-        int pages = 0;
-        long cursor = long.MaxValue;
+    // Cancels its token once more commands than the armed budget have executed.
+    private sealed class CommandBudget : DbCommandInterceptor, IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+        private int _remaining = int.MaxValue;
 
-        while (true)
+        public CancellationToken Token => _cts.Token;
+
+        public void Arm(int commands) => Volatile.Write(ref _remaining, commands);
+
+        public void Dispose() => _cts.Dispose();
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
         {
-            Assert.True(
-                pages <= UndoRowCount,
-                $"the paging cursor stopped advancing: {pages} pages read over {UndoRowCount} rows");
+            Spend();
+            return result;
+        }
 
-            var page = await journal.ReadBatchPageAsync(RunId, cursor, PageLimit);
-            if (page.Count == 0)
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Spend();
+            return ValueTask.FromResult(result);
+        }
+
+        public override InterceptionResult<int> NonQueryExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            Spend();
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            Spend();
+            return ValueTask.FromResult(result);
+        }
+
+        private void Spend()
+        {
+            if (Interlocked.Decrement(ref _remaining) < 0)
             {
-                return new PagedRun(undone, pages, attempts);
+                _cts.Cancel();
             }
-
-            pages++;
-            var result = await replayer.RevertAsync(new RevertBatch(RunId, RenamerFileKind.Video, page));
-
-            undone += result.Undone;
-            attempts.AddRange(result.Restored.Select(r => (r.RunId, r.Seq)));
-            attempts.AddRange(result.Failed.Concat(result.Skipped).Select(f => (f.RunId, f.Seq)));
-
-            foreach (var row in result.Restored)
-            {
-                await journal.DeleteRowAsync(row.RunId, row.Seq, unrestorable: false);
-            }
-
-            foreach (var stopped in result.Failed.Concat(result.Skipped))
-            {
-                if (UndoTerminalClassifier.IsTerminal(stopped.Stop))
-                {
-                    await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true);
-                }
-            }
-
-            cursor = page[^1].Seq;
         }
     }
+
+    private static UndoResult UndoValue(IResult result) =>
+        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
@@ -311,8 +329,10 @@ public sealed class JournalPagingTests
     }
 
     // Seeds one folder holding count videos and really renames each into one batch, so the batch
-    // holds one row per file and the paging is over rows rather than over batches.
-    private static async Task<(CoveRevertJournal journal, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
+    // holds one row per file and the paging is over rows rather than over batches. The returned
+    // extension reads the journal PageLimit rows at a time, so a handful of rows spans several pages.
+    // The batch opens now rather than at Opened, because the undo refuses a batch past retention.
+    private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, int count)
     {
         string folderPath = dir.Root.Replace('\\', '/');
@@ -344,19 +364,23 @@ public sealed class JournalPagingTests
 
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var port = new CoveRenamerDataPort(db);
-        var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
-
-        foreach (var s in seeded)
+        await using (var journal = new CoveRevertJournal(db))
         {
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
-            var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
-                .ExecuteAsync(plan, options, default);
-            Assert.Single(forward.Renamed);
-            Assert.True(File.Exists(s.NewFull), $"forward rename landed at {s.NewFull}");
-            Assert.False(File.Exists(s.OldFull));
+            await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, DateTime.UtcNow);
+
+            foreach (var s in seeded)
+            {
+                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
+                var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
+                    .ExecuteAsync(plan, options, default);
+                Assert.Single(forward.Renamed);
+                Assert.True(File.Exists(s.NewFull), $"forward rename landed at {s.NewFull}");
+                Assert.False(File.Exists(s.OldFull));
+            }
         }
 
-        return (journal, seeded);
+        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options: options);
+        ext.UndoPageSize = PageLimit;
+        return (ext, seeded);
     }
 }

@@ -65,11 +65,13 @@ test("a kind with nothing stored reads as following the default", async () => {
   view.unmount();
 });
 
-test("excluding a kind turns off renaming and says so, without touching the others", async () => {
-  const view = await renderRows({});
+test("excluding a kind turns off renaming, without touching the others", async () => {
+  const image = { enabled: true, destination: { root: "D:/library", template: "$studio" } };
+  const view = await renderRows({ image });
   view.row("Videos").click("Exclude");
 
   expect(view.set).toHaveBeenCalledWith("kinds", {
+    image,
     video: { enabled: false, destination: null },
   });
 

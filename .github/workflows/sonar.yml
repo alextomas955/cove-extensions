@@ -91,6 +91,8 @@ jobs:
         run: |
           node scripts/ci-catalog.mjs list uiPath > "$RUNNER_TEMP/ui-paths.txt"
           node scripts/ci-catalog.mjs list testProjectPath > "$RUNNER_TEMP/test-projects.txt"
+          # The shared library's own tests belong to no catalog entry.
+          echo "shared/Cove.Extensions.Shared.Tests/Cove.Extensions.Shared.Tests.csproj" >> "$RUNNER_TEMP/test-projects.txt"
           lcov=$(sed 's|$|/coverage/lcov.info|' "$RUNNER_TEMP/ui-paths.txt" | paste -sd, -)
           cs=$(awk '{ print "TestResults/coverage-" NR-1 ".xml" }' "$RUNNER_TEMP/test-projects.txt" | paste -sd, -)
           echo "lcovPaths=$lcov" >> "$GITHUB_OUTPUT"

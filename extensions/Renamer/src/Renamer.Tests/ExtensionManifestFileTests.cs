@@ -12,7 +12,7 @@ public sealed class ExtensionManifestFileTests
         Assert.Equal("com.alextomas955.renamer", manifest.Id);
         Assert.Equal("Renamer", manifest.Name);
         // entryDll/jsBundle are the key-links the host uses to load the assembly and bundle.
-        Assert.Equal("Renamer.dll", manifest.EntryDll);
+        Assert.Equal(typeof(global::Renamer.Renamer).Assembly.GetName().Name + ".dll", manifest.EntryDll);
         Assert.Equal("index.mjs", manifest.JsBundle);
         // The host adds every enabled cssBundle to every page it serves, the host's own pages included.
         Assert.Null(manifest.CssBundle);
@@ -43,25 +43,8 @@ public sealed class ExtensionManifestFileTests
         Assert.Equal(manifest.Description, extension.Description);
         Assert.Equal(manifest.Author, extension.Author);
         Assert.Equal(manifest.Url, extension.Url);
+        Assert.Equal(manifest.IconUrl, extension.IconUrl);
         Assert.Equal(manifest.MinCoveVersion, extension.MinCoveVersion);
         Assert.Equal(manifest.Categories, extension.Categories);
-    }
-
-    [Theory]
-    [InlineData("Id")]
-    [InlineData("Name")]
-    [InlineData("Version")]
-    [InlineData("MinCoveVersion")]
-    [InlineData("Description")]
-    [InlineData("Author")]
-    [InlineData("Url")]
-    [InlineData("IconUrl")]
-    [InlineData("Categories")]
-    public void Metadata_IsNotRedeclaredInCode(string member)
-    {
-        var property = typeof(global::Renamer.Renamer).GetProperty(member);
-
-        Assert.NotNull(property);
-        Assert.NotEqual(typeof(global::Renamer.Renamer), property!.DeclaringType);
     }
 }

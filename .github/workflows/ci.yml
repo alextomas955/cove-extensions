@@ -375,6 +375,21 @@ jobs:
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
           COVE_REPO_ROOT: ${{ github.workspace }}/cove
 
+  # The shared C# package's own suite, which belongs to no catalog entry. It runs with
+  # CoveSourceMode=none, against the published Cove packages an extension ships the package with. It
+  # needs no checkout because nothing it tests touches Cove.Data, which only a checkout supplies.
+  test-shared:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      # The testing platform exits 8 on zero tests, so a run that executed nothing fails.
+      - name: Test
+        run: dotnet test --project shared/Cove.Extensions.Shared.Tests/Cove.Extensions.Shared.Tests.csproj -c Release -p:CoveSourceMode=none
+
   # The same suite on Windows at the highest declared floor, which is what puts the path and
   # filesystem cases on Windows. No E2E here: hosted Windows runners run Windows containers only, so
   # the Cove and Postgres images cannot start.
@@ -630,6 +645,7 @@ jobs:
         build,
         e2e,
         test-cove-present,
+        test-shared,
         windows-build-test,
         csharp-format,
         markdown-lint,

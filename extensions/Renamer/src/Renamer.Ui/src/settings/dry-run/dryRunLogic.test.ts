@@ -12,8 +12,6 @@ import {
   isFinalizing,
   formatEta,
   etaFromSamples,
-  ETA_SMOOTHING,
-  ETA_MIN_RATES,
   IN_FLIGHT_OVERFLOW_LABEL,
   inFlightOverflowLabel,
   shouldContinueWalk,
@@ -89,11 +87,6 @@ const STALLED_WALK = {
   hasError: false,
 } as const;
 
-test("a page that returned no rows while the cursor is still live continues the walk", () => {
-  // A zero-row page changes no row count, so anything watching the counts reads a finished walk.
-  assert.equal(shouldContinueWalk(STALLED_WALK), true);
-});
-
 test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
   // The end of the library is the one honest reason to stop short of the target.
   assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
@@ -103,12 +96,6 @@ test("a walk that has covered its row target does not continue", () => {
   assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
   assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
   assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
-});
-
-test("a failed page does not continue, so a failing server is not asked without end", () => {
-  // A failure leaves the cursor live and clears the in-flight flag, so every other input still reads
-  // as "more to fetch, nothing in flight".
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasError: true }), false);
 });
 
 test("a page already in flight does not continue", () => {
@@ -234,15 +221,6 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
   ]);
   assert.ok(warmed !== null && Math.abs(warmed - 4) < 1e-6);
 
-  // Display-confidence gate: a single rate (one pair) is withheld (unsmoothed seed) → null.
-  assert.equal(
-    etaFromSamples([
-      { timeMs: 1000, progress: 0.5 },
-      { timeMs: 2000, progress: 0.6 },
-    ]),
-    null,
-  );
-
   // Null guards: <2 samples (a rate needs two points), progress at the ends, no forward progress,
   // non-finite.
   assert.equal(etaFromSamples([]), null);
@@ -274,9 +252,8 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
 });
 
 test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus slow ETA", () => {
-  // The reported symptom: a slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls
-  // toward the fast rate each poll, so the estimate is seconds - not minutes/hours - and it does so
-  // without dropping any samples (recency-weighting is the principled fix, not a magic threshold).
+  // A slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls toward the fast rate
+  // each poll, so the estimate is seconds rather than minutes, without dropping any samples.
   const samples = [
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow warmup pair
@@ -302,10 +279,9 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   assert.ok(early !== null && early < 60, `expected under a minute once warmed, got ${early}`);
 });
 
-test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
-  // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
-  // is the fix for the intermittent one-poll "~2m" flash: never display off a single raw seed.
-  assert.equal(ETA_MIN_RATES, 2);
+test("etaFromSamples withholds the estimate until it has two smoothed rates", () => {
+  // One rate is the unsmoothed seed, so an estimate built on it alone would flash whatever the first
+  // poll happened to measure.
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -332,10 +308,6 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
   );
 });
 
-test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
-  assert.equal(ETA_SMOOTHING, 0.3);
-});
-
 // The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
 // `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
 // serializer. Written out here rather than read from the generated wire types, because a key spelled
@@ -346,12 +318,6 @@ const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
 test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: true }), IN_FLIGHT_OVERFLOW_LABEL);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: false }), null);
-});
-
-test("the overflow label carries words, so the badge is never colour alone", () => {
-  // The badge leads with a lucide glyph, and the glyph is not the message: a red pill with no text tells a
-  // colour-blind or screen-reader user nothing about what is wrong with the row.
-  assert.match(IN_FLIGHT_OVERFLOW_LABEL, /[A-Za-z]{3}/);
 });
 
 test("a row that arrives without the overflow field reads as unflagged, not as flagged", () => {

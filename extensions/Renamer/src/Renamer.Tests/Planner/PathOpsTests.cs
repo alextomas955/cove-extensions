@@ -1,6 +1,6 @@
 using Renamer.Planner;
 
-namespace Renamer.Tests.Execution;
+namespace Renamer.Tests.Planner;
 
 public sealed class PathOpsTests
 {
@@ -35,19 +35,13 @@ public sealed class PathOpsTests
     public void StemOf_DropsOnlyTheFinalExtension(string basename, string expected)
         => Assert.Equal(expected, PathOps.StemOf(basename));
 
-    [Fact]
-    public void ApplySuffix_PutsTheCounterBeforeTheExtension()
-        => Assert.Equal("film (2).mkv", PathOps.ApplySuffix("film", ".mkv", " ({n})", 2));
-
-    [Fact]
-    public void ApplySuffix_OnAnExtensionlessName_AppendsTheSuffix()
-        => Assert.Equal("README (1)", PathOps.ApplySuffix("README", "", " ({n})", 1));
-
     [Theory]
+    [InlineData("film", ".mkv", " ({n})", 2, "film (2).mkv")]
+    [InlineData("README", "", " ({n})", 1, "README (1)")]
     // A format naming the counter more than once, and one naming it not at all.
-    [InlineData("-{n}-{n}", 3, "film-3-3.mkv")]
-    [InlineData("no-token", 5, "filmno-token.mkv")]
-    public void ApplySuffix_ReplacesEveryToken_AndAppendsAFormatHoldingNone(
-        string format, int counter, string expected)
-        => Assert.Equal(expected, PathOps.ApplySuffix("film", ".mkv", format, counter));
+    [InlineData("film", ".mkv", "-{n}-{n}", 3, "film-3-3.mkv")]
+    [InlineData("film", ".mkv", "no-token", 5, "filmno-token.mkv")]
+    public void ApplySuffix_PutsEveryTokenBeforeTheExtension_AndAppendsAFormatHoldingNone(
+        string filename, string ext, string format, int counter, string expected)
+        => Assert.Equal(expected, PathOps.ApplySuffix(filename, ext, format, counter));
 }

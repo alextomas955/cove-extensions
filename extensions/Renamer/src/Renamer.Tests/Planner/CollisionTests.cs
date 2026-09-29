@@ -29,6 +29,7 @@ public sealed class CollisionTests
         Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
         Assert.EndsWith("My Film (1).mkv", item.NewFullPath);
+        Assert.True(item.Suffixed);
     }
 
     [Fact]

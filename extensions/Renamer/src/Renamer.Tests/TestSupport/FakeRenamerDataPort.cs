@@ -46,10 +46,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     // twice.
     public int LoadEntityCallCount { get; private set; }
 
-    // Number of LoadEntitiesAsync calls - one per call (not per id), so a scan test can prove
-    // batching issues far fewer than N loads.
-    public int LoadEntitiesCallCount { get; private set; }
-
     // The library paths the fake declares; empty by default, so a test opts in to an anchor.
     public List<string> LibraryPathList { get; } = [];
 
@@ -70,7 +66,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default)
     {
-        LoadEntitiesCallCount++;
         var found = ids
             .Where(id => _entities.ContainsKey((kind, id)))
             .Select(id => _entities[(kind, id)])

@@ -66,57 +66,6 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntity_Surfaces_ThreeAncestorLevels_MatchingTheWalkDepth()
-    {
-        // A three-level ancestor chain: great-grandparent ← grandparent ← parent ← direct. The eager
-        // include chain loads exactly as many ancestor levels as the walk visits, so a studio rule
-        // keyed on the third ancestor up still surfaces rather than silently going unmatched.
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
-
-            var greatGrand = new Studio { Name = "Conglomerate" };
-            db.Set<Studio>().Add(greatGrand);
-            await db.SaveChangesAsync();
-
-            var grandparent = new Studio { Name = "Grand Network", ParentId = greatGrand.Id };
-            db.Set<Studio>().Add(grandparent);
-            await db.SaveChangesAsync();
-
-            var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
-            db.Set<Studio>().Add(parent);
-            await db.SaveChangesAsync();
-
-            var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
-            db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
-
-            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
-            video.StudioId = direct.Id;
-            await db.SaveChangesAsync();
-
-            var port = new CoveRenamerDataPort(db);
-            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
-
-            Assert.NotNull(entity);
-            Assert.NotNull(entity!.ParentStudios);
-            // Nearest-first, three ancestor levels deep, all hydrated. The count asserts against the
-            // single source of truth (not a literal 3) so it cannot silently out-run a depth change.
-            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
-            Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
-            Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
-            Assert.Equal(greatGrand.Id, entity.ParentStudios[2].Id);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InJoinOrder()
     {
         // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,

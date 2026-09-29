@@ -3,10 +3,8 @@
 // mock hands each call's resolver back to the test, so the test settles them in reverse issue order,
 // which the debounce cannot prevent.
 import { test, expect, vi, beforeEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
 
 import { useRenamePreview, type UseRenamePreview } from "./useRenamePreview";
 import { type RenamerOptions } from "./options";
@@ -72,29 +70,50 @@ function sample(label: string): PreviewSampleResult[] {
   ];
 }
 
-// Mount the hook and hand back its latest return value, a way to change its options, and a teardown.
+// `act` refuses to run without it, and React reads it off the global rather than from an import.
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+// Settles a request inside `act`, so whatever state the hook's handler set is committed before the
+// next assertion reads it. A handler that discards sets nothing, so there is no render to wait for.
+async function settle(call: (typeof host.calls)[number], outcome: () => void) {
+  await act(async () => {
+    outcome();
+    await call.handled();
+  });
+}
+
+// Mount the hook and hand back its latest return value, a way to change its inputs, and a teardown.
 function mountHook(initial: RenamerOptions) {
   let latest: UseRenamePreview | null = null;
-  function Probe({ options }: { options: RenamerOptions }) {
-    latest = useRenamePreview(options, false);
+  function Probe({ options, loading }: { options: RenamerOptions; loading: boolean }) {
+    latest = useRenamePreview(options, loading);
     return null;
   }
 
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(Probe, { options: initial }));
+  act(() => {
+    root.render(createElement(Probe, { options: initial, loading: false }));
+  });
 
   return {
     get current(): UseRenamePreview {
       expect(latest, "the probe never rendered").not.toBeNull();
       return latest as unknown as UseRenamePreview;
     },
-    retarget: (options: RenamerOptions) => {
-      root.render(createElement(Probe, { options }));
+    retarget: (options: RenamerOptions, loading = false) => {
+      act(() => {
+        root.render(createElement(Probe, { options, loading }));
+      });
     },
     unmount: () => {
-      root.unmount();
+      act(() => {
+        root.unmount();
+      });
       container.remove();
     },
   };
@@ -118,14 +137,15 @@ test("an older preview response cannot repaint the pane over a newer one", async
   await sleep(PAST_DEBOUNCE_MS);
   expect(host.calls.length, "the second POST was never issued").toBe(2);
 
-  host.calls[1].resolve(sample("second"));
-  await waitFor("the newer response to paint", () => hook.current.preview !== null);
+  await settle(host.calls[1], () => {
+    host.calls[1].resolve(sample("second"));
+  });
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
 
-  // The older request answers last, which is the ordering the debounce cannot prevent. A response
-  // the hook discards paints nothing, so what is waited for is the hook's handler having run.
-  host.calls[0].resolve(sample("first"));
-  await host.calls[0].handled();
+  // The older request answers last, which is the ordering the debounce cannot prevent.
+  await settle(host.calls[0], () => {
+    host.calls[0].resolve(sample("first"));
+  });
 
   expect(hook.current.preview?.[0].sampleLabel, "the superseded response repainted the pane").toBe(
     "second",
@@ -135,7 +155,7 @@ test("an older preview response cannot repaint the pane over a newer one", async
   hook.unmount();
 }, 30_000);
 
-test("superseding a request aborts it, and that abort is not reported as a failure", async () => {
+test("superseding a request aborts it, and its rejection is not reported as a failure", async () => {
   const first = { ...someOptions(), filenameTemplate: "$title" };
   const second = { ...someOptions(), filenameTemplate: "$title - $studio" };
 
@@ -150,14 +170,36 @@ test("superseding a request aborts it, and that abort is not reported as a failu
 
   // The host's fetch rejects an aborted request. Reporting that would be an error the hook caused
   // itself, while the request the user is waiting on is still on its way.
-  host.calls[0].reject(new Error("aborted"));
-  await host.calls[0].handled();
+  await settle(host.calls[0], () => {
+    host.calls[0].reject(new Error("aborted"));
+  });
   expect(hook.current.previewError, "an abort was surfaced as a preview failure").toBe(false);
 
-  host.calls[1].resolve(sample("second"));
-  await waitFor("the surviving response to paint", () => hook.current.preview !== null);
+  await settle(host.calls[1], () => {
+    host.calls[1].resolve(sample("second"));
+  });
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
   expect(hook.current.previewError).toBe(false);
+
+  hook.unmount();
+}, 30_000);
+
+test("an abort of the request still in force is not reported as a failure", async () => {
+  // Going back to loading aborts the in-flight request without issuing a newer one, so the rejection
+  // arrives under the generation still current and only the abort tells it from a real failure.
+  const options = someOptions();
+  const hook = mountHook(options);
+  await sleep(PAST_DEBOUNCE_MS);
+  expect(host.calls).toHaveLength(1);
+
+  hook.retarget(options, true);
+  expect(host.calls[0].aborted(), "going back to loading left the request running").toBe(true);
+
+  await settle(host.calls[0], () => {
+    host.calls[0].reject(new Error("aborted"));
+  });
+  expect(hook.current.previewError, "an abort was surfaced as a preview failure").toBe(false);
+  expect(host.calls, "loading issued a request").toHaveLength(1);
 
   hook.unmount();
 }, 30_000);

@@ -6,40 +6,16 @@ namespace Renamer.Tests.Options;
 
 public sealed class OptionsRoundTripTests
 {
-    [Fact]
-    public void Deserialize_RequiredFields_ReplacesDefault_DoesNotAppendToTitle()
-    {
-        // Reproduces the live gating bug: a stored blob sets RequiredFields to a single token.
-        // System.Text.Json, by default, populates a pre-initialized List<string> ("title") instead of
-        // replacing it, yielding ["title","studioCode"] - so the user's chosen gate silently never
-        // fires (title is always present). The deserialized list must be exactly what the blob said.
-        const string json = """{ "requiredFields": ["studioCode"] }""";
-
-        var opts = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions)!;
-
-        Assert.Equal(["studioCode"], opts.RequiredFields);
-    }
-
-    [Fact]
-    public void Deserialize_DropOrder_ReplacesDefault_DoesNotAppendToDefaults()
-    {
-        // Same STJ collection-populate hazard for the other defaulted List<string>.
-        const string json = """{ "dropOrder": ["tags"] }""";
-
-        var opts = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions)!;
-
-        Assert.Equal(["tags"], opts.DropOrder);
-    }
-
-    // A panel-shaped blob: mixed casing (lowerCamel + PascalCase), enums as strings, nested
-    // Performers/Tags MultiValueOptions, and the DropOrder/RequiredFields/whitelist arrays.
+    // A settings PUT body: the panel sends the wire spelling, camelCase names and camelCase enum values,
+    // and the endpoint binds it with the persisted blob's serializer settings. The PascalCase names mixed
+    // in are the persisted spelling, which binds the same way.
     private const string PanelJson =
         """
         {
           "filenameTemplate": "$studio - $title [$resolution]",
           "FolderTemplate": "$studio/$year",
           "dateFormat": "yyyy-MM-dd",
-          "Case": "Title",
+          "Case": "title",
           "asciiTransliterate": true,
           "filenameMax": 200,
           "FullPathMax": 240,
@@ -49,12 +25,12 @@ public sealed class OptionsRoundTripTests
           "performers": {
             "separator": " & ",
             "maxCount": 3,
-            "onOverflow": "KeepFirst",
-            "sort": "None",
+            "onOverflow": "keepFirst",
+            "sort": "none",
             "whitelistIds": [11, 12],
             "blacklistIds": [13]
           },
-          "Tags": { "separator": "_", "sort": "NameAsc" },
+          "Tags": { "separator": "_", "sort": "nameAsc" },
           "dropOrder": ["title", "studio", "tags"],
           "requiredFields": ["title", "studio"]
         }

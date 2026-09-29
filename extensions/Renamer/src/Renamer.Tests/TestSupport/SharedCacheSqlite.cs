@@ -19,7 +19,7 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
     private readonly SqliteConnection _keepAlive;
 
     // The connection string every context opens its own connection from (shared-cache, named).
-    public string ConnectionString { get; }
+    private string ConnectionString { get; }
 
     private SharedCacheSqlite(SqliteConnection keepAlive, string connectionString)
     {
@@ -28,7 +28,7 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
     }
 
     // Opens a fresh connection to the shared database with a generous busy-timeout.
-    public SqliteConnection OpenConnection()
+    private SqliteConnection OpenConnection()
     {
         var conn = new SqliteConnection(ConnectionString);
         conn.Open();

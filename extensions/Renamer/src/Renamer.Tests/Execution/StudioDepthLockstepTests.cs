@@ -7,19 +7,12 @@ namespace Renamer.Tests.Execution;
 
 public sealed class StudioDepthLockstepTests
 {
-    [Fact]
-    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForVideo()
-        => await AssertMaxDepthChainLoads(SeedKind.Video);
-
-    [Fact]
-    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForImage()
-        => await AssertMaxDepthChainLoads(SeedKind.Image);
-
-    [Fact]
-    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForAudio()
-        => await AssertMaxDepthChainLoads(SeedKind.Audio);
-
-    private static async Task AssertMaxDepthChainLoads(SeedKind kind)
+    [Theory]
+    [InlineData(RenamerFileKind.Video)]
+    [InlineData(RenamerFileKind.Image)]
+    [InlineData(RenamerFileKind.Audio)]
+    [InlineData(RenamerFileKind.Text)]
+    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors(RenamerFileKind kind)
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -31,10 +24,10 @@ public sealed class StudioDepthLockstepTests
             db.Set<Studio>().Add(direct);
             await db.SaveChangesAsync();
 
-            var (renamerKind, entityId) = await SeedEntityWithStudioAsync(db, kind, direct.Id);
+            int entityId = await SeedEntityWithStudioAsync(db, kind, direct.Id);
 
             var port = new CoveRenamerDataPort(db);
-            var entity = await port.LoadEntityAsync(renamerKind, entityId);
+            var entity = await port.LoadEntityAsync(kind, entityId);
 
             Assert.NotNull(entity);
             Assert.NotNull(entity!.ParentStudios);
@@ -94,8 +87,6 @@ public sealed class StudioDepthLockstepTests
         }
     }
 
-    private enum SeedKind { Video, Image, Audio }
-
     // Seeds count Studio rows root→leaf (each saved before the next references its Id) and returns
     // them in seed order (index 0 = root, index ^1 = the studio nearest the entity's direct
     // studio).
@@ -115,37 +106,42 @@ public sealed class StudioDepthLockstepTests
         return chain;
     }
 
-    private static async Task<(RenamerFileKind kind, int entityId)> SeedEntityWithStudioAsync(
-        DbContext db, SeedKind kind, int directStudioId)
+    private static async Task<int> SeedEntityWithStudioAsync(
+        DbContext db, RenamerFileKind kind, int directStudioId)
     {
         switch (kind)
         {
-            case SeedKind.Video:
+            case RenamerFileKind.Video:
                 {
                     var (_, id, _) = await ExecutorTestSeed.SeedVideoAsync(
                         db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
-                    var e = await db.Set<Video>().FirstAsync(x => x.Id == id);
-                    e.StudioId = directStudioId;
+                    (await db.Set<Video>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
                     await db.SaveChangesAsync();
-                    return (RenamerFileKind.Video, id);
+                    return id;
                 }
-            case SeedKind.Image:
+            case RenamerFileKind.Image:
                 {
                     var (_, id, _) = await ExecutorTestSeed.SeedImageAsync(
                         db, folderPath: "media/incoming", basename: "shot.jpg", title: "A Shot");
-                    var e = await db.Set<Image>().FirstAsync(x => x.Id == id);
-                    e.StudioId = directStudioId;
+                    (await db.Set<Image>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
                     await db.SaveChangesAsync();
-                    return (RenamerFileKind.Image, id);
+                    return id;
                 }
-            case SeedKind.Audio:
+            case RenamerFileKind.Audio:
                 {
                     var (_, id, _) = await ExecutorTestSeed.SeedAudioAsync(
                         db, folderPath: "media/incoming", basename: "track.mp3", title: "A Track");
-                    var e = await db.Set<Audio>().FirstAsync(x => x.Id == id);
-                    e.StudioId = directStudioId;
+                    (await db.Set<Audio>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
                     await db.SaveChangesAsync();
-                    return (RenamerFileKind.Audio, id);
+                    return id;
+                }
+            case RenamerFileKind.Text:
+                {
+                    var (_, id, _) = await ExecutorTestSeed.SeedTextAsync(
+                        db, folderPath: "media/incoming", basename: "notes.pdf", title: "A Note");
+                    (await db.Set<TextDocument>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
+                    await db.SaveChangesAsync();
+                    return id;
                 }
             default:
                 throw new ArgumentOutOfRangeException(nameof(kind));

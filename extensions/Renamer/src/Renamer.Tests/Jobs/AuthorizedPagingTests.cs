@@ -1,55 +1,25 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Events;
-using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
-
 namespace Renamer.Tests.Jobs;
 
-[Collection(SubstDriveScope.CollectionName)]
 public sealed class AuthorizedPagingTests
 {
-    private static async Task<global::Renamer.Renamer> BuildAsync(
-        SharedCacheSqlite shared, RenamerOptions options, IAuthorizationService authz)
-    {
-        var services = new ServiceCollection();
-        services.AddScoped<DbContext>(_ => shared.NewContext());
-        services.AddSingleton<IEventBus>(new CapturingEventBus());
-        services.AddSingleton(authz);
-        var provider = services.BuildServiceProvider();
-
-        var ext = RenamerFixture.Create();
-        var store = new ConcurrentFakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider);
-        return ext;
-    }
-
     // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", and returns
     // their entity ids in the order the walk pages them.
-    private static async Task<int[]> SeedVideosAsync(DbContext db, string dirRoot, int count)
+    private static async Task<IReadOnlyList<int>> SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
-        var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw 0.mkv", "Film 0");
-        File.WriteAllText(Path.Combine(dirRoot, "raw 0.mkv"), "bytes-0");
-
-        var ids = new List<int> { firstId };
-        for (int i = 1; i < count; i++)
+        var ids = await ExecutorTestSeed.SeedVideosAsync(db, count, i => (folderPath, $"raw {i}.mkv", $"Film {i}"));
+        for (int i = 0; i < count; i++)
         {
-            var video = new Video { Title = $"Film {i}", Organized = true };
-            db.Set<Video>().Add(video);
-            await db.SaveChangesAsync();
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
             File.WriteAllText(Path.Combine(dirRoot, $"raw {i}.mkv"), $"bytes-{i}");
-            ids.Add(video.Id);
         }
 
-        return [.. ids];
+        return ids;
     }
 
     private static Task<RecordingAuthorizationService> RunOverFourVideosAsync(
@@ -62,7 +32,7 @@ public sealed class AuthorizedPagingTests
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
-            int[] ids;
+            IReadOnlyList<int> ids;
             await using (var seedDb = shared.NewContext())
             {
                 ids = await SeedVideosAsync(seedDb, dir.Root, count);
@@ -75,7 +45,8 @@ public sealed class AuthorizedPagingTests
             }
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var ext = await BuildAsync(shared, options, authz);
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
+                shared, options, authorization: authz);
 
             var caller = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite).Current;
             global::Renamer.AllowedIds allowedIds = (kind, pageIds, token) =>

@@ -10,7 +10,7 @@ public sealed class CaseOnlyRenameTests
     [Fact]
     public async Task CaseOnlyRename_OfFileOntoItself_IsCleanRename_NotSuffixed()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
+        Assert.SkipUnless(PathOps.PathsIgnoreCase, "asserts case-insensitive path semantics");
 
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -38,7 +38,7 @@ public sealed class CaseOnlyRenameTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
+            // A clean rename: exactly one renamed, nothing skipped or failed, and the new name is the
             // case-corrected target - not a suffixed Movie (1).mkv.
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
@@ -68,47 +68,39 @@ public sealed class CaseOnlyRenameTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, sourceId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "other.mkv", "My Film");
 
-            // Seed three distinct files in one folder: the lower-case "movie.mkv", a different
-            // "Movie.mkv" already occupying the case-variant name, and the source we will renamer.
-            var (folderId, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "Movie.mkv");
-            var sourceId = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "other.mkv");
-
-            File.WriteAllText(Path.Combine(dir.Root, "movie.mkv"), "lower-bytes");
-            File.WriteAllText(Path.Combine(dir.Root, "Movie.mkv"), "different-file-bytes");
+            // The occupant is on disk with no file row, so the disk-side check is the only thing that
+            // can see it. The source is not a case-variant of the target, so the self-path exclusion
+            // must not apply.
             File.WriteAllText(Path.Combine(dir.Root, "other.mkv"), "source-bytes");
+            File.WriteAllText(Path.Combine(dir.Root, "Movie.mkv"), "different-file-bytes");
+            bool caseInsensitiveVolume = File.Exists(Path.Combine(dir.Root, "MOVIE.mkv"));
 
-            // Renamer the third source onto the case-variant name a different file already holds.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
-                new RenamerPlanItem(sourceId, folderPath + "/other.mkv", folderPath + "/Movie.mkv",
-                    RenamerStatus.Rename, "Movie.mkv", folderPath),
+                new RenamerPlanItem(sourceId, folderPath + "/other.mkv", folderPath + "/MOVIE.mkv",
+                    RenamerStatus.Rename, "MOVIE.mkv", folderPath),
             ]);
 
-            var port = new CoveRenamerDataPort(db);
-            var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
+            var executor = new RenamerExecutor(
+                new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // No clobber: the source did not land on the existing Movie.mkv. It was either suffixed to a
-            // free name (Renamed, not "Movie.mkv") or skip-collisioned.
-            if (result.Renamed.Count == 1)
-            {
-                Assert.NotEqual(folderPath + "/Movie.mkv", result.Renamed[0].NewPath.Replace('\\', '/'));
-                Assert.Empty(result.Failed);
-            }
-            else
-            {
-                var skipped = Assert.Single(result.Skipped);
-                Assert.Equal(RenamerStatus.SkipCollision, skipped.Status);
-                Assert.Empty(result.Renamed);
-            }
+            // Where MOVIE.mkv and Movie.mkv are one slot the occupant takes it, so the loop suffixes;
+            // where they are two, MOVIE.mkv is a free name of its own.
+            string expectedBasename = caseInsensitiveVolume ? "MOVIE (1).mkv" : "MOVIE.mkv";
+            var renamed = Assert.Single(result.Renamed);
+            Assert.Equal(folderPath + "/" + expectedBasename, renamed.NewPath);
+            Assert.Empty(result.Skipped);
+            Assert.Empty(result.Failed);
 
-            // The pre-existing different file at Movie.mkv is untouched - its bytes survive intact.
+            Assert.Equal("source-bytes", File.ReadAllText(Path.Combine(dir.Root, expectedBasename)));
             Assert.Equal("different-file-bytes", File.ReadAllText(Path.Combine(dir.Root, "Movie.mkv")));
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, sourceId);
+            Assert.Equal(expectedBasename, basename);
         }
         finally
         {

@@ -11,7 +11,7 @@ import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 /**
  * How long the server keeps a batch, in milliseconds: a copy of `CoveRevertJournal.RetentionWindow`,
- * which `RetentionWindowPinTests` pins to the same seven days.
+ * which `RetentionWindowPinTests.RetentionWindow_IsSevenDays` pins to the same seven days.
  */
 export const RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 

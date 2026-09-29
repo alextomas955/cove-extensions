@@ -42,14 +42,12 @@ export default defineConfig({
   // see fixtures.mjs) seed their own uniquely-named data per test (timestamp + random suffix), so
   // concurrent tests in different workers never collide even though a worker's own tests run one
   // at a time against its instance. Files that mutate shared extension state itself (install/
-  // enable/disable/uninstall - see extension-lifecycle.spec.mjs) opt out of the shared harness
-  // entirely via their own `scope: 'test'` fixture, so parallel workers never race on those
-  // mutations either.
+  // enable/disable/uninstall) opt out of the shared harness entirely through
+  // `isolatedHarnessFixtures`, so parallel workers never race on those mutations either.
   //
   // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own Compose
   // stack plus a Chromium instance. Every stack joins one shared network, so the count is bounded by
-  // CPU and memory, not by Docker's address pool. 8 ran the Renamer suite green twice at 2.0m against
-  // 6's 2.5m on a machine running nothing else. Override with `--workers=N`.
+  // CPU and memory, not by Docker's address pool. Override with `--workers=N`.
   fullyParallel: true,
   // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.

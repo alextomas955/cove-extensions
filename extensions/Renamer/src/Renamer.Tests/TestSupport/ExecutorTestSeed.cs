@@ -11,7 +11,7 @@ internal static class ExecutorTestSeed
     public static async Task<(int folderId, int videoId, int fileId)> SeedVideoAsync(
         DbContext db, string folderPath, string basename, string title,
         bool organized = true, DateOnly? date = null, int height = 0, int width = 0,
-        CancellationToken ct = default)
+        long size = 0, CancellationToken ct = default)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
         db.Set<Folder>().Add(folder);
@@ -29,6 +29,7 @@ internal static class ExecutorTestSeed
             VideoId = video.Id,
             Height = height,
             Width = width,
+            Size = size,
         };
         db.Set<VideoFile>().Add(file);
         await db.SaveChangesAsync(ct);

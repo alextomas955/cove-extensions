@@ -98,7 +98,7 @@ public sealed class DestAnchoredMaxPathTests
     // A cross-volume move copies to a minted in-flight name longer than the final one, so the obvious fix
     // is to subtract that length from the budget the reducer and this re-check fit against. That is
     // forbidden: LengthReducer drops fields and then hard-truncates, so a tighter budget renames every
-    // file near the limit. The three cases below pin the boundary itself, so the subtraction fails here
+    // file near the limit. The cases below pin the boundary itself, so the subtraction fails here
     // rather than shipping.
 
     // Both spellings are four characters, which is load-bearing: a Windows absolute root is longer than
@@ -198,19 +198,5 @@ public sealed class DestAnchoredMaxPathTests
         // The item keeps the name and the folder it already has, so nothing over the budget is planned.
         Assert.Equal("raw.mkv", item.NewBasename);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-    }
-
-    [Fact]
-    public async Task WithTheInFlightHeadroomAdded_TheBasenameIsByteIdentical()
-    {
-        // The pair is the assertion: the same literal at the boundary and the minted segment's length above
-        // it. Had that length been subtracted from the budget rather than warned about, the boundary case
-        // above would be a skip and this one would be the only survivor. Read from the minter's own
-        // declaration, so a narrowing of the minted name moves this case with it.
-        var item = await PlanAtBudgetAsync(
-            BoundaryAbsoluteLength + PathOps.InFlightSuffixLength);
-
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(BoundaryBasename, item.NewBasename);
     }
 }

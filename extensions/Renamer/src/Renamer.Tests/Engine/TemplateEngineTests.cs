@@ -56,26 +56,53 @@ public class TemplateEngineTests
         Assert.Equal("a-b", r.Filename); // unknown token -> empty
     }
 
-    [Fact]
-    public void CoreTokens_Resolution_DerivedFromBothDimensions()
+    private static Dictionary<string, string> Dimensions(string title, string? width, string? height)
     {
-        var tokens = new Dictionary<string, string>
+        var tokens = new Dictionary<string, string> { ["title"] = title };
+        if (width is not null)
         {
-            ["width"] = "3840",
-            ["height"] = "2160",
-            ["title"] = "X",
-        };
-        var r = Render("$title $resolution", tokens);
-        Assert.Equal("X 4K", r.Filename);
+            tokens["width"] = width;
+        }
+
+        if (height is not null)
+        {
+            tokens["height"] = height;
+        }
+
+        return tokens;
+    }
+
+    [Theory]
+    [InlineData("3840", "2160", "X [4K]")]
+    // A portrait file carries the label of its landscape twin, as Cove's own badge does.
+    [InlineData("1080", "1920", "X [1080p]")]
+    public void CoreTokens_Resolution_DerivedFromBothDimensions(string width, string height, string expected)
+    {
+        var r = Render("$title{ [$resolution]}", Dimensions("X", width, height));
+        Assert.Equal(expected, r.Filename);
+    }
+
+    [Theory]
+    [InlineData(null, "1920")]
+    [InlineData("1920", null)]
+    // Cove stores an unknown dimension as 0, which is the shape of a file Cove never probed.
+    [InlineData("0", "2160")]
+    [InlineData("1920", "0")]
+    public void CoreTokens_Resolution_UnknownDimension_DropsTheResolutionGroup(string? width, string? height)
+    {
+        var r = Render("$title{ [$resolution]}", Dimensions("X", width, height));
+        Assert.Equal("X", r.Filename);
     }
 
     [Fact]
-    public void CoreTokens_Resolution_ZeroOrMissingHeight_RendersEmpty()
+    public void CoreTokens_Resolution_CallerSuppliedValue_WinsOverTheDerivedOne()
     {
-        // A zero/absent height must render no resolution tag, not a garbage "[0]": the token stays
-        // out of the map, so the "{ [$resolution]}" group collapses.
-        var zero = Render("X{ [$resolution]}", new Dictionary<string, string> { ["height"] = "0" });
-        Assert.Equal("X", zero.Filename);
+        var tokens = Dimensions("Upright", "1080", "1920");
+        tokens["resolution"] = "vertical";
+
+        var r = Render("$title{ [$resolution]}", tokens);
+
+        Assert.Equal("Upright [vertical]", r.Filename);
     }
 
     [Fact]
@@ -502,21 +529,23 @@ public class TemplateEngineTests
     }
 
     [Fact]
-    public void OptionalGroup_UnbalancedBrace_DoesNotThrow()
+    public void OptionalGroup_UnclosedBrace_RendersAsAGroup()
     {
         var tokens = new Dictionary<string, string> { ["title"] = "X" };
-        var ex = Record.Exception(() => Render("$title {$studio", tokens));
-        Assert.Null(ex);
+        var withStudio = new Dictionary<string, string>(tokens) { ["studio"] = "Acme" };
+
+        Assert.Equal("X", Render("$title {- $studio", tokens).Filename);
+        Assert.Equal("X - Acme", Render("$title {- $studio", withStudio).Filename);
     }
 
-    // ---- default grouped template: {$date - }$title{ [$height]} degradation ----
+    // ---- grouped template: {$date - }$title{ [$height]} degradation ----
 
     [Theory]
     [InlineData("2026-03-12", "1080", "2026-03-12 - Title [1080p]")] // both groups render
     [InlineData("", "1080", "Title [1080p]")]                        // date-less: no leading " - "
     [InlineData("2026-03-12", "", "2026-03-12 - Title")]             // height-less: no empty brackets
     [InlineData("", "", "Title")]                                    // bare title only
-    public void DefaultGroupedTemplate_DegradesCleanly(string date, string height, string expected)
+    public void GroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
         if (date.Length > 0)
@@ -551,15 +580,6 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string> { ["title"] = "a/b" };
         var r = Render("$title", tokens);
         Assert.Equal("ab", r.Filename); // '/' is illegal in a filename segment -> stripped
-    }
-
-    [Fact]
-    public void FolderTemplate_RendersIndependentlyOfFilename()
-    {
-        var tokens = new Dictionary<string, string> { ["studio"] = "Acme", ["title"] = "Movie" };
-        var r = Render("$title", tokens, folder: "$studio");
-        Assert.Equal("Acme", r.FolderPath);
-        Assert.Equal("Movie", r.Filename);
     }
 
     [Fact]
@@ -605,52 +625,26 @@ public class TemplateEngineTests
         Assert.Equal("Archive/CWindows", Render("x", tokens, folder: "Archive/$studio").FolderPath);
     }
 
-    // ---- squeeze_studio_names (engine) ----
-
-    [Fact]
-    public void Squeeze_TwoStudioVariants_RenderToOneStableFolder()
-    {
-        var o = new RenamerOptions
-        {
-            FilenameTemplate = "$title",
-            FolderTemplate = "$studio",
-            SqueezeStudioNames = true,
-        };
-
-        var spaced = TemplateEngine.Render(
-            new Dictionary<string, string> { ["studio"] = "Reality Kings", ["title"] = "X" }, NoMulti, o);
-        var squeezed = TemplateEngine.Render(
-            new Dictionary<string, string> { ["studio"] = "RealityKings", ["title"] = "X" }, NoMulti, o);
-
-        Assert.Equal("RealityKings", spaced.FolderPath);
-        Assert.Equal("RealityKings", squeezed.FolderPath);
-    }
-
     // ---- default options ----
 
     [Fact]
-    public void DefaultOptions_RenderTheLiteralOutput()
+    public void DefaultOptions_RenderTheShippedTemplates()
     {
-        // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Movie",
             ["studio"] = "Acme Studio",
-            ["year"] = "2026",
+            ["date"] = "2026-06-27",
             ["width"] = "1920",
             ["height"] = "1080",
-        };
-        var o = new RenamerOptions
-        {
-            FilenameTemplate = "$title{ [$resolution]}",
-            FolderTemplate = "$studio/$year",
+            ["ext"] = "mkv",
         };
 
-        var r = TemplateEngine.Render(tokens, NoMulti, o);
+        var r = TemplateEngine.Render(tokens, NoMulti, new RenamerOptions());
 
-        Assert.Equal("The Movie [1080p]", r.Filename);
-        Assert.Equal("Acme Studio/2026", r.FolderPath);
-        Assert.Equal("", r.Ext);
+        Assert.Equal("2026-06-27 - The Movie [1080p]", r.Filename);
+        Assert.Equal("", r.FolderPath);
+        Assert.Equal(".mkv", r.Ext);
     }
 
     // ---- field rewrites end-to-end ----
@@ -713,8 +707,7 @@ public class TemplateEngineTests
     [Fact]
     public void PreventTitlePerformer_ComparesAgainstRewrittenTitle()
     {
-        // prepositions_removal strips the leading article: "The Eve" -> "Eve" before
-        // so Eve (now a whole word in the rewritten title) is dropped.
+        // The article strip turns "The Eve" into "Eve" before the performer match, so Eve is dropped.
         var tokens = new Dictionary<string, string> { ["title"] = "The Eve" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -750,22 +743,6 @@ public class TemplateEngineTests
         var r = TemplateEngine.Render(tokens, NoMulti, o);
 
         Assert.Equal("Foo/Bar", r.FolderPath); // Foo/Foo/Bar -> Foo/Bar
-    }
-
-    [Fact]
-    public void PreventConsecutive_LeavesNonConsecutiveFolderSegments()
-    {
-        var tokens = new Dictionary<string, string> { ["studio"] = "Foo", ["year"] = "Bar", ["title"] = "X" };
-        var o = new RenamerOptions
-        {
-            FilenameTemplate = "$title",
-            FolderTemplate = "$studio/$year/$studio",
-            PreventConsecutiveSegments = true,
-        };
-
-        var r = TemplateEngine.Render(tokens, NoMulti, o);
-
-        Assert.Equal("Foo/Bar/Foo", r.FolderPath); // non-consecutive untouched
     }
 
     [Fact]
@@ -846,8 +823,8 @@ public class TemplateEngineTests
     [Fact]
     public void Performers_RecordPath_DropsTitlePerformer_ThenOrders()
     {
-        // prevent_title_performer still drops a performer named in the title (by name) before the limit, and the
-        // record ordering then operates only on the survivors.
+        // The title performer drops by name before the limit, and the id sort then orders only the
+        // survivors. Id order differs from name order, so the name-only list would render "Bob, Carol".
         var tokens = new Dictionary<string, string> { ["title"] = "Eve Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -856,8 +833,8 @@ public class TemplateEngineTests
         var records = new[]
         {
             new RenamerPerformer(1, "Eve", false, "Female"),
-            new RenamerPerformer(2, "Bob", false, "Male"),
-            new RenamerPerformer(3, "Carol", false, "Female"),
+            new RenamerPerformer(3, "Bob", false, "Male"),
+            new RenamerPerformer(2, "Carol", false, "Female"),
         };
         var o = new RenamerOptions
         {
@@ -867,7 +844,7 @@ public class TemplateEngineTests
             Performers = new MultiValueOptions
             {
                 Separator = ", ",
-                Sort = SortOrder.NameAsc,
+                Sort = SortOrder.IdAsc,
                 MaxCount = 2,
                 OnOverflow = OverflowPolicy.KeepFirst,
             },
@@ -875,85 +852,22 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, multi, o, performers: records);
 
-        Assert.Equal("Bob, Carol", r.Filename);
-    }
-
-    [Fact]
-    public void Performers_RecordPath_DuplicateName_KeepsBothWhenNeitherInTitle()
-    {
-        // Two distinct performers share the name "Alex" (the DB does not enforce unique performer
-        // names). When neither is named in the title, both survive the drop and both render - the
-        // record channel preserves per-position multiplicity rather than collapsing duplicates by name.
-        var tokens = new Dictionary<string, string> { ["title"] = "Bob Goes Home" };
-        var multi = new Dictionary<string, IReadOnlyList<string>>
-        {
-            ["performers"] = new[] { "Alex", "Alex", "Bob" },
-        };
-        var records = new[]
-        {
-            new RenamerPerformer(1, "Alex", false, "Female"),
-            new RenamerPerformer(2, "Alex", false, "Male"),
-            new RenamerPerformer(3, "Bob", false, "Male"),
-        };
-        var o = new RenamerOptions
-        {
-            FilenameTemplate = "$performers",
-            PreventTitlePerformer = true,
-            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
-            Performers = new MultiValueOptions { Separator = ", ", Sort = SortOrder.None },
-        };
-
-        var r = TemplateEngine.Render(tokens, multi, o, performers: records);
-
-        Assert.Equal("Alex, Alex", r.Filename);
-    }
-
-    [Fact]
-    public void DropPerformersInTitleRecords_DropsOnlyTitleMatchedPositions_KeepsDuplicates()
-    {
-        var records = new[]
-        {
-            new RenamerPerformer(1, "Alex", false, "Female"),
-            new RenamerPerformer(2, "Alex", false, "Male"),
-            new RenamerPerformer(3, "Eve", false, "Female"),
-        };
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-
-        var survivors = FieldRewriter.DropPerformersInTitle(records, "Eve Goes Home", o);
-
-        Assert.Equal([1, 2], survivors.Select(p => p.Id).ToArray());
+        Assert.Equal("Carol, Bob", r.Filename);
     }
 
     // ---- NormalizePunctuation: end-to-end render (default on) ----
 
-    [Fact]
-    public void NormalizePunctuation_On_FoldsCurlyApostrophe()
+    [Theory]
+    [InlineData("It’s Here", "It's Here")]
+    // The folded straight double-quote is OS-illegal, so the clean step removes it afterwards.
+    [InlineData("“Hi”", "Hi")]
+    [InlineData("A–B", "A-B")]
+    // Mid-title, so the folded dots are not trimmed as trailing-edge dots.
+    [InlineData("Wait… What", "Wait... What")]
+    public void NormalizePunctuation_OnByDefault_FoldsBeforeTheClean(string title, string expected)
     {
-        var r = Render("$title", new Dictionary<string, string> { ["title"] = "It’s Here" });
-        Assert.Equal("It's Here", r.Filename);
-    }
-
-    [Fact]
-    public void NormalizePunctuation_On_StraightDoubleQuote_ThenStrippedByClean()
-    {
-        // The folded straight double-quote is OS-illegal, so CleanSegment removes it afterwards.
-        var r = Render("$title", new Dictionary<string, string> { ["title"] = "“Hi”" });
-        Assert.Equal("Hi", r.Filename);
-    }
-
-    [Fact]
-    public void NormalizePunctuation_On_FoldsEnDash()
-    {
-        var r = Render("$title", new Dictionary<string, string> { ["title"] = "A–B" });
-        Assert.Equal("A-B", r.Filename);
-    }
-
-    [Fact]
-    public void NormalizePunctuation_On_FoldsEllipsis()
-    {
-        // The ellipsis is mid-title so the folded three dots are not trimmed as trailing-edge dots.
-        var r = Render("$title", new Dictionary<string, string> { ["title"] = "Wait… What" });
-        Assert.Equal("Wait... What", r.Filename);
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = title });
+        Assert.Equal(expected, r.Filename);
     }
 
     [Fact]

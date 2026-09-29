@@ -13,8 +13,7 @@ public sealed class AutoRenamerRoutingTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // src and dest are sibling folders under one temp root → same volume, so the DiskMover
-            // atomic File.Move path applies (no cross-volume mover needed in this slice).
+            // Sibling folders under one temp root, so the same-volume atomic move path applies.
             string srcFolder = Path.Combine(dir.Root, "incoming");
             string destRoot = Path.Combine(dir.Root, "sorted");
             Directory.CreateDirectory(srcFolder);
@@ -37,8 +36,9 @@ public sealed class AutoRenamerRoutingTests
                         Pattern = srcPathFwd, Dest = Dest.At(destRootFwd, "Films"), IsRegex = false,
                     }],
             };
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(
-                db, options, srcPathFwd, destRootFwd);
+            var bus = new CapturingEventBus();
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options, bus, srcPathFwd, destRootFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
@@ -49,7 +49,7 @@ public sealed class AutoRenamerRoutingTests
 
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Contains("sorted/Films/My Film.mkv", pathAfter.Replace('\\', '/'));
-            Assert.Single(bus.Published); // one acting move → one re-raised event
+            Assert.Single(bus.Published);
         }
         finally
         {
@@ -83,8 +83,9 @@ public sealed class AutoRenamerRoutingTests
                 FilenameTemplate = "$title",
                 FolderRoot = defaultRootFwd,
             };
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(
-                db, options, srcPathFwd, defaultRootFwd);
+            var bus = new CapturingEventBus();
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options, bus, srcPathFwd, defaultRootFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
@@ -93,7 +94,7 @@ public sealed class AutoRenamerRoutingTests
 
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Contains("overflow/My Film.mkv", pathAfter.Replace('\\', '/'));
-            Assert.Single(bus.Published); // one acting move → one re-raised event
+            Assert.Single(bus.Published);
         }
         finally
         {

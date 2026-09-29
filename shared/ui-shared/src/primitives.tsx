@@ -68,6 +68,7 @@ function chipClass(selected: boolean): string {
 /** Shared selectable-chip button, wrapping {@link chipClass} so every chip site renders identically. */
 export function Chip({
   selected,
+  toggle = false,
   onClick,
   disabled,
   title,
@@ -75,6 +76,9 @@ export function Chip({
   children,
 }: {
   selected: boolean;
+  // A chip that picks a value reports its state to assistive technology. An action chip, which
+  // inserts or applies something, is a plain button even when it is tinted.
+  toggle?: boolean;
   onClick: () => void;
   disabled?: boolean;
   title?: string;
@@ -87,6 +91,7 @@ export function Chip({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-pressed={toggle ? selected : undefined}
       className={mono ? `${chipClass(selected)} font-mono` : chipClass(selected)}
     >
       {children}
@@ -418,6 +423,7 @@ export function SeparatorChips({
             <Chip
               key={o.value || "__empty__"}
               selected={selected}
+              toggle
               onClick={() => {
                 onChange(o.value);
               }}
@@ -428,6 +434,7 @@ export function SeparatorChips({
         })}
         <Chip
           selected={isCustom}
+          toggle
           onClick={() => {
             // Selecting Custom from a preset clears to a fresh custom entry; if already custom, keep.
             if (!isCustom) onChange("");
@@ -516,10 +523,10 @@ export function SegmentedReplace({
   return (
     <div>
       <div className="flex gap-1">
-        <Chip selected={!replaceActive} onClick={chooseStrip}>
+        <Chip selected={!replaceActive} toggle onClick={chooseStrip}>
           {stripLabel}
         </Chip>
-        <Chip selected={replaceActive} onClick={chooseReplace}>
+        <Chip selected={replaceActive} toggle onClick={chooseReplace}>
           {replaceLabel}
         </Chip>
       </div>
@@ -853,6 +860,7 @@ export function ChipMultiSelect({
           <Chip
             key={o.value}
             selected={selected}
+            toggle
             onClick={() => {
               toggle(o.value);
             }}

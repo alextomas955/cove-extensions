@@ -80,6 +80,8 @@ now sees the label, for example `1080p`. `$width` is unchanged and is still a pl
   run a new one after upgrading.
 - `POST /renamer-library` now also returns a `runId`. `GET /last-library-rename/{runId}` returns that
   run's counts: files renamed, skipped and failed, and the kinds that stopped for lack of space.
+- `PUT /options` now stores a null list or a length cap below 1 as its default. It used to store
+  the value as sent and replace it only when the settings were next read.
 
 ### Fixes
 
@@ -119,6 +121,7 @@ now sees the label, for example `1080p`. `$width` is unchanged and is still a pl
   that still has files to put back. It used to say only one batch is kept, which was out of date.
 - A screen reader now announces the name of each tag, performer and studio list's search box, for
   example "Exclude by tag". The box used to be read with no name.
+- The progress bar of a rename no longer steps backwards while files are renamed in parallel.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 

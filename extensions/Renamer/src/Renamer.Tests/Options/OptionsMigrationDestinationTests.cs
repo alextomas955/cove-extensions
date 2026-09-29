@@ -138,16 +138,13 @@ public sealed class OptionsMigrationDestinationTests
     {
         // Asked with no library paths, because Deferred is true for exactly "there is a site and
         // nothing to place it under" - so it reports the site walk's answer and no part of the
-        // arithmetic that follows.
-        //
-        // The settings panel refuses to save while this half has work, so its own
-        // `hasUnmigratedDestinations` has to read every value the way the walk does here. This theory
-        // is the C# half of that agreement, transcribed into the panel's `options.test.ts` as the same
-        // table.
-        var converted = OptionsMigration.ConvertDestinationsToRoots(
-            $$"""{ "StudioDestinations": { "101": {{valueJson}} } }""", []);
+        // arithmetic that follows. The settings endpoint asks the same question through
+        // HasLegacyDestinations, reports it as the pending conversion and refuses a save while it is
+        // true, so the two answers have to agree.
+        string json = $$"""{ "StudioDestinations": { "101": {{valueJson}} } }""";
 
-        Assert.Equal(isWork, converted.Deferred);
+        Assert.Equal(isWork, OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);
+        Assert.Equal(isWork, OptionsMigration.HasLegacyDestinations(json));
     }
 
     [Theory]
@@ -161,6 +158,7 @@ public sealed class OptionsMigrationDestinationTests
     public void EveryPlaceThisHalfRewrites_CountsAsWork(string json)
     {
         Assert.True(OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);
+        Assert.True(OptionsMigration.HasLegacyDestinations(json));
     }
 
     [Theory]
@@ -176,6 +174,19 @@ public sealed class OptionsMigrationDestinationTests
         // stored, so a walk that read either as a site would defer forever on any install that
         // configured a folder template.
         Assert.False(OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);
+        Assert.False(OptionsMigration.HasLegacyDestinations(json));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("{ not json")]
+    public void HasLegacyDestinations_WithNoReadableBlob_IsFalse(string? json)
+    {
+        // An install that never saved, or whose blob cannot be read, has no destination left to
+        // convert, so the settings endpoint must not refuse its save.
+        Assert.False(OptionsMigration.HasLegacyDestinations(json));
     }
 
     [Fact]

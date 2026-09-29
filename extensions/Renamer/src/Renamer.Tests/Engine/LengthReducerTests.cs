@@ -38,60 +38,6 @@ public class LengthReducerTests
         Assert.True(LengthReducer.FitsBoth("folder", "name", ".mkv", o));
     }
 
-    // ---- Control: a short name is returned unchanged (no drop, no truncate) ----
-
-    [Fact]
-    public void Fit_ShortName_ReturnedUnchanged()
-    {
-        var tokens = new Dictionary<string, string> { ["title"] = "Movie", ["ext"] = "mkv" };
-        var options = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "" };
-        var r = TemplateEngine.Render(tokens, new Dictionary<string, IReadOnlyList<string>>(), options);
-        Assert.Equal("Movie", r.Filename);
-        Assert.Equal(".mkv", r.Ext);
-        Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
-    }
-
-    // ---- The long fixture: drop every field, then hard-truncate the title ----
-
-    [Fact]
-    public void Fit_LongFixture_SatisfiesBothCaps()
-    {
-        var options = new RenamerOptions { FilenameTemplate = LongTemplateFixture.FilenameTemplate, FolderTemplate = "" };
-        var r = TemplateEngine.Render(LongTemplateFixture.Tokens, FixtureMulti, options);
-
-        Assert.True(r.Filename.Length + r.Ext.Length <= options.FilenameMax,
-            $"filename component {r.Filename.Length + r.Ext.Length} > {options.FilenameMax}");
-        int sep = r.FolderPath.Length > 0 ? 1 : 0;
-        int full = r.FolderPath.Length + sep + r.Filename.Length + r.Ext.Length;
-        Assert.True(full <= options.FullPathMax, $"full path {full} > {options.FullPathMax}");
-        Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
-    }
-
-    [Fact]
-    public void Fit_LongFixture_DroppedFieldsAreAbsent()
-    {
-        var options = new RenamerOptions { FilenameTemplate = LongTemplateFixture.FilenameTemplate, FolderTemplate = "" };
-        var r = TemplateEngine.Render(LongTemplateFixture.Tokens, FixtureMulti, options);
-
-        // The early drop-order fields' values must be gone from the final name.
-        Assert.DoesNotContain(LongTemplateFixture.Tokens["videoCodec"], r.Filename);
-        Assert.DoesNotContain(LongTemplateFixture.Tokens["audioCodec"], r.Filename);
-        Assert.DoesNotContain(LongTemplateFixture.Tokens["frameRate"], r.Filename);
-    }
-
-    [Fact]
-    public void Fit_LongFixture_TitleHardTruncated()
-    {
-        var options = new RenamerOptions { FilenameTemplate = LongTemplateFixture.FilenameTemplate, FolderTemplate = "" };
-        var r = TemplateEngine.Render(LongTemplateFixture.Tokens, FixtureMulti, options);
-
-        // The full long title (200+ chars) cannot survive intact within a 255-char filename.
-        Assert.DoesNotContain(LongTemplateFixture.LongTitle, r.Filename);
-        Assert.True(r.Filename.Length < LongTemplateFixture.LongTitle.Length);
-    }
-
-    // ---- the engine reports the fields it dropped ----
-
     [Fact]
     public void RenderWithDropped_ShortName_DropsNothing()
     {
@@ -102,25 +48,39 @@ public class LengthReducerTests
             tokens, new Dictionary<string, IReadOnlyList<string>>(), options);
 
         Assert.Equal("Movie", result.Filename);
-        Assert.Empty(dropped); // fit both caps without dropping anything
+        Assert.Equal(".mkv", result.Ext);
+        Assert.Empty(dropped);
     }
 
     [Fact]
-    public void RenderWithDropped_LongFixture_NamesDroppedFieldsInDropOrder()
+    public void RenderWithDropped_LongFixture_DropsEveryField_ThenTruncatesTheTitleToTheBudget()
     {
         var options = new RenamerOptions { FilenameTemplate = LongTemplateFixture.FilenameTemplate, FolderTemplate = "" };
 
-        var (_, dropped) = TemplateEngine.RenderWithDropped(LongTemplateFixture.Tokens, FixtureMulti, options);
+        var (r, dropped) = TemplateEngine.RenderWithDropped(LongTemplateFixture.Tokens, FixtureMulti, options);
 
-        // The fixture is engineered to exhaust every drop-order field, so the dropped set is the
-        // full DropOrder in order - proves the names come from the reducer, not a string diff.
+        // The fixture exhausts every drop-order field, so the reducer reports the full DropOrder in order.
         Assert.Equal(options.DropOrder, dropped);
+        foreach (var field in new[] { "studio", "studioCode", "resolution", "videoCodec", "audioCodec", "frameRate", "date" })
+        {
+            Assert.DoesNotContain(LongTemplateFixture.Tokens[field], r.Filename);
+        }
+
+        Assert.All(LongTemplateFixture.Performers, p => Assert.DoesNotContain(p, r.Filename));
+        Assert.All(LongTemplateFixture.Tags, t => Assert.DoesNotContain(t, r.Filename));
+
+        // The bare title still overruns, so the hard truncate cuts the name to exactly the filename
+        // budget: FilenameMax less the extension, which is tighter than the full-path budget here.
+        Assert.Equal(".mkv", r.Ext);
+        Assert.Equal(options.FilenameMax - r.Ext.Length, r.Filename.Length);
+        Assert.Contains(LongTemplateFixture.LongTitle[..100], r.Filename);
+        Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
     }
 
     [Fact]
-    public void Fit_ShortNameDeepFolder_ReducesToFitFullPath()
+    public void Fit_ShortNameDeepFolder_DropsTheFolderFieldAndKeepsTheName()
     {
-        // A short title but a folder template that renders very deep -> full path over 259.
+        // The folder alone overruns the full-path cap, and studio is a drop-order field.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Short",
@@ -133,7 +93,9 @@ public class LengthReducerTests
             FolderTemplate = "$studio",
         };
         var r = TemplateEngine.Render(tokens, new Dictionary<string, IReadOnlyList<string>>(), options);
-        Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
+
+        Assert.Equal("", r.FolderPath);
+        Assert.Equal("Short", r.Filename);
     }
 
     // ---- The hard truncate cuts between characters, never through one ----

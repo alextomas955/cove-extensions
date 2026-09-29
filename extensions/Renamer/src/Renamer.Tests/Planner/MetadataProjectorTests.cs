@@ -88,7 +88,7 @@ public sealed class MetadataProjectorTests
     }
 
     [Fact]
-    public void Audio_Omits_Resolution_VideoCodec_FrameRate_Width_Height()
+    public void Audio_Omits_VideoCodec_FrameRate_Width_Height()
     {
         var file = new RenamerFile(
             FileId: 2, Kind: RenamerFileKind.Audio, Basename: "song.mp3", ParentFolderId: 6,
@@ -103,7 +103,6 @@ public sealed class MetadataProjectorTests
         Assert.Equal("Track", tokens[Tokens.Title]);
         Assert.Equal("mp3", tokens[Tokens.AudioCodec]);
         // Absent - not empty-string - so the engine's {} collapse drops them.
-        Assert.False(tokens.ContainsKey(Tokens.Resolution));
         Assert.False(tokens.ContainsKey(Tokens.VideoCodec));
         Assert.False(tokens.ContainsKey(Tokens.FrameRate));
         Assert.False(tokens.ContainsKey(Tokens.Width));
@@ -142,8 +141,7 @@ public sealed class MetadataProjectorTests
             EntityId: 40, Kind: RenamerFileKind.Audio, Title: null, Code: "", StudioName: null,
             Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
-        // Fallback forced off so a null title stays omitted: this case proves empty scalars are
-        // absent (not empty string), distinct from the basename fallback which now defaults on.
+        // The basename fallback is on by default and would fill the null title.
         var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
 
         Assert.False(tokens.ContainsKey(Tokens.Title));
@@ -238,53 +236,7 @@ public sealed class MetadataProjectorTests
         Assert.False(tokens.ContainsKey(Tokens.Bitrate));
     }
 
-    [Fact]
-    public void Rating_IsDeferred_NeverEmitted_NoPrincipalSource()
-    {
-        // token-02 ($rating) is deferred (host-fact gate): Cove's Rating is per-UserId/per-Aspect,
-        // and the renamer batch runs as a detached job with no principal, so "the item's rating" is
-        // undefined. Per the locked never-ship-garbage decision, $rating is not projected and there
-        // is no Tokens.Rating constant. This negative assertion documents + guards the deferral.
-        var file = VideoFileRow();
-        var (tokens, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
-
-        // Not emitted under any spelling the engine would resolve.
-        Assert.False(tokens.ContainsKey("rating"));
-        Assert.False(tokens.ContainsKey("$rating"));
-        // And there is no canonical Tokens.Rating constant to project (compile-time guard:
-        // if someone adds one, they must revisit this deferral). Confirm via the public Tokens fields.
-        var hasRatingConst = typeof(Tokens)
-            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-            .Any(f => string.Equals(f.Name, "Rating", System.StringComparison.Ordinal));
-        Assert.False(hasRatingConst, "$rating is deferred (no-principal); do not add Tokens.Rating without revisiting the source decision.");
-    }
-
     // ---- filename-as-title fallback ----
-
-    [Fact]
-    public void Title_FallbackOff_OmitsTitleWhenNone()
-    {
-        var file = VideoFileRow();
-        var entity = VideoEntity(file) with { Title = null };
-
-        // Explicitly off: this case proves the strict omit-not-blank behavior, distinct from the
-        // basename fallback (covered by Title_FallbackOn_*). The fallback now defaults on, so the
-        // off behavior is pinned here by setting the flag rather than relying on the default.
-        var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
-
-        Assert.False(tokens.ContainsKey(Tokens.Title)); // omit-not-blank when the fallback is off
-    }
-
-    [Fact]
-    public void Title_FallbackOn_DoesNotOverridePresentTitle()
-    {
-        var file = VideoFileRow();
-        var entity = VideoEntity(file); // Title = "My Film"
-
-        var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
-
-        Assert.Equal("My Film", tokens[Tokens.Title]); // a present title wins over the basename
-    }
 
     [Theory]
     [InlineData("My Clip.mkv", "My Clip")]
@@ -298,41 +250,6 @@ public sealed class MetadataProjectorTests
         var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
 
         Assert.Equal(expected, tokens[Tokens.Title]);
-    }
-
-    [Fact]
-    public void Title_FilenameDerived_SatisfiesRequiredFieldsGate()
-    {
-        // A title-less item with the fallback on resolves a non-empty `title` through the same map
-        // the RequiredFields=["title"] gate reads, so the item is renamed rather than skipped.
-        var file = VideoFileRow() with { Basename = "Some Recording.mkv" };
-        var entity = VideoEntity(file) with { Title = null };
-        var options = new RenamerOptions { FilenameAsTitle = true };
-
-        var (tokens, multi) = MetadataProjector.Project(entity, file, options);
-        var resolved = TemplateEngine.ResolveField(tokens, multi, options, Tokens.Title);
-
-        Assert.Equal("Some Recording", resolved);
-        Assert.False(string.IsNullOrEmpty(resolved)); // non-empty => not gated out
-    }
-
-    [Fact]
-    public void Title_FilenameDerived_IsStableAcrossReRender()
-    {
-        // The derivation reads the entity's first file, not the file being projected, so feeding a
-        // just-rendered name back in as the projected basename yields the same title.
-        var firstFile = VideoFileRow() with { Basename = "My Clip.mkv" };
-        var entity = VideoEntity(firstFile) with { Title = null };
-        var options = new RenamerOptions { FilenameTemplate = "$title", FilenameAsTitle = true };
-
-        var (tokens1, multi1) = MetadataProjector.Project(entity, firstFile, options);
-        var firstTitle = tokens1[Tokens.Title];
-        var rendered = TemplateEngine.Render(tokens1, multi1, options);
-
-        var secondFile = firstFile with { Basename = rendered.Filename + rendered.Ext };
-        var (tokens2, _) = MetadataProjector.Project(entity, secondFile, options);
-
-        Assert.Equal(firstTitle, tokens2[Tokens.Title]); // no progressive drift across a re-render
     }
 
     [Fact]

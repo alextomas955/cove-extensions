@@ -10,7 +10,9 @@
 // tests" docs page (https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) for
 // the full add-a-suite guide.
 //
-// Run: cd tests/e2e && npm test -- template.spec.mjs
+// It does not run where it sits: playwright.config.mjs derives a project from each catalog entry's
+// e2ePath, and this directory is none. Once copied, run it with the rest of your suite:
+// cd tests/e2e && npm test -- --project=<your e2eProject>
 import { test, expect } from "../lib/fixtures.mjs";
 import { resolveExtensionPaths } from "../lib/resolve-extension.mjs";
 

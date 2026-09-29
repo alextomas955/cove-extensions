@@ -220,7 +220,7 @@ test("a dry run of saved settings starts the rename", async () => {
   await waitFor("the rows to load", () => walkFinished(modal));
 
   expect(modal.renameButton()?.disabled).toBe(false);
-  expect(modal.text()).not.toContain("a rename runs the saved ones");
+  expect(modal.text()).not.toContain("Previewing unsaved settings");
   modal.unmount();
 }, 30_000);
 

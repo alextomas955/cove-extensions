@@ -28,14 +28,13 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
     <!--
-      TEST-ONLY: the tests that need a real context stand one up on SQLite-in-memory
-      (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF providers +
+      TEST-ONLY: the tests that need a real context stand one up on SQLite-in-memory, which enforces
+      Cove's unique indexes and runs real transactions. This EF provider and
       Cove.Data/Cove.Core are referenced ONLY here; the deployed Renamer.dll publishes Renamer.csproj
       alone, so host assemblies are never bundled. No version-parity constraint with Cove.Data's own
       EF Core version. EF Core patch releases are binary-compatible within a major.minor line.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!--
       TEST-ONLY, and a version PIN on an edge that already exists rather than a new dependency: Npgsql
       is restored here anyway through Cove.Core → Pgvector, at a version that trails the one the host

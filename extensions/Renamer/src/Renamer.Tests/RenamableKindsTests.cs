@@ -1,3 +1,4 @@
+using Cove.Core.Auth;
 using Cove.Core.Events;
 using Renamer.Execution;
 
@@ -5,40 +6,34 @@ namespace Renamer.Tests;
 
 public sealed class RenamableKindsTests
 {
-    public static TheoryData<RenamerFileKind> Renamable()
+    [Theory]
+    [InlineData(RenamerFileKind.Video, Permissions.VideosRead, Permissions.VideosWrite)]
+    [InlineData(RenamerFileKind.Image, Permissions.ImagesRead, Permissions.ImagesWrite)]
+    [InlineData(RenamerFileKind.Audio, Permissions.AudiosRead, Permissions.AudiosWrite)]
+    [InlineData(RenamerFileKind.Text, Permissions.TextsRead, Permissions.TextsWrite)]
+    public void EveryRenamableKind_IsGatedOnItsOwnPermissionPair(RenamerFileKind kind, string read, string write)
     {
-        var data = new TheoryData<RenamerFileKind>();
-        foreach (var kind in RenamableKinds.All)
-        {
-            data.Add(kind);
-        }
-
-        return data;
+        Assert.Equal((read, write), global::Renamer.Renamer.PermissionsFor(kind));
     }
 
     [Theory]
-    [MemberData(nameof(Renamable))]
-    public void EveryRenamableKind_HasItsOwnPermissionPair(RenamerFileKind kind)
+    [InlineData(RenamerFileKind.Video, "Video", EventType.VideoUpdated)]
+    [InlineData(RenamerFileKind.Image, "Image", EventType.ImageUpdated)]
+    [InlineData(RenamerFileKind.Audio, "Audio", EventType.AudioUpdated)]
+    [InlineData(RenamerFileKind.Text, "Text", EventType.TextUpdated)]
+    public void EveryRenamableKind_AnnouncesItselfWithItsOwnEvent(RenamerFileKind kind, string entityType, EventType type)
     {
-        var (read, write) = global::Renamer.Renamer.PermissionsFor(kind);
-
-        Assert.False(string.IsNullOrWhiteSpace(read));
-        Assert.False(string.IsNullOrWhiteSpace(write));
-        Assert.NotEqual(read, write);
-        // Named for the kind, so a kind silently borrowing another's permission fails here rather
-        // than at an endpoint that lets the wrong caller through.
-        Assert.StartsWith(kind.ToString(), read, StringComparison.OrdinalIgnoreCase);
-        Assert.StartsWith(kind.ToString(), write, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(entityType, KindEvents.EntityTypeName(kind));
+        Assert.Equal(type, KindEvents.EventTypeFor(kind));
     }
 
-    [Theory]
-    [MemberData(nameof(Renamable))]
-    public void EveryRenamableKind_AnnouncesItself(RenamerFileKind kind)
+    // A kind added to the set without a row above leaves that kind's permissions and events unpinned.
+    [Fact]
+    public void TheRowsAbove_CoverEveryRenamableKind()
     {
-        Assert.Equal(kind.ToString(), KindEvents.EntityTypeName(kind));
         Assert.Equal(
-            Enum.Parse<EventType>(kind + "Updated"),
-            KindEvents.EventTypeFor(kind));
+            [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio, RenamerFileKind.Text],
+            RenamableKinds.All);
     }
 
     [Fact]

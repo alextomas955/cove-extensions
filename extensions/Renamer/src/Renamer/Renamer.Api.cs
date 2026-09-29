@@ -296,7 +296,10 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
         }
 
-        await StoredOptions.SaveAsync(options, ct);
+        // Repaired before the write, so the stored blob holds what every later load would answer and a
+        // null list or a zero length cap never reaches the store.
+        var optionsStore = StoredOptions;
+        await optionsStore.SaveAsync(optionsStore.Repair(options), ct);
         return TypedResults.NoContent();
     }
 

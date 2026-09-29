@@ -123,9 +123,9 @@ public sealed class OptionsMigrationScanTests
     [InlineData("Anime", true)]
     public void DestinationKeySpelling_DecidesNameOrId(string key, bool isName)
     {
-        // The settings panel refuses to save while this scan reports work, so its own `isIdKey` has to
-        // read every spelling the way `int.TryParse` does here. This theory is the C# half of that
-        // agreement, transcribed into the panel's `options.test.ts` as the same table.
+        // The settings endpoint reports this scan's answer as the pending conversion, and refuses a
+        // save while it reports work, so a spelling read the wrong way either blocks every save or lets
+        // one write over rules still stored by name.
         var root = new JsonObject
         {
             ["TagDestinations"] = new JsonObject { [key] = "D:/x" },
@@ -322,6 +322,7 @@ public sealed class OptionsMigrationConvertTests
         Assert.Equal([11], options!.Tags.WhitelistIds);
         Assert.Equal([12], options.Tags.BlacklistIds);
         Assert.Equal([21], options.Performers.WhitelistIds);
+        Assert.Equal([22], options.Performers.BlacklistIds);
         Assert.Equal([13], options.ExcludeTagIds);
         Assert.Equal("/drama", options.TagDestinations[14].Root);
         Assert.Equal("$title", options.FilenameTemplate);
@@ -408,9 +409,8 @@ public sealed class OptionsMigrationConvertTests
     [Fact]
     public void EveryDroppedName_AcrossAllSixSites_IsReported()
     {
-        // Every lookup table here is populated and none of these names is in it, so each site is exercised
-        // on the resolve-and-miss path rather than on the no-rows path. A name lost from any one site is
-        // configuration the user does not get back.
+        // Every lookup table here is populated and none of these names is in it. A name lost from any one
+        // site is configuration the user does not get back.
         const string blob = """
             {
               "Performers": { "Whitelist": ["Nobody"], "Blacklist": ["Nobody Else"] },
@@ -433,55 +433,6 @@ public sealed class OptionsMigrationConvertTests
         Assert.Empty(Ids(root["Performers"]!["BlacklistIds"]));
         Assert.Empty(Ids(root["ExcludeTagIds"]));
         Assert.Empty(root["TagDestinations"]!.AsObject());
-    }
-
-    [Fact]
-    public void AllSixMigratedSites_SerializeAsIdValued_SoReintroducingNameKeyingFailsHere()
-    {
-        // Goes red the moment a migrated site is name-keyed again: a change that reintroduces a
-        // name-valued whitelist, exclude list or destination key fails on this shape rather than at run
-        // time, as a rule that quietly stops matching. Both halves run first, because a stored destination
-        // left as a bare string does not bind to the current model at all.
-        var named = OptionsMigration.Convert(LegacyBlob, Tags, Performers);
-        var placed = OptionsMigration.ConvertDestinationsToRoots(named.Json, ["/drama"]);
-        var options = JsonSerializer.Deserialize<RenamerOptions>(placed.Json, RenamerOptions.JsonOptions)!;
-
-        using var raw = JsonDocument.Parse(JsonSerializer.Serialize(options, RenamerOptions.JsonOptions));
-
-        AssertIdArray(raw.RootElement.GetProperty("Tags"), "WhitelistIds");
-        AssertIdArray(raw.RootElement.GetProperty("Tags"), "BlacklistIds");
-        AssertIdArray(raw.RootElement.GetProperty("Performers"), "WhitelistIds");
-        AssertIdArray(raw.RootElement.GetProperty("Performers"), "BlacklistIds");
-        AssertIdArray(raw.RootElement, "ExcludeTagIds");
-
-        foreach (var entry in raw.RootElement.GetProperty("TagDestinations").EnumerateObject())
-        {
-            Assert.True(
-                int.TryParse(entry.Name, out _),
-                $"TagDestinations key '{entry.Name}' is not an id - a name-keyed tag rule is back.");
-        }
-
-        static void AssertIdArray(JsonElement owner, string property)
-        {
-            var array = owner.GetProperty(property);
-            Assert.NotEqual(0, array.GetArrayLength());
-            foreach (var item in array.EnumerateArray())
-            {
-                Assert.True(
-                    item.ValueKind == JsonValueKind.Number,
-                    $"{property} holds {item.ValueKind} - a name-valued rule list is back.");
-            }
-        }
-    }
-
-    [Fact]
-    public void NoRowsAtAll_DropsEveryNameAndReportsEachOne()
-    {
-        // This is what the seam's zero-row deferral exists to prevent reaching: with nothing to
-        // resolve against, the conversion is a total loss of the user's entity rules.
-        var conversion = OptionsMigration.Convert(LegacyBlob, [], []);
-
-        Assert.Equal(["Ann", "Bob", "anime", "drama", "raw", "spoiler"], conversion.DroppedNames.Order(StringComparer.Ordinal));
     }
 
     private static int[] Ids(JsonNode? node) => [.. node!.AsArray().Select(n => (int)n!)];

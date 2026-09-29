@@ -3,7 +3,7 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
-public sealed class LockedFileTests
+public sealed class DiskMoverTests
 {
     [Fact]
     public void LockedSource_FileShareNone_SkippedNotThrown_SourceIntact()

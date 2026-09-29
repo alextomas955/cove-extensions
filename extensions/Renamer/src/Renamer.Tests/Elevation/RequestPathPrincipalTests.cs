@@ -1,9 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Plugins;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Renamer.Contracts;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
-namespace Renamer.Tests.Api;
+namespace Renamer.Tests.Elevation;
 
 public sealed class RequestPathPrincipalTests
 {
@@ -65,7 +67,7 @@ public sealed class RequestPathPrincipalTests
         AssertRanEntirelyAsTheCaller(library);
 
         // A 403 or a 400 would also record no command, so name the outcome: the page was served.
-        Assert.NotNull(page);
+        Assert.IsType<Ok<ScanRowsPage>>(page.Result);
     }
 
     [Fact]
@@ -77,24 +79,12 @@ public sealed class RequestPathPrincipalTests
         library.Principals.Set(Caller(Permissions.VideosRead));
         library.CommandsExecuted.Clear();
 
-        // The paths-free undo probe the panel polls. It opens its own scope and reads the journal's batch
-        // row, and it is a third handler that does so unelevated - the source's prose names only two.
+        // The paths-free undo probe the panel polls. It opens its own scope to read the journal's batch
+        // row, and that scope stays unelevated.
         var summary = await ext.LastBatchAsync(library.Principals, default);
 
         AssertRanEntirelyAsTheCaller(library);
-        Assert.NotNull(summary);
-    }
-
-    [Fact]
-    public async Task LastBatch_AdmitsACallerWhoCanReadOnlyTexts()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-        var ext = await LoadedExtensionAsync(library);
-        library.Principals.Set(Caller(Permissions.TextsRead));
-
-        var result = await ext.LastBatchAsync(library.Principals, default);
-
-        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.LastBatchSummary>>(result.Result);
+        Assert.IsType<Ok<LastBatchSummary>>(summary.Result);
     }
 
     // Every command recorded since the last clear ran as the caller - a User - and none as System,

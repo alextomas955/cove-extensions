@@ -61,24 +61,27 @@ public sealed class EndpointPermissionTests
         Assert.True(exclusive);
     }
 
-    [Fact]
-    public async Task RenamerEnqueue_ImageRequest_RequiresImagesWrite_NotVideosWrite()
+    [Theory]
+    [InlineData("image", Permissions.VideosWrite, Permissions.ImagesWrite)]
+    [InlineData("audio", Permissions.VideosWrite, Permissions.AudiosWrite)]
+    [InlineData("text", Permissions.VideosWrite, Permissions.TextsWrite)]
+    [InlineData("video", Permissions.ImagesWrite, Permissions.VideosWrite)]
+    public async Task RenamerEnqueue_RequiresTheRequestKindsWritePermission(
+        string entityType, string otherKindsWrite, string ownWrite)
     {
         var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
 
-        // A principal holding only videos.write must not be able to enqueue an image renamer.
-        var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var denied = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("image", [1]), videoOnly, jobs,
+            new global::Renamer.Api.RenamerRequest(entityType, [1]),
+            FakePrincipalAccessor.WithPermissions(otherKindsWrite), jobs,
             new RecordingAuthorizationService(), default);
         Assert.Equal(403, StatusOf(denied));
         Assert.Empty(jobs.Enqueued);
 
-        // The matching images.write principal succeeds.
-        var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite);
         var allowed = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("image", [1]), imageOk, jobs,
+            new global::Renamer.Api.RenamerRequest(entityType, [1]),
+            FakePrincipalAccessor.WithPermissions(ownWrite), jobs,
             new RecordingAuthorizationService(), default);
         Assert.Equal(202, StatusOf(allowed));
         var (_, _, exclusive) = Assert.Single(jobs.Enqueued);
@@ -86,21 +89,21 @@ public sealed class EndpointPermissionTests
     }
 
     [Fact]
-    public async Task RenamerEnqueue_AudioRequest_RequiresAudiosWrite()
+    public async Task LastBatchAsync_AdmitsACallerWhoCanReadOnlyTexts()
     {
-        var ext = RenamerFixture.CreateWithStore();
-        var jobs = new RecordingJobService();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new global::Renamer.Options.RenamerOptions());
 
-        var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-        Assert.Equal(403, StatusOf(await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs,
-            new RecordingAuthorizationService(), default)));
-        Assert.Empty(jobs.Enqueued);
+            var result = await ext.LastBatchAsync(FakePrincipalAccessor.WithPermissions(Permissions.TextsRead), default);
 
-        var audioOk = FakePrincipalAccessor.WithPermissions(Permissions.AudiosWrite);
-        Assert.Equal(202, StatusOf(await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("audio", [1]), audioOk, jobs,
-            new RecordingAuthorizationService(), default)));
-        Assert.Single(jobs.Enqueued);
+            Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.LastBatchSummary>>(result.Result);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
     }
 }

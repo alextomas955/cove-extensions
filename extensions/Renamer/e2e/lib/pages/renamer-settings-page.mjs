@@ -62,7 +62,7 @@ export class RenamerSettingsPage {
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
     // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
     this.autoRenameOnUpdateSwitch = page.getByRole("switch", { name: "Auto-rename on update" });
-    // The "Dry run" button opens the whole-library preview modal (the native-<dialog> overlay).
+    // The "Dry run" button opens the whole-library preview modal.
     this.dryRunButton = page.getByRole("button", { name: "Dry run" });
     // DryRunModal's shell: role="dialog" aria-labelledby the "Dry run" title.
     this.dryRunDialog = page.getByRole("dialog", { name: "Dry run" });

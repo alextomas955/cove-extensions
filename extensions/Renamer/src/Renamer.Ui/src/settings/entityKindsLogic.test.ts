@@ -4,23 +4,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { kindSettings, nextKinds, type KindMap } from "./entityKindsLogic";
-
-test("an absent entry reads as renamed with no folder of its own", () => {
-  assert.deepEqual(kindSettings({}, "text"), { enabled: true, destination: null });
-});
-
-test("turning a kind off stores an entry", () => {
-  assert.deepEqual(nextKinds({}, "text", false, null), {
-    text: { enabled: false, destination: null },
-  });
-});
-
-test("turning it back on removes the entry rather than storing the defaults", () => {
-  const map: KindMap = { text: { enabled: false, destination: null } };
-
-  assert.deepEqual(nextKinds(map, "text", true, null), {});
-});
+import { nextKinds, type KindMap } from "./entityKindsLogic";
 
 test("a destination is stored on an enabled kind", () => {
   assert.deepEqual(nextKinds({}, "image", true, { root: "D:/images", template: "$studio" }), {

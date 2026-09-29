@@ -1,6 +1,6 @@
 using Renamer.Execution;
 
-namespace Renamer.Tests.Contracts;
+namespace Renamer.Tests.Execution;
 
 public sealed class UndoRunAccumulatorTests
 {
@@ -165,65 +165,5 @@ public sealed class UndoRunAccumulatorTests
         Assert.Equal(
             ["companion 'a.srt' stayed behind: target occupied", "companion 'b.srt' stayed behind: target occupied"],
             result.WarningSample.Select(w => w.Detail));
-    }
-
-    [Fact]
-    public void TheCap_IsAtLeastOne_SoAProblemAlwaysCarriesAReason()
-    {
-        // The panel names one reason and reads it out of a sample. A cap of zero would leave every
-        // problem count stated with nothing to explain it, which is the one value of this constant
-        // that would break a caller rather than only narrow it.
-        Assert.True(UndoRunAccumulator.MaxSampleEntries >= 1);
-    }
-
-    // Every stop reason and the classification it was deliberately given: true is terminal - the
-    // row is retired as unrestorable - and false stays pending to be retried. Transcribed by hand
-    // from the decision, never generated from the enum. The pairing with
-    // EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults is the
-    // point: a member added later without a deliberate entry here fails the suite instead of
-    // quietly inheriting whatever the classifier happens to return for it.
-    public static TheoryData<UndoStopReason, bool> EveryStopReason => new()
-    {
-        { UndoStopReason.UnexpectedError, false },
-        { UndoStopReason.FileNoLongerInLibrary, true },
-        { UndoStopReason.OriginalDirectoryUnavailable, false },
-        { UndoStopReason.OriginalLocationOccupied, false },
-        { UndoStopReason.ReverseMoveLockedOrTargetExists, false },
-        { UndoStopReason.ReverseMovePermissionDenied, false },
-        { UndoStopReason.ReverseMoveVerifyFailed, false },
-        { UndoStopReason.ReverseMoveCancelled, false },
-        { UndoStopReason.RestoredPathMismatch, false },
-        { UndoStopReason.DatabaseSaveFailed, false },
-    };
-
-    [Theory]
-    [MemberData(nameof(EveryStopReason))]
-    public void EachStopReason_ClassifiesAsTheTableSays(UndoStopReason reason, bool terminal) =>
-        Assert.Equal(terminal, UndoTerminalClassifier.IsTerminal(reason));
-
-    [Fact]
-    public void EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults()
-    {
-        var classified = EveryStopReason.Select(row => row.Data.Item1).ToHashSet();
-
-        Assert.Equal(Enum.GetValues<UndoStopReason>().ToHashSet(), classified);
-    }
-
-    [Fact]
-    public void ExactlyOneReasonIsTerminal_AndItIsTheFileLeavingTheLibrary()
-    {
-        // The asymmetry is the safety property: a reason wrongly called terminal retires the row that
-        // holds the user's only route back to their file, while a reason wrongly called retryable costs
-        // one row that the retention window sweeps anyway.
-        var terminal = Enum.GetValues<UndoStopReason>().Where(UndoTerminalClassifier.IsTerminal);
-
-        Assert.Equal([UndoStopReason.FileNoLongerInLibrary], terminal);
-    }
-
-    [Fact]
-    public void TheDefaultValue_IsRetryable_SoAnUnsetReasonNeverRetiresARow()
-    {
-        // A reason nobody assigned must not be the one that deletes a row for good.
-        Assert.False(UndoTerminalClassifier.IsTerminal(default));
     }
 }

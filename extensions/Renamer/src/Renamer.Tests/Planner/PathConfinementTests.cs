@@ -38,17 +38,6 @@ public sealed class PathConfinementTests
         Assert.Contains("escapes", r.Reason);
     }
 
-    [Fact]
-    public void AbsoluteFolderTemplate_Rejected()
-    {
-        var abs = OperatingSystem.IsWindows() ? @"C:\Windows\System32" : "/etc";
-
-        var r = Resolve(abs);
-
-        Assert.Equal(PathConfinement.ConfinementRejection.NotAllowed, r.Rejection);
-        Assert.Contains("not relative", r.Reason);
-    }
-
     [Theory]
     [MemberData(nameof(RootedFolderTemplates))]
     public void RootedFolderTemplate_Rejected(string destinationFolder)
@@ -108,17 +97,13 @@ public sealed class ContainingRootTests
     public void PathUnderARoot_ReturnsThatRoot()
         => Assert.Equal("/media", PathConfinement.ContainingRoot("/media/a/b.mkv", ["/media"]));
 
-    [Fact]
-    public void NestedRoots_LongestWins()
+    [Theory]
+    [InlineData("/media", "/media/video")]
+    [InlineData("/media/video", "/media")]
+    public void NestedRoots_LongestWins_InEitherDeclarationOrder(string first, string second)
         => Assert.Equal(
             "/media/video",
-            PathConfinement.ContainingRoot("/media/video/a.mkv", ["/media", "/media/video"]));
-
-    [Fact]
-    public void NestedRoots_DeclaredInEitherOrder_ReachTheSameAnswer()
-        => Assert.Equal(
-            PathConfinement.ContainingRoot("/media/video/a.mkv", ["/media", "/media/video"]),
-            PathConfinement.ContainingRoot("/media/video/a.mkv", ["/media/video", "/media"]));
+            PathConfinement.ContainingRoot("/media/video/a.mkv", [first, second]));
 
     [Fact]
     public void PathUnderNoRoot_ReturnsNull()

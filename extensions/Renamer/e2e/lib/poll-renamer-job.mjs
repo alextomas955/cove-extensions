@@ -1,9 +1,8 @@
-// Waits on a Renamer run through the route the panel uses, not the host's own job route.
+// Waits on a Renamer run through the route the panel uses, not the host's own job route. Cove gates
+// `GET /api/jobs/{id}` on unrestricted read, so an owner polling it would see the job finish while the
+// extension's own `job-status/{jobId}`, which the panel reads, went unexercised.
 //
-// The shared harness `pollJob` reads `GET /api/jobs/{id}`, which Cove gates on unrestricted read.
-// Polling that as an owner works and told us nothing about the product: the panel reads the
-// extension's own `job-status/{jobId}`, so a break in that route was invisible to the suite whatever
-// host version it ran against. Every Renamer spec now waits the way the panel does.
+// A failed or cancelled run is terminal too, so every caller asserts the status it needs.
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);

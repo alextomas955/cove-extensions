@@ -10,24 +10,27 @@
 // Which principal discriminates, and why this role holds a write permission and still sees nothing,
 // are stated in full on the harness's `createRestrictedUser`. What follows from them here is that
 // this spec's first assertions are that the principal it drives is not the bypass one.
-//
-// `jobs.read` is in the set for one reason only: the host gates its own job-status endpoint on it,
-// so without it the restricted user cannot poll the job it just enqueued (measured - the poll answers
-// 403 naming that key). It grants no entity read of any kind and so cannot weaken anything below.
-// Nothing else was needed; in particular no extensions permission, because an extension endpoint
-// that declares no host authorization metadata stays reachable and does its own in-handler check.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+const WIRE_DOCUMENT = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "..", "..", "wire", "openapi.json"), "utf8"),
+);
+const WIRE_ROUTE_BASE = `/api/extensions/${
+  JSON.parse(readFileSync(RENAMER_EXTENSION.manifestPath, "utf8")).id
+}`;
 
 // Small and fixed. Every assertion below compares two live responses to each other, so nothing here
 // depends on this number - it exists only so the library is provably non-empty for the owner, which
 // is what makes the restricted user's empty result mean something.
 const SEEDED_VIDEOS = 3;
 
-const RESTRICTED_PERMISSIONS = ["videos.write", "jobs.read"];
+const RESTRICTED_PERMISSIONS = ["videos.write"];
 
 const test = base.extend({
   // Worker-scoped: the three tests only read what the setup seeded, and the file runs them in order on
@@ -42,12 +45,16 @@ const test = base.extend({
         // therefore happen after it, never before.
         const { id: extensionId } = await harness.installExtension(RENAMER_EXTENSION);
 
+        const videoIds = [];
+        const fileIds = [];
         for (let i = 0; i < SEEDED_VIDEOS; i++) {
-          await seedVideo({
+          const video = await seedVideo({
             container: harness.container,
             baseUrl: harness.baseUrl,
             token: harness.token,
           });
+          videoIds.push(video.id);
+          fileIds.push(video.files[0].id);
         }
 
         const restricted = await harness.createRestrictedUser({
@@ -58,6 +65,8 @@ const test = base.extend({
         await use({
           harness,
           routeBase: `/api/extensions/${extensionId}`,
+          videoIds,
+          fileIds,
           owner: createApiClient(() => harness.baseUrl, harness.token),
           restricted: createApiClient(() => harness.baseUrl, restricted.token),
         });
@@ -82,10 +91,10 @@ async function readVideoTotal(api, who) {
   return res.json.totalCount;
 }
 
-test("Cove's row-level filters bite for a restricted principal and not for the owner", async ({
+test("a preview driven as a restricted principal plans none of the videos its role cannot read", async ({
   authz,
 }) => {
-  const { owner, restricted } = authz;
+  const { owner, restricted, routeBase, videoIds, fileIds } = authz;
 
   // The licence for every other assertion in this file: prove the principal being driven is one the
   // filters apply to. Without this pair, a spec can report green while the host does nothing.
@@ -128,6 +137,28 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
     restrictedTotal,
     "the owner and the restricted user read the same count from the same library, so the filters are not discriminating between them",
   ).not.toBe(ownerTotal);
+
+  // The extension's own read, over the same ids. The handler plans from the caller's request-scoped
+  // context, so the filters above must reach it; a handler reading as System would plan every video
+  // for a caller who can read none of them.
+  const preview = (api) =>
+    api.post(`${routeBase}/preview`, { EntityType: "video", EntityIds: videoIds });
+  const ownerPreview = await preview(owner);
+  expect(ownerPreview.status, `preview as the owner answered ${ownerPreview.status}`).toBe(200);
+  expect(
+    ownerPreview.json.items.map((item) => item.fileId).sort(),
+    "the owner's preview does not plan every seeded video, so an empty restricted preview would prove nothing",
+  ).toEqual([...fileIds].sort());
+
+  const restrictedPreview = await preview(restricted);
+  expect(
+    restrictedPreview.status,
+    `preview as the restricted user answered ${restrictedPreview.status}: ${restrictedPreview.text}`,
+  ).toBe(200);
+  expect(
+    restrictedPreview.json.items,
+    "the preview planned videos the restricted principal cannot read - the extension read them past Cove's row-level filters",
+  ).toEqual([]);
 });
 
 test("every endpoint refuses a caller holding no renamer permission, and answers the owner", async ({
@@ -153,28 +184,25 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
   });
   const withoutPermission = createApiClient(() => harness.baseUrl, noPermission.token);
 
-  // Every route declares the any-of gate its handler re-checks, so a caller holding no renamer
-  // permission is refused at each one.
-  const everyRoute = [
-    { method: "post", path: "preview", body: { entityType: "video", ids: [] } },
-    { method: "post", path: "renamer", body: { entityType: "video", ids: [] } },
-    { method: "post", path: "preview-sample", body: {} },
-    { method: "post", path: "undo", body: {} },
-    { method: "get", path: "last-batch" },
-    { method: "post", path: "scan-library", body: {} },
-    { method: "get", path: "last-scan" },
-    { method: "post", path: "scan-rows", body: {} },
-    { method: "post", path: "renamer-library", body: {} },
-    { method: "get", path: "library-paths" },
-    { method: "get", path: "job-status/no-such-job" },
-    { method: "get", path: "orphaned-rules" },
-  ];
+  // Every route the extension ships, read from the wire document a C# test emits from the endpoint
+  // registrations and holds to the committed copy, so a route added later joins this loop unedited.
+  // Each declares a Cove permission gate, which the host evaluates before any body is bound.
+  const everyRoute = Object.entries(WIRE_DOCUMENT.paths).flatMap(([route, operations]) =>
+    Object.keys(operations).map((method) => ({
+      method,
+      path: route.replace(WIRE_ROUTE_BASE, routeBase).replace(/\{[^}]+\}/g, "no-such-id"),
+    })),
+  );
+  expect(
+    everyRoute.length,
+    "the wire document lists no routes, so the loop below would refuse nothing",
+  ).toBeGreaterThan(0);
 
   for (const call of everyRoute) {
     const refused =
       call.method === "get"
-        ? await withoutPermission.get(`${routeBase}/${call.path}`)
-        : await withoutPermission.post(`${routeBase}/${call.path}`, call.body);
+        ? await withoutPermission.get(call.path)
+        : await withoutPermission[call.method](call.path, {});
     expect(
       refused.status,
       `${call.method.toUpperCase()} ${call.path} answered ${refused.status} to a caller holding no ` +

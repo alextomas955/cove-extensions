@@ -2,8 +2,12 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Data;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
@@ -18,33 +22,41 @@ public sealed class EntityIdsCapTests
 
     private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
-    [Fact]
-    public async Task PreviewAsync_OverCapIds_Returns400_AndMutatesNothing()
+    // The cap's own refusal, not one of the other 400s, carrying the bound so a caller can batch to fit.
+    private static void AssertTooManyIds(IResult result)
     {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        var bad = Assert.IsType<BadRequest<ErrorCode>>(Unwrap(result));
+        Assert.Equal(new ErrorCode("TOO_MANY_IDS", Cap), bad.Value);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_OverCapIds_Returns400_BeforeAnyDatabaseRead()
+    {
+        var interceptor = new CommandCountingInterceptor();
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
         try
         {
-            var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film");
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            await using var db = new CoveContext(
+                new DbContextOptionsBuilder<CoveContext>().UseSqlite(connection).AddInterceptors(interceptor).Options,
+                principalAccessor: null);
+            await db.Database.EnsureCreatedAsync();
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film");
+            interceptor.ReaderCount = 0;
 
             var ext = RenamerFixture.CreateWithStore();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-            var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
+            var ids = Enumerable.Range(1, Cap + 1).ToArray();
 
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", ids), db, principal, default);
 
-            Assert.Equal(400, StatusOf(result));
-
-            // The reject happens before any planner/DB work - the seeded row is untouched.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal(beforeName, afterName);
-            Assert.Equal(beforePath, afterPath);
+            AssertTooManyIds(result);
+            Assert.Equal(0, interceptor.ReaderCount);
         }
         finally
         {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
+            await connection.DisposeAsync();
         }
     }
 
@@ -60,8 +72,8 @@ public sealed class EntityIdsCapTests
             new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,
             new RecordingAuthorizationService(), default);
 
-        Assert.Equal(400, StatusOf(result));
-        Assert.Empty(jobs.Enqueued); // no work scheduled for an over-cap request.
+        AssertTooManyIds(result);
+        Assert.Empty(jobs.Enqueued);
     }
 
     [Fact]
