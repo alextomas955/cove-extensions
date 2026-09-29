@@ -381,10 +381,13 @@ internal static class SyncLibraryPlanner
         }
 
         var ending = run.Outcome == SyncLibraryRunOutcome.Cancelled ? ", then stopped" : string.Empty;
+        var registered = run.Registered == 1
+            ? Singular(registers).ToLowerInvariant()
+            : Plural(registers);
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{run.Registered:N0} {Plural(registers)} registered, {run.AlreadyHeld:N0} already in "
+            $"{run.Registered:N0} {registered} registered, {run.AlreadyHeld:N0} already in "
                 + $"Whisparr{Relocated(run)}, {run.Refused:N0} refused{Unagreed(run)}"
                 + $"{Monitoring(run, monitoring, registers)}{ending}.")
             + Split(run, registers);
