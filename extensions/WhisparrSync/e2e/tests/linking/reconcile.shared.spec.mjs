@@ -60,10 +60,14 @@ async function reconcile(api, label) {
 
   const run = await pollUntil(
     async () => (await api.get(extensionRoute(`job-status/${String(started.json?.jobId)}`))).json,
-    (one) => /complete|fail/i.test(String(one?.status)),
+    (one) => /completed|failed|cancelled/i.test(String(one?.status)),
     { timeoutMs: RUN_BUDGET_MS, intervalMs: 2_000, label },
   );
   expect(run?.error ?? null, `${label} faulted: ${String(run?.error)}`).toBeNull();
+  expect(
+    String(run?.status).toLowerCase(),
+    `${label} did not complete: ${JSON.stringify(run)}`,
+  ).toBe("completed");
   return run;
 }
 
