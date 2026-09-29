@@ -82,7 +82,6 @@ internal sealed class TestSiteNumbers : ISiteNumberPort
     private readonly Dictionary<string, WhisparrSiteNumber> _answers =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public List<string> Asked { get; } = [];
 
     public static TestSiteNumbers Numbering(string storedSiteId, int number)
         => new TestSiteNumbers().Answering(storedSiteId, WhisparrSiteNumber.Numbered(number));
@@ -96,8 +95,6 @@ internal sealed class TestSiteNumbers : ISiteNumberPort
     public Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
         WhisparrBinding binding, string storedSiteId, CancellationToken ct)
     {
-        Asked.Add(storedSiteId);
-
         if (int.TryParse(storedSiteId, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
             && number > 0)
         {

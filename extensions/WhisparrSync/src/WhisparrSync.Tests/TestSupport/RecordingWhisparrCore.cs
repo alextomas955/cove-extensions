@@ -60,7 +60,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
     public WhisparrBinding Binding { get; } = binding ?? AnyInstance;
 
-    public List<(Uri BaseAddress, string ApiKey)> Calls { get; } = [];
 
     public List<SceneStatusCall> SceneStatuses { get; } = [];
 
@@ -68,7 +67,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
     public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
-    public List<IReadOnlyCollection<string>> HeldSceneReads { get; } = [];
 
     public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -80,11 +78,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
     public Dictionary<int, int> SiteSceneRowIds { get; } = [];
 
-    public List<IReadOnlyCollection<int>> HeldSiteReads { get; } = [];
 
-    // What each batch read was asked about, so a page's cost is read off the list's length rather
-    // than off a counter that cannot say which identifiers reached the instance.
-    public List<IReadOnlyCollection<string>> EntityBatchReads { get; } = [];
 
     public List<IReadOnlyCollection<string>> SceneBatchReads { get; } = [];
 
@@ -93,7 +87,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     public Dictionary<string, IReadOnlyList<WhisparrCatalogueScene>> EntityCatalogues { get; }
         = new(StringComparer.OrdinalIgnoreCase);
 
-    public List<string> EntityCatalogueReads { get; } = [];
 
     // The entities and scenes this instance holds, keyed as the answering row would spell them. An
     // identifier absent from these is one the batch answers no row for.
@@ -506,7 +499,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(foreignIds);
-        HeldSceneReads.Add([.. foreignIds]);
         Verbs.Add(nameof(ReduceHeldScenesAsync));
 
         if (Unreachable.Contains(nameof(ReduceHeldScenesAsync)))
@@ -528,7 +520,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(foreignIds);
-        EntityBatchReads.Add([.. foreignIds]);
         Verbs.Add(nameof(ReadHeldEntitiesAsync));
 
         if (Unreachable.Contains(nameof(ReadHeldEntitiesAsync)))
@@ -590,7 +581,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         string foreignId,
         CancellationToken ct)
     {
-        EntityCatalogueReads.Add(foreignId);
         Verbs.Add(nameof(ReadEntityCatalogueAsync));
 
         if (Unreachable.Contains(nameof(ReadEntityCatalogueAsync)))
@@ -641,7 +631,6 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
             return Task.FromResult(new SitesHeld(new HashSet<int>(), new HashSet<int>()));
         }
 
-        HeldSiteReads.Add([.. siteNumbers]);
         Verbs.Add(nameof(ReduceHeldSitesAsync));
 
         if (Unreachable.Contains(nameof(ReduceHeldSitesAsync)))

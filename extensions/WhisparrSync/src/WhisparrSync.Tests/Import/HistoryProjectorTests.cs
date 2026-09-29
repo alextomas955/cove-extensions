@@ -82,7 +82,7 @@ public sealed class HistoryProjectorTests
     [InlineData("v2")]
     public void AnUnsetIdentifierYieldsNone(string lineage)
     {
-        var (generation, record, _) = Unidentified(lineage);
+        var (generation, record) = Unidentified(lineage);
 
         Assert.Null(HistoryProjector.Read(generation, record).Candidate?.RemoteId);
     }
@@ -210,18 +210,16 @@ public sealed class HistoryProjectorTests
             _ => throw new ArgumentOutOfRangeException(nameof(lineage)),
         };
 
-    private static (WhisparrGeneration Generation, JsonObject Record, string Declared) Unidentified(
+    private static (WhisparrGeneration Generation, JsonObject Record) Unidentified(
         string lineage)
         => lineage switch
         {
             "v3" => (
                 WhisparrGeneration.V3,
-                Embedding("movie", new JsonObject { ["stashId"] = "" }),
-                ""),
+                Embedding("movie", new JsonObject { ["stashId"] = "" })),
             "v2" => (
                 WhisparrGeneration.V2,
-                Embedding("episode", new JsonObject { ["tvdbId"] = 0 }),
-                "0"),
+                Embedding("episode", new JsonObject { ["tvdbId"] = 0 })),
             _ => throw new ArgumentOutOfRangeException(nameof(lineage)),
         };
 

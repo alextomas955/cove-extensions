@@ -38,7 +38,7 @@ internal sealed class RecordingJobProgress : IJobProgress
 
     public IJobUnit StartUnit(string unitId, string? label = null)
     {
-        var unit = new RecordedUnit(unitId);
+        var unit = new RecordedUnit();
         Units.Add(new ReportedUnit(unitId, null));
         var index = Units.Count - 1;
         unit.OnComplete = (outcome, message) =>
@@ -47,10 +47,8 @@ internal sealed class RecordingJobProgress : IJobProgress
         return unit;
     }
 
-    private sealed class RecordedUnit(string unitId) : IJobUnit
+    private sealed class RecordedUnit : IJobUnit
     {
-        public string UnitId { get; } = unitId;
-
         public JobUnitOutcome? Outcome { get; private set; }
 
         public Action<JobUnitOutcome, string?>? OnComplete { get; set; }
