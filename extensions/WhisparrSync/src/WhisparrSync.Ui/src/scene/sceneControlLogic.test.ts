@@ -203,17 +203,12 @@ describe("a refusal is stated in one place", () => {
     expect(controls.add.reason).toBe(INSTANCE_OFFERS_NO_ROOT_FOLDER);
     expect(controls.sharedReason).toBeNull();
     expect(controls.affectedControls).toBe(0);
-  });
 
-  it("never gives the add control the other setting's sentence", () => {
+    // The other setting reaches the same control under its own sentence.
     expect(
       deriveSceneControls(input("notAdded", { actionRefusal: "instanceOffersNoQualityProfile" }))
         .add.reason,
     ).toBe(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
-    expect(
-      deriveSceneControls(input("notAdded", { actionRefusal: "instanceOffersNoRootFolder" })).add
-        .reason,
-    ).not.toBe(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
   });
 });
 

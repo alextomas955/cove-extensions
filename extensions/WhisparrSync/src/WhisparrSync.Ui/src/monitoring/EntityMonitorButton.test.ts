@@ -267,6 +267,7 @@ test("choosing a scope posts it, with no identifier of any kind, and reads the s
 
   const posted = sent.filter((call) => call.method === "POST");
   expect(posted).toHaveLength(1);
+  expect(rendered.dialog()).toBeNull();
   expect(posted[0].path).toBe("/extensions/com.alextomas955.whisparrsync/entity/studio/42/monitor");
   expect(Object.keys(JSON.parse(posted[0].body ?? "{}") as Record<string, unknown>)).toEqual([
     "scope",
@@ -394,14 +395,22 @@ test("an action that never reached the instance says that instead", async () => 
   expect(notice?.textContent).toBe(ACTION_DID_NOT_REACH_WHISPARR);
 });
 
-test("a failure notice leaves the container the menu had to leave", async () => {
+test.each([
+  ["a failure", () => Promise.reject(new Error("nothing answered")), ACTION_DID_NOT_REACH_WHISPARR],
+  [
+    "a skipped action",
+    () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" }),
+    REFLECT_OWNED_SKIPPED,
+  ],
+])("%s notice leaves the container the menu had to leave", async (_named, answer, sentence) => {
   readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
-  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+  actionAnswer = answer;
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   const notice = await pressReflectOwned(rendered);
 
   expect(notice).not.toBeNull();
+  expect(notice?.textContent).toBe(sentence);
   expect(wrapperOf(rendered).contains(notice)).toBe(false);
   expect(document.body.contains(notice)).toBe(true);
   expect(notice?.getAttribute("role")).toBe("status");
@@ -450,16 +459,6 @@ test("with the menu open the notice follows the menu and is not inside it", asyn
   );
 });
 
-test("with the menu closed the notice still renders", async () => {
-  readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
-
-  await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-
-  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
-  expect(document.body.querySelector('[role="menu"]')).toBeNull();
-  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
-});
-
 test("the notice appears exactly once whichever way the menu is", async () => {
   readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
   actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
@@ -476,18 +475,6 @@ test("the notice appears exactly once whichever way the menu is", async () => {
   expect(rendered.menu()).toBeNull();
   expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
   expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
-});
-
-test("a skipped action's notice leaves that container too", async () => {
-  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
-  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
-
-  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  const notice = await pressReflectOwned(rendered);
-
-  expect(notice?.textContent).toBe(REFLECT_OWNED_SKIPPED);
-  expect(wrapperOf(rendered).contains(notice)).toBe(false);
-  expect(document.body.contains(notice)).toBe(true);
 });
 
 test("nothing pressed at all leaves no notice anywhere in the document", async () => {
@@ -529,7 +516,10 @@ test("a read answering that the instance declined states that beneath the contro
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
-  expect(document.body.textContent).toContain(INSTANCE_REFUSED);
+  // With the menu closed the notice still renders, exactly once.
+  expect(document.body.querySelector('[role="menu"]')).toBeNull();
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
   expect(rendered.button?.disabled).toBe(false);
 
   await press(rendered.button);
@@ -624,16 +614,4 @@ test("standing by All Scenes posts the scope the row carries", async () => {
   expect(posted).toHaveLength(1);
   expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("allScenes");
   expect(rendered.dialog()).toBeNull();
-});
-
-test("the narrower scope is posted with no confirmation at all", async () => {
-  readAnswer = () => Promise.resolve(view({}));
-
-  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
-  await press(rendered.button);
-
-  await press(rendered.rows()[0]);
-
-  expect(rendered.dialog()).toBeNull();
-  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
 });

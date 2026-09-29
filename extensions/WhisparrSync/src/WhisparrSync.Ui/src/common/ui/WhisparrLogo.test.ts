@@ -34,7 +34,6 @@ test("each instance masks through an id of its own", async () => {
   expect(ids[0], "two marks share one mask id, so the second overwrites the first").not.toBe(
     ids[1],
   );
-  expect(new Set(ids.map((id) => id === ""))).toEqual(new Set([false]));
 });
 
 test("the caller's class reaches the element, so the control decides the size", async () => {

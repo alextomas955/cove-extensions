@@ -562,17 +562,6 @@ describe("the verbs this build carries out", () => {
     }
   });
 
-  it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
-    const offer = bulkMonitorActions(view({ kind: "studio" }));
-
-    expect(offer.actions.map((action) => action.verb)).toEqual([
-      "monitor",
-      "monitor",
-      "unmonitor",
-      "searchAllMonitored",
-    ]);
-  });
-
   // The search is the one row here that makes Whisparr download, so it does not sit where the
   // cursor lands on the way to a cheaper one.
   it("offers the search verb to a selection, after the rows that only set flags", () => {

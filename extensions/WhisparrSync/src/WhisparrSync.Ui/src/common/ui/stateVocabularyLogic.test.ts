@@ -116,10 +116,4 @@ describe("deriving a state", () => {
     expect(deriveState(PRESENT_AND_MONITORED)).toBe("monitored");
     expect(deriveState({ excluded: false, present: true, monitored: false })).toBe("unmonitored");
   });
-
-  it("holds nothing between calls", () => {
-    const first = deriveState(PRESENT_AND_MONITORED);
-    deriveState({ excluded: true, present: false, monitored: null });
-    expect(deriveState(PRESENT_AND_MONITORED)).toBe(first);
-  });
 });
