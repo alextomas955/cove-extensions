@@ -68,8 +68,14 @@ const cards = (page) => page.locator("article").filter({ has: page.locator("img,
 /** The range, which the toolbar states above the grid. */
 const rangeInTheBar = (page) => page.getByRole("status").filter({ hasText: /\d+.*of\s+\d/ });
 
-/** Any sentence the tab stated in place of a grid. */
-const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
+/**
+ * Any sentence the tab stated in place of a grid.
+ *
+ * Taken from below the host's own tab strip. The tab's root carries no marker of its own, and the
+ * host draws copy of its own above the strip, which a page-wide paragraph filter matches.
+ */
+const statedReasons = (page) =>
+  hostDetailTabs(page).locator("xpath=following::p").filter({ hasText: /\S/ });
 
 /** The title of the first card on screen, as the grid drew it. */
 async function firstCardTitle(page) {

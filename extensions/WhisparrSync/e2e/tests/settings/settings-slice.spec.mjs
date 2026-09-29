@@ -18,6 +18,9 @@ import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 const PANEL_PATH = "/settings/whisparr-sync";
 const STATUS_PATH = "/api/v3/system/status";
 
+// The connection card's own heading, transcribed by hand from the shipped copy.
+const CONNECTION_TITLE = "Connection";
+
 // A cold container serving the extension bundle for the first time is slow rather than broken and
 // raises no signal to wait on.
 const ATTEMPT_BUDGET_MS = 60_000;
@@ -78,7 +81,7 @@ async function openPanel(page, baseUrl) {
 
   return {
     addressField,
-    keyField: page.locator('input[type="password"]'),
+    keyField: connectionSection(page).locator('input[type="password"]'),
     callbackField: page.getByLabel("Callback address"),
     behaviorField: page.getByLabel("Replacement files"),
     testButton: page.getByRole("button", { name: "Test connection" }),
@@ -92,6 +95,13 @@ async function openPanel(page, baseUrl) {
     // the front rather than whole.
     syncButton: page.getByRole("button", { name: /^Sync library to Whisparr/ }),
   };
+}
+
+/** The connection card, which the fields this spec edits are drawn inside. */
+function connectionSection(page) {
+  return page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: CONNECTION_TITLE, exact: true }) });
 }
 
 /**
@@ -116,7 +126,7 @@ function saveBarIn(page) {
  * taken: the line holding the generation's own name beside the mark.
  */
 function draftedGenerationIn(page) {
-  return page.locator("div").filter({ hasText: "Selected" }).last();
+  return connectionSection(page).locator("div").filter({ hasText: "Selected" }).last();
 }
 
 /** The version an instance reports about itself, asked directly rather than through the extension. */
