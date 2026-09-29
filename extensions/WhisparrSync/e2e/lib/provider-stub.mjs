@@ -42,7 +42,7 @@ const CAPTURED_PAGE = join(
 );
 
 /** The address to configure Cove with, which the product resolves this stub by. */
-export const STASHDB_STUB_ENDPOINT = `http://${STASHDB_HOST}/graphql`;
+const STASHDB_STUB_ENDPOINT = `http://${STASHDB_HOST}/graphql`;
 
 /**
  * The host's metadata-server entry naming this stub.

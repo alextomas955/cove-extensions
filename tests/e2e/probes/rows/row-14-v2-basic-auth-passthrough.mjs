@@ -247,7 +247,7 @@ async function measurePassthrough(harness, { authEnabled }) {
  * selects D-10's stated fallback, and an unestablished half is `inconclusive` rather than the no it
  * resembles.
  */
-export function judgeOutOfBandOnV2({ v2Delivery, passthrough }) {
+function judgeOutOfBandOnV2({ v2Delivery, passthrough }) {
   if (typeof v2Delivery?.sendsAuthorizationHeader !== "boolean") return "inconclusive";
   if (passthrough.some((one) => one.routeIsMountedAndAnswers !== true)) return "inconclusive";
   const passesEverywhere = passthrough.every(

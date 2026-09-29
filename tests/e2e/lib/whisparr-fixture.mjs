@@ -37,7 +37,7 @@ const STARTUP_LOG_LINES = 60;
  * Synthetic and committed on purpose: it authorises nothing outside a container started here, and a
  * reader must not be able to mistake it for a credential lifted from a real install.
  */
-export const FIXTURE_API_KEY = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+const FIXTURE_API_KEY = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
 /**
  * Where a `dataVolume` is mounted inside a Whisparr container.
@@ -56,7 +56,6 @@ export const WHISPARR_DATA_MOUNT = "/data";
  * reports success and attaches nothing, because the move fails after the decision to make it.
  */
 export { APP_USER as WHISPARR_APP_USER } from "./whisparr-images.mjs";
-export { SEEDED_EPISODE_TVDB_ID } from "./whisparr-seed.mjs";
 
 // One name per instance, not one per generation. The alias is scoped to the network, but every
 // harness shares that network, so a generation-wide name answered for every instance on it at once:

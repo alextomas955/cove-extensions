@@ -40,7 +40,7 @@ const CAPTURED_PAGE = join(
 );
 
 /** The address to register Cove's server at, which the product resolves this stub by. */
-export const THEPORNDB_STUB_ENDPOINT = `http://${THEPORNDB_HOST}/graphql`;
+const THEPORNDB_STUB_ENDPOINT = `http://${THEPORNDB_HOST}/graphql`;
 
 /** The host's metadata-server entry naming this stub. @see provider-stub.mjs `STASHDB_STUB_SERVER` */
 export const THEPORNDB_STUB_SERVER = {

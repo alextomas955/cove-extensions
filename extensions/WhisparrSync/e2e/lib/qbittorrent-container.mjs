@@ -23,7 +23,7 @@ const QBIT_PORT = 8080;
 const ALIAS = "qbittorrent";
 
 /** The category a grab is assigned, which is what routes the completed file into the shared path. */
-export const QBIT_CATEGORY = "whisparr";
+const QBIT_CATEGORY = "whisparr";
 
 /**
  * The config written before the first start: WebUI on its port, auth bypassed for any subnet, and
