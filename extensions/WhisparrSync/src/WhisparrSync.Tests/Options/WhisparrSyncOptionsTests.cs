@@ -7,6 +7,12 @@ namespace WhisparrSync.Tests.Options;
 
 public sealed class WhisparrSyncOptionsTests
 {
+    // The addresses the credential rows hold for the two generations, which is where an address is
+    // stored. A save compares what it is given against these to decide whether the record beside
+    // them still describes the instance it was written against.
+    private const string V3Address = "http://v3-host:6969/";
+    private const string V2Address = "http://v2-host:6969/";
+
     [Fact]
     public void ADefaultRecordHasNoConnectionForEitherGeneration()
     {
@@ -64,13 +70,13 @@ public sealed class WhisparrSyncOptionsTests
         var reloaded = await options.LoadAsync();
         await options.SaveAsync(reloaded with
         {
-            V3 = reloaded.V3! with { Address = "http://moved:6969/", RecordedVersion = "3.3.9.1" },
+            V3 = reloaded.V3! with { RecordedVersion = "3.3.9.1" },
         });
 
         var after = await options.LoadAsync();
-        Assert.Equal("http://v2-host:6969/", after.V2?.Address);
         Assert.Equal("2.2.0.231", after.V2?.RecordedVersion);
-        Assert.Equal("http://moved:6969/", after.V3?.Address);
+        Assert.Equal(V2Watermark, after.V2?.BackstopWatermarkUtc);
+        Assert.Equal("3.3.9.1", after.V3?.RecordedVersion);
     }
 
     // Reading back the other generation's address would send a test at an instance the user did
@@ -83,12 +89,12 @@ public sealed class WhisparrSyncOptionsTests
 
         await options.SaveAsync(new WhisparrSyncOptions
         {
-            V3 = new WhisparrSyncGenerationConnection { Address = "http://v3-host:6969/" },
+            V3 = new WhisparrSyncGenerationConnection(),
         });
 
         var loaded = await options.LoadAsync();
         Assert.Null(loaded.V2);
-        Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
+        Assert.NotNull(loaded.V3);
     }
 
     // The two instants measure different things: when the version was read, and when the instance
@@ -132,7 +138,9 @@ public sealed class WhisparrSyncOptionsTests
                 WhisparrGeneration.V3,
                 new WhisparrSyncGenerationSaveRequest(
                     "http://v3-host:6969", KeyWriteSignal.Replace, "a-new-value"),
-                null));
+                null),
+            V3Address,
+            V2Address);
 
         var moved = SettingsProjector.Apply(
             stored,
@@ -140,7 +148,9 @@ public sealed class WhisparrSyncOptionsTests
                 WhisparrGeneration.V3,
                 new WhisparrSyncGenerationSaveRequest(
                     "http://somewhere-else:6969", KeyWriteSignal.Keep, null),
-                null));
+                null),
+            V3Address,
+            V2Address);
 
         Assert.Equal(V3Watermark, rotated.V3?.BackstopWatermarkUtc);
         Assert.Null(moved.V3?.BackstopWatermarkUtc);
@@ -184,7 +194,7 @@ public sealed class WhisparrSyncOptionsTests
         var loaded = await new OptionsStore(store).LoadAsync();
 
         Assert.NotEqual(new WhisparrSyncOptions(), loaded);
-        Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
+        Assert.NotNull(loaded.V3);
         Assert.Equal(
             [
                 ImportRefusalCause.NotFoundUnderAnyRoot,
@@ -219,7 +229,7 @@ public sealed class WhisparrSyncOptionsTests
 
         var loaded = await new OptionsStore(store).LoadAsync();
 
-        Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
+        Assert.NotNull(loaded.V3);
         Assert.Equal(MonitorScope.AllScenes, loaded.DefaultMonitorScope);
         Assert.Equal("https://media.example.com/cove", loaded.CallbackHost);
 
@@ -556,7 +566,6 @@ public sealed class WhisparrSyncOptionsTests
         SelectedGeneration = WhisparrGeneration.V3,
         V3 = new WhisparrSyncGenerationConnection
         {
-            Address = "http://v3-host:6969/",
             RecordedVersion = "3.3.8.1097",
             VersionVerifiedAtUtc = VerifiedAt,
             LastReachableAtUtc = ReachableAt,
@@ -564,7 +573,6 @@ public sealed class WhisparrSyncOptionsTests
         },
         V2 = new WhisparrSyncGenerationConnection
         {
-            Address = "http://v2-host:6969/",
             RecordedVersion = "2.2.0.231",
             VersionVerifiedAtUtc = VerifiedAt,
             LastReachableAtUtc = ReachableAt,

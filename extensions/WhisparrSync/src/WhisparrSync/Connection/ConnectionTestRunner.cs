@@ -44,15 +44,22 @@ internal sealed class ConnectionTestRunner(
 
         var reachableAt = clock.GetUtcNow();
 
-        // Compared against the address the gate loads, not the one read earlier: a settings save
-        // committed while the probe was in flight may have moved it.
-        await gate.MutateAsync(
+        // Compared against the address stored when the gate is held, not the one read earlier: a
+        // settings save committed while the probe was in flight may have moved it, and this result
+        // then describes an instance the row no longer names.
+        var stillThere = false;
+        await gate.MutateAfterAsync(
             options,
-            stored => stored.ConnectionFor(stored.SelectedGeneration) is { } connection
-                && ConnectionTester.IsSameAddress(connection.Address, address)
-                    ? stored.WithConnectionFor(
-                        stored.SelectedGeneration, connection with { LastReachableAtUtc = reachableAt })
-                    : stored,
+            async (loaded, readCt) =>
+            {
+                var held = await credentials
+                    .ReadConnectionAsync(loaded.SelectedGeneration, readCt).ConfigureAwait(false);
+                stillThere = ConnectionTester.IsSameAddress(held?.Address, address);
+            },
+            stored => stillThere && stored.ConnectionFor(stored.SelectedGeneration) is { } connection
+                ? stored.WithConnectionFor(
+                    stored.SelectedGeneration, connection with { LastReachableAtUtc = reachableAt })
+                : stored,
             ct).ConfigureAwait(false);
         return view;
     }

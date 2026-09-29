@@ -90,7 +90,7 @@ public sealed class CallbackOutboundPairTests
         await options.SaveAsync(
             new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }.WithConnectionFor(
                 WhisparrGeneration.V3,
-                new WhisparrSyncGenerationConnection { Address = StoredAddress }),
+                new WhisparrSyncGenerationConnection()),
             TestCt);
 
         using var gate = new OptionsWriteGate();

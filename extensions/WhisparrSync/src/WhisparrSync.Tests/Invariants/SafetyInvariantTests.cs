@@ -504,7 +504,6 @@ public sealed class SafetyInvariantTests
                         SelectedGeneration = WhisparrGeneration.V3,
                         V3 = new WhisparrSyncGenerationConnection
                         {
-                            Address = Address,
                             BackstopWatermarkUtc = Now.AddHours(-1),
                         },
                     },

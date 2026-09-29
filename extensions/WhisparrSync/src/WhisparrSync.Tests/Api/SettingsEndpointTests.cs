@@ -65,7 +65,7 @@ public sealed class SettingsEndpointTests
 
         var view = await SaveAsync(
             options,
-            new RecordingCredentialPort(),
+            new RecordingCredentialPort().HoldingAddressOnly(WhisparrGeneration.V3, StoredAddress),
             new WhisparrSyncSettingsSaveRequest(
                 WhisparrGeneration.V3,
                 new WhisparrSyncGenerationSaveRequest("http://whisparr-somewhere-else:6969", KeyWriteSignal.Keep, null),
@@ -88,7 +88,7 @@ public sealed class SettingsEndpointTests
 
         var view = await SaveAsync(
             options,
-            new RecordingCredentialPort(),
+            new RecordingCredentialPort().HoldingAddressOnly(WhisparrGeneration.V3, StoredAddress),
             new WhisparrSyncSettingsSaveRequest(
                 WhisparrGeneration.V3,
                 new WhisparrSyncGenerationSaveRequest(address, KeyWriteSignal.Keep, null),
@@ -96,7 +96,9 @@ public sealed class SettingsEndpointTests
 
         Assert.Equal("3.3.8.1097", view.V3.RecordedVersion);
         Assert.Equal(Verified, view.V3.VersionVerifiedAtUtc);
-        Assert.Equal(StoredAddress, view.V3.Address);
+        // Compared by the product's own rule: a save stores the address as it was typed, and case
+        // is not an edit.
+        Assert.True(ConnectionTester.IsSameAddress(StoredAddress, view.V3.Address));
     }
 
     [Fact]
@@ -106,7 +108,7 @@ public sealed class SettingsEndpointTests
 
         var view = await SaveAsync(
             options,
-            new RecordingCredentialPort(),
+            new RecordingCredentialPort().HoldingAddressOnly(WhisparrGeneration.V3, StoredAddress),
             new WhisparrSyncSettingsSaveRequest(
                 WhisparrGeneration.V2,
                 null,
@@ -350,7 +352,6 @@ public sealed class SettingsEndpointTests
                 SelectedGeneration = WhisparrGeneration.V3,
                 V3 = new WhisparrSyncGenerationConnection
                 {
-                    Address = StoredAddress,
                     RecordedVersion = "3.3.8.1097",
                     VersionVerifiedAtUtc = Verified,
                     LastReachableAtUtc = Verified,

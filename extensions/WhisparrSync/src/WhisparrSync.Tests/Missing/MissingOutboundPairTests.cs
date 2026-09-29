@@ -10,12 +10,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-// The address and the key are two writes in two stores. A page loading while a save moves both can
-// read one from either side of that save, and the key of the instance being moved to would then be
-// posted to the instance being moved from.
+// The address and the key are one row, and that row is the only place either is stored. A page
+// binds to the pair it holds, so it cannot present one instance's key to another.
 public sealed class MissingOutboundPairTests
 {
-    private const string StoredAddress = "http://whisparr:6969";
     private const string MovedAddress = "http://whisparr-elsewhere:6969";
     private const string MovedKey = "1f3f1f3f1f3f1f3f1f3f1f3f1f3f1f3f";
 
@@ -33,8 +31,8 @@ public sealed class MissingOutboundPairTests
         Assert.Equal(MovedKey, binding.ApiKey);
     }
 
-    // The row is the only source of the address. The stored blob names one here, so a page that
-    // still consulted it would present this row's key to that instance.
+    // A row holding a key and no address names no instance, so nothing is sent rather than a
+    // request composed against a default.
     [Fact]
     public async Task ARowCarryingNoAddressReachesNothing()
     {
@@ -59,7 +57,7 @@ public sealed class MissingOutboundPairTests
         await options.SaveAsync(
             new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }.WithConnectionFor(
                 WhisparrGeneration.V3,
-                new WhisparrSyncGenerationConnection { Address = StoredAddress }),
+                new WhisparrSyncGenerationConnection()),
             TestCt);
 
         await WhisparrSync.ReadMissingPageAsync(

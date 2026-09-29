@@ -118,7 +118,7 @@ public sealed class StoredConnectionTestTests
     [Fact]
     public async Task AnUnsetAddressRefusesByNamingTheAddressAndMakesNoRequest()
     {
-        var options = await SeededAsync(null, null, null, address: "");
+        var options = await SeededAsync(null, null, null);
         var tester = RecordingConnectionTester.Connected("3.3.8.1097");
 
         // The row holds the key alone, which is the only way an address can be unset.
@@ -379,7 +379,6 @@ public sealed class StoredConnectionTestTests
         string? recordedVersion,
         DateTimeOffset? verifiedAt,
         DateTimeOffset? lastReachableAt,
-        string address = StoredAddress,
         RegistrationStatus registration = RegistrationStatus.NotCheckedYet)
     {
         var options = new OptionsStore(new FakeStore());
@@ -389,7 +388,6 @@ public sealed class StoredConnectionTestTests
                 SelectedGeneration = WhisparrGeneration.V3,
                 V3 = new WhisparrSyncGenerationConnection
                 {
-                    Address = address,
                     RecordedVersion = recordedVersion,
                     VersionVerifiedAtUtc = verifiedAt,
                     LastReachableAtUtc = lastReachableAt,
