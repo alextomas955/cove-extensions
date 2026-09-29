@@ -27,7 +27,7 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
     internal static readonly TimeSpan RefusedLifetime = TimeSpan.FromMinutes(2);
 
     private readonly ConcurrentDictionary<
-        (WhisparrGeneration Generation, string Instance, string CoveRoot),
+        ((WhisparrGeneration Generation, string Address) Instance, string CoveRoot),
         (DateTimeOffset ReadAt, TimeSpan For, string? Stated, FolderAgreementReading Reading)>
         _entries = new();
 
@@ -50,16 +50,11 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
             stated,
             reading);
 
-    // Keyed on the path, not the authority: TryReadAddress keeps the stored address's URL base, so
-    // two instances behind one reverse proxy differ by that base alone. The trailing separator is
-    // trimmed to agree with NormaliseAddress, which decides what a connection save calls the same
-    // instance.
-    private static (WhisparrGeneration, string, string) KeyFor(
+    // Keyed on the instance the reading came from, because what it holds is that instance's own
+    // root, and on the Cove root it was read for.
+    private static ((WhisparrGeneration Generation, string Address) Instance, string CoveRoot) KeyFor(
         FolderAddressTarget target, string coveRoot)
-        => (
-            target.Binding.Generation,
-            target.Binding.BaseAddress.GetLeftPart(UriPartial.Path).TrimEnd('/'),
-            coveRoot);
+        => (target.Binding.Instance, coveRoot);
 }
 
 internal sealed class FolderAddressPort(

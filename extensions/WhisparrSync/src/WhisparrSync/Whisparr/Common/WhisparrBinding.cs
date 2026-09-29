@@ -50,6 +50,20 @@ public sealed record WhisparrBinding
 
     public string ApiKey { get; }
 
+    /// <summary>Which instance this binding names, as two bindings are compared for being one.</summary>
+    /// <remarks>
+    /// The generation and the address, never the key: a key changed against the same address still
+    /// names the same instance, and a value carrying a secret discloses it wherever it is recorded.
+    /// <para>
+    /// The address down to its path, not its authority: TryReadAddress keeps a stored address's URL
+    /// base, so two instances behind one reverse proxy differ by that base alone. The trailing
+    /// separator is trimmed to agree with NormaliseAddress, which decides what a connection save
+    /// calls the same instance.
+    /// </para>
+    /// </remarks>
+    internal (WhisparrGeneration Generation, string Address) Instance
+        => (Generation, BaseAddress.GetLeftPart(UriPartial.Path).TrimEnd('/'));
+
     public override string ToString()
         => new StringBuilder(nameof(WhisparrBinding))
             .Append(" { Generation = ").Append(Generation)

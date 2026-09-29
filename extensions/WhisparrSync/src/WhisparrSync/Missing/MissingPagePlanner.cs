@@ -177,7 +177,7 @@ internal sealed class MissingPagePlanner(
             return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
         }
 
-        if (cache.Held(context.Binding.Generation, kind, providerEntityId) is { } held)
+        if (cache.Held(context.Binding, kind, providerEntityId) is { } held)
         {
             return WhisparrEntityCatalogue.Listing(held);
         }
@@ -196,7 +196,7 @@ internal sealed class MissingPagePlanner(
 
         if (answered.Scenes is { } scenes)
         {
-            cache.Hold(context.Binding.Generation, kind, providerEntityId, scenes);
+            cache.Hold(context.Binding, kind, providerEntityId, scenes);
         }
 
         return answered;

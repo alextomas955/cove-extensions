@@ -267,10 +267,11 @@ public sealed class MissingPagePlannerTests
     // The absence is named rather than passed as null, so a case asking for "no provider" cannot
     // silently get the default one.
     private static MissingPageContext Context(
-        IWhisparrEntityCatalogueReading instance, bool withProvider = true)
+        IWhisparrEntityCatalogueReading instance,
+        bool withProvider = true,
+        string address = "http://whisparr.invalid:6969")
         => new(
-            new WhisparrBinding(
-                WhisparrGeneration.V3, new Uri("http://whisparr.invalid:6969"), "0e2e0e2e0e2e0e2e"),
+            new WhisparrBinding(WhisparrGeneration.V3, new Uri(address), "0e2e0e2e0e2e0e2e"),
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
             ExclusionReading: null,
             instance);
@@ -485,6 +486,27 @@ public sealed class MissingPagePlannerTests
 
         Assert.Equal(MissingFacetSearchOutcome.NoAnswer, answer.Outcome);
         Assert.Null(catalogue.SearchedFor);
+    }
+
+    // The held catalogue carries the row ids the instance addresses its own scenes by, and a mark
+    // taken from this page sends one of them. A second instance is asked for its own rather than
+    // answered the first one's, however quickly the connection was changed.
+    [Fact]
+    public async Task ACatalogueHeldFromOneInstanceIsNotAnsweredForAnother()
+    {
+        var planner = PlannerOver();
+        var first = new RecordingInstance(ScenesNamed("a"));
+        var second = new RecordingInstance(ScenesNamed("a"));
+
+        await planner.PlanAsync(
+            Request(), Context(first, address: "http://whisparr-a.invalid:6969"),
+            NullLogger.Instance, TestCt);
+        await planner.PlanAsync(
+            Request(), Context(second, address: "http://whisparr-b.invalid:6969"),
+            NullLogger.Instance, TestCt);
+
+        Assert.Equal(1, first.Reads);
+        Assert.Equal(1, second.Reads);
     }
 
     // The instance's catalogue reaches the planner through the context, so it is not named here.
