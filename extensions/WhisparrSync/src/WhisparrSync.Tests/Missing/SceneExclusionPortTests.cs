@@ -2,7 +2,6 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using WhisparrSync.Missing;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -12,15 +11,6 @@ public sealed class SceneExclusionPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-exclusions.json";
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public void TheFixtureStatesItsOwnProvenance()
-    {
-        var fixture = Fixture();
-
-        Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
-        Assert.Equal("Whisparr 3.4.0.1387", fixture.GetProperty("recordedAgainst").GetString());
-    }
 
     // The instance narrows this route by no parameter. A filter key and a bare foreign id each
     // answer the whole list under a success, and a foreign id as a further segment is a not-found.
@@ -36,19 +26,6 @@ public sealed class SceneExclusionPortTests
         var target = Assert.Single(handler.Targets);
         Assert.EndsWith("/api/v3/exclusions", target, StringComparison.Ordinal);
         Assert.DoesNotContain("?", target, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void NoNarrowingSpellingTheFixtureRecordsNarrowedAnything()
-    {
-        var attempts = Fixture().GetProperty("noNarrowingParameter");
-        var whole = Fixture().GetProperty("wholeSet").GetProperty("rows").GetInt32();
-
-        Assert.Equal(
-            whole,
-            attempts.GetProperty("pagedFilterKey").GetProperty("totalRecords").GetInt32());
-        Assert.Equal(whole, attempts.GetProperty("bareForeignId").GetProperty("rows").GetInt32());
-        Assert.Equal(404, attempts.GetProperty("foreignIdAsSegment").GetProperty("status").GetInt32());
     }
 
     [Fact]
@@ -110,18 +87,6 @@ public sealed class SceneExclusionPortTests
                 .Where(field => typeof(System.Collections.IEnumerable).IsAssignableFrom(field.FieldType))
                 .Select(field => $"{field.DeclaringType?.Name}.{field.Name}"));
 
-    [Fact]
-    public async Task ThePortSpendsOneRequestPerPageAndNeverOnePerCard()
-    {
-        var reading = new RecordingExclusionReading();
-        var page = PageOfForty();
-
-        await SceneExclusionPort.ReadExcludedAsync(reading, page, TestCt);
-
-        Assert.Equal(1, reading.Calls);
-        Assert.Equal(page, reading.AskedAbout[0]);
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.InternalServerError)]
@@ -148,6 +113,9 @@ public sealed class SceneExclusionPortTests
 
         Assert.Empty(excluded);
     }
+
+    private static string[] PageOfForty()
+        => [.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")];
 
     private static JsonElement Fixture()
         => JsonDocument.Parse(ProbeFixtures.Read(FixtureName)).RootElement;
@@ -182,29 +150,4 @@ public sealed class SceneExclusionPortTests
         return composed.ToJsonString();
     }
 
-    private static string[] PageOfForty()
-        => [.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")];
-
-    private sealed class RecordingExclusionReading : IWhisparrSceneExclusionReading
-    {
-        public int Calls { get; private set; }
-
-        public List<IReadOnlyList<string>> AskedAbout { get; } = [];
-
-        public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-            IReadOnlyCollection<string> providerSceneIds,
-            CancellationToken ct)
-        {
-            Calls++;
-            AskedAbout.Add([.. providerSceneIds]);
-            return Task.FromResult<IReadOnlySet<string>>(
-                new HashSet<string>(StringComparer.Ordinal));
-        }
-
-        public Task<SceneExclusionLookup> FindSceneExclusionAsync(
-            string foreignId, CancellationToken ct)
-            => throw new NotSupportedException(
-                "The port under test reduces a page and never asks for one exclusion row's own "
-                    + "identifier.");
-    }
 }

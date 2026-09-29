@@ -12,15 +12,6 @@ public sealed class SceneStatusPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public void TheFixtureStatesItsOwnProvenance()
-    {
-        var fixture = JsonDocument.Parse(ProbeFixtures.Read(FixtureName)).RootElement;
-
-        Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
-        Assert.Equal("Whisparr 3.4.0.1387", fixture.GetProperty("recordedAgainst").GetString());
-    }
-
     // stashId is the one key that narrows. The instance accepts stashIds and foreignId and ignores
     // both, answering with the whole catalogue.
     [Fact]

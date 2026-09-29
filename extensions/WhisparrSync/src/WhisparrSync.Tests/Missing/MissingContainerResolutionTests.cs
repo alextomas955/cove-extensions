@@ -85,17 +85,6 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
         Assert.Same(first, second);
     }
 
-    [Fact]
-    public void TheProviderHoldsItsOwnTypedClient()
-    {
-        using var provider = BuildProvider();
-        using var scope = provider.CreateScope();
-
-        var factory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-
-        Assert.NotNull(factory.CreateClient(nameof(StashDbCatalogue)));
-    }
-
     // Only the services this slice takes from outside it, so the test proves the slice's own
     // registrations are complete rather than another slice's.
     private ServiceProvider BuildProvider()

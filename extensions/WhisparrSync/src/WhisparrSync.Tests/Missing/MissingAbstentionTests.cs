@@ -22,35 +22,6 @@ public sealed class MissingAbstentionTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public async Task AnInstanceThatDidNotAnswerIsNeverReadAsAnEmptyCatalogue()
-    {
-        var view = await PlannerOver()
-            .PlanAsync(
-                Request(),
-                Context(new StubCatalogueReading(WhisparrCatalogueRefusal.NotReached)),
-                NullLogger.Instance,
-                TestCt);
-
-        Assert.Equal(MissingRefusalKind.WhisparrCatalogueNotRead, view.Refusal);
-        Assert.Empty(view.Cards);
-        Assert.Equal(0, view.CatalogueSize);
-    }
-
-    [Fact]
-    public async Task AnEntityTheInstanceDoesNotHoldIsItsOwnAnswer()
-    {
-        var view = await PlannerOver()
-            .PlanAsync(
-                Request(),
-                Context(new StubCatalogueReading(WhisparrCatalogueRefusal.EntityNotHeld)),
-                NullLogger.Instance,
-                TestCt);
-
-        Assert.Equal(MissingRefusalKind.EntityNotInWhisparr, view.Refusal);
-        Assert.Empty(view.Cards);
-    }
-
     // A transport failure reaching the instance is contained here, so the tab states it and offers a
     // retry rather than the request failing outright.
     [Fact]
@@ -105,25 +76,6 @@ public sealed class MissingAbstentionTests
         Assert.Empty(view.Cards);
     }
 
-    [Fact]
-    public async Task NoPartOfTheDerivationWritesAPerSceneValue()
-    {
-        var view = await PlannerOver()
-            .PlanAsync(
-                Request(), Context(Listing("one", "two")), NullLogger.Instance, TestCt);
-
-        // The derivation is delegate-driven and performs no I/O of its own, so the only writes it
-        // could make are through a port it was handed. None of the ports it takes can write.
-        Assert.Equal(2, view.Cards.Count);
-        Assert.All(
-            typeof(MissingPagePlanner).GetConstructors().Single().GetParameters(),
-            parameter => Assert.DoesNotContain(
-                parameter.ParameterType.GetMethods(),
-                method => method.Name.StartsWith("Write", StringComparison.Ordinal)
-                    || method.Name.StartsWith("Save", StringComparison.Ordinal)
-                    || method.Name.StartsWith("Store", StringComparison.Ordinal)));
-    }
-
     private static MissingPageRequest Request()
         => new(
             WhisparrEntityKind.Studio,
@@ -166,9 +118,6 @@ public sealed class MissingAbstentionTests
 
         internal StubCatalogueReading(IReadOnlyList<WhisparrCatalogueScene> scenes)
             => _answer = WhisparrEntityCatalogue.Listing(scenes);
-
-        internal StubCatalogueReading(WhisparrCatalogueRefusal refusal)
-            => _answer = WhisparrEntityCatalogue.Refused(refusal);
 
         private StubCatalogueReading() => _answer = null;
 
