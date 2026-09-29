@@ -144,16 +144,18 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(identities);
 
+        // An exclusion list that did not arrive whole drops the read: every card would otherwise
+        // carry a stated "not excluded" that no answer supports.
         var excluded = await ExcludedAmongAsync(exclusions, identities, ct).ConfigureAwait(false);
 
         var batched = await BatchedScenesAsync(batch, binding, identities, ct)
             .ConfigureAwait(false);
 
         var readings = new Dictionary<int, LibraryCardReading>(identities.Count);
-        var dropped = batched.Dropped;
+        var dropped = batched.Dropped || !excluded.ReadCompleted;
         foreach (var identity in identities)
         {
-            var onList = excluded.Contains(identity.RemoteId);
+            var onList = excluded.Excluded.Contains(identity.RemoteId);
 
             if (batched.Dropped)
             {
@@ -242,7 +244,9 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             WhisparrSyncLog.Classify(failure),
             binding.BaseAddress.Host);
 
-    private static async Task<IReadOnlySet<string>> ExcludedAmongAsync(
+    // A generation holding no exclusion role keeps no exclusions, which is a complete reading of
+    // none rather than one that did not arrive.
+    private static async Task<SceneExclusionReading> ExcludedAmongAsync(
         IWhisparrSceneExclusionReading? exclusions,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
@@ -250,7 +254,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             ? await role.ReduceExclusionsAsync(
                 [.. identities.Select(identity => identity.RemoteId)],
                 ct).ConfigureAwait(false)
-            : NothingExcluded;
+            : SceneExclusionReading.Naming(NothingExcluded);
 
     // The per-scene route answers a held scene and an unheld one alike with a list, so a not-found
     // and an empty list are both the instance stating an absence rather than declining to answer.

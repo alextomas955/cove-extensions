@@ -108,6 +108,29 @@ public sealed class LibraryStatusPortTests
         Assert.Equal([1, 2, 3], readings.Keys.Order());
     }
 
+    // An exclusion list that did not arrive whole drops the read. Every card would otherwise carry
+    // a stated "not excluded" that no answer supported, under a response claiming nothing was
+    // dropped.
+    [Fact]
+    public async Task AnExclusionListThatDidNotArriveDropsTheRead()
+    {
+        var reading = new RecordingSceneReading(status: 200, body: HeldAndMonitored)
+        {
+            ExclusionListDoesNotArrive = true,
+        };
+
+        var answered = await new LibraryStatusPort(Nothing, NullLogger.Instance)
+            .ReadSceneCardsAsync(
+                reading,
+                reading,
+                NoSceneBatch,
+                Bound(WhisparrGeneration.V3),
+                SceneIdentities(1),
+                TestCt);
+
+        Assert.True(answered.AnyReadDropped);
+    }
+
     [Fact]
     public async Task AHeldAndMonitoredSceneIsPresentAndMonitored()
     {
@@ -408,15 +431,24 @@ public sealed class LibraryStatusPortTests
             => throw new InvalidOperationException(
                 "This surface asks about one scene at a time and never about a batch of them.");
 
-        public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+        public bool ExclusionListDoesNotArrive { get; init; }
+
+        public Task<SceneExclusionReading> ReduceExclusionsAsync(
             IReadOnlyCollection<string> providerSceneIds,
             CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             ExclusionReads++;
 
-            return Task.FromResult<IReadOnlySet<string>>(
-                new HashSet<string>(providerSceneIds.Where(_excluded.Contains), StringComparer.Ordinal));
+            if (ExclusionListDoesNotArrive)
+            {
+                return Task.FromResult(SceneExclusionReading.DidNotComplete);
+            }
+
+            return Task.FromResult(
+                SceneExclusionReading.Naming(
+                    new HashSet<string>(
+                        providerSceneIds.Where(_excluded.Contains), StringComparer.Ordinal)));
         }
 
         public Task<SceneExclusionLookup> FindSceneExclusionAsync(

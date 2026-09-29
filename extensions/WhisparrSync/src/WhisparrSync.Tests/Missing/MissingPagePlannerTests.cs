@@ -269,12 +269,29 @@ public sealed class MissingPagePlannerTests
     private static MissingPageContext Context(
         IWhisparrEntityCatalogueReading instance,
         bool withProvider = true,
-        string address = "http://whisparr.invalid:6969")
+        string address = "http://whisparr.invalid:6969",
+        IWhisparrSceneExclusionReading? exclusions = null)
         => new(
             new WhisparrBinding(WhisparrGeneration.V3, new Uri(address), "0e2e0e2e0e2e0e2e"),
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
-            ExclusionReading: null,
+            exclusions,
             instance);
+
+    // The instance's exclusion list, as this generation answers it.
+    private sealed class StubExclusions(bool readCompleted, params string[] excluded)
+        : IWhisparrSceneExclusionReading
+    {
+        public Task<SceneExclusionReading> ReduceExclusionsAsync(
+            IReadOnlyCollection<string> providerSceneIds, CancellationToken ct)
+            => Task.FromResult(
+                readCompleted
+                    ? SceneExclusionReading.Naming(excluded.ToHashSet(StringComparer.Ordinal))
+                    : SceneExclusionReading.DidNotComplete);
+
+        public Task<SceneExclusionLookup> FindSceneExclusionAsync(
+            string foreignId, CancellationToken ct)
+            => throw new NotSupportedException("This surface reduces a page and never looks one up.");
+    }
 
     [Fact]
     public async Task ACardCarriesTheAddressTheSourceNamedForItsScene()
@@ -486,6 +503,41 @@ public sealed class MissingPagePlannerTests
 
         Assert.Equal(MissingFacetSearchOutcome.NoAnswer, answer.Outcome);
         Assert.Null(catalogue.SearchedFor);
+    }
+
+    // The figure beside the tab and the list under it are one derivation. A scene excluded on the
+    // instance leaves both, so a reader is never given a count their own list cannot account for.
+    [Fact]
+    public async Task ScenesExcludedOnTheInstanceLeaveTheSetAndTheCount()
+    {
+        var instance = new RecordingInstance(ScenesNamed("a", "b", "c"));
+        var planner = PlannerOver();
+        var context = Context(instance, exclusions: new StubExclusions(true, "b"));
+
+        var view = await planner.PlanAsync(Request(), context, NullLogger.Instance, TestCt);
+        var count = await planner.CountAsync(Request(), context, TestCt);
+
+        Assert.Equal(["a", "c"], view.Cards.Select(card => card.ProviderSceneId));
+        Assert.Equal(2, view.CatalogueSize);
+        Assert.Equal(2, count.Count);
+    }
+
+    // An exclusion list that did not arrive whole would put back the scenes this reader excluded.
+    // Refused rather than listed, and the figure answers nothing rather than a number drawn from a
+    // set that could not be derived.
+    [Fact]
+    public async Task AnExclusionListThatDidNotArriveRefusesThePageAndTheCount()
+    {
+        var instance = new RecordingInstance(ScenesNamed("a", "b"));
+        var planner = PlannerOver();
+        var context = Context(instance, exclusions: new StubExclusions(false));
+
+        var view = await planner.PlanAsync(Request(), context, NullLogger.Instance, TestCt);
+        var count = await planner.CountAsync(Request(), context, TestCt);
+
+        Assert.Equal(MissingRefusalKind.WhisparrExclusionsNotRead, view.Refusal);
+        Assert.Empty(view.Cards);
+        Assert.Null(count.Count);
     }
 
     // The held catalogue carries the row ids the instance addresses its own scenes by, and a mark

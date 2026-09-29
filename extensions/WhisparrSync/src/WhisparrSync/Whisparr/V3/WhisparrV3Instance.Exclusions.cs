@@ -30,7 +30,7 @@ internal sealed partial class WhisparrV3Instance
     // Each row is reduced to one question, so what this holds is the caller's set and never the
     // instance's. No row cap: one would stop part way and report the rest as not excluded, with
     // nothing saying so.
-    public async Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+    public async Task<SceneExclusionReading> ReduceExclusionsAsync(
         IReadOnlyCollection<string> providerSceneIds, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(providerSceneIds);
@@ -49,13 +49,13 @@ internal sealed partial class WhisparrV3Instance
         var excluded = new HashSet<string>(StringComparer.Ordinal);
         if (asked.Count == 0)
         {
-            return excluded;
+            return SceneExclusionReading.Naming(excluded);
         }
 
-        // An answer that did not arrive, or one this could not read, excludes nothing: reporting a
-        // scene as excluded on a failed read would remove it from the surface with nothing saying
-        // why.
-        await OverExclusionRowsAsync(
+        // The rows named before a read stopped are accurate and the rest were never seen, so what
+        // was gathered is answered under the statement that the list was not read whole. A caller
+        // deciding a scene is not excluded needs the whole list to have arrived.
+        var read = await OverExclusionRowsAsync(
             row =>
             {
                 if (row.ForeignId is { Length: > 0 } named
@@ -68,7 +68,7 @@ internal sealed partial class WhisparrV3Instance
             },
             ct).ConfigureAwait(false);
 
-        return excluded;
+        return read ? SceneExclusionReading.Naming(excluded) : SceneExclusionReading.DidNotComplete;
     }
 
     public async Task<SceneExclusionLookup> FindSceneExclusionAsync(

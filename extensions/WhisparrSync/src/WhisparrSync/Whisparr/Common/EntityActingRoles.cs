@@ -405,10 +405,15 @@ public interface IWhisparrSceneExclusionReading
     /// <summary>Which of <paramref name="providerSceneIds"/> the instance's user has excluded.</summary>
     /// <remarks>
     /// One request per call. The instance narrows this list by no parameter, so the whole answer is
-    /// read as it arrives and each row is reduced to this question and dropped. An answer that did
-    /// not arrive, or could not be read, excludes nothing.
+    /// read as it arrives and each row is reduced to this question and dropped.
+    /// <para>
+    /// An answer that did not arrive, or could not be read, is answered as a reading that did not
+    /// complete rather than as a list excluding nothing. A partial answer is the case that makes the
+    /// distinction necessary: the rows before the connection dropped are accurate, and every scene
+    /// after them would otherwise be reported as one nobody excluded.
+    /// </para>
     /// </remarks>
-    Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+    Task<SceneExclusionReading> ReduceExclusionsAsync(
         IReadOnlyCollection<string> providerSceneIds, CancellationToken ct);
 
     /// <summary>
@@ -435,6 +440,23 @@ public interface IWhisparrSceneExclusionReading
 /// A false read-completed flag claims nothing about the instance. The exclusion id is the exclusion
 /// row's own identifier, null where the list named no exclusion for the scene.
 /// </remarks>
+/// <summary>Which of the scenes asked about the instance's list excludes, and whether it was read.</summary>
+/// <remarks>
+/// A list that did not arrive whole is held apart from one naming no exclusion. The two are
+/// different facts: the first states nothing about the instance, the second is the instance stating
+/// an absence. A caller that folded them together would render an unread list as an authoritative
+/// "not excluded" on every scene it asked about.
+/// </remarks>
+public sealed record SceneExclusionReading(bool ReadCompleted, IReadOnlySet<string> Excluded)
+{
+    /// <summary>No whole answer arrived, so nothing about the instance was established.</summary>
+    public static SceneExclusionReading DidNotComplete { get; }
+        = new(false, new HashSet<string>(StringComparer.Ordinal));
+
+    /// <summary>The list was read, and excludes the scenes named.</summary>
+    public static SceneExclusionReading Naming(IReadOnlySet<string> excluded) => new(true, excluded);
+}
+
 public sealed record SceneExclusionLookup(bool ReadCompleted, int? ExclusionId)
 {
     /// <summary>No whole answer arrived, so nothing about the instance was established.</summary>
