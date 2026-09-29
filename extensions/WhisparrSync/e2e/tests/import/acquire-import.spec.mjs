@@ -343,9 +343,13 @@ for (const generation of ["v3", "v2"]) {
           // secret.
           const delivered = await api.get(extensionRoute("callback/status"));
           expect(
-            delivered.json?.lastEventSecretPosition,
+            delivered.status,
+            `the callback status was not read: ${String(delivered.status)} ${String(delivered.text).slice(0, 300)}`,
+          ).toBe(200);
+          expect(
+            delivered.json?.lastEventSecretPosition ?? null,
             "no delivery ever reached the extension, so the file was registered by something else",
-          ).not.toBeNull();
+          ).toBe(registered.json?.secretTravelsOutOfBand === true ? "outOfBand" : "address");
         } catch (failure) {
           // Which half broke. The callback status says whether a delivery ever arrived, which tells
           // a notification Whisparr never sent from one Cove received and could not act on.
