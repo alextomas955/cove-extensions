@@ -31,9 +31,6 @@ public enum ImportOutcome
     /// </remarks>
     AlreadyHeldUnderTheReadersOwnName,
 
-    /// <summary>The delivery named an event this product does not act on.</summary>
-    IgnoredEventType,
-
     /// <summary>The delivery named an event this product acts on and no path it could read.</summary>
     RefusedUnreadablePayload,
 

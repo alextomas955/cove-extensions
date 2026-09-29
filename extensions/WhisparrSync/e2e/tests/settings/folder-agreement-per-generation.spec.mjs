@@ -29,7 +29,6 @@ const test = base.extend({
 
 const mappingFor = (instanceRoot) => ({
   OutboundMappings: [{ CoveRoot: COVE_ROOT, InstanceRoot: instanceRoot }],
-  RootsEstablished: true,
 });
 
 test("a folder settled on one generation is not settled on the other", async ({ api }) => {

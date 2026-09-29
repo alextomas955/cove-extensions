@@ -12,7 +12,6 @@ import {
   PROVIDER_UNREACHABLE,
   READ_IS_STALE,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
-  WHISPARR_STATUS_NOT_READ,
 } from "../common/ui/copy";
 import type { MissingCard, MissingPageView, MissingRefusalKind } from "../wire/api";
 import {
@@ -207,28 +206,23 @@ describe("every situation the grid cannot show cards in says which one it is", (
   });
 });
 
-describe("the two Whisparr cases differ only in whether asking again could help", () => {
-  const transient = deriveGridState(situation({ view: pageOf([CARD], "whisparrStatusNotRead") }));
+describe("the Whisparr that keeps no per-scene records", () => {
   const permanent = deriveGridState(
     situation({ view: pageOf([CARD], "whisparrKeepsNoSceneRecords") }),
   );
 
-  it("keeps the whole catalogue on screen in both", () => {
-    expect(transient).toBe("whisparrStatusNotRead");
+  it("keeps the whole catalogue on screen", () => {
     expect(permanent).toBe("whisparrKeepsNoSceneRecords");
-    expect(describeGridState(transient!).replacesTheGrid).toBe(false);
     expect(describeGridState(permanent!).replacesTheGrid).toBe(false);
   });
 
-  it("offers a retry for the transient one and none for the permanent one", () => {
-    expect(refreshIsOffered("whisparrStatusNotRead")).toBe(true);
+  it("offers no retry, because asking again reads the same absence", () => {
     expect(refreshIsOffered("whisparrKeepsNoSceneRecords")).toBe(false);
-    expect(emptyStateFor("whisparrStatusNotRead")).toBe(WHISPARR_STATUS_NOT_READ);
     expect(emptyStateFor("whisparrKeepsNoSceneRecords")).toBe(WHISPARR_KEEPS_NO_SCENE_RECORDS);
   });
 
   it("states the empty reason instead when the page carries no card to have a status for", () => {
-    expect(deriveGridState(situation({ view: pageOf([], "whisparrStatusNotRead") }))).toBe(
+    expect(deriveGridState(situation({ view: pageOf([], "whisparrKeepsNoSceneRecords") }))).toBe(
       "nothingMissing",
     );
   });
@@ -244,11 +238,7 @@ describe("the vocabulary itself", () => {
   // Named one by one rather than matched on the name: a kind is stated above the cards only when a
   // page of cards can exist alongside it, which is a fact about the kind and not about its spelling.
   it("never both replaces the grid and keeps cards", () => {
-    const statedAboveCards = new Set([
-      "readIsStale",
-      "whisparrStatusNotRead",
-      "whisparrKeepsNoSceneRecords",
-    ]);
+    const statedAboveCards = new Set(["readIsStale", "whisparrKeepsNoSceneRecords"]);
 
     for (const kind of MISSING_GRID_STATE_KINDS) {
       const state = describeGridState(kind);
