@@ -43,8 +43,10 @@ public static class CallbackAddress
             return "";
         }
 
-        // GetLeftPart omits a default port, so http://host:80 and http://host reduce to one spelling.
-        var authority = parsed.GetLeftPart(UriPartial.Authority);
+        // Authority carries no user-info, so credentials a user embedded cannot reach a log line, a
+        // response body or the outbound request. It also omits a default port, so http://host:80 and
+        // http://host reduce to one spelling.
+        var authority = parsed.Scheme + Uri.SchemeDelimiter + parsed.Authority;
         var path = parsed.AbsolutePath;
         if (path.EndsWith(route, StringComparison.OrdinalIgnoreCase))
         {
