@@ -137,25 +137,31 @@ public sealed partial class WhisparrSync
         // request is built from that row alone, so a reader running during this save sees one whole
         // pair or the other and never the new key beside the instance the old address named. The
         // blob that follows carries the same address for the page to read.
+        //
+        // Both rows and the blob move under one hold of the options gate, and the addresses are
+        // read off the load taken inside it. Written outside, two saves could interleave their
+        // rows and leave one generation from each while the blob described only one of them.
         var now = clock.GetUtcNow();
-        var before = await options.LoadAsync(ct).ConfigureAwait(false);
-        await credentials.ApplyAsync(
-            WhisparrGeneration.V3,
-            SettingsProjector.CredentialWriteFor(request.V3),
-            SettingsProjector.AddressFor(request.V3, before.ConnectionFor(WhisparrGeneration.V3)),
-            now,
-            ct)
-            .ConfigureAwait(false);
-        await credentials.ApplyAsync(
-            WhisparrGeneration.V2,
-            SettingsProjector.CredentialWriteFor(request.V2),
-            SettingsProjector.AddressFor(request.V2, before.ConnectionFor(WhisparrGeneration.V2)),
-            now,
-            ct)
-            .ConfigureAwait(false);
-
         var persisted = await gate
-            .MutateAsync(options, stored => SettingsProjector.Apply(stored, request), ct)
+            .MutateAfterAsync(
+                options,
+                (before, writeCt) => credentials.ApplyAsync(
+                    [
+                        new CredentialApply(
+                            WhisparrGeneration.V3,
+                            SettingsProjector.CredentialWriteFor(request.V3),
+                            SettingsProjector.AddressFor(
+                                request.V3, before.ConnectionFor(WhisparrGeneration.V3))),
+                        new CredentialApply(
+                            WhisparrGeneration.V2,
+                            SettingsProjector.CredentialWriteFor(request.V2),
+                            SettingsProjector.AddressFor(
+                                request.V2, before.ConnectionFor(WhisparrGeneration.V2))),
+                    ],
+                    now,
+                    writeCt),
+                stored => SettingsProjector.Apply(stored, request),
+                ct)
             .ConfigureAwait(false);
 
         // After both writes: the manifest reads this, and a value refreshed between them would name
