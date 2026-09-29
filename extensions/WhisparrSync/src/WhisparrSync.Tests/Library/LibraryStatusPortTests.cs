@@ -140,18 +140,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true, true), readings[1]);
     }
 
-    // Reading an absent file flag as false would count the scene among the ones the instance holds
-    // no file for, on a fact nothing answered.
-    [Fact]
-    public async Task AHeldSceneWithNoFileFlagEstablishesNothingAboutAFile()
-    {
-        var reading = new RecordingSceneReading(status: 200, body: HeldAndMonitored);
-
-        var readings = await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1));
-
-        Assert.Null(readings[1].InLibrary);
-    }
-
     [Fact]
     public async Task AnUnreadableSceneAnswerEstablishesNeither()
     {

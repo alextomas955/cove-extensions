@@ -110,6 +110,7 @@ public sealed class SceneRefusalPrecedenceTests
         var result = await host.SceneActionAsync(coveId, Search);
 
         Assert.Equal(SceneRefusalKind.WhisparrHasNoEntryForScene, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
         Assert.Empty(host.Client.Acting);
     }
 
@@ -125,6 +126,7 @@ public sealed class SceneRefusalPrecedenceTests
         var result = await host.SceneActionAsync(coveId, Search);
 
         Assert.Equal(SceneRefusalKind.WhisparrIsNotMonitoringThisScene, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
         Assert.Single(host.Client.SceneStatuses);
         Assert.Empty(host.Client.Acting);
     }
