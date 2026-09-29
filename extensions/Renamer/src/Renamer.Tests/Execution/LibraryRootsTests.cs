@@ -30,7 +30,7 @@ public sealed class LibraryRootsTests
         Assert.Equal(["/"], CoveRenamerDataPort.ReadLibraryRoots(ConfigWith(given)));
 
     [Fact]
-    public void TwoSpellingsOfOneFolder_ArriveAsOneRoot_NotTwo() =>
+    public void TwoSpellingsOfOneFolder_ArriveSpelledTheSameWay() =>
         Assert.Equal(
             ["C:/Videos", "C:/Videos"],
             CoveRenamerDataPort.ReadLibraryRoots(ConfigWith(@"C:\Videos\", "C:/Videos")));

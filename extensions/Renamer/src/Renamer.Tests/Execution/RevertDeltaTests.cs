@@ -1,8 +1,8 @@
 using Renamer.Execution;
 
-namespace Renamer.Tests.Contracts;
+namespace Renamer.Tests.Execution;
 
-public sealed class RevertDeltaLogicTests
+public sealed class RevertDeltaTests
 {
     // A rename that moved a tracked caption and a configured neighbour, then rewrote the caption's
     // stored filename - transcribed by hand from the records the executor's capture point produces.

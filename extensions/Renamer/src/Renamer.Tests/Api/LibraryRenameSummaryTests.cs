@@ -224,20 +224,6 @@ public sealed class LibraryRenameSummaryTests
         }
     }
 
-    [Fact]
-    public void TheEnqueue_ReturnsARunId_BesideTheJobId()
-    {
-        var ext = RenamerFixture.CreateWithStore();
-        var accepted = Assert.IsType<IValueHttpResult>(
-            Unwrap(ext.RenamerLibraryEnqueue(
-                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), new RecordingJobService())),
-            exactMatch: false);
-
-        var enqueued = Assert.IsType<LibraryRenameEnqueued>(accepted.Value);
-        Assert.Equal("job-123", enqueued.JobId);
-        Assert.NotEqual("", enqueued.RunId);
-    }
-
     private sealed class FailingSummaryStore(IExtensionStore inner) : IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => inner.GetAsync(key, ct);

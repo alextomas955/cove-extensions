@@ -17,17 +17,10 @@ public class MultiValueTests
     }
 
     [Fact]
-    public void Resolve_Separator_JoinsWithSeparator()
+    public void Resolve_SortNoneUnlimited_JoinsInInputOrderWithTheSeparator()
     {
         var m = new MultiValueOptions { Separator = " | ", Sort = SortOrder.None };
         Assert.Equal("Charlie | alice | Bob", MultiValue.Resolve(Three, m));
-    }
-
-    [Fact]
-    public void Resolve_SortNone_PreservesInputOrder()
-    {
-        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None };
-        Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
     }
 
     [Fact]
@@ -82,17 +75,6 @@ public class MultiValueTests
     }
 
     [Fact]
-    public void Resolve_RenamedTag_StillMatchesItsRule()
-    {
-        // The rule was written against id 2. The tag has been renamed since, and the filter is
-        // unaffected - which is the whole reason these key on ids.
-        IReadOnlyList<(int Id, string Name)> renamed = new[] { (1, "Charlie"), (2, "ALICE renamed") };
-        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [2] };
-
-        Assert.Equal("ALICE renamed", MultiValue.Resolve(renamed, m));
-    }
-
-    [Fact]
     public void Resolve_EverythingFilteredOut_ReturnsEmpty()
     {
         var m = new MultiValueOptions { WhitelistIds = [999] };
@@ -100,33 +82,19 @@ public class MultiValueTests
     }
 
     [Fact]
-    public void Resolve_TagRefs_EmptyList_ReturnsEmpty_LikeTheStringOverload()
+    public void Resolve_TagRefs_EmptyList_ReturnsEmpty()
     {
         var m = new MultiValueOptions { Separator = ",", WhitelistIds = [1] };
 
-        Assert.Equal(
-            MultiValue.Resolve(Array.Empty<string>(), m),
-            MultiValue.Resolve(Array.Empty<(int, string)>(), m));
         Assert.Equal("", MultiValue.Resolve(Array.Empty<(int, string)>(), m));
     }
 
     [Fact]
-    public void Resolve_TagRefs_DefaultOptions_RenderNamesLikeTheStringPath()
+    public void Resolve_TagRefs_DefaultOptions_RenderNamesInNameOrder()
     {
-        // With no id filter configured the two overloads must agree byte for byte, so an unchanged
-        // library renders the same filename whichever one a caller reaches for.
         var m = new MultiValueOptions { Separator = ", " };
 
-        Assert.Equal(
-            MultiValue.Resolve(Three, m),
-            MultiValue.Resolve(ThreeTags, m));
-    }
-
-    [Fact]
-    public void Resolve_MaxCountZero_IsUnlimited()
-    {
-        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, MaxCount = 0 };
-        Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
+        Assert.Equal("alice, Bob, Charlie", MultiValue.Resolve(ThreeTags, m));
     }
 
     [Fact]
@@ -203,15 +171,6 @@ public class MultiValueTests
     {
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, BlacklistIds = [2] };
         Assert.Equal("Charlie,alice", MultiValue.Resolve(Performers, m));
-    }
-
-    [Fact]
-    public void Resolve_Performers_FilterSurvivesARename()
-    {
-        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [1] };
-
-        Assert.Equal("alice", MultiValue.Resolve([new RenamerPerformer(1, "alice", false, null)], m));
-        Assert.Equal("Alicia", MultiValue.Resolve([new RenamerPerformer(1, "Alicia", false, null)], m));
     }
 
     [Fact]
@@ -304,17 +263,5 @@ public class MultiValueTests
         // produces the same joined names as the equivalent string list would.
         var m = new MultiValueOptions { Separator = ", " };
         Assert.Equal("alice, Bob, Charlie", MultiValue.Resolve(Performers, m));
-    }
-
-    [Fact]
-    public void SortOrder_HasNoRatingValue_PerformerRatingDeferred_NoPrincipal()
-    {
-        // Performer sort-by-rating is intentionally not offered: rating is per-user data and the
-        // detached renamer job runs without a signed-in user, so there is no defined rating to order
-        // by. This negative assertion documents and guards that deferral - if someone adds a rating
-        // sort, they must revisit the no-principal source decision first.
-        Assert.False(
-            Enum.GetNames<SortOrder>().Any(n => n.Contains("Rating", StringComparison.OrdinalIgnoreCase)),
-            "performer sort-by-rating is deferred (no principal in the detached job); do not add a rating SortOrder without revisiting the source decision.");
     }
 }

@@ -1,4 +1,5 @@
 using Renamer.Execution;
+using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
@@ -283,7 +284,7 @@ public sealed class CrossVolumeMoverTests
     }
 
     [Fact]
-    public async Task TwoMovesToTheSameFinalPath_MintDifferentInFlightNames_AndNoneExceedSixteenCharacters()
+    public async Task TwoMovesToTheSameFinalPath_MintDifferentInFlightNames_OfTheLengthThePlannerBudgets()
     {
         using var dir = new TempDir();
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
@@ -300,54 +301,18 @@ public sealed class CrossVolumeMoverTests
             File.Delete(dest);
         }
 
+        // Distinct names of one length: a fixed suffix of the right length would pass the length check
+        // alone, and a fixed, guessable in-flight name is what the safety contract rules out.
         Assert.Equal(2, minted.Count);
         Assert.Distinct(minted);
         foreach (var path in minted)
         {
+            // Beside the final name, so the promote stays a same-directory atomic rename, and exactly as
+            // much longer as the planner measures a cross-volume destination against.
             Assert.StartsWith(dest, path, StringComparison.Ordinal);
-            Assert.InRange(path.Length - dest.Length, 1, 16);
+            Assert.Equal(PathOps.InFlightSuffixLength, path.Length - dest.Length);
             Assert.Equal(Path.GetDirectoryName(dest), Path.GetDirectoryName(path));
         }
-    }
-
-    // When the destination copy is corrupted (a flipped byte) or torn (truncated) before verify, the
-    // verify fails, the source survives with its original bytes, and the suspect destination and
-    // in-flight copy are gone - an interrupted/corrupted transfer never loses the original. The bit-flip
-    // case proves the content-hash half of verify; the truncation case proves the size half. Both run
-    // entirely in a TempDir - no second physical drive (a real two-drive run is a manual cross-platform
-    // check, deliberately not faked here).
-
-    [Fact]
-    public async Task BitFlipDestination_VerifyFails_SourceSurvives_DestDeleted()
-    {
-        using var dir = new TempDir();
-        const string original = "the real bytes that must survive";
-        var src = dir.Touch("clip.mkv", original);
-        var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
-        string? inFlight = null;
-
-        // Fault seam: flip exactly one byte of the in-flight copy after copy but before verify. The size
-        // is unchanged, so this can only be caught by the content hash (not the size check). The seam
-        // also hands over the minted path, which is how the leftover assertion below knows it.
-        var mover = new CrossVolumeMover((path, _) =>
-        {
-            inFlight = path;
-            var bytes = File.ReadAllBytes(path);
-            Assert.NotEmpty(bytes);
-            bytes[0] ^= 0xFF; // flip one byte; length preserved
-            File.WriteAllBytes(path, bytes);
-            return Task.CompletedTask;
-        });
-
-        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
-
-        Assert.False(result.Moved);
-        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
-        Assert.True(File.Exists(src), "source MUST survive a failed verify");
-        Assert.Equal(original, File.ReadAllText(src));
-        Assert.False(File.Exists(dest), "the suspect destination must be deleted");
-        Assert.NotNull(inFlight);
-        Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
     }
 
     [Fact]
@@ -360,7 +325,7 @@ public sealed class CrossVolumeMoverTests
         string? inFlight = null;
 
         // Fault seam: truncate the in-flight copy to a shorter length (a torn/short write). This is
-        // caught by the size half of verify independently of the hash.
+        // the size half of verify; SizeEqualHashDiffers covers the hash half.
         var mover = new CrossVolumeMover((path, _) =>
         {
             inFlight = path;

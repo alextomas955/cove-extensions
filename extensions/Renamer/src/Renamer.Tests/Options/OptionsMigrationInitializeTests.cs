@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Cove.Core.Entities;
 using Cove.Plugins;
 using Renamer.Options;
@@ -45,31 +46,18 @@ public sealed class OptionsMigrationInitializeTests
     }
 
     [Fact]
-    public async Task NoTagRows_LeavesTheBlobAloneAndDoesNotStamp()
+    public async Task NoTagRows_DefersWithoutWriting_AndALaterLoadOnceTheTableIsReadableConverts()
     {
-        // The whole point of the deferral: converting against an unreadable table resolves every name
-        // to nothing and writes the user's rules away permanently, because the stamp would stop it
-        // ever being retried.
+        // Converting against an empty table resolves every name to nothing and writes the user's rules
+        // away permanently, because the stamp would stop it ever being retried. The deferral has to be
+        // a retry rather than a give-up, or the first load on an empty library would leave a
+        // permanently unreadable configuration.
         await using var library = await LibraryDatabase.CreateAsync();
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
 
         await LoadAsync(library, store, DramaRoot);
-
         Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
-        Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
-    }
-
-    [Fact]
-    public async Task ALaterLoadOnceTheTableIsReadable_Converts()
-    {
-        // The deferral has to be a retry rather than a give-up, or the first load on an empty library
-        // would leave a permanently unreadable configuration.
-        await using var library = await LibraryDatabase.CreateAsync();
-        var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, LegacyBlob);
-
-        await LoadAsync(library, store, DramaRoot);
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
 
         await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
@@ -93,23 +81,24 @@ public sealed class OptionsMigrationInitializeTests
     }
 
     [Fact]
-    public async Task AlreadyIdKeyedBlob_IsStampedAndLeftIntact()
+    public async Task IdKeyedRulesWithBarePathDestinations_ConvertOnlyTheDestinations_AndStamp()
     {
-        // An install that saved from a panel already speaking ids has nothing to convert, and its rules
-        // must survive the pass that records that.
-        const string current = """
+        // Rules already keyed by id need no entity read, but a destination still stored as a bare path
+        // does not bind, so the destination half alone rewrites the blob.
+        const string idKeyed = """
             {"FilenameTemplate":"$title","ExcludeTagIds":[13],"TagDestinations":{"14":"/drama"}}
             """;
         await using var library = await LibraryDatabase.CreateAsync();
         var store = new FakeStore();
-        await store.SetAsync(OptionsStore.Key, current);
+        await store.SetAsync(OptionsStore.Key, idKeyed);
 
         await LoadAsync(library, store, DramaRoot);
 
         Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
-        var options = await new OptionsStore(store).LoadAsync();
-        Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
+        var stored = JsonNode.Parse((await store.GetAsync(OptionsStore.Key))!)!;
+        Assert.Equal(DramaRoot, (string?)stored["TagDestinations"]!["14"]!["Root"]);
+        Assert.Equal("", (string?)stored["TagDestinations"]!["14"]!["Template"]);
+        Assert.Equal([13], (await new OptionsStore(store).LoadAsync()).ExcludeTagIds);
     }
 
     [Fact]
@@ -149,9 +138,8 @@ public sealed class OptionsMigrationInitializeTests
     [Fact]
     public async Task OnceStamped_TheStoredBlobIsNotEvenRead()
     {
-        // What the stamp buys beyond the already-converted shape check: the stored blob is never read.
-        // That value is the whole of the user's settings and can reach hundreds of megabytes, so the
-        // difference between skipping the read and re-parsing it is paid on every single load.
+        // What the stamp buys beyond the already-converted shape check: the stored blob, the whole of the
+        // user's settings, is not read and re-parsed on every load.
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
         await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);

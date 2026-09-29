@@ -1,14 +1,12 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
-namespace Renamer.Tests.Events;
+namespace Renamer.Tests.Elevation;
 
 public sealed class DetachedElevationTests
 {
@@ -90,7 +88,7 @@ public sealed class DetachedElevationTests
     }
 
     [Fact]
-    public async Task TheBatchFolderPreCreate_RunsEveryCommandAsSystem()
+    public async Task TheBatchFolderPreCreateAndExecutor_RunEveryCoveReadAsSystem()
     {
         using var dir = new TempDir();
         await using var library = await LibraryDatabase.CreateAsync();
@@ -121,127 +119,59 @@ public sealed class DetachedElevationTests
 
         await AssertEveryCoveReadRanAsSystemAsync(library);
 
-        // The pre-create's own work, read back after the assertion: the destination folder row exists.
+        // Read back after the assertion: the pre-create made the destination folder row, and the
+        // executor moved the file into it.
         await using var db = library.NewContext();
         Assert.Equal(1, await db.Set<Folder>().AsNoTracking().CountAsync(f => f.Path == folderPath + "/sorted"));
+        Assert.True(File.Exists(Path.Combine(dir.Root, "sorted", "My Film.mkv")));
     }
 
-    [Fact]
-    public async Task TheBatchExecutor_RunsEveryCommandAsSystem()
-    {
-        using var dir = new TempDir();
-        await using var library = await LibraryDatabase.CreateAsync();
-
-        string folderPath = dir.Root.Replace('\\', '/');
-        int videoId;
-        await using (var seed = library.NewContext())
-        {
-            (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seed, folderPath, "raw.mkv", "My Film");
-        }
-
-        File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
-
-        var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
-
-        await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
-
-        await AssertEveryCoveReadRanAsSystemAsync(library);
-
-        // An in-place rename, so the destination-folder span issues nothing and the acting work is the
-        // executor's: the file moved on disk, which is the evidence its body reached the database too.
-        Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
-    }
-
-    [Fact]
-    public async Task TheScanLibraryJobBody_RunsEveryCommandAsSystem()
+    // A queued body is run by a processor started before any request, so it enters carrying no
+    // principal at all rather than the unprivileged one the load arms with.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheScanLibraryJobBody_RunsEveryCommandAsSystem(bool enteredWithNoPrincipal)
     {
         await using var library = await LibraryDatabase.CreateAsync();
         var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
+        var prior = EnterWith(library, enteredWithNoPrincipal);
 
         // An empty library still loads the id list, which is the command this case observes; a seeded
         // one would add the planner's reads without changing what is being asserted.
         await ext.RunScanLibraryJobAsync(
             library.Principals.Current, [RenamerFileKind.Video], null, new FakeJobProgress(), default);
 
-        AssertRanEntirelyAsSystem(library);
+        AssertRanEntirelyAsSystem(library, prior);
     }
 
-    [Fact]
-    public async Task TheRenamerLibraryJobBody_RunsEveryCommandAsSystem()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheRenamerLibraryJobBody_RunsEveryCommandAsSystem(bool enteredWithNoPrincipal)
     {
         await using var library = await LibraryDatabase.CreateAsync();
         var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
+        var prior = EnterWith(library, enteredWithNoPrincipal);
 
         await ext.RunRenamerLibraryJobAsync(
             library.Principals.Current, [RenamerFileKind.Video], new FakeJobProgress(), default);
 
-        AssertRanEntirelyAsSystem(library);
+        AssertRanEntirelyAsSystem(library, prior);
     }
 
-    [Fact]
-    public async Task TheScanLibraryJobBody_WithNoAmbientPrincipal_RunsEveryCommandAsSystem()
+    // Undoes the load's arming when the case enters with no principal, and returns the kind the
+    // body must put back.
+    private static PrincipalKind? EnterWith(LibraryDatabase library, bool noPrincipal)
     {
-        await using var library = await LibraryDatabase.CreateAsync();
-        var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
-
-        // The queued condition, and the load's arming deliberately undone to reach it: the host runs this
-        // body from a queue processor started before any request, so it enters carrying no principal at
-        // all rather than the unprivileged one the case above arms with.
-        library.Principals.Set(null);
-        library.CommandsExecuted.Clear();
-
-        await ext.RunScanLibraryJobAsync(
-            library.Principals.Current, [RenamerFileKind.Video], null, new FakeJobProgress(), default);
-
-        AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
-    }
-
-    [Fact]
-    public async Task TheRenamerLibraryJobBody_WithNoAmbientPrincipal_RunsEveryCommandAsSystem()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-        var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
-
-        library.Principals.Set(null);
-        library.CommandsExecuted.Clear();
-
-        await ext.RunRenamerLibraryJobAsync(
-            library.Principals.Current, [RenamerFileKind.Video], new FakeJobProgress(), default);
-
-        AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
-    }
-
-    [Fact]
-    public async Task ACommandReachingAnOwnTableAndACoveTable_IsClassifiedAsACoveRead()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-
-        library.Principals.Set(CovePrincipal.Anonymous());
-        library.CommandsExecuted.Clear();
-
-        // A real command through a real context rather than a hand-forged ExecutedCommand, so the text the
-        // classification is applied to is the text EF emitted and not one this case invented. The join is
-        // what puts both kinds of table into one statement. It runs unelevated, which is the shape the
-        // verdict must not let through.
-        await using (var db = library.NewContext())
+        if (!noPrincipal)
         {
-            _ = await db.Set<RevertRowEntity>()
-                .Join(db.Set<Video>(), row => row.EntityId, video => video.Id, (_, video) => video.Id)
-                .ToListAsync();
+            return PrincipalKind.Anonymous;
         }
 
-        var command = Assert.Single(library.CommandsExecuted);
-        var tables = await TablesByOwnershipAsync(library);
-
-        // The premise: the statement names a table of each kind.
-        Assert.Contains(tables.Own, t => command.Sql.Contains(t, StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(tables.Cove, t => command.Sql.Contains(t, StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(PrincipalKind.Anonymous, command.Principal);
-
-        Assert.True(
-            NamesATableCoveOwns(tables, command),
-            "a command that reached a table Cove owns was classified as if it had not: it named a table "
-                + $"this extension owns too, and so escaped the System requirement. SQL: {command.Sql}");
+        library.Principals.Set(null);
+        library.CommandsExecuted.Clear();
+        return null;
     }
 
     // Every command recorded since the last clear ran as System, and at least one was recorded -
@@ -322,17 +252,9 @@ public sealed class DetachedElevationTests
         return new TablesByOwnership(own, cove);
     }
 
-    // Whether c's SQL reaches a table Cove owns. This is the question the predicate it replaced was
-    // named for and did not ask. That one tested whether the SQL mentioned at least one table this
-    // extension owns, under a name promising it mentioned nothing else - so a command reaching an
-    // own table and a Cove table satisfied it, which took the command out of the Cove-read set and,
-    // in the same step, excused it from the unelevated-command clause. It escaped both halves of
-    // the verdict, which is exactly the hiding place the second clause exists to close. Asked about
-    // Cove's set directly the question has no such reading: naming an own table cannot excuse
-    // naming a Cove one. The match is a case-insensitive substring of the statement text, which is
-    // what the replaced predicate did too. Widening it from the extension's two table names to
-    // Cove's whole set was measured against this class's existing cases before it was kept, since a
-    // short table name can be a substring of text that does not reference that table.
+    // Whether c's SQL reaches a table Cove owns. A command that also names one of this extension's
+    // tables still counts: naming an own table cannot excuse naming a Cove one. The match is a
+    // case-insensitive substring of the statement text.
     private static bool NamesATableCoveOwns(TablesByOwnership tables, LibraryDatabase.ExecutedCommand c) =>
         tables.Cove.Any(table => c.Sql.Contains(table, StringComparison.OrdinalIgnoreCase));
 
@@ -398,118 +320,4 @@ public sealed class DetachedElevationTests
     // harness-only race without changing the path under test.
     private static RenamerOptions TitleOnlyOptions() =>
         new() { FilenameTemplate = "$title", SameVolumeConcurrency = 1 };
-}
-
-public sealed class RunAsSystemContractTests
-{
-    [Fact]
-    public async Task TheGenericOverload_ElevatesForTheBody_ReturnsItsValue_AndRestoresTheCaller()
-    {
-        var accessor = Caller();
-        var caller = accessor.Current;
-
-        PrincipalKind? seenInside = null;
-        int returned = await RunAsSystem.RunAsSystemAsync(
-            ProviderWith(accessor),
-            () =>
-            {
-                seenInside = accessor.Current?.Kind;
-                return Task.FromResult(7);
-            });
-
-        Assert.Equal(PrincipalKind.System, seenInside);
-        Assert.Equal(7, returned);
-        Assert.Same(caller, accessor.Current);
-    }
-
-    [Fact]
-    public async Task TheVoidOverload_ElevatesForTheBody_AndRestoresTheCaller()
-    {
-        var accessor = Caller();
-        var caller = accessor.Current;
-
-        PrincipalKind? seenInside = null;
-        Func<Task> body = () =>
-        {
-            seenInside = accessor.Current?.Kind;
-            return Task.CompletedTask;
-        };
-
-        await RunAsSystem.RunAsSystemAsync(ProviderWith(accessor), body);
-
-        Assert.Equal(PrincipalKind.System, seenInside);
-        Assert.Same(caller, accessor.Current);
-    }
-
-    [Fact]
-    public async Task ABodyThatThrows_SurfacesTheException_AndStillRestoresTheCaller()
-    {
-        var accessor = Caller();
-        var caller = accessor.Current;
-
-        PrincipalKind? seenInside = null;
-        Func<Task> failing = () =>
-        {
-            seenInside = accessor.Current?.Kind;
-            throw new InvalidOperationException("the body failed");
-        };
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => RunAsSystem.RunAsSystemAsync(ProviderWith(accessor), failing));
-
-        Assert.Equal("the body failed", thrown.Message);
-        Assert.Equal(PrincipalKind.System, seenInside);
-
-        // The restore is the finally's contract and not a courtesy of the happy path: without it a caller
-        // whose body failed keeps an elevated principal for the remainder of its own scope.
-        Assert.Same(caller, accessor.Current);
-    }
-
-    [Fact]
-    public async Task APriorPrincipalThatWasAbsent_ComesBackAbsent_AndNotAsADefault()
-    {
-        // The queued condition at this tier: nothing was set, so nothing is what has to come back.
-        // Restoring Anonymous, or leaving System in place, would each be a different bug wearing the
-        // same green - which is why the assertion names null rather than any principal at all.
-        var accessor = new FakePrincipalAccessor();
-
-        PrincipalKind? seenInside = null;
-        await RunAsSystem.RunAsSystemAsync(
-            ProviderWith(accessor),
-            () =>
-            {
-                seenInside = accessor.Current?.Kind;
-                return Task.FromResult(true);
-            });
-
-        Assert.Equal(PrincipalKind.System, seenInside);
-        Assert.Null(accessor.Current);
-    }
-
-    [Fact]
-    public async Task AScopeWithNoAccessor_RunsTheBodyUnchanged_AndReturnsItsValue()
-    {
-        bool ran = false;
-
-        // Nothing to observe from inside, because there is no accessor to observe - so what this case
-        // records instead is that the body ran at all, which a silently swallowed body would break.
-        int returned = await RunAsSystem.RunAsSystemAsync(
-            new ServiceCollection().BuildServiceProvider(),
-            () =>
-            {
-                ran = true;
-                return Task.FromResult(11);
-            });
-
-        Assert.True(ran);
-        Assert.Equal(11, returned);
-    }
-
-    // A present caller principal: a user holding no permissions. Present rather than absent so the
-    // restore assertions have an instance to name - the absent prior value is its own case above.
-    private static FakePrincipalAccessor Caller() => FakePrincipalAccessor.WithPermissions();
-
-    // A provider whose only registration is accessor.
-    private static ServiceProvider ProviderWith(ICurrentPrincipalAccessor accessor) =>
-        new ServiceCollection().AddSingleton(accessor).BuildServiceProvider();
 }

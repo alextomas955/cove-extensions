@@ -1,11 +1,11 @@
 using Renamer.Execution;
 
-namespace Renamer.Tests.Contracts;
+namespace Renamer.Tests.Execution.Journal;
 
 public sealed class RetentionWindowPinTests
 {
     [Fact]
-    public void RetentionWindowIsSevenDays_AndThePanelHoldsThatSameNumber()
+    public void RetentionWindow_IsSevenDays()
     {
         Assert.True(
             (long)CoveRevertJournal.RetentionWindow.TotalMilliseconds == 604_800_000L,

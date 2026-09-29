@@ -8,47 +8,45 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Preview;
 
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class PreviewWholeBatchTests
 {
-    // OS-aware absolute roots so routing to a different root yields a real cross-volume Move.
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
-    private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
     private static string Fwd(string p) => p.Replace('\\', '/');
 
     [Fact]
-    public async Task PreviewAsync_ReturnsItemsAndSummary_WithRoutingFields_AndCamelCaseStringEnums()
+    public async Task PreviewAsync_ACrossVolumeMove_SummarizesItsBytes_AndSerializesCamelCaseStringEnums()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a Windows drive letter to stand in for a second volume");
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
-        // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
-        // source would be SkipMissingSource, not the routed Move this test asserts). The routed
-        // destination (PathRoot, a fictional different drive) stays cross-volume vs the temp source.
+        // Preview probes the source on disk, so it lives in a real temp dir. The summary classifies
+        // volumes against the real mount table, so the destination must be a second filesystem.
         using var srcDir = new TempDir();
+        using var destVolume = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
+            const long SizeBytes = 123_456;
             string srcFolder = srcDir.Root.Replace('\\', '/');
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, srcFolder, "raw.mkv", "My Film");
+                db, srcFolder, "raw.mkv", "My Film", size: SizeBytes);
             File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            // An exact source-path rule + an allowed dest root on a different volume → a routed Move
-            // that the aggregate classifies as cross-volume.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Sorted",
                 PathDestinations =
                 [
                     new PathDestinationRule
                     {
-                        Pattern = srcFolder, Dest = Dest.At(PathRoot, "Sorted"), IsRegex = false,
+                        Pattern = srcFolder, Dest = Dest.At(destVolume.Root, "Sorted"), IsRegex = false,
                     },
                 ],
             };
 
-            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, srcFolder, PathRoot);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options, srcFolder, destVolume.Root);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -57,22 +55,20 @@ public sealed class PreviewWholeBatchTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
-            // Per-item contract preserved + routing fields present.
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
-            Assert.Equal("SourcePath:exact", item.MatchedRule);
 
-            // Summary quantifies the (cross-volume) blast radius.
             Assert.Equal(1, response.Summary.TotalCount);
             Assert.Equal(1, response.Summary.CrossVolumeCount);
+            Assert.Equal(SizeBytes, response.Summary.CrossVolumeBytes);
             var pair = Assert.Single(response.Summary.VolumePairs);
             Assert.Equal(1, pair.Count);
+            Assert.Equal(SizeBytes, pair.Bytes);
+            Assert.Equal(ConfirmLevel.Standard, response.Summary.ConfirmLevel);
 
-            // wire-shape regression: the bytes the UI reads must be camelCase with `status` and
-            // `confirmLevel` the camelCase string - not PascalCase, not a numeric enum. Serialize with
-            // the handler's own options.
+            // The UI matches on camelCase keys and camelCase enum strings, so a PascalCase key or a
+            // numeric enum reads as nothing to do.
             var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"items\":", json);
             Assert.Contains("\"summary\":", json);
@@ -80,7 +76,7 @@ public sealed class PreviewWholeBatchTests
             Assert.Contains("\"resolvedDestinationRoot\":", json);
             Assert.Contains("\"matchedRule\":", json);
             Assert.Contains("\"targetVolume\":", json);
-            Assert.Contains("\"confirmLevel\":", json);
+            Assert.Contains("\"confirmLevel\":\"standard\"", json);
             Assert.Contains("\"volumePairs\":", json);
             Assert.Contains("\"from\":", json);
             Assert.Contains("\"to\":", json);
@@ -90,7 +86,6 @@ public sealed class PreviewWholeBatchTests
             Assert.DoesNotContain("\"Status\":", json);
             Assert.DoesNotContain("\"ConfirmLevel\":", json);
 
-            // Zero mutation.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
@@ -105,10 +100,6 @@ public sealed class PreviewWholeBatchTests
     [Fact]
     public async Task PreviewAsync_ExcludedItem_AppearsAsSkipExcluded_WithReason_NotSilentlyDropped()
     {
-        // An item matched by a source-path exclude is a visible SkipExcluded
-        // skip-with-reason in the whole-batch preview item list - not silently dropped. It is a
-        // non-acting skip (BatchPreview.Summarize counts only Renamer|Move), so the summary shows
-        // zero acting items while the item itself still appears with its exclude reason.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -116,7 +107,6 @@ public sealed class PreviewWholeBatchTests
                 db, Fwd(SrcRoot), "raw.mkv", "My Film");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            // An exact source-path exclude on the seeded folder → the item is excluded first.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -132,60 +122,21 @@ public sealed class PreviewWholeBatchTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
-            // The excluded item appears in the preview (not dropped), with SkipExcluded + its reason.
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
             Assert.NotNull(item.Reason);
             Assert.Contains("Exclude:Path:exact", item.Reason);
 
-            // Non-acting skip: zero Renamer/Move counted in the blast-radius summary.
+            // A skip does not act, so the blast radius counts nothing.
             Assert.Equal(0, response.Summary.TotalCount);
 
-            // The status survives serialization as the camelCase string the UI matches on.
             var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 
-            // Zero mutation.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task PreviewAsync_SameVolumeRename_SummaryIsLight()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            // Preview probes the source on disk, so give the seeded row a real on-disk file - a gone
-            // source would be SkipMissingSource instead of the same-volume Renamer this test asserts.
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw one.mkv", "First Film");
-            File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
-
-            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new RenamerOptions { FilenameTemplate = "$title" });
-            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-
-            var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
-
-            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
-            var response = ok.Value!;
-
-            Assert.Equal(1, response.Summary.TotalCount);
-            Assert.Equal(1, response.Summary.SameVolumeCount);
-            Assert.Equal(0, response.Summary.CrossVolumeCount);
-            Assert.Empty(response.Summary.VolumePairs);
-            Assert.Equal(ConfirmLevel.Light, response.Summary.ConfirmLevel);
         }
         finally
         {

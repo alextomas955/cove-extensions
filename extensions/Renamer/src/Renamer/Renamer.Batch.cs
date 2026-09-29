@@ -323,8 +323,8 @@ public sealed partial class Renamer
             return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, planSkipped, detail);
         }
 
-        // Nothing acts, so open no batch: an empty batch would shadow the operation's earlier replayable
-        // one when /undo looks for work.
+        // Nothing acts, so open no batch: a run that renames nothing leaves no zero-file operation for
+        // the undo panel to describe.
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, contestedFiles, 0);
@@ -353,7 +353,8 @@ public sealed partial class Renamer
         // Serializes every concurrent progress report. The workers call Report from many threads at once,
         // and nothing establishes that the host's sink is thread-safe - a host that appends to a list or
         // writes a SignalR message without its own lock could corrupt state or interleave messages. The
-        // done counter is already interlocked; this guards only the host-facing call itself.
+        // done counter advances under the same lock as its report: a count read outside it can reach the
+        // sink after a larger one and step the bar backward.
         var progressGate = new object();
 
         int totalRenamed = 0, totalSkipped = contestedFiles, totalFailed = 0;
@@ -373,8 +374,7 @@ public sealed partial class Renamer
                 // SkipNoSpace status and log output attributes a disk-full skip correctly.
                 LogItemSkipped(runId, run.Kind, unit.EntityId, RenamerStatus.SkipNoSpace,
                     "skipped: destination volume dropped below free-space headroom in flight");
-                Interlocked.Increment(ref done);
-                ReportProgress((double)Volatile.Read(ref done) / totalUnits);
+                CompleteUnit();
                 return;
             }
 
@@ -404,19 +404,19 @@ public sealed partial class Renamer
             Interlocked.Add(ref totalSkipped, result.Skipped.Count);
             Interlocked.Add(ref totalFailed, result.Failed.Count);
 
-            Interlocked.Increment(ref done);
-            ReportProgress((double)Volatile.Read(ref done) / totalUnits);
+            CompleteUnit();
         }
 
-        void ReportProgress(double percent)
+        void CompleteUnit()
         {
             // Execution owns the second half of the chunk's bar: its own [0,1] completion fraction maps
-            // into [PlanningProgressShare, 1.0], so it picks up where planning left off and never jumps
-            // backwards. A message-less report keeps the host's own phase label.
-            double scaled = PlanningProgressShare + percent * (1d - PlanningProgressShare);
+            // into [PlanningProgressShare, 1.0], so it picks up where planning left off. A message-less
+            // report keeps the host's own phase label.
             lock (progressGate)
             {
-                progress.Report(scaled, null);
+                done++;
+                double percent = (double)done / totalUnits;
+                progress.Report(PlanningProgressShare + percent * (1d - PlanningProgressShare), null);
             }
         }
 

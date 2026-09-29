@@ -166,6 +166,7 @@ Minimal-API endpoints the frontend calls, mounted under
   not written back. Refused with `409 MIGRATION_PENDING` while a conversion is outstanding, because
   the current model reads an unconverted rule as blank and a save would write that blank over the only
   copy of it.
+  A null list or a length cap below 1 in the body is replaced by its default before the write.
 - `POST /preview` - runs the planner over selected item IDs and returns the old→new plan (no
   mutation).
 - `POST /renamer` - enqueues the background rename job for selected items.

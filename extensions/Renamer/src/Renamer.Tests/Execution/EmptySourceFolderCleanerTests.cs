@@ -6,6 +6,7 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class EmptySourceFolderCleanerTests
 {
     [Fact]
@@ -79,14 +80,19 @@ public sealed class EmptySourceFolderCleanerTests
     }
 
     [Fact]
-    public void DriveRoot_IsNeverDeleted()
+    public void AnEmptyDriveRoot_IsNeverDeleted()
     {
-        string root = Path.GetPathRoot(Path.GetTempPath())!; // e.g. "C:\" - a real, existing root
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(root.Replace('\\', '/'));
+        // A real drive root always holds entries, so only an empty one reaches the root guard rather
+        // than the non-empty check. A subst drive is the one empty root a test can mint, and only on
+        // Windows.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "an empty drive root needs a subst drive, which only Windows has");
+
+        using var drive = new SubstDrive();
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(drive.Root.Replace('\\', '/'));
 
         Assert.False(removed);
         Assert.Null(warning);
-        Assert.True(Directory.Exists(root), "the drive root must survive untouched");
+        Assert.True(Directory.Exists(drive.Root), "the drive root must survive untouched");
     }
 
     [Fact]
@@ -186,52 +192,6 @@ public sealed class EmptySourceFolderCleanerTests
     }
 
     [Fact]
-    public async Task SameFolderRename_NeverEntersCleanup_SourceDirSurvives()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            // A pure in-place renamer inside one folder: the parent dir does not change, so the trigger
-            // predicate must skip the cleaner outright. We prove the predicate skipped - not merely
-            // that the cleaner no-op'd - by leaving the folder with the renamed file still in it and
-            // setting RemoveEmptyFolder on: had the cleaner run, it would have found a file and no-op'd
-            // too, so the distinguishing observation is that the folder (still holding the renamed file)
-            // is intact and the move stayed in-place.
-            string folder = dir.Root.Replace('\\', '/');
-            var (_, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folder, "raw clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var executor = NewExecutor(db, out _);
-            var options = new RenamerOptions { FilenameTemplate = "$title", RemoveEmptyFolder = true };
-
-            var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            var item = Assert.Single(plan.Items);
-            Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place renamer, not a move
-
-            // The trigger predicate's two independent reasons to skip both hold for this item:
-            // it is not a move, and the parent dir does not change.
-            Assert.False(item.Status == RenamerStatus.Move, "an in-place renamer is not a move → cleanup never fires");
-            Assert.Equal(DirOf(item.OldFullPath), DirOf(item.NewFullPath));
-
-            var result = await executor.ExecuteAsync(plan, options, default);
-
-            Assert.Single(result.Renamed);
-            Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder renamer");
-            Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")), "the renamed file stays in the folder");
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task UndoOfMoveAfterCleanup_Skips_BecauseOriginalDirectoryGone_FileStaysAtDestination()
     {
         using var dir = new TempDir();
@@ -291,12 +251,5 @@ public sealed class EmptySourceFolderCleanerTests
     {
         bus = new CapturingEventBus();
         return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
-    }
-
-    private static string DirOf(string fullPath)
-    {
-        string p = fullPath.Replace('\\', '/');
-        int slash = p.LastIndexOf('/');
-        return slash >= 0 ? p[..slash] : "";
     }
 }

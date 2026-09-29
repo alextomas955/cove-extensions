@@ -79,10 +79,10 @@ public sealed partial class Renamer
                     return;
                 }
 
-                // The batch opens only on the acting path: an empty batch would shadow a prior
-                // replayable one from /undo. Each edit is its own user action, so each gets its own
-                // operation id and its undo reaches that edit alone. The journal instance is shared
-                // with the executor so its rows land under this batch.
+                // The batch opens only on the acting path, so an edit that renames nothing leaves no
+                // zero-file operation for the undo panel to describe. Each edit is its own user action,
+                // so each gets its own operation id and its undo reaches that edit alone. The journal
+                // instance is shared with the executor so its rows land under this batch.
                 var runId = Guid.NewGuid().ToString("N");
                 await using var journal = new CoveRevertJournal(db);
                 await journal.BeginBatchAsync(runId, runId, kind, DateTime.UtcNow, ct);

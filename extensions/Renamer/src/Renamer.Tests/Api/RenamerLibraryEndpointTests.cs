@@ -66,25 +66,22 @@ public sealed class RenamerLibraryEndpointTests
     }
 
     [Fact]
-    public async Task RenamerLibraryEnqueue_WithAnyWritePermission_Returns202_AndEnqueuesExclusiveOnce()
+    public void RenamerLibraryEnqueue_WithAnyWritePermission_Returns202_EnqueuesOneExclusiveJob_AndReturnsARunId()
     {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, _) = await NewExtensionAsync(conn);
-            var jobs = new RecordingJobService();
-            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+        var ext = RenamerFixture.CreateWithStore();
+        var jobs = new RecordingJobService();
 
-            var result = ext.RenamerLibraryEnqueue(principal, jobs);
+        var result = ext.RenamerLibraryEnqueue(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), jobs);
 
-            Assert.Equal(202, StatusOf(result));
-            Assert.Single(jobs.Enqueued);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
+        Assert.Equal(202, StatusOf(result));
+        var enqueued = Assert.IsType<global::Renamer.Contracts.LibraryRenameEnqueued>(
+            Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
+        Assert.Equal("job-123", enqueued.JobId);
+        Assert.False(string.IsNullOrEmpty(enqueued.RunId));
+
+        var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
+        Assert.Equal("ext:com.alextomas955.renamer:renamer-library", type);
+        Assert.True(exclusive);
     }
 
     [Fact]
@@ -232,15 +229,12 @@ public sealed class RenamerLibraryEndpointTests
             var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
-            // Caller only holds videos.write + images.write (no audios.write) and there are zero
-            // image candidates in the DB - both the permission filter and the empty-candidate skip
-            // land on a kind that opens no batch.
+            // Image is writable but has no rows, so the walk counts zero candidates for it.
             await ext.RunRenamerLibraryJobAsync(
                 Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            // Only Video opened a batch - Image had zero candidates, so RunRenamerBatchAsync was never
-            // called for it and no empty batch opened.
+            // An empty kind opens no batch, not an empty one.
             var batch = Assert.Single(await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync());
             Assert.Equal(nameof(RenamerFileKind.Video), batch.Kind);
         }
@@ -252,30 +246,28 @@ public sealed class RenamerLibraryEndpointTests
     }
 
     [Fact]
-    public async Task RunRenamerLibraryJobAsync_MissingImagesWrite_LeavesImageRowUntouched_ButRenamesVideo()
+    public async Task RenamerLibraryEnqueue_WithoutImagesWrite_RunsAJobThatLeavesTheImageUntouched_ButRenamesTheVideo()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             var (videoFileId, imageFileId) = await SeedVideoAndImageAsync(db, dir);
-
             var (beforeImageName, beforeImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
 
             var (ext, _) = await NewExtensionAsync(conn);
-            var progress = new FakeJobProgress();
+            var jobs = new RecordingJobService();
 
-            // Caller's captured writable set holds only Video (images.write was missing at enqueue time).
-            await ext.RunRenamerLibraryJobAsync(
-                Caller(Permissions.VideosWrite), [RenamerFileKind.Video], progress, default);
+            // The per-entity check allows everything here, so only the kinds the enqueue captured from
+            // this caller's permissions keep the job away from the image.
+            Assert.Equal(202, StatusOf(ext.RenamerLibraryEnqueue(
+                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), jobs)));
+            await jobs.RunTheOnlyJobAsync();
 
-            // Video renamed.
             var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
             Assert.Equal("Film.mkv", videoBasename);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
 
-            // Image untouched on disk and in the DB - the kind was never in the writable set, so the
-            // job loop never even queried its candidates.
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "raw.jpg")));
             var (afterImageName, afterImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
             Assert.Equal(beforeImageName, afterImageName);

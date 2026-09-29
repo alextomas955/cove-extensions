@@ -28,7 +28,7 @@ public sealed class PreviewEndpointTests
         try
         {
             // Preview probes the source on disk, so the seeded row needs a matching on-disk file for
-            // the item to classify as a real Renamer (a gone source would be SkipMissingSource).
+            // the item to classify as a real rename (a gone source would be SkipMissingSource).
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath, "raw one.mkv", "First Film");
@@ -59,12 +59,19 @@ public sealed class PreviewEndpointTests
             // The in-flight overflow signals reach the wire, and an ordinary same-volume rename carries
             // neither of them: DiskMover mints no temporary name, so a warning here would fire on a
             // correct plan, which is the failure that teaches a user to ignore the badge. The positive
-            // arm needs two real volumes, so it lives in the pager suite (an injectable mount table) and
-            // in the containerized tier.
+            // arm needs two volumes, so it lives in the pager suite, which injects a mount table.
             Assert.Contains("\"inFlightPathOverflow\":false", json);
             Assert.Contains("\"inFlightPathOverflowCount\":0", json);
             Assert.False(item.InFlightPathOverflow);
             Assert.Equal(0, ok.Value!.Summary.InFlightPathOverflowCount);
+
+            // A same-volume rename is the lightest blast radius the confirm step shows.
+            var summary = ok.Value!.Summary;
+            Assert.Equal(1, summary.TotalCount);
+            Assert.Equal(1, summary.SameVolumeCount);
+            Assert.Equal(0, summary.CrossVolumeCount);
+            Assert.Empty(summary.VolumePairs);
+            Assert.Equal(ConfirmLevel.Light, summary.ConfirmLevel);
 
             // Zero mutation: the seeded row is byte-for-byte unchanged after the preview.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
@@ -84,9 +91,9 @@ public sealed class PreviewEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (folderId, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+            var (folderId, videoId, firstFileId) = await ExecutorTestSeed.SeedVideoAsync(
                 db, "/library/films", "part1.mkv", "Two Part Film");
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "part2.mkv");
+            int secondFileId = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "part2.mkv");
 
             var ext = await BuildExtensionAsync();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
@@ -95,8 +102,10 @@ public sealed class PreviewEndpointTests
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
-            // one plan item per physical file of the entity, never just the first file.
-            Assert.Equal(2, ok.Value!.Items.Count);
+            // One plan item per physical file of the entity, never just the first file. Neither file is
+            // on disk, so both are missing-source skips: the item list still names each one.
+            Assert.Equal([firstFileId, secondFileId], ok.Value!.Items.Select(i => i.FileId).Order());
+            Assert.All(ok.Value!.Items, i => Assert.Equal(RenamerStatus.SkipMissingSource, i.Status));
         }
         finally
         {

@@ -137,6 +137,33 @@ public sealed class JournalBlobMigrationTests
         await AssertBothKeysGoneAsync(store);
     }
 
+    [Theory]
+    // No stamp at all, and a stamp from a schema this code does not read.
+    [InlineData(null)]
+    [InlineData("1")]
+    public async Task AValueWithoutTheCurrentStamp_IsDiscardedUnread_AndBothKeysGo(string? stamp)
+    {
+        // A value the stamp does not vouch for predates the row cap, so it may be any size and is never
+        // parsed, however well-formed it looks.
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        await using var _ = db;
+        await using var __ = conn;
+
+        var store = new FakeStore();
+        if (stamp is not null)
+        {
+            await store.SetAsync(JournalBlobMigration.SchemaKey, stamp);
+        }
+
+        await store.SetAsync(JournalBlobMigration.Key, string.Join("\n", Header(), "7|70|/lib/a.mkv"));
+        var journal = new CoveRevertJournal(db);
+
+        Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
+
+        Assert.Null(await journal.ReadUndoTargetAsync());
+        await AssertBothKeysGoneAsync(store);
+    }
+
     [Fact]
     public async Task AJournalWhoseOnlyBatchWasAlreadySpent_MigratesNothing_AndBothKeysGo()
     {

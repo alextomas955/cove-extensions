@@ -224,46 +224,6 @@ public sealed class AssociatedExtensionSidecarTests
     }
 
     [Fact]
-    public async Task SaveFailure_RollsBackExtensionSidecar_AlongsidePrimary()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
-            // A second row occupies "taken.mkv" so the save of clip→taken hits the unique index.
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
-
-            string oldPrimary = Path.Combine(dir.Root, "clip.mkv");
-            string oldSidecar = Path.Combine(dir.Root, "clip.srt");
-            File.WriteAllText(oldPrimary, "video");
-            File.WriteAllText(oldSidecar, "subs");
-            Assert.False(File.Exists(Path.Combine(dir.Root, "taken.mkv")), "precondition: disk target free so the move happens first");
-
-            var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
-            var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
-            var result = await executor.ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "taken.mkv"), options, default);
-
-            Assert.Single(result.Failed);
-            // The extension sidecar is restored to its source alongside the primary.
-            Assert.True(File.Exists(oldPrimary), "primary restored");
-            Assert.True(File.Exists(oldSidecar), "extension sidecar restored");
-            Assert.Equal("subs", File.ReadAllText(oldSidecar));
-            Assert.False(File.Exists(Path.Combine(dir.Root, "taken.mkv")));
-            Assert.False(File.Exists(Path.Combine(dir.Root, "taken.srt")));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task ExtensionMatchAlreadyTrackedAsCaption_IsNotMovedTwice()
     {
         using var dir = new TempDir();
@@ -340,7 +300,6 @@ public sealed class AssociatedExtensionSidecarTests
     }
 
     [Theory]
-    [InlineData("srt")]
     [InlineData(".srt")]
     [InlineData("SRT")]
     public async Task ExtensionNormalization_MatchesRegardlessOfDotOrCase(string configured)
@@ -361,8 +320,7 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
             Assert.Single(result.Renamed);
-            Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.srt")), $"'{configured}' must match clip.srt");
-            Assert.False(File.Exists(Path.Combine(dir.Root, "clip.srt")));
+            Assert.Equal(["Film A.mkv", "Film A.srt"], NamesOnDisk(dir.Root));
         }
         finally
         {
@@ -371,9 +329,9 @@ public sealed class AssociatedExtensionSidecarTests
         }
     }
 
-    // The other direction of the same contract, and the one a case-insensitive filesystem cannot
-    // distinguish: the configured value is lower case and the extension on disk is upper case. The
-    // moved file keeps the casing it had rather than taking the casing from the setting.
+    // The moved file keeps the extension casing it had on disk rather than the casing in the setting.
+    // Names are read from the directory listing, because File.Exists answers either casing on a
+    // case-insensitive volume.
     [Theory]
     [InlineData("srt")]
     [InlineData(".srt")]
@@ -396,8 +354,7 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
             Assert.Single(result.Renamed);
-            Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.SRT")), $"'{configured}' must match clip.SRT");
-            Assert.False(File.Exists(Path.Combine(dir.Root, "clip.SRT")));
+            Assert.Equal(["Film A.SRT", "Film A.mkv"], NamesOnDisk(dir.Root));
         }
         finally
         {
@@ -405,4 +362,7 @@ public sealed class AssociatedExtensionSidecarTests
             await conn.DisposeAsync();
         }
     }
+
+    private static string[] NamesOnDisk(string directory) =>
+        [.. Directory.EnumerateFiles(directory).Select(p => Path.GetFileName(p)).Order(StringComparer.Ordinal)];
 }

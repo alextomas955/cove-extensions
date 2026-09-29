@@ -12,7 +12,14 @@ namespace Renamer.Tests.TestSupport;
 // the SQL of every non-query so a test can count the statements one table saw.
 public sealed class CommandCountingInterceptor : DbCommandInterceptor
 {
-    public int ReaderCount { get; set; }
+    private int _readers;
+
+    // One instance is attached to every context a parallel batch opens, so the count is atomic.
+    public int ReaderCount
+    {
+        get => Volatile.Read(ref _readers);
+        set => Volatile.Write(ref _readers, value);
+    }
 
     // The SQL of every executed non-query, in execution order.
     public ConcurrentQueue<string> NonQueryTexts { get; } = new();
@@ -29,14 +36,14 @@ public sealed class CommandCountingInterceptor : DbCommandInterceptor
         DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
         CancellationToken cancellationToken = default)
     {
-        ReaderCount++;
+        Interlocked.Increment(ref _readers);
         return ValueTask.FromResult(result);
     }
 
     public override DbDataReader ReaderExecuted(
         DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
     {
-        ReaderCount++;
+        Interlocked.Increment(ref _readers);
         return result;
     }
 

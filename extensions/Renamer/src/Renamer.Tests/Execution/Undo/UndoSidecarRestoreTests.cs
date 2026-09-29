@@ -62,8 +62,13 @@ public sealed class UndoSidecarRestoreTests
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
             File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "caption");
 
-            var options = new RenamerOptions { FilenameTemplate = "$title" };
-            var run = await RenameThenUndoAsync(db, "caption-run", videoId, options);
+            string afterRename = "";
+            var run = await RenameThenUndoAsync(
+                db, "caption-run", videoId, new RenamerOptions { FilenameTemplate = "$title" },
+                betweenRenameAndUndo: async () => afterRename = await ReadCaptionFilenameAsync(db, captionId));
+
+            // A round trip that never wrote in either direction also ends on the original name.
+            Assert.Equal("My Film.en.vtt", afterRename);
 
             Assert.Equal(1, run.Undone);
 
@@ -168,80 +173,6 @@ public sealed class UndoSidecarRestoreTests
         }
     }
 
-    [Fact]
-    public async Task ACaptionRowThatIsNotAlreadyTracked_StillFollowsTheRenameAndComesBack()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
-            int captionId = await SeedCaptionAsync(db, fileId, "clip.en.vtt");
-
-            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "caption");
-
-            // The one line that makes this case measure the code rather than the fixture. Seeding a
-            // caption through this context leaves it in the change tracker, and relationship fix-up
-            // then populates the file's Captions navigation - state production never has, because
-            // every read the port makes is AsNoTracking and each batch worker saves through a context
-            // that has loaded nothing. Every other case here inherits that fixture-supplied state, so
-            // a rename whose caption write silently did nothing passed all of them.
-            db.ChangeTracker.Clear();
-
-            string afterRename = "";
-            var run = await RenameThenUndoAsync(
-                db, "caption-untracked-run", videoId, new RenamerOptions { FilenameTemplate = "$title" },
-                betweenRenameAndUndo: async () => afterRename = await ReadCaptionFilenameAsync(db, captionId));
-
-            // The forward half is asserted on its own: a round trip that never wrote in either
-            // direction ends on the original name too, and would read as a pass.
-            Assert.Equal("My Film.en.vtt", afterRename);
-
-            Assert.Equal(1, run.Undone);
-            Assert.Equal("clip.en.vtt", await ReadCaptionFilenameAsync(db, captionId));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task ARenameThatCarriedNothing_UndoesExactlyAsItAlwaysDid()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
-            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-
-            var run = await RenameThenUndoAsync(
-                db, "bare-undo-run", videoId, new RenamerOptions { FilenameTemplate = "$title" });
-
-            Assert.Equal(1, run.Undone);
-            Assert.Empty(run.Failed);
-            Assert.Empty(run.Skipped);
-            Assert.Empty(run.Warnings);
-
-            Assert.True(File.Exists(Path.Combine(dir.Root, "clip.mkv")));
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal("clip.mkv", basename);
-            Assert.Equal(folderPath + "/clip.mkv", path);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
     // Runs a real rename of videoId, optionally disturbs the directory, then reverse-replays the
     // batch the rename journalled - reading that batch back out of the table, so what the replayer
     // acts on is what a production undo would be handed.
@@ -280,6 +211,12 @@ public sealed class UndoSidecarRestoreTests
         };
         db.Set<VideoCaption>().Add(caption);
         await db.SaveChangesAsync();
+
+        // A caption left in the change tracker lets relationship fix-up populate the file's Captions
+        // navigation, which production never has: every port read is AsNoTracking and each batch
+        // worker saves through a context that has loaded nothing. A caption write that silently did
+        // nothing passes on that state.
+        db.ChangeTracker.Clear();
         return caption.Id;
     }
 

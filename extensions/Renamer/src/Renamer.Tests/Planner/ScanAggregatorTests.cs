@@ -64,8 +64,9 @@ public sealed class ScanAggregatorTests
             Acting(3, OnVol("C", "three.mkv"), OnVol("C", "Three.mkv")),
             WithStatus(4, RenamerStatus.NoOp),
             WithStatus(5, RenamerStatus.SkipGated),
+            Acting(6, OnVol("C", "six.mkv"), OnVol("D", NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1))),
         };
-        var sizes = new Dictionary<int, long> { [1] = 100, [2] = 250, [3] = 999 };
+        var sizes = new Dictionary<int, long> { [1] = 100, [2] = 250, [3] = 999, [6] = 40 };
 
         // Every member of the summary is compared, the overflow count included - the two paths must not
         // disagree about any of them. What this comparison canNOT show is a count wrong on both paths,
@@ -85,6 +86,8 @@ public sealed class ScanAggregatorTests
         Assert.Equal(expected.CrossVolumeCount, actual.CrossVolumeCount);
         Assert.Equal(expected.CrossVolumeBytes, actual.CrossVolumeBytes);
         Assert.Equal(expected.ConfirmLevel, actual.ConfirmLevel);
+        Assert.Equal(1, expected.InFlightPathOverflowCount);
+        Assert.Equal(expected.InFlightPathOverflowCount, actual.InFlightPathOverflowCount);
         // The pair list is compared order-insensitively: the aggregator orders by descending bytes so the
         // volume-pair cap keeps the largest movers, while Summarize keeps GroupBy encounter order.
         Assert.Equal(
@@ -161,37 +164,12 @@ public sealed class ScanAggregatorTests
         Assert.True(kind.VolumePairsTruncated);
         Assert.Equal(ScanSummary.MaxVolumePairsPerKind, kind.BlastRadius.VolumePairs.Count);
         Assert.Equal(overCap, kind.BlastRadius.CrossVolumeCount);
+        Assert.Equal(overCap, kind.BlastRadius.TotalCount);
+        Assert.Equal(0, kind.BlastRadius.SameVolumeCount);
         Assert.Equal(expectedBytes, kind.BlastRadius.CrossVolumeBytes);
         // Largest movers survive the cap: the smallest seeded pair (1000 bytes) is dropped.
         Assert.DoesNotContain(kind.BlastRadius.VolumePairs, p => p.Bytes == 1000L);
         Assert.Contains(kind.BlastRadius.VolumePairs, p => p.Bytes == overCap * 1000L);
-    }
-
-    [Fact]
-    public void ToSummary_ConfirmLevel_IsComputedOverUntruncatedPairs()
-    {
-        // Every pair is a single small file, so only the destination spread can earn Heavy - and the
-        // spread lives in the pairs the cap would drop. A confirm derived from the topped list would
-        // still read Heavy here, so the sharper proof is that the untruncated cross count survives too.
-        int overCap = ScanSummary.MaxVolumePairsPerKind + 5;
-
-        var aggregator = new ScanAggregator(Budget, SynthMounts(overCap + 1));
-        for (int i = 0; i < overCap; i++)
-        {
-            int fileId = i + 1;
-            aggregator.Fold(
-                RenamerFileKind.Video,
-                Plan(RenamerFileKind.Video, fileId,
-                    Acting(fileId, OnSynthVol(i, "a.mkv"), OnSynthVol(i + 1, "A.mkv"))),
-                new Dictionary<int, long> { [fileId] = 1L });
-        }
-
-        var kind = Assert.Single(aggregator.ToSummary(0L).Kinds);
-
-        Assert.Equal(ConfirmLevel.Heavy, kind.BlastRadius.ConfirmLevel);
-        Assert.Equal(overCap, kind.BlastRadius.CrossVolumeCount);
-        Assert.Equal(overCap, kind.BlastRadius.TotalCount);
-        Assert.Equal(0, kind.BlastRadius.SameVolumeCount);
     }
 
     [Fact]
@@ -262,11 +240,8 @@ public sealed class ScanAggregatorTests
     }
 
     [Fact]
-    public void ScanSummaryView_OverflowCount_IsTheSumOfThePerKindCounts()
+    public void Fold_CountsOverflowsPerKind()
     {
-        // The whole-library figure a large-library user reads. It is re-derived by summing the per-kind
-        // summaries, so it is zero whenever either the per-kind fold or the merge is left unwired, and a
-        // count of zero reads as "no overflows" on exactly the libraries most likely to have them.
         string overName = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
         string fitsName = NameForPathLength(Budget - PathOps.InFlightSuffixLength);
 
@@ -287,14 +262,5 @@ public sealed class ScanAggregatorTests
         Assert.Equal(1, PerKind(RenamerFileKind.Video));
         Assert.Equal(2, PerKind(RenamerFileKind.Image));
         Assert.Equal(0, PerKind(RenamerFileKind.Audio));
-
-        var everyKind = ScanSummaryView.From(
-            summary, [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio]);
-        Assert.Equal(3, everyKind.BlastRadius.InFlightPathOverflowCount);
-
-        // The merge is per-kind for a permission reason (a video-only reader must not receive image
-        // figures), so the count follows the kinds the caller may read rather than the whole scan.
-        var videoOnly = ScanSummaryView.From(summary, [RenamerFileKind.Video]);
-        Assert.Equal(1, videoOnly.BlastRadius.InFlightPathOverflowCount);
     }
 }

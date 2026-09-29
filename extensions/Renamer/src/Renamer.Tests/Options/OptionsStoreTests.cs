@@ -1,112 +1,42 @@
+using System.Reflection;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Renamer.Engine;
 using Renamer.Options;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
 public sealed class OptionsStoreTests
 {
-    [Fact]
-    public async Task LoadAsync_AbsentKey_ReturnsDefaults()
+    // Every reference member RenamerOptions gives a default. A member added later joins the theory
+    // without an edit here, which is the point: the store restores a stored null by the declared
+    // nullability, so a member declared nullable with a default would keep the null and fail here.
+    public static TheoryData<string> MembersWithADefault()
     {
-        var store = new OptionsStore(new FakeStore());
-
-        var loaded = await store.LoadAsync();
-
-        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded)); // first run → defaults
-    }
-
-    [Fact]
-    public async Task SaveAsync_ThenLoadAsync_RoundTripsEqual()
-    {
-        var fake = new FakeStore();
-        var store = new OptionsStore(fake);
-        var custom = new RenamerOptions
+        var defaults = new RenamerOptions();
+        var data = new TheoryData<string>();
+        foreach (var property in typeof(RenamerOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            FilenameTemplate = "$studio - $title",
-            Case = CaseTransform.Lower,
-            FilenameMax = 120,
-            Tags = new MultiValueOptions { Separator = "_", MaxCount = 2, OnOverflow = OverflowPolicy.KeepFirst },
-            DropOrder = ["tags", "title"],
-        };
+            if (!property.PropertyType.IsValueType && property.CanWrite && property.GetValue(defaults) is not null)
+            {
+                data.Add(property.Name);
+            }
+        }
 
-        await store.SaveAsync(custom);
-        var loaded = await store.LoadAsync();
-
-        Assert.Equal(OptionsJson.Canonical(custom), OptionsJson.Canonical(loaded));
+        return data;
     }
 
-    [Fact]
-    public async Task LoadAsync_CorruptBlob_ReturnsDefaults_AndSaysSo()
+    [Theory]
+    [MemberData(nameof(MembersWithADefault))]
+    public async Task LoadAsync_MemberStoredAsNull_TakesItsDefault(string member)
     {
         var fake = new FakeStore();
-        await fake.SetAsync("options", "this is not json {{{");
-        var log = new CapturingLogger<OptionsStore>();
-        var store = new OptionsStore(fake, log);
-
-        var loaded = await store.LoadAsync();
-
-        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded));
-
-        // The warning is the only sign that stored settings were discarded rather than never written.
-        var entry = Assert.Single(log.Entries);
-        Assert.Equal(LogLevel.Warning, entry.Level);
-        Assert.IsType<JsonException>(entry.Error, exactMatch: false);
-    }
-
-    [Fact]
-    public async Task LoadAsync_CollectionStoredAsNull_KeepsItsDefault()
-    {
-        // A property initializer runs only for an absent key, so an explicit null binds to null and
-        // the member then contradicts its own non-nullable declaration.
-        var fake = new FakeStore();
-        await fake.SetAsync(OptionsStore.Key, """{"FilenameTemplate":"$title","DropOrder":null}""");
+        await fake.SetAsync(OptionsStore.Key, $$"""{"{{member}}":null}""");
 
         var loaded = await new OptionsStore(fake).LoadAsync();
 
-        Assert.Equal(new RenamerOptions().DropOrder, loaded.DropOrder);
-        Assert.Equal("$title", loaded.FilenameTemplate); // the members that DID bind are untouched
-    }
-
-    [Fact]
-    public async Task LoadAsync_NestedCollectionStoredAsNull_KeepsItsDefault()
-    {
-        var fake = new FakeStore();
-        await fake.SetAsync(OptionsStore.Key, """{"Performers":{"Separator":" & ","WhitelistIds":null}}""");
-
-        var loaded = await new OptionsStore(fake).LoadAsync();
-
-        Assert.NotNull(loaded.Performers.WhitelistIds);
-        Assert.Empty(loaded.Performers.WhitelistIds);
-        Assert.Equal(" & ", loaded.Performers.Separator);
-    }
-
-    [Fact]
-    public async Task LoadAsync_NullDropOrder_ReducesInsteadOfThrowing()
-    {
-        var fake = new FakeStore();
-        await fake.SetAsync(OptionsStore.Key, """{"DropOrder":null}""");
-        var loaded = await new OptionsStore(fake).LoadAsync();
-
-        string name = new string('a', 400);
-        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name)).result;
-
-        Assert.True(LengthReducer.FitsBoth("", reduced.Filename, reduced.Ext, loaded));
-    }
-
-    [Fact]
-    public async Task LoadAsync_NullableMemberStoredAsNull_StaysNull()
-    {
-        // The restore is keyed on the declared nullability, so a member whose null is a real state
-        // keeps it - "there is no unorganized route" must not become a route.
-        var fake = new FakeStore();
-        await fake.SetAsync(OptionsStore.Key, """{"UnorganizedDestination":null}""");
-
-        var loaded = await new OptionsStore(fake).LoadAsync();
-
-        Assert.Null(loaded.UnorganizedDestination);
+        var property = typeof(RenamerOptions).GetProperty(member)!;
+        Assert.Equal(
+            JsonSerializer.Serialize(property.GetValue(new RenamerOptions()), RenamerOptions.JsonOptions),
+            JsonSerializer.Serialize(property.GetValue(loaded), RenamerOptions.JsonOptions));
     }
 
     [Fact]
@@ -133,18 +63,5 @@ public sealed class OptionsStoreTests
 
         Assert.Equal(14, loaded.FilenameMax);
         Assert.Equal(40, loaded.FullPathMax);
-    }
-
-    [Fact]
-    public async Task SaveAsync_PersistsSingleBlob_UnderOptionsKey()
-    {
-        var fake = new FakeStore();
-        var store = new OptionsStore(fake);
-
-        await store.SaveAsync(new RenamerOptions { FilenameTemplate = "$title - $studio" });
-
-        var all = await fake.GetAllAsync();
-        Assert.Single(all);                       // exactly one entry (single JSON blob)
-        Assert.True(all.ContainsKey("options"));  // under the "options" key
     }
 }

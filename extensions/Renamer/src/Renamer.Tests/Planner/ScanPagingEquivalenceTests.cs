@@ -4,7 +4,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
-namespace Renamer.Tests.Api;
+namespace Renamer.Tests.Planner;
 
 public sealed class ScanPagingEquivalenceTests
 {

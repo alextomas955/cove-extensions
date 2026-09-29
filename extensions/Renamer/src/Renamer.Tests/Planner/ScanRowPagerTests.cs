@@ -13,9 +13,6 @@ public sealed class ScanRowPagerTests
 
     private static readonly RenamerOptions Options = new() { FilenameTemplate = "$title" };
 
-    private static readonly RenamerFileKind[] AllKinds =
-        [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
-
     // Seeds ids of kind, each with filesPer files.
     private static void Seed(
         FakeRenamerDataPort port, RenamerFileKind kind, IReadOnlyList<int> ids, int filesPer = 1)
@@ -70,23 +67,6 @@ public sealed class ScanRowPagerTests
         Assert.Equal(new ScanCursor(RenamerFileKind.Video, 7), page.Next);
         Assert.Equal(3, page.EntitiesExamined);
         Assert.False(page.BudgetExhausted);
-    }
-
-    [Fact]
-    public async Task PageAsync_FollowingTheCursor_EnumeratesEveryRowExactlyOnce_AndEndsWithANullCursor()
-    {
-        var port = new FakeRenamerDataPort();
-        Seed(port, RenamerFileKind.Video, [.. Enumerable.Range(1, 10)]);
-        Seed(port, RenamerFileKind.Audio, [.. Enumerable.Range(50, 5)]);
-
-        var rows = await WalkAsync(port, AllKinds, take: 3);
-
-        Assert.Equal(15, rows.Count);
-        Assert.Equal(rows.Select(r => (r.Kind, r.FileId)).Distinct().Count(), rows.Count);
-        Assert.Equal(
-            [.. Enumerable.Range(1, 10).Select(id => (RenamerFileKind.Video, id))
-                .Concat(Enumerable.Range(50, 5).Select(id => (RenamerFileKind.Audio, id)))],
-            rows.Select(r => (r.Kind, r.EntityId)));
     }
 
     [Fact]

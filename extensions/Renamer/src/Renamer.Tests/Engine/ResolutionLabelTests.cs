@@ -1,5 +1,4 @@
 using Renamer.Engine;
-using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
@@ -82,65 +81,5 @@ public class ResolutionLabelTests
         Assert.Equal(
             expected.OrderBy(l => l, StringComparer.Ordinal),
             ResolutionLabel.KnownLabels.OrderBy(l => l, StringComparer.Ordinal));
-    }
-
-    private static RenamerResult Render(IReadOnlyDictionary<string, string> tokens)
-        => TemplateEngine.Render(
-            tokens,
-            new Dictionary<string, IReadOnlyList<string>>(),
-            new RenamerOptions { FilenameTemplate = "$title{ [$resolution]}", FolderTemplate = "" });
-
-    [Fact]
-    public void Render_BothDimensionTokens_LabelsThePortraitVideoLikeItsLandscapeTwin()
-    {
-        var r = Render(new Dictionary<string, string>
-        {
-            ["title"] = "Upright",
-            ["width"] = "1080",
-            ["height"] = "1920",
-        });
-
-        Assert.Equal("Upright [1080p]", r.Filename);
-    }
-
-    [Fact]
-    public void Render_HeightTokenOnly_DropsTheResolutionGroup()
-    {
-        var r = Render(new Dictionary<string, string>
-        {
-            ["title"] = "Upright",
-            ["height"] = "1920",
-        });
-
-        Assert.Equal("Upright", r.Filename);
-    }
-
-    // Cove stores an unknown width as 0, so a "0" width token is the shape a file Cove never probed
-    // takes.
-    [Fact]
-    public void Render_ZeroWidthToken_DropsTheResolutionGroup()
-    {
-        var r = Render(new Dictionary<string, string>
-        {
-            ["title"] = "Unprobed",
-            ["width"] = "0",
-            ["height"] = "2160",
-        });
-
-        Assert.Equal("Unprobed", r.Filename);
-    }
-
-    [Fact]
-    public void Render_CallerSuppliedResolution_WinsOverTheDerivedOne()
-    {
-        var r = Render(new Dictionary<string, string>
-        {
-            ["title"] = "Upright",
-            ["width"] = "1080",
-            ["height"] = "1920",
-            ["resolution"] = "vertical",
-        });
-
-        Assert.Equal("Upright [vertical]", r.Filename);
     }
 }

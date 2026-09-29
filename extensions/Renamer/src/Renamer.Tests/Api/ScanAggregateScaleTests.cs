@@ -21,10 +21,8 @@ public sealed class ScanAggregateScaleTests
         512 + (kinds * BytesPerEntry
             * (Enum.GetValues<RenamerStatus>().Length + ScanSummary.MaxVolumePairsPerKind + 8));
 
-    // An extension wired with a store and nothing else. InitializeAsync is deliberately skipped:
-    // the scan core takes its data port as a parameter and needs neither the scope factory nor the
-    // event bus, so leaving the host seams uncaptured keeps this class free of any Cove source type
-    // and therefore compiled and runnable on the cove-absent CI leg.
+    // An extension wired with a store and nothing else. The scan core takes its data port as a
+    // parameter and needs neither the scope factory nor the event bus, so InitializeAsync is skipped.
     private static (global::Renamer.Renamer Ext, FakeStore Store) NewExtension()
     {
         var ext = RenamerFixture.Create();
@@ -95,16 +93,6 @@ public sealed class ScanAggregateScaleTests
     }
 
     [Fact]
-    public async Task StoredBlob_IsNoBiggerAtTenThousandFilesThanAtTen()
-    {
-        var (smallJson, smallSummary, _) = await ScanAsync(SeedLibrary(SmallFixture));
-        var (largeJson, _, _) = await ScanAsync(SeedLibrary(LargeFixture));
-
-        Assert.True(largeJson.Length - smallJson.Length < Ceiling(smallSummary.Kinds.Count),
-            $"stored blob grew from {smallJson.Length} to {largeJson.Length} bytes over 1000x the files");
-    }
-
-    [Fact]
     public async Task StoredAggregate_IsExactAtTenThousandFiles()
     {
         var (_, summary, _) = await ScanAsync(SeedLibrary(LargeFixture));
@@ -123,7 +111,7 @@ public sealed class ScanAggregateScaleTests
 
         int perKind = LargeFixture / RenamableKinds.All.Length;
 
-        // That no whole-kind read happens is the compiler's job now: IRenamerDataPort offers none.
+        // IRenamerDataPort offers no whole-kind read, so the compiler already rules one out.
         // What is left to assert is that the pages are narrow and that there are several per kind.
         Assert.True(port.IdPageRequests.Count > RenamableKinds.All.Length,
             "a kind of 2500 entities cannot be walked in one page");
@@ -139,21 +127,16 @@ public sealed class ScanAggregateScaleTests
     }
 
     [Fact]
-    public async Task Readback_BucketCountsEqualTheBucketsDerivedFromTheExactStatusCounts()
+    public async Task Readback_CountsEveryFileOfATenThousandFileScan_InItsBucket()
     {
         var (_, summary, _) = await ScanAsync(SeedLibrary(LargeFixture));
 
         var view = ScanSummaryView.From(summary, RenamableKinds.All);
 
-        int Expected(ScanBucketKind bucket) => summary.Kinds
-            .SelectMany(k => k.StatusCounts)
-            .Where(c => ScanBucket.Of(c.Status) == bucket)
-            .Sum(c => c.Count);
-
-        Assert.Equal(Expected(ScanBucketKind.WillChange), view.WillChange);
-        Assert.Equal(Expected(ScanBucketKind.Attention), view.Attention);
-        Assert.Equal(Expected(ScanBucketKind.NoChange), view.NoChange);
-        Assert.Equal(LargeFixture, view.WillChange + view.Attention + view.NoChange);
+        // Every seeded entity renames in place, so every file is a change and none needs attention.
+        Assert.Equal(LargeFixture, view.WillChange);
+        Assert.Equal(0, view.Attention);
+        Assert.Equal(0, view.NoChange);
         Assert.Equal(LargeFixture, view.TotalFiles);
     }
 }

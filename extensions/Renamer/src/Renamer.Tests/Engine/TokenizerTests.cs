@@ -97,10 +97,18 @@ public class TokenizerTests
     }
 
     [Fact]
-    public void Unbalanced_UnclosedBrace_DoesNotThrow()
+    public void Unbalanced_UnclosedBrace_StaysAnOpenGroup()
     {
-        var ex = Record.Exception(() => Tokenizer.Scan("$title {$studio"));
-        Assert.Null(ex);
+        var segs = Tokenizer.Scan("$title {$studio");
+        Assert.Equal(
+            new[]
+            {
+                new Segment(SegKind.Token, "title"),
+                new Segment(SegKind.Literal, " "),
+                new Segment(SegKind.GroupOpen, "{"),
+                new Segment(SegKind.Token, "studio"),
+            },
+            segs);
     }
 
     [Fact]

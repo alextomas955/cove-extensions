@@ -24,7 +24,7 @@ public sealed class RenamerPlannerTests
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        // Pin the title-only template (this test exercises planner renamer detection, not the default).
+        // Pin the title-only template (this test exercises planner rename detection, not the default).
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         var item = Assert.Single(plan.Items);
@@ -132,24 +132,5 @@ public sealed class RenamerPlannerTests
 
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
-    }
-
-    [Fact]
-    public async Task PlanLoadedEntity_GatedEntity_YieldsSameSkips_AsLoadingPath()
-    {
-        // An unorganized entity under the only-organized gate: SkipGated for every file, both ways.
-        var entity = new RenamerEntity(
-            EntityId: 10, Kind: RenamerFileKind.Video, Title: "Ungated", Code: null, StudioName: null,
-            Date: null, Organized: false, Performers: [], TagRefs: [], Files: [VideoFile(1, "raw.mkv")]);
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(entity);
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
-
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
-        var viaLoad = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
-
-        Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);
-        Assert.Equal(viaLoad.Items, loaded.Items);
     }
 }

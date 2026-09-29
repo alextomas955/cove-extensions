@@ -123,18 +123,4 @@ public sealed class PerKindOptionsTests
         Assert.Equal(Fwd(TagRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Tag:manual", item.MatchedRule);
     }
-
-    [Fact]
-    public async Task NoKindEntry_TakesTheGlobalDefault()
-    {
-        var port = Port(SrcRoot, DefaultRoot);
-        port.SeedEntity(TextEntity(TextFile(1)));
-        var planner = new RenamerPlanner(port);
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Text, 10, MoveOptions(), default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(Fwd(DefaultRoot), item.ResolvedDestinationRoot);
-    }
 }

@@ -5,21 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Tests.TestSupport;
 
-namespace Renamer.Tests.Execution.Journal;
+namespace Renamer.Tests;
 
 public sealed class JournalStartupAssertionTests
 {
-    [Fact]
-    public async Task WithTheJournalPresent_TheLoadCompletes()
-    {
-        await using var library = await LibraryDatabase.CreateAsync();
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(new FakeStore());
-
-        var ex = await Record.ExceptionAsync(() => ext.InitializeAsync(library.BuildProvider()));
-        Assert.Null(ex);
-    }
-
     [Fact]
     public async Task WithTheJournalTableGone_TheLoadRefuses_NamingTheTableAndTheConsequence()
     {

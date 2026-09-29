@@ -250,6 +250,22 @@ public class FieldRewriterTests
     }
 
     [Fact]
+    public void DropPerformers_Records_DropOnlyTheTitleMatchedPositions_AndKeepSameNamePerformers()
+    {
+        var records = new[]
+        {
+            new RenamerPerformer(1, "Alex", false, "Female"),
+            new RenamerPerformer(2, "Alex", false, "Male"),
+            new RenamerPerformer(3, "Eve", false, "Female"),
+        };
+        var o = new RenamerOptions { PreventTitlePerformer = true };
+
+        var survivors = FieldRewriter.DropPerformersInTitle(records, "Eve Goes Home", o);
+
+        Assert.Equal([1, 2], survivors.Select(p => p.Id).ToArray());
+    }
+
+    [Fact]
     public void DropPerformers_OffByDefault_ListUnchanged()
     {
         var o = new RenamerOptions(); // PreventTitlePerformer defaults false
@@ -291,8 +307,6 @@ public class FieldRewriterTests
     [Fact]
     public void CollapseConsecutive_Off_SegmentsUnchanged()
     {
-        // Pin the off behavior explicitly: the flag now defaults on, so this case forces it off to
-        // prove that with the collapse disabled, adjacent duplicate segments are left intact.
         var o = new RenamerOptions { PreventConsecutiveSegments = false };
         Assert.Equal(["Foo", "Foo", "Bar"], FieldRewriter.CollapseConsecutive(["Foo", "Foo", "Bar"], o));
     }

@@ -1,3 +1,5 @@
+using Cove.Core.Entities;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -7,40 +9,38 @@ namespace Renamer.Tests.Execution;
 
 public sealed class DerivedTitleWriteTests
 {
-    [Fact]
-    public async Task ATitleWrite_LandsOnlyOnARowThatIsStillTitleless_AndTheRenameLandsEitherWay()
+    [Theory]
+    [InlineData(RenamerFileKind.Video)]
+    [InlineData(RenamerFileKind.Image)]
+    [InlineData(RenamerFileKind.Audio)]
+    [InlineData(RenamerFileKind.Text)]
+    public async Task ATitleWrite_LandsOnlyOnARowThatIsStillTitleless_AndTheRenameLandsEitherWay(RenamerFileKind kind)
     {
-        using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string folderPath = dir.Root.Replace('\\', '/');
-            string siblingDir = Path.Combine(dir.Root, "sibling").Replace('\\', '/');
-
-            var (_, titlelessId, titlelessFileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", title: null!);
-            var (_, titledId, titledFileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, siblingDir, "two.mkv", "Typed In By Hand");
+            var (titlelessId, titlelessFileId) = await SeedAsync(db, kind, "library/one", "one.bin", title: null);
+            var (titledId, titledFileId) = await SeedAsync(db, kind, "library/two", "two.bin", "Typed In By Hand");
 
             var port = new CoveRenamerDataPort(db);
             await port.ApplyAndSaveAsync(
                 new RenamerFileMutation(
-                    titlelessFileId, "one renamed.mkv", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titlelessId, "one")));
+                    titlelessFileId, "one renamed.bin", null, null,
+                    new RenamerEntityTitleWrite(kind, titlelessId, "one")));
             await port.ApplyAndSaveAsync(
                 new RenamerFileMutation(
-                    titledFileId, "two renamed.mkv", null, null,
-                    new RenamerEntityTitleWrite(RenamerFileKind.Video, titledId, "two")));
+                    titledFileId, "two renamed.bin", null, null,
+                    new RenamerEntityTitleWrite(kind, titledId, "two")));
 
             // The rename half of both mutations committed, so the refusal below is the title check and
             // not a save that never happened.
             var (titlelessBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, titlelessFileId);
             var (titledBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, titledFileId);
-            Assert.Equal("one renamed.mkv", titlelessBasename);
-            Assert.Equal("two renamed.mkv", titledBasename);
+            Assert.Equal("one renamed.bin", titlelessBasename);
+            Assert.Equal("two renamed.bin", titledBasename);
 
-            Assert.Equal("one", await ExecutorTestSeed.ReadVideoTitleAsync(db, titlelessId));
-            Assert.Equal("Typed In By Hand", await ExecutorTestSeed.ReadVideoTitleAsync(db, titledId));
+            Assert.Equal("one", await ReadTitleAsync(db, kind, titlelessId));
+            Assert.Equal("Typed In By Hand", await ReadTitleAsync(db, kind, titledId));
         }
         finally
         {
@@ -81,6 +81,9 @@ public sealed class DerivedTitleWriteTests
                     await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default),
                     options, default);
             Assert.Single(forward.Renamed);
+            Assert.True(
+                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip.mkv")),
+                "the forward rename did not produce the name the second pass is compared against");
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
@@ -105,5 +108,48 @@ public sealed class DerivedTitleWriteTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
+    }
+
+    private static async Task<(int EntityId, int FileId)> SeedAsync(
+        DbContext db, RenamerFileKind kind, string folderPath, string basename, string? title)
+    {
+        switch (kind)
+        {
+            case RenamerFileKind.Video:
+                {
+                    var (_, id, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, basename, title!);
+                    return (id, fileId);
+                }
+            case RenamerFileKind.Image:
+                {
+                    var (_, id, fileId) = await ExecutorTestSeed.SeedImageAsync(db, folderPath, basename, title!);
+                    return (id, fileId);
+                }
+            case RenamerFileKind.Audio:
+                {
+                    var (_, id, fileId) = await ExecutorTestSeed.SeedAudioAsync(db, folderPath, basename, title!);
+                    return (id, fileId);
+                }
+            case RenamerFileKind.Text:
+                {
+                    var (_, id, fileId) = await ExecutorTestSeed.SeedTextAsync(db, folderPath, basename, title!);
+                    return (id, fileId);
+                }
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+    }
+
+    private static async Task<string?> ReadTitleAsync(DbContext db, RenamerFileKind kind, int id)
+    {
+        db.ChangeTracker.Clear();
+        return kind switch
+        {
+            RenamerFileKind.Video => await db.Set<Video>().AsNoTracking().Where(x => x.Id == id).Select(x => x.Title).SingleAsync(),
+            RenamerFileKind.Image => await db.Set<Image>().AsNoTracking().Where(x => x.Id == id).Select(x => x.Title).SingleAsync(),
+            RenamerFileKind.Audio => await db.Set<Audio>().AsNoTracking().Where(x => x.Id == id).Select(x => x.Title).SingleAsync(),
+            RenamerFileKind.Text => await db.Set<TextDocument>().AsNoTracking().Where(x => x.Id == id).Select(x => x.Title).SingleAsync(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
     }
 }

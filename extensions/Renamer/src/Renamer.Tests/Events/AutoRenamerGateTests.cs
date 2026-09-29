@@ -1,4 +1,6 @@
 using Cove.Plugins;
+using Microsoft.EntityFrameworkCore;
+using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
@@ -14,21 +16,22 @@ public sealed class AutoRenamerGateTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            // Name differs from the "$title" render, so only the off flag can be why nothing happens.
+            // The name differs from the "$title" render, so only the off flag can be why nothing happens.
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-            // Default options: AutoRenamerOnUpdate is false.
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, new RenamerOptions());
+            var options = new RenamerOptions { AutoRenamerOnUpdate = false, FilenameTemplate = "$title" };
+            var bus = new CapturingEventBus();
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal("raw.mkv", basename);                              // DB untouched
-            Assert.True(File.Exists(Path.Combine(dir.Root, "raw.mkv")));     // disk untouched
+            Assert.Equal("raw.mkv", basename);
+            Assert.True(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
-            Assert.Empty(bus.Published);                                     // no save → no event
+            Assert.Empty(bus.Published);
         }
         finally
         {
@@ -38,34 +41,38 @@ public sealed class AutoRenamerGateTests
     }
 
     [Fact]
-    public async Task FlagOn_ButRequireFieldsGateExcludes_PerformsNoRename()
+    public async Task FlagOn_GatedItem_PerformsNoRename_AndOpensNoUndoBatch()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            // Empty title → the require-fields ["title"] gate excludes this item (SkipGated).
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", title: "");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-            // FilenameAsTitle forced off so the empty title is not rescued by the basename fallback
-            // (which now defaults on) - this case proves the require-fields gate excludes the item.
+            // The filename-as-title fallback would rescue the empty title, so it is off and the
+            // require-fields gate skips the item.
             var options = new RenamerOptions
             {
                 AutoRenamerOnUpdate = true,
                 RequiredFields = ["title"],
                 FilenameAsTitle = false,
             };
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
+            var bus = new CapturingEventBus();
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal("raw.mkv", basename);                           // gated → unchanged
+            Assert.Equal("raw.mkv", basename);
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
-            Assert.Empty(bus.Published);                                 // no save → no event
+            Assert.Empty(bus.Published);
+
+            // The executor would rename nothing here either, so the batch is what shows the hook
+            // stopped before it.
+            Assert.Equal(0, await db.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
         }
         finally
         {

@@ -209,9 +209,9 @@ public sealed class CrossVolumeMover
     // the destination directory so the promote stays a same-directory atomic rename. No two calls
     // mint the same name, which is what makes an orphan from an earlier crash impossible to collide
     // with, promote or delete. Hex only, so the segment carries no separator and cannot move the copy
-    // out of the destination directory. internal so the test pinning InFlightSuffixLength measures
-    // the real segment.
-    internal static string MintInFlightPath(string finalFull) =>
+    // out of the destination directory. The segment is PathOps.InFlightSuffixLength characters, the
+    // margin the planner budgets a cross-volume destination against.
+    private static string MintInFlightPath(string finalFull) =>
         finalFull
         + PathOps.InFlightMarker
         + System.Security.Cryptography.RandomNumberGenerator.GetHexString(PathOps.InFlightRandomChars, lowercase: true);

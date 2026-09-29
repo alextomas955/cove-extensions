@@ -37,7 +37,44 @@ public sealed class OptionsPersistenceTests
             JsonSerializer.Serialize(seeded, RenamerOptions.JsonOptions),
             RenamerOptions.JsonOptions);
 
-        Assert.Equal(Json(Read(seeded, segments)), Json(Read(reloaded!, segments)));
+        // Compared member by member rather than as JSON: a collection element's member the serializer
+        // skips is absent from both documents, so a JSON comparison would agree with itself.
+        Assert.Equal(Members(Read(seeded, segments)), Members(Read(reloaded!, segments)));
+    }
+
+    // Every leaf value under value, keyed by its path, reached through the element types' own members.
+    private static List<string> Members(object? value, string path = "")
+    {
+        var leaves = new List<string>();
+        switch (value)
+        {
+            case null or string or ValueType:
+                leaves.Add($"{path}={Json(value)}");
+                break;
+            case IDictionary map:
+                foreach (DictionaryEntry entry in map)
+                {
+                    leaves.AddRange(Members(entry.Value, $"{path}[{Json(entry.Key)}]"));
+                }
+
+                break;
+            case IList list:
+                for (var i = 0; i < list.Count; i++)
+                {
+                    leaves.AddRange(Members(list[i], $"{path}[{i}]"));
+                }
+
+                break;
+            default:
+                foreach (var property in Writable(value.GetType()))
+                {
+                    leaves.AddRange(Members(property.GetValue(value), $"{path}.{property.Name}"));
+                }
+
+                break;
+        }
+
+        return leaves;
     }
 
     private static IEnumerable<string> MemberPaths(Type type, string prefix)

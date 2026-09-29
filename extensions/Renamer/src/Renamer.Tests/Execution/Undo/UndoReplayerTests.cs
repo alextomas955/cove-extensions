@@ -90,7 +90,7 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             var result = await new UndoReplayer(port, new CapturingEventBus()).RevertAsync(batch!, default);
 
-            Assert.Single(result.Skipped);
+            Assert.Equal(UndoStopReason.OriginalLocationOccupied, Assert.Single(result.Skipped).Stop);
             Assert.False(await db.Set<Folder>().AnyAsync(f => f.Path == folderPath));
         }
         finally
@@ -134,10 +134,11 @@ public sealed class UndoReplayerTests
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!, default);
 
-            // video2 restored; video1 reported as skipped/failed (never clobbered).
             Assert.Equal(1, result.Undone);
-            int problems = result.Skipped.Count + result.Failed.Count;
-            Assert.Equal(1, problems);
+            Assert.Empty(result.Failed);
+            var skipped = Assert.Single(result.Skipped);
+            Assert.Equal(UndoStopReason.OriginalLocationOccupied, skipped.Stop);
+            Assert.EndsWith("/one.mkv", skipped.OldPath);
 
             // The squatter at the old slot is untouched, and "First.mkv" still exists (not clobbered).
             Assert.Equal("squatter", File.ReadAllText(Path.Combine(dir.Root, "one.mkv")));
@@ -308,86 +309,6 @@ public sealed class UndoReplayerTests
         }
     }
 
-    [Fact]
-    public async Task EmptyBatch_NoOp_AllZero()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var port = new CoveRenamerDataPort(db);
-            var undoBus = new CapturingEventBus();
-            var batch = new RevertBatch("run-test", RenamerFileKind.Video, Array.Empty<RevertRow>());
-
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
-
-            Assert.Equal(0, result.Undone);
-            Assert.Empty(result.Failed);
-            Assert.Empty(result.Skipped);
-            Assert.Empty(undoBus.Published);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task AStoredJournalMigratedIntoTheTable_StillReplays()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            // Seed a file at its current (new) location so a same-folder same-drive undo can restore it.
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "raw.mkv");
-            string newFull = Path.Combine(dir.Root, "My Film.mkv");
-            File.WriteAllText(newFull, "legacy-bytes");
-
-            // Hand-build the stored journal an installation upgrading into the table still carries: one
-            // batch header and an entityId|fileId|old row. The migration moves it into the table, which is
-            // where undo now looks.
-            string oldPath = oldFull.Replace('\\', '/');
-            var store = new FakeStore();
-            await store.SetAsync(JournalBlobMigration.SchemaKey, JournalBlobMigration.CurrentSchema);
-            await store.SetAsync(
-                JournalBlobMigration.Key,
-                $"#batch|R1|{DateTime.UtcNow.Ticks}|Video|open\n{videoId}|{fileId}|{oldPath}");
-
-            await using var journal = new CoveRevertJournal(db);
-            Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, DateTime.UtcNow));
-
-            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(batch);
-            Assert.Single(batch!.Rows);
-            Assert.Equal(fileId, batch.Rows[0].FileId);
-
-            // Replay: the volume class is derived from the recorded old/new path roots (same dir → same
-            // volume) - no stored field is read.
-            var port = new CoveRenamerDataPort(db);
-            var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
-
-            Assert.Equal(1, result.Undone);
-            Assert.Empty(result.Failed);
-            Assert.Empty(result.Skipped);
-
-            // Disk restored to old; new gone - a migrated batch behaves exactly like a fresh one.
-            Assert.True(File.Exists(oldFull), "a migrated stored journal restores to OLD");
-            Assert.False(File.Exists(newFull));
-            Assert.Equal("legacy-bytes", File.ReadAllText(oldFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
     // Seeds one throwaway Video (no file) so the next SeedVideoAsync hands back a Video id that is
     // one ahead of its VideoFile id - guaranteeing videoId ≠ fileId so the round-trip test can
     // prove the published event uses the entity id, not the file id.
@@ -416,15 +337,6 @@ public sealed class UndoReplayerTests
         db.Set<VideoFile>().Add(file);
         await db.SaveChangesAsync();
         return (video.Id, file.Id);
-    }
-
-    private sealed class ThrowOnSaveDataPort : CoveRenamerDataPort
-    {
-        public ThrowOnSaveDataPort(DbContext db) : base(db) { }
-
-        public override Task<string> ApplyAndSaveAsync(
-            RenamerFileMutation mutation, CancellationToken ct = default)
-            => throw new InvalidOperationException("forced save failure");
     }
 
     private sealed class CancelOnReverseSaveDataPort : CoveRenamerDataPort

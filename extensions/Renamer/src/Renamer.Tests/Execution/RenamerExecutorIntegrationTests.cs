@@ -29,7 +29,16 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            var executor = new RenamerExecutor(port, bus, journal, "run-test");
+
+            // The cross mover's post-copy seam fires only if its copy path runs, so it stays false while
+            // an in-folder rename takes the atomic same-volume move.
+            bool crossTouched = false;
+            var recordingCross = new CrossVolumeMover((_, _) =>
+            {
+                crossTouched = true;
+                return Task.CompletedTask;
+            });
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", recordingCross);
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
@@ -55,7 +64,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Empty(result.Skipped);
             var revert = Assert.Single(journal.Rows);
             Assert.Equal(fileId, revert.FileId);
-            Assert.EndsWith("raw clip.mkv", revert.OldPath);
+            Assert.Equal(folderPath + "/raw clip.mkv", revert.OldPath);
 
             // (c) event args: exactly one VideoUpdated for this video id.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
@@ -63,10 +72,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("Video", evt.EntityType);
             Assert.Equal(videoId, evt.EntityId);
 
-            // The classifier verdict for the executed in-place pair is same-volume,
-            // so the atomic DiskMover fast path (above) is the one that ran.
-            Assert.True(VolumeClassifier.SameVolume(oldFull, newFull),
-                "an in-place renamer under one root must classify as same-volume (DiskMover path)");
+            Assert.False(crossTouched, "an in-folder rename must not take the cross-volume copy path");
         }
         finally
         {
@@ -338,6 +344,12 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Contains("rollback target re-occupied", failedItem.Reason);
             Assert.DoesNotContain("file rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
+
+            // An incomplete rollback leaves the moved file where it landed and the occupant untouched.
+            string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
+            Assert.True(File.Exists(newOnDisk), "the moved file must survive a rollback that could not complete");
+            Assert.Equal("A-bytes", File.ReadAllText(newOnDisk));
+            Assert.Equal("intruder bytes re-occupying the old slot", File.ReadAllText(oldA));
         }
         finally
         {

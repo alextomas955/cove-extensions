@@ -15,9 +15,6 @@ namespace Renamer.Tests.Api;
 // performs a real rename through RunRenamerBatchAsync first, so the journal table holds a genuine batch.
 public sealed class UndoEndpointTests
 {
-    // Wires the extension's captured seams from a DI provider that registers the seeded context as
-    // the base DbContext (singleton, so the scope resolves the same seeded instance) and the given
-    // capturing event bus, plus a fresh FakeStore for the options.
     private static readonly RenamerOptions TitleOptions = new() { FilenameTemplate = "$title" };
 
     private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
@@ -125,8 +122,8 @@ public sealed class UndoEndpointTests
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
-            // Undoing an image batch requires images.write (the batch header carries the kind) - not
-            // videos.write. This proves the per-kind permission gate on the undo path.
+            // The batch header carries the kind, so images.write alone admits undoing an image batch.
+            // The refusal side is UndoOperationTests' missing-kind case.
             var result = await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite),
                 new RecordingAuthorizationService(), default);

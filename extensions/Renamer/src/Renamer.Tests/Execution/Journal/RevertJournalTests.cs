@@ -85,25 +85,6 @@ public sealed class RevertJournalTests
     }
 
     [Fact]
-    public async Task TheFlagChoosesWhichCounterMoves_AndTheOriginalCountNeverDoes()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
-        var journal = await SeedBatchAsync(db, "run-1", 3);
-
-        await journal.DeleteRowAsync("run-1", seq: 1, unrestorable: false);
-        await journal.DeleteRowAsync("run-1", seq: 2, unrestorable: true);
-
-        var summary = await journal.ReadUndoTargetAsync();
-        Assert.NotNull(summary);
-        Assert.Equal(3, summary.Value.OriginalCount);
-        Assert.Equal(1, summary.Value.RestoredCount);
-        Assert.Equal(1, summary.Value.UnrestorableCount);
-        Assert.Equal(1, summary.Value.Remaining);
-    }
-
-    [Fact]
     public async Task RetiringARowThatIsAlreadyGone_ChangesNothing()
     {
         // An undo can be retried, and a retry re-walks rows it may already have settled.

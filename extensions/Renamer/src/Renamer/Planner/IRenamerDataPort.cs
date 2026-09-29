@@ -143,9 +143,11 @@ public interface IRenamerDataPort
     /// <remarks>
     /// Two file rows naming one path is state a rename cannot arbitrate, and the twin can sit in
     /// another page of the walk or under another media kind. A path named by one row or by none is
-    /// absent from the result. Case sensitivity is the database collation's, which is not always the
-    /// volume's: on a case-sensitive collation over a case-insensitive volume, two rows differing
-    /// only in case read as two paths here.
+    /// absent from the result. Where <see cref="PathOps.PathsIgnoreCase"/> holds, paths are compared
+    /// case-folded whatever the database collation, so two rows differing only in case are one path
+    /// named twice; elsewhere the comparison is exact. A key may come back in its folded spelling, and
+    /// the dictionary compares with <see cref="PathOps.PathComparer"/>, so a lookup by the planned path
+    /// still finds it.
     /// </remarks>
     Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
         IReadOnlyList<string> sourcePaths, CancellationToken ct = default);
