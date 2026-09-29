@@ -225,7 +225,10 @@ public sealed class V2SceneRowTests
 
         var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId, UnheldSiteNumber], TestCt);
 
+        // Absent from both sets: naming it in the second would count it once as not yet there and
+        // once as recording no file.
         Assert.Equal([SiteId], held.Held);
+        Assert.DoesNotContain(UnheldSiteNumber, held.WithNoFileRecorded);
     }
 
     [Fact]
@@ -308,21 +311,6 @@ public sealed class V2SceneRowTests
         Assert.Equal([SiteId], held.WithNoFileRecorded);
     }
 
-    // A site the instance holds no row for is absent from both sets: naming it in the second would
-    // count it once as not yet there and once as recording no file.
-    [Fact]
-    public async Task ASiteTheInstanceHoldsNoRowForIsInNeitherSet()
-    {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
-        var client = SiteClient(handler, new TestSiteNumbers());
-
-        var held = await ((IWhisparrHeldSiteReading)client)
-            .ReduceHeldSitesAsync([SiteId, UnheldSiteNumber], TestCt);
-
-        Assert.DoesNotContain(UnheldSiteNumber, held.Held);
-        Assert.DoesNotContain(UnheldSiteNumber, held.WithNoFileRecorded);
-    }
-
     private static JsonObject SiteRow(
         int rowId, int siteNumber, int episodeFileCount, long sizeOnDisk)
     {
@@ -360,24 +348,18 @@ public sealed class V2SceneRowTests
         => Assert.IsType<JsonObject>(JsonNode.Parse(body));
 
     // The generated resource declares exactly these two members, so the whole member set is
-    // asserted rather than the two members alone.
-    [Fact]
-    public void TheComposedMonitorBodyCarriesTheRowIdAndTheFlagAndNothingElse()
+    // asserted rather than the two members alone. The flag is carried when it is false too.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheComposedMonitorBodyCarriesTheRowIdAndTheFlagAndNothingElse(bool monitored)
     {
-        var body = ComposedV2Body.Of(V2BodyProjector.MonitorScene(FirstRowId, monitored: true));
+        var body = ComposedV2Body.Of(V2BodyProjector.MonitorScene(FirstRowId, monitored));
 
         Assert.Equal(["episodeIds", "monitored"], body.Select(member => member.Key).Order(StringComparer.Ordinal));
         Assert.Equal([FirstRowId], body["episodeIds"]!.AsArray().Select(id => id!.GetValue<int>()));
-        Assert.True(body["monitored"]!.GetValue<bool>());
-    }
-
-    [Fact]
-    public void TheFlagIsCarriedWhenItIsFalseToo()
-    {
-        var body = ComposedV2Body.Of(V2BodyProjector.MonitorScene(FirstRowId, monitored: false));
-
         Assert.NotNull(body["monitored"]);
-        Assert.False(body["monitored"]!.GetValue<bool>());
+        Assert.Equal(monitored, body["monitored"]!.GetValue<bool>());
     }
 
     [Fact]

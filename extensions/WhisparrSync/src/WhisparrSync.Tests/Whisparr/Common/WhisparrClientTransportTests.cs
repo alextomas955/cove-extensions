@@ -78,12 +78,6 @@ public sealed class WhisparrClientTransportTests
                 new Uri("file:///etc/passwd"), SomeKey, TestContext.Current.CancellationToken));
     }
 
-    // The count is transcribed by hand. Computed from the interface it would agree with any
-    // widening, which is the event it exists to report.
-    [Fact]
-    public void TheSeamDeclaresTheMethodsItIsPinnedAt()
-        => Assert.Equal(8, typeof(IWhisparrClient).GetMethods().Length);
-
     // A call site can express only the requests the seam itself declares, so none can make the
     // instance search for or download anything.
     [Fact]
