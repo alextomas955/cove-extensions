@@ -21,7 +21,7 @@ public sealed record MonitorBulkBatch(
 // per entity or per file.
 internal sealed record MonitorBulkLinking(
     ReflectOwnedSkipReason? Skipped,
-    int FoldersAttached,
+    int FilesAttached,
     int FoldersRefused,
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
     int EntriesLeftUnderAnotherRoot = 0,
@@ -262,7 +262,7 @@ public static class MonitoringBulkJob
         => ReflectOwnedJob.LineFor(
             new LinkedTally(
                 linking.Skipped,
-                linking.FoldersAttached,
+                linking.FilesAttached,
                 linking.FoldersRefused,
                 linking.AddressRefusals,
                 linking.EntriesLeftUnderAnotherRoot,

@@ -300,7 +300,7 @@ public sealed partial class WhisparrSync
         private ReflectOwnedSkipReason? _skipped;
         private bool _aimed;
         private bool _reached;
-        private int _foldersAttached;
+        private int _filesAttached;
         private int _foldersRefused;
         private int _entriesLeftUnderAnotherRoot;
 
@@ -318,7 +318,7 @@ public sealed partial class WhisparrSync
         internal MonitorBulkLinking? Summary => _reached
             ? new MonitorBulkLinking(
                 _skipped,
-                _foldersAttached,
+                _filesAttached,
                 _foldersRefused,
                 AddressRefusals,
                 _entriesLeftUnderAnotherRoot,
@@ -370,7 +370,7 @@ public sealed partial class WhisparrSync
 
         private void Add(ReflectOwnedRun linked)
         {
-            _foldersAttached += linked.FoldersAttached;
+            _filesAttached += linked.FilesAttached;
             _foldersRefused += linked.FoldersRefused;
             _entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
             _filesWithoutAnEntry += linked.FilesWithoutAnEntry;
