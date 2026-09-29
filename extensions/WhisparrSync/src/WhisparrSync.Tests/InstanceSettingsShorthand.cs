@@ -20,7 +20,6 @@ internal static class InstanceSettingsShorthand
         List<OutboundRootMapping>? outboundMappings = null,
         List<OutboundRootRefusal>? outboundRefusals = null,
         List<ImportRootRefusals>? importRefusals = null,
-        bool rootsEstablished = true,
         WhisparrGeneration? generation = null)
     {
         var under = generation ?? options.SelectedGeneration;
@@ -33,7 +32,6 @@ internal static class InstanceSettingsShorthand
                 OutboundMappings = outboundMappings ?? held.OutboundMappings,
                 OutboundRefusals = outboundRefusals ?? held.OutboundRefusals,
                 ImportRefusals = importRefusals ?? held.ImportRefusals,
-                RootsEstablished = rootsEstablished,
             });
     }
 }

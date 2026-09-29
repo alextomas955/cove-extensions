@@ -2946,7 +2946,6 @@
           "providerUnreachable",
           "entityNotInWhisparr",
           "whisparrCatalogueNotRead",
-          "whisparrStatusNotRead",
           "whisparrKeepsNoSceneRecords"
         ]
       },
@@ -3394,7 +3393,6 @@
           "none",
           "noInstanceConnected",
           "whisparrKeepsNoSceneRecords",
-          "countFirst",
           "alreadyRunning"
         ]
       },

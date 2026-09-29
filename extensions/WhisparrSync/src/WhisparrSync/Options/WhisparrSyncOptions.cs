@@ -137,14 +137,6 @@ public sealed record WhisparrSyncGenerationInstanceSettings
         get => _importRefusals;
         init => _importRefusals = value ?? [];
     }
-
-    /// <summary>Whether a run has established this generation's library roots.</summary>
-    /// <remarks>
-    /// An import refusal creates this record without any run having compared folders. Without this
-    /// member the folder section would read that empty outbound pair as every folder resolving.
-    /// </remarks>
-    public bool RootsEstablished { get; init; }
-
 }
 
 /// <summary>

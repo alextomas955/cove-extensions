@@ -103,15 +103,6 @@ public enum MissingRefusalKind
     WhisparrCatalogueNotRead,
 
     /// <summary>
-    /// The catalogue was read and the instance was not, so every card carries an unknown status.
-    /// </summary>
-    /// <remarks>
-    /// The catalogue below it is still complete, which is why this is stated beside a grid rather
-    /// than in place of one. It clears on a retry.
-    /// </remarks>
-    WhisparrStatusNotRead,
-
-    /// <summary>
     /// The catalogue was read and the instance keeps no per-scene records, so every card carries an
     /// unknown status.
     /// </summary>

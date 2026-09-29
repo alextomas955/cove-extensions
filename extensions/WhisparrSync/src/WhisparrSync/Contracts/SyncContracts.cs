@@ -42,11 +42,6 @@ public enum SyncRefusalKind
     /// </remarks>
     WhisparrKeepsNoSceneRecords,
 
-    /// <summary>
-    /// Nothing has been counted, so a run cannot say how many scenes it would offer.
-    /// </summary>
-    CountFirst,
-
     /// <summary>A run is already in flight, and a second one would offer the same scenes again.</summary>
     AlreadyRunning,
 }

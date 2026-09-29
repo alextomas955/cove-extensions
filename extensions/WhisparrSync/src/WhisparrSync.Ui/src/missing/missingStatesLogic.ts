@@ -17,7 +17,6 @@ import {
   READ_IS_STALE,
   WHISPARR_CATALOGUE_NOT_READ,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
-  WHISPARR_STATUS_NOT_READ,
 } from "../common/ui/copy";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import type { MissingPageView } from "../wire/api";
@@ -29,7 +28,6 @@ export type MissingGridStateKind =
   | "noScenesMatchTheseFilters"
   | "noTitlesMatch"
   | "providerUnreachable"
-  | "whisparrStatusNotRead"
   | "whisparrKeepsNoSceneRecords"
   | "noMetadataProviderConfigured"
   | "noProviderIdForEntity"
@@ -100,12 +98,6 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
     sentence: PROVIDER_UNREACHABLE,
     refreshIsOffered: true,
     replacesTheGrid: true,
-    ...NEITHER_ESCAPE,
-  },
-  whisparrStatusNotRead: {
-    sentence: WHISPARR_STATUS_NOT_READ,
-    refreshIsOffered: true,
-    replacesTheGrid: false,
     ...NEITHER_ESCAPE,
   },
   // No retry, unlike the row above: this generation keeps no per-scene record at all, so asking
@@ -204,13 +196,10 @@ export function deriveGridState(situation: MissingGridSituation): MissingGridSta
       return "entityNotInWhisparr";
     case "whisparrCatalogueNotRead":
       return "whisparrCatalogueNotRead";
-    case "whisparrStatusNotRead":
     case "whisparrKeepsNoSceneRecords":
       // Stated above the cards, so it is only the answer while there are cards.
       if (view.cards.length > 0) {
-        return view.refusal === "whisparrStatusNotRead"
-          ? "whisparrStatusNotRead"
-          : "whisparrKeepsNoSceneRecords";
+        return "whisparrKeepsNoSceneRecords";
       }
       break;
     case "none":

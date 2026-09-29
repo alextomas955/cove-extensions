@@ -326,10 +326,6 @@ export const NO_TITLES_MATCH = "No titles match that search.";
 export const NO_SCENES_MATCH_THESE_FILTERS =
   "No scenes match these filters. Clear them to see the whole catalogue.";
 
-/** The catalogue was read and Whisparr was not. */
-export const WHISPARR_STATUS_NOT_READ =
-  "Couldn't reach Whisparr, so these have no status. The catalogue is still complete.";
-
 /** The connected Whisparr holds no per-scene records at all. */
 export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
   "This Whisparr keeps no per-scene records, so these have no status. The catalogue is still complete.";
