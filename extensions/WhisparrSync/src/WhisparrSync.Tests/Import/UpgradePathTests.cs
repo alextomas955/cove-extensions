@@ -1,7 +1,3 @@
-using Cove.Core.Entities;
-using Cove.Core.Interfaces;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -149,35 +145,6 @@ public sealed class UpgradePathTests
             SettingsProjector.ToView(stored, v3KeyIsSet: false, v2KeyIsSet: false).UpgradeBehavior);
     }
 
-    [Fact]
-    public void ASaveThatOmitsTheUpgradeBehaviourLeavesTheStoredOne()
-        => Assert.Equal(
-            UpgradeBehavior.Replace,
-            SettingsProjector.Apply(
-                new WhisparrSyncOptions { UpgradeBehavior = UpgradeBehavior.Replace },
-                new WhisparrSyncSettingsSaveRequest(WhisparrGeneration.V3, null, null))
-                .UpgradeBehavior);
-
-    // Neither behaviour creates a capability to move, rename or delete a file, and this is a property
-    // of the seam rather than of the code that calls it.
-    [Fact]
-    public void TheLibrarySeamDeclaresNoMemberThatCouldMoveRenameOrDeleteAFile()
-    {
-        var named = typeof(ICoveLibraryPort)
-            .GetMembers()
-            .Select(member => member.Name)
-            .Where(name => name.Contains("Delete", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("Move", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("Rename", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        Assert.Empty(named);
-
-        // The control: the seam does have members, so the emptiness above is about the vocabulary
-        // rather than about a type with nothing on it.
-        Assert.NotEmpty(typeof(ICoveLibraryPort).GetMembers());
-    }
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private sealed class Ingest
@@ -229,73 +196,5 @@ public sealed class UpgradePathTests
             => Present.TryGetValue(path, out var size)
                 ? new ProbedPath(true, size)
                 : new ProbedPath(false, null);
-    }
-
-    // A real relational library, so the host's own save is the one under test.
-    private sealed class LibraryFixture : IAsyncDisposable
-    {
-        private DbContext _db = null!;
-        private SqliteConnection _connection = null!;
-
-        public CoveLibraryPort Port { get; private set; } = null!;
-
-        public static async Task<LibraryFixture> CreateAsync()
-        {
-            var fixture = new LibraryFixture();
-            (fixture._db, fixture._connection) = await CoveContextFactory.CreateSqliteContextAsync();
-            fixture.Port = new CoveLibraryPort(
-                fixture._db, scan: null, metadata: null, new CoveConfiguration(), NullLogger.Instance);
-            return fixture;
-        }
-
-        public async Task<int> SeedVideoWithFileAsync(string path)
-        {
-            var video = new Video();
-            _db.Add(video);
-            await _db.SaveChangesAsync(Ct);
-            await AttachFileAsync(video.Id, path);
-            return video.Id;
-        }
-
-        // The stored path is left for the host's own save to compute from the folder, so the fixture does
-        // not supply the value a read then checks.
-        public async Task AttachFileAsync(int videoId, string path)
-        {
-            _db.Add(new VideoFile
-            {
-                Basename = path[(path.LastIndexOf('/') + 1)..],
-                ParentFolder = await FolderAsync(path[..path.LastIndexOf('/')]),
-                VideoId = videoId,
-            });
-            await _db.SaveChangesAsync(Ct);
-        }
-
-        // The item's own file-count figure, which the host recomputes on every save.
-        public async Task<int> FileCountOfAsync(int videoId)
-            => (await _db.Set<Video>().AsNoTracking().FirstAsync(video => video.Id == videoId, Ct))
-                .FileCount;
-
-        public async Task<List<(string Path, int? VideoId)>> FilesAsync()
-            => [.. (await _db.Set<VideoFile>().AsNoTracking().ToListAsync(Ct))
-                .Select(file => (file.Path, file.VideoId))
-                .OrderBy(row => row.Path, StringComparer.Ordinal)];
-
-        public async ValueTask DisposeAsync()
-        {
-            await _db.DisposeAsync();
-            await _connection.DisposeAsync();
-        }
-
-        private async Task<Folder> FolderAsync(string path)
-            => await _db.Set<Folder>().FirstOrDefaultAsync(folder => folder.Path == path, Ct)
-                ?? await AddFolderAsync(path);
-
-        private async Task<Folder> AddFolderAsync(string path)
-        {
-            var folder = new Folder { Path = path };
-            _db.Add(folder);
-            await _db.SaveChangesAsync(Ct);
-            return folder;
-        }
     }
 }

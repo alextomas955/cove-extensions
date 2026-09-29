@@ -37,14 +37,18 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Single(ingest.Library.Enriched);
     }
 
-    [Fact]
-    public async Task ASecondDeliveryOfOnePathReachesNoHostImportAndNoEnrichment()
+    // The null row is the backstop candidate for a path the live channel imported: it takes the other
+    // arm of AlreadyHeldAsync, where no identity is carried.
+    [Theory]
+    [InlineData(RemoteId)]
+    [InlineData(null)]
+    public async Task ASecondDeliveryOfOnePathReachesNoHostImportAndNoEnrichment(string? remoteId)
     {
         var ingest = new Ingest();
         await ingest.DeliverAsync();
         ingest.Holds(VerifiedPath);
 
-        var outcome = await ingest.DeliverAsync();
+        var outcome = await ingest.DeliverAsync(remoteId: remoteId);
 
         // The seams first, then the outcome: a core that reported a done-already outcome while still
         // calling the host import would pass an outcome-first assertion for the wrong reason.
@@ -52,20 +56,6 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Single(ingest.Library.Stamped);
         Assert.Single(ingest.Library.Enriched);
         Assert.Equal(ImportOutcome.AlreadyHeld, outcome);
-    }
-
-    [Fact]
-    public async Task ABackstopCandidateForAPathTheLiveChannelImportedDoesNoWork()
-    {
-        var ingest = new Ingest();
-        await ingest.DeliverAsync();
-        ingest.Holds(VerifiedPath);
-
-        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync(remoteId: null));
-
-        Assert.Single(ingest.Library.Imported);
-        Assert.Single(ingest.Library.Stamped);
-        Assert.Single(ingest.Library.Enriched);
     }
 
     [Fact]
