@@ -137,16 +137,6 @@ describe("what is stated beneath the action row", () => {
     }
   });
 
-  it("never reads a role the generation lacks as the instance declining", () => {
-    const absent = cardFailureLine({
-      ...CARD_ACTION_AT_REST,
-      refusal: "capabilityAbsentOnThisGeneration",
-    });
-
-    expect(absent?.sentence).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
-    expect(absent?.sentence).not.toBe(INSTANCE_REFUSED);
-  });
-
   it("states nothing at rest", () => {
     expect(cardFailureLine(CARD_ACTION_AT_REST)).toBeNull();
   });

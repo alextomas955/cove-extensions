@@ -46,21 +46,16 @@ test("draws a glyph and a name per row, and nothing else inside one", async () =
   expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
 });
 
-test("heads the panel with the mark, the product's name and the count", async () => {
-  await draw(ROWS, () => undefined, 12);
-  const panel = document.querySelector('[role="menu"]');
+test.each([12, 1])(
+  "heads the panel with the mark, the product's name and the count at %i",
+  async (selected) => {
+    await draw(ROWS, () => undefined, selected);
+    const panel = document.querySelector('[role="menu"]');
 
-  expect(panel?.getAttribute("aria-label")).toBe("Whisparr · 12 selected");
-  expect(panel?.textContent).toContain(selectionMenuHeader(12));
-});
-
-test("reads the count at one", async () => {
-  await draw(ROWS, () => undefined);
-
-  expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
-    "Whisparr · 1 selected",
-  );
-});
+    expect(panel?.getAttribute("aria-label")).toBe(`Whisparr · ${selected} selected`);
+    expect(panel?.textContent).toContain(selectionMenuHeader(selected));
+  },
+);
 
 test("states the refusal when it is given no rows, and its way out reads Close", async () => {
   await draw([], () => undefined);

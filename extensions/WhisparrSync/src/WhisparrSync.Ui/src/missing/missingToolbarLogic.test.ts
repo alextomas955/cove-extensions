@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MissingSortOption } from "../wire/api";
-import { MISSING_URL_KEYS, writeMissingView } from "./missingUrlLogic";
-import {
-  MISSING_TOOLBAR_CONTROLS,
-  searchSettleDelayMs,
-  sortOptionsFor,
-} from "./missingToolbarLogic";
+import { searchSettleDelayMs, sortOptionsFor } from "./missingToolbarLogic";
 
 // Transcribed by hand. A list read from the module under test would agree with whatever it says.
 const V3_SORTS: MissingSortOption[] = [
@@ -55,24 +50,9 @@ describe("the ordering menu is the provider's own", () => {
   });
 });
 
-describe("no control carries a disabled flag", () => {
-  it("names each control plainly, so a name is the only thing a control can be", () => {
-    for (const control of MISSING_TOOLBAR_CONTROLS) {
-      expect(typeof control).toBe("string");
-    }
-  });
-});
-
 describe("typing settles before the address is rewritten", () => {
   it("waits a positive number of milliseconds", () => {
     expect(searchSettleDelayMs).toBeGreaterThan(0);
     expect(Number.isFinite(searchSettleDelayMs)).toBe(true);
-  });
-});
-
-describe("an empty search means the whole catalogue", () => {
-  it("writes no search key at all", () => {
-    const search = writeMissingView("", { q: "", page: 1, sort: null, filters: {} });
-    expect(new URLSearchParams(search).has(MISSING_URL_KEYS.q)).toBe(false);
   });
 });

@@ -104,14 +104,6 @@ describe("each folder says what happened to it", () => {
     ]);
   });
 
-  it("separates an answer that could not be read from an answer of no", () => {
-    expect(describeFolderRefusal("probeCouldNotBeRead")).toBe(FOLDER_PROBE_COULD_NOT_BE_READ);
-    expect(describeFolderRefusal("instanceCannotBeAsked")).toBe(FOLDER_INSTANCE_CANNOT_BE_ASKED);
-    expect(describeFolderRefusal("probeCouldNotBeRead")).not.toBe(
-      describeFolderRefusal("nothingResolved"),
-    );
-  });
-
   it("gives every refusal a sentence of its own", () => {
     const sentences = FOLDER_AGREEMENT_REFUSALS.map(describeFolderRefusal);
 
@@ -119,6 +111,10 @@ describe("each folder says what happened to it", () => {
       expect(sentence.length).toBeGreaterThan(0);
     }
     expect(new Set(sentences).size).toBe(FOLDER_AGREEMENT_REFUSALS.length);
+
+    // An answer that could not be read is held apart from an answer of no.
+    expect(describeFolderRefusal("probeCouldNotBeRead")).toBe(FOLDER_PROBE_COULD_NOT_BE_READ);
+    expect(describeFolderRefusal("instanceCannotBeAsked")).toBe(FOLDER_INSTANCE_CANNOT_BE_ASKED);
   });
 
   it("asks for a path for every refusal a stated one could settle", () => {

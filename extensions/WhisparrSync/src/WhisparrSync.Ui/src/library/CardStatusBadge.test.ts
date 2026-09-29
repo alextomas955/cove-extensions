@@ -58,17 +58,30 @@ function showBadges(): void {
   if (!libraryStatusOn()) toggleLibraryStatus();
 }
 
-test("a badge asks for its own card kind, naming the Cove id and nothing else", async () => {
-  answering([]);
-  showBadges();
+test.each([
+  [
+    "studio",
+    (host: typeof HOST_OBJECT) => createElement(WhisparrStudioCardBadge, { studio: host }),
+  ],
+  ["video", (host: typeof HOST_OBJECT) => createElement(WhisparrVideoCardBadge, { video: host })],
+  [
+    "performer",
+    (host: typeof HOST_OBJECT) => createElement(WhisparrPerformerCardBadge, { performer: host }),
+  ],
+])(
+  "a %s badge rides its kind in the address, naming the Cove id and nothing else",
+  async (kind, badge) => {
+    answering([]);
+    showBadges();
 
-  await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
+    await render(badge(HOST_OBJECT));
 
-  expect(requestJson).toHaveBeenCalledTimes(1);
-  expect(asked().path).toBe("/extensions/com.alextomas955.whisparrsync/library/studio/status");
-  // The whole body, so a member nobody thought to forbid fails here too.
-  expect(asked().body).toEqual({ coveIds: [7] });
-});
+    expect(requestJson).toHaveBeenCalledTimes(1);
+    expect(asked().path).toBe(`/extensions/com.alextomas955.whisparrsync/library/${kind}/status`);
+    // The whole body, so a member nobody thought to forbid fails here too.
+    expect(asked().body).toEqual({ coveIds: [7] });
+  },
+);
 
 test("nothing else the host object carries reaches the request at all", async () => {
   answering([]);
@@ -80,16 +93,6 @@ test("nothing else the host object carries reaches the request at all", async ()
   for (const value of [HOST_OBJECT.name, HOST_OBJECT.externalId, ...HOST_OBJECT.providerIds]) {
     expect(sent, `the request carried ${value}`).not.toContain(value);
   }
-});
-
-test("each card kind rides in the address rather than in the body", async () => {
-  answering([]);
-  showBadges();
-
-  await render(createElement(WhisparrPerformerCardBadge, { performer: HOST_OBJECT }));
-
-  expect(asked().path).toBe("/extensions/com.alextomas955.whisparrsync/library/performer/status");
-  expect(asked().body).toEqual({ coveIds: [7] });
 });
 
 test("a badge sends nothing at all until a reader asks for the badges", async () => {

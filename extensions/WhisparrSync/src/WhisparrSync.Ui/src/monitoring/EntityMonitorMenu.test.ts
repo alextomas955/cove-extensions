@@ -504,26 +504,6 @@ test("the room the overlay is given never falls below a readable floor", async (
   expect(bound).toBeGreaterThanOrEqual(160);
 });
 
-test("the menu panel scrolls rather than clipping", async () => {
-  const menu = monitorMenu(viewOf({ monitored: true }), false);
-  const mounted = await mount((triggerRef) =>
-    createElement(EntityMonitorMenu, {
-      menu,
-      label: "Monitored in Whisparr",
-      triggerRef,
-      onSelect: () => undefined,
-      onClose: () => undefined,
-    }),
-  );
-
-  // A class assertion is weak on its own. The check-classes gate carries the rest of the claim by
-  // rejecting a class the host does not emit.
-  const panel = mounted.panel() as HTMLElement;
-  expect(panel.classList.contains("overflow-y-auto")).toBe(true);
-  expect(panel.classList.contains("overflow-hidden")).toBe(false);
-  expect(panel.parentElement?.style.maxHeight).not.toBe("");
-});
-
 test("the room below the trigger bounds the container, and the notice cannot be squeezed out of it", async () => {
   const menu = monitorMenu(viewOf({ monitored: true }), false);
   await mount((triggerRef) =>
@@ -540,6 +520,12 @@ test("the room below the trigger bounds the container, and the notice cannot be 
   const panel = document.body.querySelector<HTMLElement>('[role="menu"]')!;
   const container = panel.parentElement!;
   const notice = document.body.querySelector<HTMLElement>('[role="status"]')!;
+
+  // The panel scrolls rather than clipping. A class assertion is weak on its own; the check-classes
+  // gate carries the rest of the claim by rejecting a class the host does not emit.
+  expect(panel.classList.contains("overflow-y-auto")).toBe(true);
+  expect(panel.classList.contains("overflow-hidden")).toBe(false);
+  expect(container.style.maxHeight).not.toBe("");
 
   // jsdom reports every element rectangle as zeroes, so the height the notice keeps out of the room
   // is not measurable. What is measurable is which element carries the bound and which of the two

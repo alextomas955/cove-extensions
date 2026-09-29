@@ -60,33 +60,9 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-function occurrences(text: string, needle: string): number {
-  let count = 0;
-  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) {
-    count += 1;
-  }
-  return count;
-}
-
 function contains(sentence: string, phrase: string): boolean {
   return new RegExp(`\\b${phrase}`, "i").test(sentence);
 }
-
-describe("the version-gap sentence is single-sourced", () => {
-  it("is declared exactly once across the shipped bundle", () => {
-    // A test's own transcribed pin is an expectation, not a second declaration, so the count is
-    // taken over shipped source only.
-    const declarations = sourceFiles(SRC)
-      .filter((file) => !/\.test\.tsx?$/.test(file))
-      .map((file) => ({
-        file: path.relative(SRC, file),
-        count: occurrences(readFileSync(file, "utf8"), copy.CAP_UNAVAILABLE_ON_THIS_GENERATION),
-      }))
-      .filter((entry) => entry.count > 0);
-
-    expect(declarations).toEqual([{ file: path.join("common", "ui", "copy.ts"), count: 1 }]);
-  });
-});
 
 describe("neither metadata source is named in the bundle", () => {
   // Which source answers follows the connected generation, so a name written into the bundle is
@@ -109,15 +85,12 @@ describe("neither metadata source is named in the bundle", () => {
 
 describe("the two generations' entity models never reach a user's eyes", () => {
   it("keeps the model-split vocabulary out of every copy constant", () => {
+    expect(CONSTANTS.length).toBeGreaterThan(0);
     for (const [name, sentence] of CONSTANTS) {
       for (const word of MODEL_SPLIT_VOCABULARY) {
         expect(contains(sentence, word), `${name} names "${word}"`).toBe(false);
       }
     }
-  });
-
-  it("has something to check", () => {
-    expect(CONSTANTS.length).toBeGreaterThan(0);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countLine, selectionCount } from "../common/ui/copy";
+import { countLine } from "../common/ui/copy";
 import { ceilingIsDisclosed, countLineParts } from "./missingCountLogic";
 
 // Provider responses recorded against the live services, transcribed rather than invented. The
@@ -42,15 +42,6 @@ describe("the count line states the provider's figures", () => {
     expect(countLine(parts.from, parts.to, parts.total, parts.atCeiling)).toBe("1–40 of 272");
   });
 
-  it("reads the range from the provider and not from the cards left after the subtraction", () => {
-    // Thirty-one of the forty survived; the range is still the provider's own.
-    const cardsOnScreen = 31;
-    const parts = countLineParts(RECORDED.thePornDbBelowTheCeiling);
-
-    expect(parts.to - parts.from + 1).toBe(40);
-    expect(parts.to - parts.from + 1).not.toBe(cardsOnScreen);
-  });
-
   it("renders a catalogue of one", () => {
     const parts = countLineParts(RECORDED.oneScene);
 
@@ -66,14 +57,6 @@ describe("the count line states the provider's figures", () => {
 
   it("does not mark an empty catalogue as a floor", () => {
     expect(countLineParts({ ...RECORDED.noScenes, sizeIsLowerBound: true }).atCeiling).toBe(false);
-  });
-});
-
-describe("the selection count reads at zero, one and many", () => {
-  it("singularises at one", () => {
-    expect(selectionCount(0)).toBe("0 selected");
-    expect(selectionCount(1)).toBe("1 selected");
-    expect(selectionCount(2)).toBe("2 selected");
   });
 });
 

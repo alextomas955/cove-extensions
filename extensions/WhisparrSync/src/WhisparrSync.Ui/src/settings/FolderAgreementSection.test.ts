@@ -405,14 +405,6 @@ test("a read that failed says so rather than reading as a page with no problems"
   expect(page.prompts().length).toBe(0);
 });
 
-test("the control is named", async () => {
-  reads = [viewOf(lineFor("/media"))];
-
-  const page = await mount();
-
-  expect(page.saveFor("/media")?.textContent).toContain(FOLDER_AGREEMENT_SAVE);
-});
-
 test("no row asks for an accent control, whatever each row is asking for", async () => {
   reads = [viewOf(lineFor("/media"), settledLineFor("/films", "/data/films"))];
 

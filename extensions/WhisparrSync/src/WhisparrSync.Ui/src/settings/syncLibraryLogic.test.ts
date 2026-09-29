@@ -50,18 +50,14 @@ describe("a count reads the same wherever it is rendered", () => {
 });
 
 describe("the count control's name and its one reason", () => {
-  it("is named for a first press until a result exists, and for a recount after", () => {
+  // A failed count is not a reason to dim the control, or the reader has nothing to retry with, so
+  // the reason turns on the count being in flight and on nothing else.
+  it("is named for a first press until a result exists, and says why only while counting", () => {
     expect(countControl(false, false).name).toBe(SYNC_COUNT);
     expect(countControl(false, true).name).toBe(ACTION_REFRESH);
-  });
 
-  it("cannot be pressed while a count is in flight, and says why", () => {
     expect(countControl(true, false).reason).toBe(SYNC_IS_COUNTING);
     expect(countControl(true, true).reason).toBe(SYNC_IS_COUNTING);
-  });
-
-  // A failed count is not a reason to dim the control, or the reader has nothing to retry with.
-  it("is pressable whenever no count is in flight", () => {
     expect(countControl(false, false).reason).toBeNull();
     expect(countControl(false, true).reason).toBeNull();
   });

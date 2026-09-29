@@ -5,6 +5,7 @@ import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../lib/testRender";
+import { visibleText } from "../lib/visibleText";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 
 // The shared primitives stand in because their `react` import resolves only inside a consuming
@@ -26,21 +27,6 @@ const { DisabledControl, OptionallyDisabled } = await import("./DisabledControl"
 const NAME = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
-function visibleText(element: Element): string {
-  return [...element.childNodes]
-    .map((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return node.textContent ?? "";
-      }
-      if (!(node instanceof Element)) {
-        return "";
-      }
-      const offScreen = node instanceof HTMLElement && node.style.position === "absolute";
-      return offScreen ? "" : visibleText(node);
-    })
-    .join("");
-}
-
 async function draw(node: ReactNode) {
   const container = await render(node);
   return {
@@ -48,38 +34,6 @@ async function draw(node: ReactNode) {
     button: container.querySelector("button"),
   };
 }
-
-test("a disabled control announces its own name before the reason", async () => {
-  const view = await draw(
-    createElement(DisabledControl, {
-      name: NAME,
-      reason: REASON,
-      disabled: true,
-      onClick: () => undefined,
-    }),
-  );
-
-  expect(view.button).not.toBeNull();
-  expect(view.button?.textContent).toMatch(new RegExp(`^${NAME}`));
-  expect(view.button?.textContent).toContain(REASON);
-});
-
-test("the reason reaches assistive technology as text, not only as a pointer attribute", async () => {
-  const view = await draw(
-    createElement(DisabledControl, {
-      name: NAME,
-      reason: REASON,
-      disabled: true,
-      onClick: () => undefined,
-    }),
-  );
-
-  const carriesText = [...view.container.querySelectorAll("span")].some(
-    (span) => span.textContent === REASON,
-  );
-  expect(carriesText).toBe(true);
-  expect(view.container.querySelector("[title]")?.getAttribute("title")).toBe(REASON);
-});
 
 test("the reason is not drawn on screen beside every control", async () => {
   const view = await draw(

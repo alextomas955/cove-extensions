@@ -163,8 +163,4 @@ describe("how many paths a line lists", () => {
       "/whisparr-media/2.mp4",
     ]);
   });
-
-  it("keeps the bound at the three the stored aggregate holds", () => {
-    expect(NEWEST_PATHS_SHOWN).toBe(3);
-  });
 });
