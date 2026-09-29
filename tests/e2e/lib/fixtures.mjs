@@ -1,10 +1,5 @@
 // Playwright fixture wiring the harness lifecycle into `test`. One harness instance per worker, not
 // per test, so each test must name its own seed data uniquely or collide with its neighbours.
-//
-// Usage in a test file:
-//   import { test, expect } from '../../lib/fixtures.mjs';
-//   test.use({ extension: { repoRoot: '...', publishDir: '...', manifestPath: '...' } });
-//   test('...', async ({ page, baseUrl, api }) => { ... });
 import { test as base, expect } from "@playwright/test";
 import { startHarness } from "./harness.mjs";
 import { createApiClient } from "./apiClient.mjs";
@@ -13,36 +8,42 @@ import { createApiClient } from "./apiClient.mjs";
 export { createApiClient };
 
 /**
- * A per-test harness fixture with `extension` already installed - its own Cove instance, torn down
- * after the test.
+ * Per-test fixtures giving a test its own Cove instance with `extension` already installed, torn down
+ * after the test: `isolatedHarness`, and `baseUrl` pointed at that instance.
  *
- * Use it for a test that changes a global extension setting, or the extension's installed state. The
+ * Use them for a test that changes a global extension setting, or the extension's installed state. The
  * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
  * silently alters its behaviour. This costs a container boot per test.
+ *
+ * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the worker
+ * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
+ * reported against a host the test never drove.
  */
-export function isolatedHarnessFixture(extension) {
-  return [
-    async ({}, use, testInfo) => {
-      // The container pair exists from startHarness() onward, so every later step belongs inside the
-      // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
-      // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
-      // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
-      // the one that actually broke.
-      const isolatedHarness = await startHarness();
-      try {
-        isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-        await isolatedHarness.installExtension(extension);
-        await use(isolatedHarness);
-      } finally {
-        // The `page` fixture probes the worker harness, which is a different container on a
-        // different port from this one. A test driving this harness therefore fails with no word
-        // about the host it actually used, so the probe is repeated here against that host.
-        await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
-        await isolatedHarness.stop();
-      }
+export function isolatedHarnessFixtures(extension) {
+  return {
+    isolatedHarness: [
+      async ({}, use, testInfo) => {
+        // The container pair exists from startHarness() onward, so every later step belongs inside the
+        // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance and
+        // a Postgres instance until Ryuk reaps them.
+        const isolatedHarness = await startHarness();
+        try {
+          isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
+          await isolatedHarness.installExtension(extension);
+          await use(isolatedHarness);
+        } finally {
+          // Repeated here for a test that drives this instance without a `page`, which is the fixture
+          // that otherwise reports an unreachable host.
+          await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
+          await isolatedHarness.stop();
+        }
+      },
+      { scope: "test" },
+    ],
+    baseUrl: async ({ isolatedHarness }, use) => {
+      await use(isolatedHarness.baseUrl);
     },
-    { scope: "test" },
-  ];
+  };
 }
 
 export const test = base.extend({
@@ -67,19 +68,24 @@ export const test = base.extend({
   harness: [
     async ({ extension }, use) => {
       const harness = await startHarness();
-      // Cove's frontend hard-gates the entire app behind a first-run setup wizard until an owner
-      // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
-      // once per instance; an API-only file pays nothing it would notice.
-      harness.owner = await harness.bootstrapOwner();
-      // Installed here rather than per test: the install copies the package in and RESTARTS Cove, so
-      // done per test it charged every test in the worker a container restart (measured at about 5.5s
-      // each). It is also nothing a test can undo on its own - the specs that add, remove or toggle
-      // an install take `isolatedHarnessFixture` and a container of their own instead.
-      if (extension) {
-        await harness.installExtension(extension);
+      // Inside the try for the reason isolatedHarnessFixtures states: a bootstrap or install failure
+      // must not strand the containers startHarness() already brought up.
+      try {
+        // Cove's frontend hard-gates the entire app behind a first-run setup wizard until an owner
+        // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
+        // once per instance; an API-only file pays nothing it would notice.
+        harness.owner = await harness.bootstrapOwner();
+        // Installed here rather than per test: the install copies the package in and restarts Cove,
+        // which every test in the worker would otherwise pay for. It is also nothing a test can undo
+        // on its own - the specs that add, remove or toggle an install take `isolatedHarnessFixtures`
+        // and a container of their own instead.
+        if (extension) {
+          await harness.installExtension(extension);
+        }
+        await use(harness);
+      } finally {
+        await harness.stop();
       }
-      await use(harness);
-      await harness.stop();
     },
     { scope: "worker" },
   ],
@@ -136,7 +142,10 @@ export const test = base.extend({
     // defect and sends the reader to the extension, which is the wrong place. Ask the host whether it
     // is still there and say so, once, on the failure that noticed.
     if (testInfo.status !== testInfo.expectedStatus) {
-      await noteHostIfUnreachable(baseUrl, testInfo, "host");
+      // The host the page is on, not the one it opened: a spec that restarts its instance may have
+      // been republished on another port, and `baseUrl` was read before that.
+      const pageOrigin = URL.canParse(page.url()) ? new URL(page.url()).origin : "null";
+      await noteHostIfUnreachable(pageOrigin === "null" ? baseUrl : pageOrigin, testInfo, "host");
       if (browserProblems.size > 0) {
         const rendered = [...browserProblems].map(([text, count]) =>
           count > 1 ? `${text} (x${count})` : text,

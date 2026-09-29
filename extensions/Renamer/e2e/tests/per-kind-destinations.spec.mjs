@@ -1,81 +1,49 @@
 // What the "Per kind" list does to files, driven through the real panel: a kind sent to a folder of
 // its own lands there, an excluded kind is not touched at all, and a kind left alone follows the
 // card's own destination. All three hold in one whole-library run, which is the combination that
-// matters - a per-kind setting that leaked across kinds would still pass a one-kind test.
+// matters - a per-kind setting that leaked across kinds would still pass a one-kind test. A second run
+// then swaps which kinds move, so the buttons are proven to change the next run and not only the first.
 //
 // The proof is exact on-disk + DB state for every kind, never the panel's own banner: an excluded
 // kind's file must still be at the path it started from, which only a filesystem check can say.
-import { test as base, expect, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import { seedImage, seedText } from "@cove-extensions/e2e/seed-media";
-import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import { pollUntil } from "@cove-extensions/e2e/poll";
+import {
+  test as base,
+  expect,
+  seedVideo,
+  clientFor,
+  RENAMER_EXTENSION,
+} from "../lib/renamer-fixtures.mjs";
+import { assertLandedAt, fileExists } from "../lib/rename-assertions.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-const test = base.extend({
-  // "Rename all files" sweeps every item in the library, so this runs on its own instance - a sibling
-  // test's seeded media sharing the per-worker harness would be swept into this run's scope.
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
+// "Rename all files" sweeps every item in the library, so this runs on its own instance - a sibling
+// test's seeded media sharing the per-worker harness would be swept into this run's scope.
+const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
-/** The path the DB currently holds for one item, whatever its kind. */
-async function currentPath(api, route, id) {
+/**
+ * Asserts one item was left where it was: the DB still points at `path`, and a file is still there.
+ * It does not compare contents, because a rename this run refused to make is a move, not a write. A
+ * settled run is what makes it meaningful, so callers assert the kinds that did move first: this
+ * check would pass on a run that had not started.
+ */
+async function assertUntouched({ api, container, route, id, path }) {
   const res = await api.get(`/api/${route}/${id}`);
   expect(res.ok, `GET /api/${route}/${id} failed (${res.status}): ${res.text}`).toBe(true);
-  return res.json.files[0].path;
-}
-
-/**
- * Asserts one item landed at exactly `expectedPath`: the DB record says so, the file is on disk
- * there, and the path it came from is gone. Polls the record, so the run's read-after-write window
- * is honored.
- */
-async function assertLandedAt({ api, container, route, id, expectedPath, originalPath }) {
-  const record = await pollUntil(
-    () => api.get(`/api/${route}/${id}`).then((r) => r.json),
-    (item) => item.files[0].path === expectedPath,
-    { label: `${route} ${id} to land at exactly "${expectedPath}"` },
+  expect(res.json.files[0].path, `${route} ${id} should not have been renamed`).toBe(path);
+  expect(await fileExists(container, path), `Excluded file "${path}" is missing from disk`).toBe(
+    true,
   );
-  expect(
-    record.files[0].path,
-    `DB record for ${route} ${id} should point at "${expectedPath}"`,
-  ).toBe(expectedPath);
-
-  const onDisk = await container.exec(["test", "-f", expectedPath]);
-  expect(onDisk.exitCode, `Renamed file "${expectedPath}" is missing from disk`).toBe(0);
-
-  if (originalPath !== expectedPath) {
-    const oldOnDisk = await container.exec(["test", "-f", originalPath]);
-    expect(
-      oldOnDisk.exitCode,
-      `Original path "${originalPath}" still exists on disk after the rename`,
-    ).not.toBe(0);
-  }
 }
 
-/**
- * Asserts one item was left where it was: the DB still points at its original path, and a file is
- * still there. It does not compare contents, because a rename this run refused to make is a move,
- * not a write. A settled run is what makes it meaningful, so callers assert the kinds that did move
- * first: this check would pass on a run that had not started.
- */
-async function assertUntouched({ api, container, route, id, originalPath }) {
-  const path = await currentPath(api, route, id);
-  expect(path, `${route} ${id} should not have been renamed`).toBe(originalPath);
-
-  const onDisk = await container.exec(["test", "-f", originalPath]);
-  expect(onDisk.exitCode, `Excluded file "${originalPath}" is missing from disk`).toBe(0);
-}
-
-test("one run honors a kind's own folder, an excluded kind and a kind on the default at once", async ({
+test("one run honors a kind's own folder, an excluded kind and a kind on the default, and the buttons swap them for the next run", async ({
   page,
   isolatedHarness,
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  const api = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
+  const api = clientFor(isolatedHarness);
 
   const [video, image, text] = await Promise.all([
     seedVideo({ container, baseUrl, destName: `kinds-a-${Date.now()}.mp4` }),
@@ -104,15 +72,16 @@ test("one run honors a kind's own folder, an excluded kind and a kind on the def
   await settingsPage.setKindFolder("Videos", "own-videos");
   await settingsPage.excludeKind("Images");
   await settingsPage.save();
-
   await settingsPage.renameAll();
 
+  const videoPath = `/data/own-videos/${titles.video}.mp4`;
+  const textPath = `/data/everything-else/${titles.text}.txt`;
   await assertLandedAt({
     api,
     container,
     route: "videos",
     id: video.id,
-    expectedPath: `/data/own-videos/${titles.video}.mp4`,
+    expectedPath: videoPath,
     originalPath: original.video,
   });
   await assertLandedAt({
@@ -120,66 +89,15 @@ test("one run honors a kind's own folder, an excluded kind and a kind on the def
     container,
     route: "texts",
     id: text.id,
-    expectedPath: `/data/everything-else/${titles.text}.txt`,
+    expectedPath: textPath,
     originalPath: original.text,
   });
-  // Asserted last, after two kinds are proven moved: by then the run has demonstrably done its work,
-  // so an untouched image is a decision rather than a race.
-  await assertUntouched({
-    api,
-    container,
-    route: "images",
-    id: image.id,
-    originalPath: original.image,
-  });
-});
+  // Asserted after two kinds are proven moved: by then the run has demonstrably done its work, so an
+  // untouched image is a decision rather than a race.
+  await assertUntouched({ api, container, route: "images", id: image.id, path: original.image });
 
-test("the buttons swap which kinds move on the next run", async ({ page, isolatedHarness }) => {
-  const baseUrl = isolatedHarness.baseUrl;
-  const container = isolatedHarness.container;
-  const api = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
-
-  const [video, image] = await Promise.all([
-    seedVideo({ container, baseUrl, destName: `swap-a-${Date.now()}.mp4` }),
-    seedImage({ container, baseUrl, destName: `swap-b-${Date.now()}.png` }),
-  ]);
-  const originalVideoPath = video.files[0].path;
-  const originalImagePath = image.files[0].path;
-
-  expect((await api.put(`/api/videos/${video.id}`, { Title: "Swap Video" })).ok).toBe(true);
-  expect((await api.put(`/api/images/${image.id}`, { Title: "Swap Image" })).ok).toBe(true);
-
-  const settingsPage = new RenamerSettingsPage(page, baseUrl);
-  await settingsPage.goto();
-  await settingsPage.setFilenameTemplate("$title");
-  await settingsPage.setFolderTemplate("");
-  await settingsPage.excludeKind("Images");
-  await settingsPage.save();
-  await settingsPage.renameAll();
-
-  const renamedVideoPath = `/data/Swap Video.mp4`;
-  await assertLandedAt({
-    api,
-    container,
-    route: "videos",
-    id: video.id,
-    expectedPath: renamedVideoPath,
-    originalPath: originalVideoPath,
-  });
-  await assertUntouched({
-    api,
-    container,
-    route: "images",
-    id: image.id,
-    originalPath: originalImagePath,
-  });
-
-  // Now the other way round: the video stops being renamed and the image starts, into a folder of
-  // its own. The video's proof is that a second whole-library run leaves it exactly where run one
-  // put it.
+  // The other way round: the video stops being renamed and the image starts, into a folder of its
+  // own. The video's proof is that a second whole-library run leaves it exactly where run one put it.
   await settingsPage.goto();
   await settingsPage.includeKind("Images");
   await settingsPage.setKindFolder("Images", "now-images");
@@ -192,14 +110,8 @@ test("the buttons swap which kinds move on the next run", async ({ page, isolate
     container,
     route: "images",
     id: image.id,
-    expectedPath: `/data/now-images/Swap Image.png`,
-    originalPath: originalImagePath,
+    expectedPath: `/data/now-images/${titles.image}.png`,
+    originalPath: original.image,
   });
-  await assertUntouched({
-    api,
-    container,
-    route: "videos",
-    id: video.id,
-    originalPath: renamedVideoPath,
-  });
+  await assertUntouched({ api, container, route: "videos", id: video.id, path: videoPath });
 });

@@ -62,11 +62,3 @@ export async function pollUntil(
   }
   return value;
 }
-
-export async function pollJob(api, jobId, { timeoutMs = 60_000 } = {}) {
-  return pollUntil(
-    () => api.get(`/api/jobs/${jobId}`).then((r) => r.json),
-    (job) => ["completed", "failed", "cancelled"].includes(job?.status?.toLowerCase()),
-    { timeoutMs, label: `job ${jobId} to finish` },
-  );
-}

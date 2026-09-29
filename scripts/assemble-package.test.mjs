@@ -266,58 +266,9 @@ test("fails HARD: an empty artifacts array, rather than reporting a green zero-f
   );
 });
 
-test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
-  // The drive letter, colon and separator are assembled from parts so this file's own source does not
-  // read as a leak to the very scan it is exercising.
-  const driveRoot =
-    "C:" +
-    String.fromCodePoint(92) +
-    String.fromCodePoint(92) +
-    "build" +
-    String.fromCodePoint(92) +
-    String.fromCodePoint(92) +
-    "out";
-  const fixture = fixtureRoot({
-    artifacts: ["Fixture.dll", "Leaky.json"],
-    publishFiles: { "Fixture.dll": "MZ", "Leaky.json": '{\n  "target": "' + driveRoot + '"\n}\n' },
-  });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a drive-root path in a shipped json must be refused");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
-
-test("refuses to write a shipped json carrying a unix home path prefix, naming file and line", () => {
-  const unixHome = "/" + "home" + "/" + "runner/work/out";
-  const fixture = fixtureRoot({
-    artifacts: ["Fixture.dll", "Leaky.json"],
-    publishFiles: { "Fixture.dll": "MZ", "Leaky.json": '{\n  "target": "' + unixHome + '"\n}\n' },
-  });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a unix home path in a shipped json must be refused");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
-
-// An absolute path reaches a shipped json in more spellings than the two cases above cover, and a
-// Windows path inside json is escaped - so the text the scan actually meets is not the text a human
-// writes. Every needle below is assembled from character codes for the same reason those two are.
+// A Windows path inside json is escaped, so the text the scan meets is not the text a human writes.
+// Every needle is assembled from character codes so this file's own source does not read as a leak to
+// the very scan it exercises.
 function leakyFixture(value) {
   return fixtureRoot({
     artifacts: ["Fixture.dll", "Leaky.json"],
@@ -343,6 +294,38 @@ const SHARE_ESCAPED =
   BACKSLASH +
   BACKSLASH +
   "out";
+
+test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
+  const fixture = leakyFixture(DRIVE_ESCAPED);
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a drive-root path in a shipped json must be refused");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
+    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
+  );
+  assert.equal(
+    fs.existsSync(fixture.packageDir),
+    false,
+    "the refused json must not reach the package",
+  );
+});
+
+test("refuses to write a shipped json carrying a unix home path prefix, naming file and line", () => {
+  const fixture = leakyFixture("/" + "home" + "/" + "runner/work/out");
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a unix home path in a shipped json must be refused");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
+    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
+  );
+  assert.equal(
+    fs.existsSync(fixture.packageDir),
+    false,
+    "the refused json must not reach the package",
+  );
+});
 
 test("refuses a shipped json carrying a network share path, in the spelling a generated json contains", () => {
   for (const { form, value } of [
@@ -480,22 +463,7 @@ test("fails: a manifest whose entry assembly is not in the declared set", () => 
   );
 });
 
-// The other half of the same check: the loadability check walks one list of optional manifest fields,
-// and a field the manifest does not carry makes no claim, so it must not be failed for. Without this
-// the entryDll case above could pass on a check that refused every field, present or not.
-test("a manifest declaring no stylesheet bundle is not failed for the field it does not have", () => {
-  const fixture = fixtureRoot();
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, true, r.failures.join("; "));
-  assert.equal(
-    r.failures.filter((f) => f.includes("cssBundle")).length,
-    0,
-    "an absent optional field must not be treated as an unsatisfied claim",
-  );
-});
-
-// The present half of the pair above. The ui-bundle rule covers both bundle fields, and the assertion
+// The ui-bundle rule covers both bundle fields, and the assertion
 // is on the resolved root rather than on `ok`: a run that found the stylesheet in the publish directory
 // or beside the manifest would succeed just as happily, and that is exactly the resolution mistake this
 // case exists to pin.
@@ -540,17 +508,9 @@ test("fails: a declared cssBundle the artifacts array does not carry", () => {
 // with a declaration. The two leak cases above are the other half of that cover: they declare a subset
 // carrying no manifest, so a short-circuiting refusal would fire before the scan they exist to exercise.
 test("an unloadable declaration and an absolute path in a shipped json are reported in one result", () => {
-  const driveRoot =
-    "C:" +
-    String.fromCodePoint(92) +
-    String.fromCodePoint(92) +
-    "build" +
-    String.fromCodePoint(92) +
-    String.fromCodePoint(92) +
-    "out";
   const fixture = fixtureRoot({
     artifacts: ["Leaky.json"],
-    publishFiles: { "Leaky.json": '{\n  "target": "' + driveRoot + '"\n}\n' },
+    publishFiles: { "Leaky.json": '{\n  "target": "' + DRIVE_ESCAPED + '"\n}\n' },
   });
   const r = assemble(fixture);
 

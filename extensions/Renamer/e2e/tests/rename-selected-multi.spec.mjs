@@ -15,12 +15,14 @@
 //   names would hand that dependence straight back. Even the dialog assertion reads the count the
 //   confirm text quotes, not the examples it lists.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
+import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import {
+  test as base,
   expect,
   seedVideo,
   pollUntil,
+  clientFor,
   RENAMER_EXTENSION,
   EXTENSION_ID,
 } from "../lib/renamer-fixtures.mjs";
@@ -29,9 +31,7 @@ import {
 // the last", and one cannot distinguish multi-select from single-select at all.
 const SELECTED = 3;
 
-const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
+const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 test(
   "a rename driven from the grid with several cards selected renames every one of them",
@@ -39,10 +39,7 @@ test(
   async ({ page, isolatedHarness }) => {
     const baseUrl = isolatedHarness.baseUrl;
     const container = isolatedHarness.container;
-    const api = createApiClient(
-      () => isolatedHarness.baseUrl,
-      () => isolatedHarness.token,
-    );
+    const api = clientFor(isolatedHarness);
 
     // A literal in the template guarantees every planned name differs from the current one whatever the
     // fixture's own metadata resolves to, so "did this item's path change" stays a question about the

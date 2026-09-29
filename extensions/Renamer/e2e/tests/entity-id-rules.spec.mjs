@@ -1,40 +1,9 @@
-// Tag rules keyed on stable ids, proven on the two paths nothing else covers: the one-time conversion
-// of a name-keyed options blob, and the host entity selector the panel now uses.
-//
-// The conversion is the half that can lose a user's configuration. A fresh install has nothing to
-// convert, so it passes whether the conversion works or not; the cases that discriminate are an
-// upgrade whose names resolve and an upgrade whose names do not. The second is the dangerous one:
-// resolving every name to nothing would write the whole rule set away behind a stamp that stops it
-// ever being retried, so the refusal to convert is asserted directly.
-//
-// The selector half is asserted against a real host because nothing local can. The extension declares
-// the host component's props in an ambient .d.ts, so a type-check only confirms the call sites agree
-// with that transcription - it would agree just as happily with a wrong one.
-import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import {
-  test,
-  expect,
-  RENAMER_EXTENSION,
-  seedVideo,
-  pollUntil,
-  ROUTE,
-} from "../lib/renamer-fixtures.mjs";
+// The host entity selector the panel uses for id-keyed tag rules, asserted against a real host because
+// nothing local can: the extension declares the host component's props in an ambient .d.ts, so a
+// type-check only confirms the call sites agree with that transcription - it would agree just as
+// happily with a wrong one. The one-time conversion of a name-keyed blob is options-migration.spec.mjs.
+import { test, expect, pollUntil, storedOptions } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
-import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
-
-// The conversion runs at initialize time, which only a restart reaches, so these two need an instance
-// of their own: a restart and a rewritten options blob would both leak into every sibling test in a
-// shared worker instance.
-const restartTest = base.extend({
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
-
-function clientFor(harness) {
-  return createApiClient(
-    () => harness.baseUrl,
-    () => harness.token,
-  );
-}
 
 /** Creates a library tag through the host's own API and returns the id it assigned. */
 async function createTag(api, name) {
@@ -43,109 +12,6 @@ async function createTag(api, name) {
   expect(typeof created.json.id, `tag '${name}' came back with no numeric id`).toBe("number");
   return created.json.id;
 }
-
-/** The extension's stored options blob, parsed, or undefined when the key is absent. */
-async function storedOptions(api) {
-  const all = await api.get(`${ROUTE}/data`);
-  expect(all.ok).toBe(true);
-  const blob = (all.json ?? {}).options;
-  return blob ? JSON.parse(blob) : undefined;
-}
-
-restartTest(
-  "a name-keyed options blob converts to ids on load, and its rule keeps applying",
-  async ({ isolatedHarness }) => {
-    const harness = isolatedHarness;
-    const api = clientFor(harness);
-
-    // The id comes from the host, so the assertion below cannot pass against a conversion that merely
-    // invented a plausible number.
-    const excludedId = await createTag(api, "e2e-excluded");
-
-    const video = await seedVideo({
-      container: harness.container,
-      baseUrl: harness.baseUrl,
-      token: harness.token,
-    });
-    expect(
-      (await api.put(`/api/videos/${video.id}`, { Title: "Entity Id Rules", TagIds: [excludedId] }))
-        .ok,
-    ).toBe(true);
-    // Read back rather than trust the write: a tag that never attached would make the exclude
-    // assertion below pass for the wrong reason.
-    expect(
-      (await api.get(`/api/videos/${video.id}`)).json.tags?.map((t) => t.id),
-      "the seeded video must actually carry the tag",
-    ).toContain(excludedId);
-
-    // The shape an upgrading installation carries: the rule names the tag, and the key the current
-    // model reads does not exist yet.
-    await api.put(
-      `${ROUTE}/data/options`,
-      JSON.stringify({ FilenameTemplate: "$title", ExcludeTags: ["e2e-excluded"] }),
-    );
-
-    // A restart is the only way into an initialize-time path: it does not run again while the host is up.
-    await harness.restart();
-    const after = clientFor(harness);
-
-    const converted = await pollUntil(
-      () => storedOptions(after),
-      (o) => o !== undefined && Array.isArray(o.ExcludeTagIds),
-      { label: "the stored options blob to carry ExcludeTagIds" },
-    );
-
-    // (1) The rule names the id the host assigned, and the name-keyed key is gone rather than left
-    //     beside it, which is a state the model cannot express.
-    expect(converted.ExcludeTagIds).toEqual([excludedId]);
-    expect(Object.keys(converted)).not.toContain("ExcludeTags");
-    expect(converted.FilenameTemplate, "an unrelated setting must survive the conversion").toBe(
-      "$title",
-    );
-
-    // (2) The converted rule still does what the user configured it to do. An exclude that converted
-    //     but stopped matching is invisible in the blob, and this is what catches it.
-    const before = (await after.get(`/api/videos/${video.id}`)).json.files[0].path;
-    const enqueue = await after.post(`${ROUTE}/renamer`, {
-      EntityType: "video",
-      EntityIds: [video.id],
-    });
-    expect(enqueue.status).toBe(202);
-    await pollRenamerJob(after, ROUTE, enqueue.json.jobId);
-
-    expect(
-      (await after.get(`/api/videos/${video.id}`)).json.files[0].path,
-      "the excluded item must not have been renamed",
-    ).toBe(before);
-  },
-);
-
-restartTest(
-  "a name-keyed blob whose names resolve to nothing is left intact rather than emptied",
-  async ({ isolatedHarness }) => {
-    const harness = isolatedHarness;
-    const api = clientFor(harness);
-
-    // No tag of either name exists, which is the state a library the extension cannot read yet
-    // presents. Converting here would resolve both rules to nothing.
-    const legacy = JSON.stringify({
-      FilenameTemplate: "$title",
-      ExcludeTags: ["never-created"],
-      TagDestinations: { "also-never-created": "/somewhere" },
-    });
-    expect((await api.put(`${ROUTE}/data/options`, legacy)).ok).toBe(true);
-
-    await harness.restart();
-
-    const all = await clientFor(harness).get(`${ROUTE}/data`);
-    expect(all.ok).toBe(true);
-
-    // The blob is untouched and no schema stamp was written, so a later load - once the library is
-    // readable - still converts. A stamp here would make the loss permanent.
-    expect((all.json ?? {}).options).toBe(legacy);
-    expect(Object.keys(all.json ?? {})).not.toContain("options.schema");
-  },
-);
 
 /** Opens the per-tag destinations card and returns its add-row selector input. */
 async function tagSelector(page) {
@@ -166,6 +32,7 @@ test("the host tag selector stores the picked tag's id and renders its name back
   page,
   baseUrl,
   api,
+  restoredOptions: _restoredOptions,
 }) => {
   const tagId = await createTag(api, "e2e-routed-tag");
 
@@ -228,11 +95,11 @@ test("the host selector offers no way to create a tag from the settings panel", 
     .first()
     .waitFor({ state: "visible", timeout: 30_000 });
 
+  // The host draws its empty-result line only where it would otherwise draw the create row, and only
+  // once the query for this text has settled. So the line appearing is what makes the absence below a
+  // decision rather than a control that has not answered yet.
   const absent = "e2e-absent-tag-name";
   await input.fill(absent);
+  await expect(page.getByText("No tags found").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(new RegExp(`Create .*${absent}`, "i"))).toHaveCount(0);
-
-  const tags = await api.get("/api/tags?perPage=200");
-  const names = (tags.json.items ?? tags.json ?? []).map((t) => t.name);
-  expect(names, "no tag may have been created from the settings panel").not.toContain(absent);
 });

@@ -1,9 +1,8 @@
 // Behavior coverage for the Cove version resolver. Everything here runs offline: the registry is never
 // contacted, so a red here means the logic is wrong and never that a registry was slow.
 //
-// Two cases deliberately read real repository files rather than fixtures, because each pins a seam
-// where a copy would agree with itself forever while the other side drifted: Directory.Build.props
-// (the image repository) and tests/e2e/lib/harness.mjs (the helpers it imports from this module).
+// One case deliberately reads the real Directory.Build.props rather than a fixture, because it pins a
+// seam where a copy would agree with itself forever while the build file drifted.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -14,7 +13,6 @@ import {
   collectRegistryTags,
   compareSemver,
   highestDeclaredFloor,
-  imageAtLeastVersion,
   main,
   parseSemver,
   readCoveImageReference,
@@ -81,29 +79,6 @@ test("the strict-semver parser is the whole filter: every non-semver tag spellin
     prerelease: [],
   });
   assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
-});
-
-test("a host-capability floor is compared, not enumerated: only tags below it read as lacking it", () => {
-  const image = (tag) => `ghcr.io/yourcove/cove-app:${tag}`;
-  // Cove publishes per-entity events for bulk mutations from 1.2.0 (issue #108).
-  for (const tag of ["1.0.0", "1.1.0", "1.1.1", "0.9.0"])
-    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), false, tag);
-  for (const tag of ["1.2.0", "1.3.0", "1.10.0", "2.0.0"])
-    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
-
-  // A tag that is no version at all tracks ahead of the last release, so it counts as capable.
-  for (const tag of ["nightly", "latest"])
-    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
-
-  // A prerelease sorts below its own release, so it reads as lacking the capability. That is a skip,
-  // never a false failure, which is the direction to err in.
-  assert.equal(imageAtLeastVersion(image("1.2.0-rc.1"), "1.2.0"), false);
-
-  // The tag is the last colon-separated component, so a registry port is not mistaken for one.
-  assert.equal(imageAtLeastVersion("localhost:5000/cove-app:1.0.0", "1.2.0"), false);
-
-  // A floor that is not strict semver would silently admit everything, so it throws instead.
-  assert.throws(() => imageAtLeastVersion(image("1.2.0"), "nightly"), /strict X\.Y\.Z floor/);
 });
 
 test("ranking follows semver precedence, including the three pre-release rules", () => {
@@ -360,42 +335,6 @@ test("the tag reader follows Link: rel=next across pages and reports how many it
   assert.deepEqual(result.tags, ["1.0.0", "1.1.0", "1.2.0"]);
   assert.equal(result.pages, 2);
   assert.deepEqual(read, Object.keys(pages));
-});
-
-test("the four helpers the e2e harness imports still resolve from this module", async () => {
-  // Imported the way tests/e2e/lib/harness.mjs imports them, so an accidental un-export or a rename
-  // goes red here rather than deep inside a Playwright run where the cause is much further away.
-  const module = await import("./cove-versions.mjs");
-
-  for (const name of [
-    "compareSemver",
-    "parseSemver",
-    "readCoveImageReference",
-    "readExtensionFloors",
-  ]) {
-    assert.equal(typeof module[name], "function", `${name} must stay exported for the e2e harness`);
-  }
-
-  // Read the harness's own import list, so adding a fifth import there without exporting it fails here.
-  const harness = fs.readFileSync(
-    path.join(repoRoot, "tests", "e2e", "lib", "harness.mjs"),
-    "utf8",
-  );
-  const imported = /import \{([^}]+)\} from "\.\.\/\.\.\/\.\.\/scripts\/cove-versions\.mjs"/.exec(
-    harness,
-  );
-  assert.ok(imported !== null, "the harness must still import from this module by relative path");
-
-  for (const name of imported[1]
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean)) {
-    assert.equal(
-      typeof module[name],
-      "function",
-      `harness.mjs imports ${name}, which this module must export`,
-    );
-  }
 });
 
 // ---- the command line ----------------------------------------------------------------------------

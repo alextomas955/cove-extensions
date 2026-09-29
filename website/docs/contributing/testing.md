@@ -10,15 +10,15 @@ at all, and which of them gates a merge.
 
 ## The test tiers
 
-| Tier         | What it covers                                                                                 | Command                              | Directory              |
-| ------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------- |
-| Repo tooling | The first-party Node scripts under `scripts/` that CI depends on                               | `npm test`                           | repo root              |
-| C#           | An extension's backend, from pure logic up to its endpoints on a real `CoveContext`            | `dotnet test CoveExtensions.slnx`    | repo root              |
-| UI           | An extension's UI bundle, plus the shared UI package's own suite                               | `npm run test`                       | the extension's UI dir |
-| End-to-end   | The assembled package installed into a released Cove container, driven over HTTP and a browser | `npm test -- --project=<e2eProject>` | `tests/e2e`            |
+| Tier         | What it covers                                                                                                              | Command                              | Directory              |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------- |
+| Repo tooling | The first-party Node scripts under `scripts/` that CI depends on                                                            | `npm test`                           | repo root              |
+| C#           | An extension's backend, from pure logic up to its endpoints on a real `CoveContext`, plus the shared C# package's own suite | `dotnet test CoveExtensions.slnx`    | repo root              |
+| UI           | An extension's UI bundle, plus the shared UI package's own suite                                                            | `npm run test`                       | the extension's UI dir |
+| End-to-end   | The assembled package installed into a released Cove container, driven over HTTP and a browser                              | `npm test -- --project=<e2eProject>` | `tests/e2e`            |
 
-The four are not interchangeable. The C# tier needs a Cove source checkout and refuses to build
-without one, which [Run the C# suite](#run-the-c-suite) covers.
+The four are not interchangeable. An extension's C# suite needs a Cove source checkout and refuses to
+build without one, which [Run the C# suite](#run-the-c-suite) covers.
 
 ## Choose what to test
 
@@ -55,8 +55,10 @@ npm test
 ```
 
 That runs Node's own test runner over every `scripts/*.test.mjs`. The subjects are the scripts CI
-calls: the catalog validator, the package assembler, the wire-type generator, the Cove version
-resolver, and the coverage path rewriter. They are fixture-driven, so this tier needs nothing but Node and a root install.
+calls: the catalog validator, the catalog queries the workflow runs (`ci-catalog.mjs`), the package
+assembler, the wire-type generator, the Cove version resolver, the coverage path rewriter, the two
+host-import checks, and the shared file readers in `repo-files.mjs`. They are fixture-driven, so this
+tier needs nothing but Node and a root install.
 
 CI globs the same pattern rather than naming files, so a new test file under `scripts/` is covered as
 soon as it exists.
@@ -75,7 +77,13 @@ Or one extension's project alone:
 dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
 ```
 
-**This tier needs a Cove source checkout.** The tests stand up a real `CoveContext`, which lives in
+Or the shared C# package's suite alone:
+
+```sh
+dotnet test --project shared/Cove.Extensions.Shared.Tests/Cove.Extensions.Shared.Tests.csproj
+```
+
+**An extension's suite needs a Cove source checkout.** The tests stand up a real `CoveContext`, which lives in
 `Cove.Data`, and `Cove.Data` is on no package feed. Without a checkout the build stops before any test
 runs, with one error naming the project and how to point it at one. It does not fall back to a smaller
 run. The extension itself builds and publishes with no checkout, which is what the release path does,
@@ -85,12 +93,17 @@ precedence that decides where Cove is found.
 The runner is xUnit on the Microsoft Testing Platform. `global.json` selects the platform and pins
 the SDK, so read both values there rather than anywhere else.
 
-Two things about this tier are worth knowing before you read its result:
+Three things about this tier are worth knowing before you read its result:
 
 - Only a project with its own runner is a test project. `shared/Cove.Extensions.Shared.Testing`
   holds test code shared across extensions, including the base class that emits an extension's wire
   document, but it carries no runner and runs nothing of its own. Its tests execute inside each
   extension's test project, through a derived class there.
+- `shared/Cove.Extensions.Shared.Tests` is the shared package's own suite. It tests the package's
+  behavior against a small model of its own, so a rule every extension relies on, such as how the
+  options store answers a stored `null`, is tested once rather than in each extension. It needs no
+  Cove checkout: the package reaches Cove only through `Cove.Plugins`, so it builds against the
+  published packages too.
 - The wire-document drift check lives in this tier. It emits the committed OpenAPI document from the
   extension's own endpoint registrations and fails when the two differ. [Development](./development#regenerate-the-wire-types-after-a-handler-change) has the
   rewrite-and-regenerate loop for an intended change.
@@ -169,7 +182,7 @@ the failure, so a stale backend stops the run rather than being installed.
 **C#.** Filter by class or by method, against the solution or against one project:
 
 ```sh
-dotnet test CoveExtensions.slnx --filter-class "*DestinationResolverPrecedenceTests"
+dotnet test CoveExtensions.slnx --filter-class "*DestinationResolverTests"
 dotnet test CoveExtensions.slnx --filter-method "*DirectStudio_OutranksAncestorStudio"
 ```
 
@@ -202,12 +215,15 @@ by name instead of passing over an empty set.
 
 ## The safety gate and the smoke leg
 
-Two CI legs run the C# suite, and they differ by environment rather than by which tests they hold.
+Two CI legs run each extension's C# suite, and they differ by environment rather than by which tests
+they hold. A third runs the shared package's suite.
 
 - The **`test-cove-present` job** shallow-clones Cove at each version on the workflow's version axis
   and runs the whole suite against each one. So the suite runs against every supported Cove, not once.
 - The **`windows-build-test` job** does the same on Windows, at the highest floor the
   extensions declare. It is the only leg that executes the Windows-gated cases.
+- The **`test-shared` job** runs the shared package's suite once, with `-p:CoveSourceMode=none`,
+  against the published Cove packages an extension ships the package with.
 
 Two more legs bear on the C# tier without running its tests.
 

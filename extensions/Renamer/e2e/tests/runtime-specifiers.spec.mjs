@@ -10,10 +10,9 @@
 // notice the imports quietly disappearing from the bundle at all, because a bundle importing nothing
 // links perfectly well.
 //
-// Nothing else in the repo closes that gap either: `createExtensionViteConfig.ts` declares the two
-// specifiers as rollup externals, which makes them external and says nothing about the built bundle
-// importing them by name. That list is also a hand-mirror of Cove's own - a cross-system contract
-// nothing on the server side checks - so this is the only drift detection it has.
+// Nothing else in the repo closes that gap either. `scripts/check-host-externals.mjs` holds the rollup
+// externals list to Cove's runtime contract, which proves the specifiers are external and says nothing
+// about the built bundle importing them by name.
 //
 // It reads the installed artifact over HTTP rather than the local dist/, so it covers the
 // build → publish → install → serve path rather than re-asserting a fact about a file the build just

@@ -20,9 +20,6 @@ import {
   readExtensionFloors,
 } from "../../../scripts/cove-versions.mjs";
 
-// For a spec that gates on a host capability by version.
-export { imageAtLeastVersion } from "../../../scripts/cove-versions.mjs";
-
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
 // that yields a leading-slash form which resolves to a doubled drive prefix.
 const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");
@@ -495,23 +492,19 @@ function readToken(response, source) {
   return response.token;
 }
 
-// The restart's own wait strategy is a health check, but that probe runs inside the container and
-// says nothing about the host side, where an ephemeral published port is being re-bound at the same
-// moment. A fetch that lands in that gap rejects rather than answering a status, and every call
-// after the restart is a bare fetch - the first of them inside a per-test fixture, so a single
-// rejection there fails every test in the suite while naming neither the restart nor the gap.
-//
-// Any status counts as reachable. The container's health check already gated the app being up, so
-// the only open question here is whether the host can reach it at all, and not assuming which
-// statuses /health may return keeps this independent of whether the instance enforces
-// authentication.
 /**
- * Waits until `/health` answers 2xx, which is the host's own readiness signal: it returns 503 while
- * the database is not connectable and 200 once it is.
+ * Waits until `/health` answers 2xx from the host side, which is the host's own readiness signal: it
+ * returns 503 while the database is not connectable and 200 once it is.
  *
- * Measured across a restart, the host answers 503 for roughly a second between accepting connections
- * and being able to serve. Treating any response as ready hands that second to the caller, and a
- * caller that then drives a browser gets a page whose data requests all fail.
+ * The restart's own wait strategy is a health check, but that probe runs inside the container and
+ * says nothing about the host side, where an ephemeral published port is being re-bound at the same
+ * moment. A fetch that lands in that gap rejects rather than answering a status, and the first call
+ * after the restart sits inside a per-test fixture, so a single rejection there fails every test in
+ * the suite while naming neither the restart nor the gap.
+ *
+ * Across a restart the host answers 503 for a short window between accepting connections and being
+ * able to serve. Treating any response as ready hands that window to the caller, and a caller that
+ * then drives a browser gets a page whose data requests all fail.
  */
 async function waitForHostReady(baseUrl, { timeoutMs, intervalMs = 500 }) {
   const { settled, note } = await attemptUntil(

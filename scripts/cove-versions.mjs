@@ -57,26 +57,6 @@ const CORE_NUMBER = /^(?:0|[1-9]\d*)$/;
 const PRERELEASE_IDENTIFIER = /^(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)$/;
 const BUILD_IDENTIFIER = /^[0-9A-Za-z-]+$/;
 
-/**
- * True when the tag on `image` is at or above `floor`.
- *
- * Two tag shapes are not plain versions. A non-semver tag (`nightly`, `latest`) counts as at or
- * above, since those track ahead of the last release. A prerelease (`1.2.0-rc.1`) sorts below its own
- * release per semver, so it reads as lacking the capability even when it carries it - a skip rather
- * than a failure.
- *
- * @param {string} image - a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.3.0`.
- * @param {string} floor - the release the capability arrived in, as strict X.Y.Z.
- * @returns {boolean}
- */
-export function imageAtLeastVersion(image, floor) {
-  const target = parseSemver(floor);
-  if (target === null)
-    throw new Error(`imageAtLeastVersion needs a strict X.Y.Z floor, got '${floor}'.`);
-  const parsed = parseSemver(image.slice(image.lastIndexOf(":") + 1));
-  return parsed === null || compareSemver(parsed, target) >= 0;
-}
-
 /** Parses a strict semver tag, or returns null for anything that is not one. */
 export function parseSemver(tag) {
   const text = String(tag ?? "");

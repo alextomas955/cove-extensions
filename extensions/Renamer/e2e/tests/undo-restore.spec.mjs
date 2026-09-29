@@ -26,45 +26,26 @@
 // Its own instance per test, not the worker-shared harness: this file renames, undoes, uninstalls and
 // reinstalls, all of which are instance-global. On a shared instance the accumulated media also makes
 // ordering flaky, which is the recorded reason the isolated fixture exists.
+import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import {
   test as base,
   expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
-import {
   pollUntil,
   seedVideo,
+  clientFor,
+  queryDb,
   RENAMER_EXTENSION,
   EXTENSION_ID,
   ROUTE,
 } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
-import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
+import { assertRenamedTo, assertRestoredTo, fileExists } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const MIGRATION_NAME = "001_create_revert_journal";
 const MEDIA_DIR = "/data";
 
-const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(RENAMER_EXTENSION),
-});
-
-/**
- * Runs one SQL statement in the database container and returns its single unaligned value.
- *
- * The connection details come from the container's own environment rather than being repeated here,
- * so the compose file stays the one place they are written. The statement travels as an environment
- * variable too, which is what lets it hold quotes without any escaping rule to get wrong.
- */
-async function queryDb(harness, sql) {
-  const result = await harness.execDb(
-    ["sh", "-c", 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$SQL"'],
-    { env: { SQL: sql } },
-  );
-  expect(result.exitCode, `psql failed for [${sql}]: ${result.output}`).toBe(0);
-  return result.output.trim();
-}
+const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /** How many of the journal's two tables the host actually created. */
 function countJournalTables(harness) {
@@ -90,11 +71,6 @@ async function seedCompanion(container, path, content) {
   await container.exec(["chown", "cove:cove", path], { user: "root" });
 }
 
-async function fileExists(container, path) {
-  const probe = await container.exec(["test", "-f", path]);
-  return probe.exitCode === 0;
-}
-
 /** The stem a media path is built on - every companion in this spec shares it. */
 function stemOf(path) {
   const name = path.slice(path.lastIndexOf("/") + 1);
@@ -111,10 +87,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   test.setTimeout(900_000);
 
   const container = isolatedHarness.container;
-  const api = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
+  const api = clientFor(isolatedHarness);
   const stamp = Date.now();
 
   // ── 1. The host applied the migration ──────────────────────────────────────────────────────────
@@ -400,13 +373,18 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   // ── 4. Uninstall, reinstall, and journal a rename on the table that survived ────────────────────
   //
   // The receipt makes the host skip the migration on the way back in, so the reinstalled extension
-  // has to reuse a table it did not just create. Research could only read this off the host's source.
+  // has to reuse a table it did not just create.
   const uninstall = await api.post("/api/extensions/registry/uninstall", {
     ExtensionId: EXTENSION_ID,
     UninstallDependents: false,
   });
   expect(uninstall.ok, `uninstall failed: ${uninstall.text}`).toBe(true);
   expect((await api.get("/api/extensions")).json.some((e) => e.id === EXTENSION_ID)).toBe(false);
+  const extensionDir = await container.exec(["test", "-d", `/config/extensions/${EXTENSION_ID}`]);
+  expect(
+    extensionDir.exitCode,
+    "the extension's directory is still on disk after uninstall",
+  ).not.toBe(0);
 
   expect(
     await countJournalTables(isolatedHarness),
