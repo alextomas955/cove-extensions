@@ -4,7 +4,7 @@ namespace WhisparrSync.Whisparr;
 
 // What this generation's instance sends, read where it sends it. No scope reading: the date gate
 // belongs to a resource this generation does not serve.
-internal sealed class V2PayloadReader : IWhisparrPayloadReading
+internal sealed class V2PayloadReader : IWhisparrPayloadReading, IWhisparrHeldFileCountReading
 {
     internal static V2PayloadReader Reading { get; } = new();
 
@@ -83,5 +83,20 @@ internal sealed class V2PayloadReader : IWhisparrPayloadReading
         entry["episodeIds"] = episodeIds;
         entry["episodeFileId"] = row["episodeFileId"]?.DeepClone();
         return entry;
+    }
+
+    // A site records its catalogue as episodes here, so the files linked under it are counted on
+    // the statistics this generation carries beside the site. A negative figure is no count: the
+    // instance states what it has linked, and it cannot have linked fewer than none.
+    public int? FileCountIn(JsonObject entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+
+        return entity["statistics"] is JsonObject statistics
+            && statistics["episodeFileCount"] is JsonValue counted
+            && counted.TryGetValue<int>(out var files)
+            && files >= 0
+                ? files
+                : null;
     }
 }

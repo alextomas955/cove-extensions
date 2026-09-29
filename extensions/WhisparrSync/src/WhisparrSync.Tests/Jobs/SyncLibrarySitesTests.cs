@@ -124,19 +124,23 @@ public sealed class SyncLibrarySitesTests
         var adds = new List<string>();
 
         var registered = await SiteRegistrationStep.RegisterAsync(
-            Answering(reads, RecordingWhisparrCore.Json(404, string.Empty)),
-            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
-            NeverMoves,
-            NeverRefreshes,
+            new SiteRegistering(
+                WhisparrGeneration.V2,
+                Answering(reads, RecordingWhisparrCore.Json(404, string.Empty)),
+                Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
+                NeverMoves,
+                NeverRefreshes),
             EntityPlacement.Nowhere,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
 
         var alreadyThere = await SiteRegistrationStep.RegisterAsync(
-            Answering(reads, RecordingWhisparrCore.Json(200, HeldRow)),
-            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
-            NeverMoves,
-            NeverRefreshes,
+            new SiteRegistering(
+                WhisparrGeneration.V2,
+                Answering(reads, RecordingWhisparrCore.Json(200, HeldRow)),
+                Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
+                NeverMoves,
+                NeverRefreshes),
             EntityPlacement.Nowhere,
             new LibrarySiteIdentity(7, SecondSite),
             TestCt);
@@ -158,10 +162,12 @@ public sealed class SyncLibrarySitesTests
         var adds = new List<string>();
 
         var outcome = await SiteRegistrationStep.RegisterAsync(
-            (_, _) => Task.FromResult<WhisparrResponse?>(null),
-            Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
-            NeverMoves,
-            NeverRefreshes,
+            new SiteRegistering(
+                WhisparrGeneration.V2,
+                (_, _) => Task.FromResult<WhisparrResponse?>(null),
+                Answering(adds, RecordingWhisparrCore.Json(201, RegisteredRow)),
+                NeverMoves,
+                NeverRefreshes),
             EntityPlacement.Nowhere,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
@@ -561,10 +567,12 @@ public sealed class SyncLibrarySitesTests
         string? agreedRoot,
         CancellationToken ct)
         => SiteRegistrationStep.RegisterAsync(
-            instance.ReadAsync,
-            instance.AddAsync,
-            instance.MoveAsync,
-            instance.RefreshAsync,
+            new SiteRegistering(
+                WhisparrGeneration.V2,
+                instance.ReadAsync,
+                instance.AddAsync,
+                instance.MoveAsync,
+                instance.RefreshAsync),
             new EntityPlacement(agreedRoot, null),
             new LibrarySiteIdentity(4, site),
             ct);

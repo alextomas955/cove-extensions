@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
@@ -48,15 +49,17 @@ public sealed class SiteHeldAtAFolderTests
     private static Task<SyncRegistration> PassAsync(
         string heldAt, List<(int SiteId, string Root, string? Folder)> moves)
         => SiteRegistrationStep.RegisterAsync(
-            (_, _) => Task.FromResult<WhisparrResponse?>(
-                MonitorHost.Json(200, Row(heldAt))),
-            (_, _) => throw new InvalidOperationException("This case must send no add."),
-            (siteId, root, folder, _) =>
-            {
-                moves.Add((siteId, root, folder));
-                return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(202, "{}"));
-            },
-            (_, _) => throw new InvalidOperationException("This case must send no re-read."),
+            new SiteRegistering(
+                WhisparrGeneration.V2,
+                (_, _) => Task.FromResult<WhisparrResponse?>(
+                    MonitorHost.Json(200, Row(heldAt))),
+                (_, _) => throw new InvalidOperationException("This case must send no add."),
+                (siteId, root, folder, _) =>
+                {
+                    moves.Add((siteId, root, folder));
+                    return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(202, "{}"));
+                },
+                (_, _) => throw new InvalidOperationException("This case must send no re-read.")),
             new EntityPlacement(AgreedRoot, OwnFolder),
             new LibrarySiteIdentity(4, Site),
             TestCt);

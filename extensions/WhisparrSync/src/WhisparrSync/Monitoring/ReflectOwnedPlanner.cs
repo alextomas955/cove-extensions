@@ -378,7 +378,11 @@ internal static class ReflectOwnedPlanner
     //
     // The quality and the languages are the instance's own reading of each file, never composed
     // here. A file it reads no quality for is left out rather than sent with one nobody stated.
+    //
+    // A generation whose reader holds no reading of an owned file's quality composes nothing: the
+    // instance cannot be asked what it reads for a file, so there is no answer to attach.
     internal static IAsyncEnumerable<PlannedFiles> ComposedFilesAsync(
+        WhisparrGeneration generation,
         string instanceFolder,
         IReadOnlyDictionary<string, RegisteredScene> identified,
         IReadOnlyList<string> instanceRoots,
@@ -390,17 +394,19 @@ internal static class ReflectOwnedPlanner
         ArgumentNullException.ThrowIfNull(instanceRoots);
         ArgumentNullException.ThrowIfNull(readFile);
 
-        return ComposingAsync(instanceFolder, identified, instanceRoots, readFile, ct);
+        return ComposingAsync(generation, instanceFolder, identified, instanceRoots, readFile, ct);
     }
 
     private static async IAsyncEnumerable<PlannedFiles> ComposingAsync(
+        WhisparrGeneration generation,
         string instanceFolder,
         IReadOnlyDictionary<string, RegisteredScene> identified,
         IReadOnlyList<string> instanceRoots,
         Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>> readFile,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        if (identified.Count == 0)
+        var reading = WhisparrInstanceFactory.ReadingFor(generation);
+        if (identified.Count == 0 || reading is not IWhisparrOwnedQualityReading qualities)
         {
             yield break;
         }
@@ -431,21 +437,28 @@ internal static class ReflectOwnedPlanner
 
             var read = await readFile(new OwnedFilePlacement(path, scene.EntityId), ct)
                 .ConfigureAwait(false);
-            if (ReadingOf(read?.Body) is not { } reading)
+            if (ReadingOf(qualities, read?.Body) is not { } stated)
             {
                 continue;
             }
 
-            files.Add(new JsonObject
+            var entry = reading.IdentifiedEntry(
+                new JsonObject
+                {
+                    ["path"] = path,
+                    ["folderName"] = folderName,
+                    ["quality"] = stated.Quality.DeepClone(),
+                    ["languages"] = stated.Languages.DeepClone(),
+                    ["releaseGroup"] = string.Empty,
+                    ["indexerFlags"] = 0,
+                },
+                new EntryAddress(scene.EntityId));
+            if (entry is null)
             {
-                ["path"] = path,
-                ["folderName"] = folderName,
-                ["quality"] = reading.Quality.DeepClone(),
-                ["languages"] = reading.Languages.DeepClone(),
-                ["releaseGroup"] = string.Empty,
-                ["indexerFlags"] = 0,
-                ["movieId"] = scene.EntityId,
-            });
+                continue;
+            }
+
+            files.Add(entry);
             attached++;
 
             if (attached < FilesAttachedAtOnce)
@@ -465,27 +478,21 @@ internal static class ReflectOwnedPlanner
         }
     }
 
-    // What the instance read for the file it was asked about, or null where it read no quality. The
-    // quality is required by the submit, and the instance answers the unknown one back unchanged
-    // where it could read none, so an unknown answer is not a reading.
-    private static (JsonObject Quality, JsonArray Languages)? ReadingOf(string? body)
+    // What the instance read for the file it was asked about, or null where it read no quality.
+    // Which answer states nothing is the generation's, read through its own reading of one.
+    private static (JsonObject Quality, JsonArray Languages)? ReadingOf(
+        IWhisparrOwnedQualityReading qualities, string? body)
     {
         if (AsArray(body) is not { } rows
             || rows.OfType<JsonObject>().FirstOrDefault() is not { } row
             || row["quality"] is not JsonObject quality
-            || QualityIdIn(quality) is null or V3BodyProjector.UnknownQualityId)
+            || !qualities.StatesAQuality(quality))
         {
             return null;
         }
 
         return (quality, row["languages"] as JsonArray ?? []);
     }
-
-    private static int? QualityIdIn(JsonObject quality)
-        => quality["quality"] is JsonObject named && named["id"] is JsonValue id
-            && id.TryGetValue<int>(out var value)
-                ? value
-                : null;
 
     private static string FolderNameOf(string instanceFolder)
     {

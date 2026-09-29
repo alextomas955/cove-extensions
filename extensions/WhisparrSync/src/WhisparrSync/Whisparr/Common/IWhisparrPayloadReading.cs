@@ -48,6 +48,27 @@ internal interface IWhisparrScopeReading
     MonitorScope? ScopeIn(WhisparrEntityKind kind, JsonObject entity);
 }
 
+// Whether the quality an instance answered for a file it was asked to read is a reading of that
+// file. Held by the generation whose instance can be asked what it reads for a file it already
+// owns and by no other: that instance answers the unknown quality it was handed back unchanged
+// where it could read none, so an unknown answer is not a reading.
+internal interface IWhisparrOwnedQualityReading
+{
+    bool StatesAQuality(JsonObject quality);
+}
+
+// How many files an instance states it has linked to an entity, or null where its answer carries
+// no count. Held by the generation that registers a site and by no other: the count is read off
+// the resource that generation records a site's catalogue on.
+//
+// Zero is distinct from null. Zero is the instance stating it has linked no file, which a caller
+// acts on by asking for the catalogue to be read again; null is no count at all, which a caller
+// sends nothing on.
+internal interface IWhisparrHeldFileCountReading
+{
+    int? FileCountIn(JsonObject entity);
+}
+
 internal static class PayloadMember
 {
     // A number renders as its invariant text, so an identifier carried as a JSON number on one

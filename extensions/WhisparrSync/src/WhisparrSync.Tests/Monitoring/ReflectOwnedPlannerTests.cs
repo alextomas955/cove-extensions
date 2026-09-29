@@ -745,6 +745,7 @@ public sealed class ReflectOwnedPlannerTests
         var sizes = new List<int>();
 
         await foreach (var batch in ReflectOwnedPlanner.ComposedFilesAsync(
+            WhisparrGeneration.V3,
             "/one/videos",
             identified,
             ["/one"],
@@ -947,7 +948,8 @@ public sealed class ReflectOwnedPlannerTests
         var entries = new JsonArray();
         var left = 0;
         await foreach (var batch in ReflectOwnedPlanner
-            .ComposedFilesAsync(instanceFolder, identified, instanceRoots, readFile, ct)
+            .ComposedFilesAsync(
+                WhisparrGeneration.V3, instanceFolder, identified, instanceRoots, readFile, ct)
             .ConfigureAwait(false))
         {
             left += batch.LeftUnderAnotherRoot;

@@ -539,27 +539,29 @@ public sealed partial class WhisparrSync
             // holds it, its root need not settle for its scenes to be marked, and stopping short
             // would leave a run's scenes unflagged.
             var registered = await SiteRegistrationStep.RegisterAsync(
-                (identity, readCt) => ContainedAsync(
-                    () => studios.ReadStudioAsync(
-                        identity, readCt),
-                    target,
-                    _log,
-                    readCt),
-                (identity, addCt) => composed.Defaults is { } addWith
-                    ? ContainedAsync(
-                        () => acting.RegisterSiteAsync(
-                            identity, addWith, addCt),
+                new SiteRegistering(
+                    target.Binding.Generation,
+                    (identity, readCt) => ContainedAsync(
+                        () => studios.ReadStudioAsync(
+                            identity, readCt),
                         target,
                         _log,
-                        addCt)
-                    : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
-                RelocatingThrough(target),
-                (siteId, refreshCt) => ContainedAsync(
-                    () => acting.RefreshSiteCatalogueAsync(
-                        siteId, refreshCt),
-                    target,
-                    _log,
-                    refreshCt),
+                        readCt),
+                    (identity, addCt) => composed.Defaults is { } addWith
+                        ? ContainedAsync(
+                            () => acting.RegisterSiteAsync(
+                                identity, addWith, addCt),
+                            target,
+                            _log,
+                            addCt)
+                        : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
+                    RelocatingThrough(target),
+                    (siteId, refreshCt) => ContainedAsync(
+                        () => acting.RefreshSiteCatalogueAsync(
+                            siteId, refreshCt),
+                        target,
+                        _log,
+                        refreshCt)),
                 new EntityPlacement(
                     composed.Root.InstanceRoot, composed.Defaults?.EntityFolderPath),
                 site,
