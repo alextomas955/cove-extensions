@@ -59,10 +59,10 @@ public static class TemplateEngine
         string ext = NormalizeExt(Resolve(resolved, Tokens.Ext));
 
         string filename = RenderFilename(
-            options.FilenameTemplate, resolved, options, resolutionDropped: false);
+            options.FilenameTemplate, resolved, options, NoneDropped);
 
         string folder = RenderFolder(
-            options.FolderTemplate, resolved, options, resolutionDropped: false);
+            options.FolderTemplate, resolved, options, NoneDropped);
 
         return LengthReducer.Fit(
             folder, filename, ext, options,
@@ -75,19 +75,15 @@ public static class TemplateEngine
                     reduced[f] = string.Empty;
                 }
 
-                // DropOrder is user-supplied text and the reduced map is case-insensitive, so the
-                // membership test has to agree with the write that emptied the field.
-                bool resolutionDropped =
-                    droppedFields.Contains(Tokens.Resolution, StringComparer.OrdinalIgnoreCase);
-
                 return (
-                    RenderFolder(options.FolderTemplate, reduced, options, resolutionDropped),
-                    RenderFilename(options.FilenameTemplate, reduced, options, resolutionDropped));
+                    RenderFolder(options.FolderTemplate, reduced, options, droppedFields),
+                    RenderFilename(options.FilenameTemplate, reduced, options, droppedFields));
             });
     }
 
     // Copies the caller's scalar tokens, overrides $performers and $tags with the joined
-    // multi-value resolution, and derives $resolution from the dimension tokens when present.
+    // multi-value resolution, derives $resolution from the dimension tokens when present, and renders
+    // $height as its label.
     private static Dictionary<string, string> BuildResolvedMap(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -101,21 +97,7 @@ public static class TemplateEngine
             map[kv.Key] = kv.Value;
         }
 
-        // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
-        // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
-        // is an absent one. With either missing the token stays out of the map, so its group drops.
-        // The dimensions read here are the ones Cove stored: a field rewrite on $width or $height is
-        // presentation, and a label derived from a rewritten dimension would contradict Cove's badge.
-        if (!map.ContainsKey(Tokens.Resolution)
-            && map.TryGetValue(Tokens.Width, out var w)
-            && int.TryParse(w, out var width)
-            && width > 0
-            && map.TryGetValue(Tokens.Height, out var h)
-            && int.TryParse(h, out var height)
-            && height > 0)
-        {
-            map[Tokens.Resolution] = ResolutionLabel.FromDimensions(width, height);
-        }
+        ApplyDimensionLabels(map);
 
         // Field rewrites run before the multi-value overrides and the render. The keys are
         // materialized so the dictionary is not mutated while enumerating it.
@@ -158,6 +140,40 @@ public static class TemplateEngine
         return map;
     }
 
+    private static void ApplyDimensionLabels(Dictionary<string, string> map)
+    {
+        // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
+        // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
+        // is an absent one. With either missing the token stays out of the map, so its group drops.
+        // The dimensions read here are the ones Cove stored: a field rewrite on $width or $height is
+        // presentation, and a label derived from a rewritten dimension would contradict Cove's badge.
+        if (!map.ContainsKey(Tokens.Resolution)
+            && map.TryGetValue(Tokens.Width, out var w)
+            && int.TryParse(w, out var width)
+            && width > 0
+            && map.TryGetValue(Tokens.Height, out var h)
+            && int.TryParse(h, out var height)
+            && height > 0)
+        {
+            map[Tokens.Resolution] = ResolutionLabel.FromDimensions(width, height);
+        }
+
+        // $height renders as a label, after $resolution has read the stored number. An unknown
+        // height of 0 leaves the map, so its group drops instead of rendering "0p".
+        if (map.TryGetValue(Tokens.Height, out var storedHeight)
+            && int.TryParse(storedHeight, out var lines))
+        {
+            if (lines > 0)
+            {
+                map[Tokens.Height] = ResolutionLabel.FromHeight(lines);
+            }
+            else
+            {
+                map.Remove(Tokens.Height);
+            }
+        }
+    }
+
     private static bool TryGetMulti(
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         string key,
@@ -179,12 +195,24 @@ public static class TemplateEngine
     private static string Resolve(IReadOnlyDictionary<string, string> resolved, string name)
         => resolved.TryGetValue(name, out var v) ? v ?? string.Empty : string.Empty;
 
+    private static readonly IReadOnlyCollection<string> NoneDropped = Array.Empty<string>();
+
+    // The tokens that render a resolution label, and so replace a title's own trailing tag.
+    private static readonly string[] LabelTokens = [Tokens.Resolution, Tokens.Height];
+
     // Template syntax has one parser, so a grammar change moves rendering and de-duplication
-    // together. Segment.Text carries the bare token name, and token lookup is case-insensitive.
-    private static bool RendersResolution(List<Segment> segs)
-        => segs.Any(seg =>
-            seg.Kind == SegKind.Token
-            && string.Equals(seg.Text, Tokens.Resolution, StringComparison.OrdinalIgnoreCase));
+    // together. Segment.Text carries the bare token name. DropOrder is user-supplied text and the
+    // resolved map is case-insensitive, so both membership tests ignore case too.
+    private static bool WritesLabel(
+        List<Segment> segs,
+        IReadOnlyDictionary<string, string> resolved,
+        IReadOnlyCollection<string> droppedFields)
+        => LabelTokens.Any(label =>
+            segs.Any(seg =>
+                seg.Kind == SegKind.Token
+                && string.Equals(seg.Text, label, StringComparison.OrdinalIgnoreCase))
+            && (droppedFields.Contains(label, StringComparer.OrdinalIgnoreCase)
+                || Resolve(resolved, label).Length > 0));
 
     // Removes one trailing resolution tag: a bracketed ResolutionLabel.KnownLabels entry such as
     // [1080p] or [4K], or an arbitrary progressive-scan label such as [368p], which an imported title
@@ -272,22 +300,20 @@ public static class TemplateEngine
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         string raw = RenderDeDuped(
-            options.FilenameTemplate, resolved, suppressExt: true, resolutionDropped: false);
+            options.FilenameTemplate, resolved, suppressExt: true, NoneDropped);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
 
     // A render removes the title's own trailing resolution tag where it writes a label of its own,
-    // and where the length reducer dropped $resolution to fit the budget. The title keeps its tag
-    // where the template omits $resolution and where no label could be derived. The map is read-only
-    // because the filename and folder templates render from it independently.
+    // $resolution or $height, and where the length reducer dropped that label to fit the budget. The
+    // title keeps its tag where the template renders neither and where no label could be derived.
+    // The map is read-only because the filename and folder templates render from it independently.
     private static IReadOnlyDictionary<string, string> WithDeDupedTitle(
         IReadOnlyDictionary<string, string> resolved,
-        bool rendersResolution,
-        bool resolutionDropped)
+        bool writesLabel)
     {
-        if (!rendersResolution
-            || (!resolutionDropped && Resolve(resolved, Tokens.Resolution).Length == 0)
+        if (!writesLabel
             || !resolved.TryGetValue(Tokens.Title, out var title))
         {
             return resolved;
@@ -311,9 +337,9 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        bool resolutionDropped)
+        IReadOnlyCollection<string> droppedFields)
     {
-        string raw = RenderDeDuped(template, resolved, suppressExt: true, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: true, droppedFields);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -324,14 +350,14 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        bool resolutionDropped)
+        IReadOnlyCollection<string> droppedFields)
     {
         if (string.IsNullOrEmpty(template))
         {
             return string.Empty;
         }
 
-        string raw = RenderDeDuped(template, resolved, suppressExt: false, resolutionDropped);
+        string raw = RenderDeDuped(template, resolved, suppressExt: false, droppedFields);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
@@ -349,12 +375,12 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         bool suppressExt,
-        bool resolutionDropped)
+        IReadOnlyCollection<string> droppedFields)
     {
         var segs = Tokenizer.Scan(template);
         return RenderRaw(
             segs,
-            WithDeDupedTitle(resolved, RendersResolution(segs), resolutionDropped),
+            WithDeDupedTitle(resolved, WritesLabel(segs, resolved, droppedFields)),
             suppressExt);
     }
 

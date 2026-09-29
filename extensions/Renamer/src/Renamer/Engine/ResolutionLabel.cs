@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Renamer.Engine;
 
 // Cove's own resolution table, transcribed from ui/src/utils/resolutionBuckets.ts so a label
@@ -65,6 +67,29 @@ public static class ResolutionLabel
 
         return Buckets[bucket].Label;
     }
+
+    // The $height label: the height itself with a p, so 432 lines read 432p where FromDimensions
+    // rounds to a bucket. From Cove's 4K height up it is the K label that height reaches, with no
+    // margin, so 2160 reads 4K and 2159 reads 2159p. Empty for an unknown height.
+    public static string FromHeight(int height)
+    {
+        if (height <= 0)
+        {
+            return string.Empty;
+        }
+
+        for (int i = StandardLabels.Length - 1; i >= 0 && StandardLabels[i].Value >= FirstKHeight; i--)
+        {
+            if (height >= StandardLabels[i].Value)
+            {
+                return StandardLabels[i].Label;
+            }
+        }
+
+        return height.ToString(CultureInfo.InvariantCulture) + "p";
+    }
+
+    private const int FirstKHeight = 2160;
 
     private static int FindBucket(int longEdge)
     {

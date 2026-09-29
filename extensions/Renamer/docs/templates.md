@@ -107,7 +107,7 @@ with no value is simply omitted.
 | Token         | Produces                                                    | Example  |
 | ------------- | ----------------------------------------------------------- | -------- |
 | `$resolution` | A resolution label derived from the frame size (see below). | `1080p`  |
-| `$height`     | Frame height in pixels.                                     | `1080`   |
+| `$height`     | The frame height as a label (see below).                    | `1080p`  |
 | `$width`      | Frame width in pixels.                                      | `1920`   |
 | `$videoCodec` | The video codec.                                            | `h264`   |
 | `$audioCodec` | The audio codec.                                            | `aac`    |
@@ -151,12 +151,36 @@ Renamer reads the label off the width and height Cove stored, so a per-token rep
 `$width` or `$height` changes only that token in the name and leaves the label alone. A rule on
 `$resolution` rewrites the label itself, and the name then reads differently from the badge.
 
+#### Height labels
+
+`$height` is the frame height with a `p` after it, not rounded to a standard size. A 768 x 432
+frame is `432p` where `$resolution` is `480p`. Use `$height` when you want the exact height in the
+name.
+
+From 2160 pixels high, `$height` uses Cove's K labels instead:
+
+| Frame height | `$height` |
+| ------------ | --------- |
+| 432          | `432p`    |
+| 1080         | `1080p`   |
+| 2159         | `2159p`   |
+| 2160         | `4K`      |
+| 2880         | `5K`      |
+| 3384         | `6K`      |
+| 4032         | `7K`      |
+| 4320 and up  | `8K`      |
+
+A file Cove has no height stored for gets no `$height`, so a `{ [$height]}` group drops whole. A
+find-and-replace rule on `$height` works on the label, for example `1080p`.
+
+#### A label already in the title
+
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
-also renders `$resolution`, Renamer removes the duplicate from the title so the label isn't repeated.
-Where the file has no width stored, or the frame is too small for any label, Renamer has no label to
-write and the one already in your title stays. Where the name was too long and `$resolution` was
-dropped to make it fit, the title's label goes with it, so the drop shortens the name instead of
-lengthening it.
+also renders `$resolution` or `$height`, Renamer removes the duplicate from the title so the label
+isn't repeated. Where the file has no size stored, or the frame is too small for any label, Renamer
+has no label to write and the one already in your title stays. Where the name was too long and the
+label was dropped to make it fit, the title's label goes with it, so the drop shortens the name
+instead of lengthening it.
 
 ## Shaping multi-value tokens
 
