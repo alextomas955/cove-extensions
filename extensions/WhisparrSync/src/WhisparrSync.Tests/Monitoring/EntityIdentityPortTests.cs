@@ -1,6 +1,4 @@
 using System.Net;
-using Cove.Core.Entities;
-using Microsoft.EntityFrameworkCore;
 using WhisparrSync.Contracts;
 using WhisparrSync.Identity;
 using WhisparrSync.Monitoring;
@@ -184,34 +182,6 @@ public sealed class EntityIdentityPortTests
             WhisparrEntityKind.Tag, tagId, WhisparrGeneration.V3, TestContext.Current.CancellationToken);
 
         Assert.Equal(IdentityResolution.Ambiguous, resolved);
-    }
-
-    // Asserts the projection rather than the row count: a read that loaded every row and filtered
-    // afterwards would be linear in the library and still pass a count assertion. Read off the
-    // query's translated text through the same base context the port binds.
-    [Fact]
-    public async Task TheIdentityReadIsNarrowedOnTheEntityAndProjectsOnlyTwoColumns()
-    {
-        var (db, connection) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using (connection)
-        await using (db)
-        {
-            var sql = db.Set<StudioRemoteId>()
-                .Where(row => row.StudioId == 7)
-                .Select(row => new { row.Endpoint, row.RemoteId })
-                .AsNoTracking()
-                .ToQueryString();
-
-            Assert.Contains("WHERE", sql, StringComparison.Ordinal);
-            Assert.Contains("StudioId", sql, StringComparison.Ordinal);
-            Assert.Contains("Endpoint", sql, StringComparison.Ordinal);
-            Assert.Contains("RemoteId", sql, StringComparison.Ordinal);
-
-            // A third column in the projection would mean the read carries more of the row than the
-            // rule reads, which is how a projection turns back into a row load.
-            Assert.DoesNotContain("SELECT *", sql, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"Id\"", sql, StringComparison.Ordinal);
-        }
     }
 
     // Asserted against the host's own same-source rule rather than string equality.

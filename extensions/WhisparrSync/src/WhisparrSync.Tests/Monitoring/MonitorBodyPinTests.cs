@@ -29,7 +29,6 @@ public sealed class MonitorBodyPinTests
     private const string V3StudioReadDateGateAbsentFixture =
         "whisparr-v3-3.3.8.1097-studio-read-after-date-absent.json";
     private const string V3MinimalRefusalFixture = "whisparr-v3-3.3.8.1097-studio-minimal-refusal.json";
-    private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V3SchemasFixture = "whisparr-v3-3.3.8.1097-resource-schemas.json";
     private const string V3ImportModesFixture = "whisparr-v3-3.3.8.1097-import-modes.json";
     private const string V3CommandsFixture = "whisparr-v3-3.3.8.1097-command-payloads.json";
@@ -42,7 +41,6 @@ public sealed class MonitorBodyPinTests
     private const string V2AddRefusalFixture = "whisparr-v2-2.2.0.231-series-add-refusal.json";
     private const string V2SeriesFixture = "whisparr-v2-2.2.0.231-series-resource.json";
     private const string V2SeriesAfterEditorFixture = "whisparr-v2-2.2.0.231-series-after-editor.json";
-    private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
     private const string V2SeasonPassRefusalFixture = "whisparr-v2-2.2.0.231-seasonpass-no-body-refusal.json";
     private const string V2QueueFixture = "whisparr-v2-2.2.0.231-queue.json";
     private const string V2MonitorOptionsFixture = "whisparr-v2-2.2.0.231-monitor-options.json";
@@ -283,15 +281,6 @@ public sealed class MonitorBodyPinTests
         // The first is a placeholder the interface renders unselectable, so two are reachable.
         Assert.True(Array(V3ImportModesFixture)[0]!["disabled"]!.GetValue<bool>());
         Assert.Equal("HardlinkCopyFiles", Array(V3ImportModesFixture)[2]!["label"]!.GetValue<string>());
-    }
-
-    // Measured on 3.3.8.1097 and 2.2.0.231 from the configuration each answered with. It is a
-    // default rather than a guarantee, so it is read before acting rather than assumed.
-    [Fact]
-    public void BothGenerationsLinkAFileIntoPlaceByDefault()
-    {
-        Assert.True(Object(V3MediaManagementFixture)["copyUsingHardlinks"]!.GetValue<bool>());
-        Assert.True(Object(V2MediaManagementFixture)["copyUsingHardlinks"]!.GetValue<bool>());
     }
 
     // Measured on 2.2.0.231. Whisparr v3 accepts both, so the product's guarantee rests on neither

@@ -19,34 +19,31 @@ public sealed class EntityRootStepTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public async Task ALopsidedSplitTakesTheRootHoldingMostOfTheFiles()
-    {
-        var asked = new List<string>();
-
-        var resolved = await ResolveAsync(
-            new() { [FirstRoot] = 2, [SecondRoot] = 883 }, asked);
-
-        Assert.Equal(SecondRoot, resolved.CoveRoot);
-        Assert.Equal(883, resolved.FilesAtChosenRoot);
-        Assert.Equal(2, resolved.FilesLeftElsewhere);
-        Assert.Equal([FirstRoot], resolved.RootsLeftBehind);
-        Assert.Equal([SecondRoot], asked);
-    }
-
     // A 45 to 40 split is near enough to even that a majority threshold would refuse it. Refusing
-    // would leave the 45 unlinked to avoid guessing about the 40.
-    [Fact]
-    public async Task ANearlyEvenSplitTakesTheLargerSideByTheSameRule()
+    // would leave the 45 unlinked to avoid guessing about the 40. A root holding nothing is not a
+    // root left behind.
+    [Theory]
+    [InlineData(2, 883, 883, 2, new[] { FirstRoot })]
+    [InlineData(40, 45, 45, 40, new[] { FirstRoot })]
+    [InlineData(0, 12, 12, 0, new string[0])]
+    [InlineData(1, 9, 9, 1, new[] { FirstRoot })]
+    public async Task TheRootHoldingMostOfTheFilesIsTakenAndTheRestAreNamed(
+        int atFirstRoot,
+        int atSecondRoot,
+        int filesAtChosenRoot,
+        int filesLeftElsewhere,
+        string[] rootsLeftBehind)
     {
         var asked = new List<string>();
 
         var resolved = await ResolveAsync(
-            new() { [FirstRoot] = 40, [SecondRoot] = 45 }, asked);
+            new() { [FirstRoot] = atFirstRoot, [SecondRoot] = atSecondRoot }, asked);
 
         Assert.Equal(SecondRoot, resolved.CoveRoot);
-        Assert.Equal(45, resolved.FilesAtChosenRoot);
-        Assert.Equal(40, resolved.FilesLeftElsewhere);
+        Assert.Equal(Agreed(SecondRoot), resolved.InstanceRoot);
+        Assert.Equal(filesAtChosenRoot, resolved.FilesAtChosenRoot);
+        Assert.Equal(filesLeftElsewhere, resolved.FilesLeftElsewhere);
+        Assert.Equal(rootsLeftBehind, resolved.RootsLeftBehind);
         Assert.Equal([SecondRoot], asked);
     }
 
@@ -73,20 +70,6 @@ public sealed class EntityRootStepTests
         Assert.Equal([FirstRoot, FirstRoot], asked);
     }
 
-    [Fact]
-    public async Task FilesUnderOneRootOnlyLeaveNothingBehind()
-    {
-        var asked = new List<string>();
-
-        var resolved = await ResolveAsync(
-            new() { [FirstRoot] = 0, [SecondRoot] = 12 }, asked);
-
-        Assert.Equal(SecondRoot, resolved.CoveRoot);
-        Assert.Equal(0, resolved.FilesLeftElsewhere);
-        Assert.Empty(resolved.RootsLeftBehind);
-        Assert.Equal([SecondRoot], asked);
-    }
-
     // Nothing to derive a root from is a different fact from a root the instance would not agree
     // to, so this is not a refusal and the caller keeps its run-wide value.
     [Fact]
@@ -101,17 +84,6 @@ public sealed class EntityRootStepTests
         Assert.Null(resolved.CoveRoot);
         Assert.Equal(MonitorRefusalKind.None, resolved.Refusal);
         Assert.Empty(asked);
-    }
-
-    [Fact]
-    public async Task TheAnsweredInstanceRootIsTheChosenRootsOwn()
-    {
-        var asked = new List<string>();
-
-        var resolved = await ResolveAsync(new() { [FirstRoot] = 1, [SecondRoot] = 9 }, asked);
-
-        Assert.Equal(Agreed(SecondRoot), resolved.InstanceRoot);
-        Assert.Equal([SecondRoot], asked);
     }
 
     [Fact]

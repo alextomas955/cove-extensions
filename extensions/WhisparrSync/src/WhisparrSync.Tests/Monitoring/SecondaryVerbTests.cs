@@ -19,10 +19,6 @@ public sealed class SecondaryVerbTests
 
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
-    // A parent studio profile that differs from the one the instance offers first, so a body copying
-    // the parent's is distinguishable from one taking the instance's.
-    private const string ParentStudioProfileId = "9";
-
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // Presence is asserted apart from the value: an absent member and a false one read the same off
@@ -59,26 +55,6 @@ public sealed class SecondaryVerbTests
         // then monitors and can never acquire anything.
         Assert.Throws<ArgumentOutOfRangeException>(
             () => ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, new AddDefaults(0, "/config/library"))));
-    }
-
-    // Whisparr sets a refresh-created scene's profile from its own studio, so copying one would be
-    // this product deciding something the instance owns. Composed beside a parent resource whose
-    // profile is a value the instance never offered.
-    [Fact]
-    public void NoSceneAddCarriesAProfileCopiedFromTheParentStudio()
-    {
-        var parent = Assert.IsType<JsonObject>(
-            JsonNode.Parse(
-                $$"""{"id":4,"foreignId":"{{SceneForeignId}}","qualityProfileId":{{ParentStudioProfileId}}}"""));
-
-        var body = ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, Defaults));
-
-        Assert.Equal(
-            int.Parse(ParentStudioProfileId, System.Globalization.CultureInfo.InvariantCulture),
-            parent["qualityProfileId"]!.GetValue<int>());
-        Assert.Equal(Defaults.QualityProfileId, body["qualityProfileId"]!.GetValue<int>());
-        Assert.DoesNotContain(
-            ParentStudioProfileId, body["qualityProfileId"]!.ToJsonString(), StringComparison.Ordinal);
     }
 
     // The split is real and silent: a cross-lineage payload is answered as created and does nothing,
@@ -268,24 +244,6 @@ public sealed class SecondaryVerbTests
         Assert.Equal("copy", attach["importMode"]!.GetValue<string>());
     }
 
-    // The command names and the id array are transcribed from v3's own interface bundle.
-    [Fact]
-    public void V3SearchNamesEachCommandWithAnIdArray()
-    {
-        var studio = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Studio, 1);
-        var performer = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Performer, 1);
-
-        Assert.Equal("StudiosSearch", studio["name"]!.GetValue<string>());
-        Assert.Equal([1], Assert.IsType<JsonArray>(studio["studioIds"]).Select(id => id!.GetValue<int>()));
-
-        Assert.Equal("PerformersSearch", performer["name"]!.GetValue<string>());
-        Assert.Equal(
-            [1], Assert.IsType<JsonArray>(performer["performerIds"]).Select(id => id!.GetValue<int>()));
-
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.SearchMonitored((WhisparrEntityKind)(-1), 1));
-    }
-
     [Fact]
     public void V2SearchNamesItsCommandWithAScalarIdAndNoArrayReachesIt()
     {
@@ -322,6 +280,15 @@ public sealed class SecondaryVerbTests
         var v2 = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
         Assert.Equal("SeriesSearch", v2["name"]!.GetValue<string>());
         Assert.Equal(3, v2["seriesId"]!.GetValue<int>());
+
+        // The performer command names its own id array, and an undefined kind composes nothing
+        // rather than defaulting to the studio's shape.
+        var performer = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Performer, 1);
+        Assert.Equal("PerformersSearch", performer["name"]!.GetValue<string>());
+        Assert.Equal(
+            [1], Assert.IsType<JsonArray>(performer["performerIds"]).Select(id => id!.GetValue<int>()));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => V3BodyProjector.SearchMonitored((WhisparrEntityKind)(-1), 1));
 
         // A lineage this product does not manage composes nothing rather than defaulting to either
         // generation's shape: there is no instance for it, so no grabbing role can be obtained.

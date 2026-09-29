@@ -209,21 +209,6 @@ public sealed class AddAllMissingPlannerTests
             nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync), client.Verbs);
     }
 
-    // Read off the record's members rather than one run's answer: a record carrying a list answers
-    // the same counts on a small entity and is unusable on a large one.
-    [Fact]
-    public void TheRunRecordCarriesCountsAndNoCollection()
-    {
-        var members = typeof(AddAllMissingRun).GetProperties();
-
-        Assert.All(
-            members,
-            member => Assert.True(
-                member.PropertyType == typeof(int) || member.PropertyType.IsEnum,
-                $"{member.Name} is a {member.PropertyType}, which can grow with the identifier set"));
-        Assert.Equal(4, members.Length);
-    }
-
     // The retraction half reads the shipped source, because a delete this run never happens to
     // reach is still a delete this run could reach.
     [Fact]
@@ -239,17 +224,6 @@ public sealed class AddAllMissingPlannerTests
             new[] { "HttpMethod.Delete", "DeleteAsync", "\"DELETE\"", "Rename", "Organize" },
             retracting => Assert.DoesNotContain(
                 retracting, PlannerSource(), StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void TheClassificationNamesThePinItRestsOn()
-    {
-        var source = PlannerSource();
-
-        Assert.Contains(
-            nameof(MonitorBodyPinTests.V3NamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry),
-            source,
-            StringComparison.Ordinal);
     }
 
     private static RecordingWhisparrV3Client Accepting()

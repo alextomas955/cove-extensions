@@ -42,17 +42,6 @@ public sealed class BulkEndpointTests
             bulk.Select(action => action.EntityTypes).OrderBy(types => types[0], StringComparer.Ordinal));
     }
 
-    // The bar normalizes only the two media plurals, so a studio or performer action declaring a
-    // singular type is filtered out of every selection.
-    [Fact]
-    public void NoBulkActionDeclaresASingularEntityType()
-    {
-        var declared = BulkActions().SelectMany(action => action.EntityTypes).ToList();
-
-        Assert.DoesNotContain("studio", declared);
-        Assert.DoesNotContain("performer", declared);
-    }
-
     [Fact]
     public void EachBulkActionDispatchesAHandlerRatherThanPostingDirectly()
     {

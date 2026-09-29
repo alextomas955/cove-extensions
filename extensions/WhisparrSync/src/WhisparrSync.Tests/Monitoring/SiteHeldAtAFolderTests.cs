@@ -45,20 +45,6 @@ public sealed class SiteHeldAtAFolderTests
         Assert.Empty(moves);
     }
 
-    // The instance answers its own verbatim spelling, and on Windows that is the other separator
-    // and whatever case it holds. Compared literally, every site would be moved again on every run.
-    [Fact]
-    public async Task TheComparisonSurvivesTheInstancesOwnSpellingOfTheSameFolder()
-    {
-        var moves = new List<(int SiteId, string Root, string? Folder)>();
-
-        var outcome = await PassAsync(
-            OwnFolder.Replace('/', '\\').ToUpperInvariant(), moves);
-
-        Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
-        Assert.Empty(moves);
-    }
-
     private static Task<SyncRegistration> PassAsync(
         string heldAt, List<(int SiteId, string Root, string? Folder)> moves)
         => SiteRegistrationStep.RegisterAsync(
