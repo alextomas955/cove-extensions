@@ -91,6 +91,10 @@ internal sealed record ReflectOwnedRun(
     // Both leave the entity's folder short of the file, so a run reporting only the names it did
     // make reads as a clean pass over a library it linked none of.
     int LinksRefused = 0,
+    // Files handed to the instance that it would not record. A folder is handed over a batch at a
+    // time, so a folder can attach one batch and have another refused, and counting only what
+    // landed reads as a folder recorded whole.
+    int FilesRefused = 0,
     // Library roots no folder could be built under. One line per root, not per entity: a root that
     // cannot be written under refuses every entity beneath it, and a line per entity would grow
     // with the library.
@@ -123,6 +127,7 @@ internal sealed record ReflectOwnedRun(
             LinksAlreadyThere + other.LinksAlreadyThere,
             LinksOnAnotherDevice + other.LinksOnAnotherDevice,
             LinksRefused + other.LinksRefused,
+            FilesRefused + other.FilesRefused,
             Union(RootsWithNoTree, other.RootsWithNoTree, root => root));
     }
 
@@ -519,7 +524,8 @@ internal static class ReflectOwnedPlanner
         bool Refused,
         int FilesAttached,
         int LeftUnderAnotherRoot,
-        int WithoutAnEntry);
+        int WithoutAnEntry,
+        int FilesRefused = 0);
 
     // A folder the reader arranged. What each file belongs to is the instance's own match, and one
     // command carries the folder.
@@ -544,7 +550,8 @@ internal static class ReflectOwnedPlanner
             !sent,
             sent ? files.Count : 0,
             planned.LeftUnderAnotherRoot,
-            planned.WithoutAnEntry);
+            planned.WithoutAnEntry,
+            sent ? 0 : files.Count);
     }
 
     // An entity's own folder. Its addresses arrive a chunk at a time and each chunk's entries go as
@@ -570,6 +577,7 @@ internal static class ReflectOwnedPlanner
         var listed = rows.OfType<JsonObject>().Count();
         var composed = 0;
         var filesAttached = 0;
+        var filesRefused = 0;
         var left = 0;
         var anyAttached = false;
         var anyRefused = false;
@@ -593,6 +601,7 @@ internal static class ReflectOwnedPlanner
                 else
                 {
                     anyRefused = true;
+                    filesRefused += files.Count;
                 }
             }
         }
@@ -602,7 +611,8 @@ internal static class ReflectOwnedPlanner
             !anyAttached && anyRefused,
             filesAttached,
             left,
-            Math.Max(0, listed - composed - left));
+            Math.Max(0, listed - composed - left),
+            filesRefused);
     }
 
     internal static async Task<ReflectOwnedRun> RunAsync(
@@ -621,6 +631,7 @@ internal static class ReflectOwnedPlanner
 
         var attached = 0;
         var filesAttached = 0;
+        var filesRefused = 0;
         var withoutAnEntry = 0;
         var refused = 0;
         var unaddressed = 0;
@@ -661,6 +672,7 @@ internal static class ReflectOwnedPlanner
                 attached += reflected.Attached ? 1 : 0;
                 refused += reflected.Refused ? 1 : 0;
                 filesAttached += reflected.FilesAttached;
+                filesRefused += reflected.FilesRefused;
                 leftUnderAnotherRoot += reflected.LeftUnderAnotherRoot;
                 withoutAnEntry += reflected.WithoutAnEntry;
             }
@@ -684,7 +696,8 @@ internal static class ReflectOwnedPlanner
                 leftUnderAnotherRoot,
                 RootsCouldNotBeRead: false,
                 FilesAttached: filesAttached,
-                FilesWithoutAnEntry: withoutAnEntry);
+                FilesWithoutAnEntry: withoutAnEntry,
+                FilesRefused: filesRefused);
     }
 
     // The most specific containing root answers for each path. Roots nest, and an instance

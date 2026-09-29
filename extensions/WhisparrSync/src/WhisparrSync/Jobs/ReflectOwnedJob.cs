@@ -56,6 +56,7 @@ internal sealed record LinkedTally(
     int Linked = 0,
     int OnAnotherDevice = 0,
     int Refused = 0,
+    int NotRecorded = 0,
     int Removed = 0,
     int Waiting = 0,
     IReadOnlyList<string>? RootsWithNoTree = null)
@@ -352,6 +353,7 @@ public static class ReflectOwnedJob
         }
 
         var filesAttached = 0;
+        var filesRefused = 0;
         var leftUnderAnotherRoot = 0;
         var anyAttached = false;
         var anyRefused = false;
@@ -376,6 +378,7 @@ public static class ReflectOwnedJob
             else
             {
                 anyRefused = true;
+                filesRefused += files.Count;
             }
         }
 
@@ -385,7 +388,8 @@ public static class ReflectOwnedJob
             anyAttached || !anyRefused ? 0 : 1,
             AddressedRoots: [coveRoot],
             EntriesLeftUnderAnotherRoot: leftUnderAnotherRoot,
-            FilesAttached: filesAttached);
+            FilesAttached: filesAttached,
+            FilesRefused: filesRefused);
     }
 
     // One entity's own folder in the tree, on a generation that decides which entry a file belongs
@@ -426,7 +430,8 @@ public static class ReflectOwnedJob
             AddressedRoots: [coveRoot],
             EntriesLeftUnderAnotherRoot: reflected.LeftUnderAnotherRoot,
             FilesAttached: reflected.FilesAttached,
-            FilesWithoutAnEntry: reflected.WithoutAnEntry);
+            FilesWithoutAnEntry: reflected.WithoutAnEntry,
+            FilesRefused: reflected.FilesRefused);
     }
 
 
@@ -450,6 +455,7 @@ public static class ReflectOwnedJob
                 run.LinksMade + run.LinksAlreadyThere,
                 run.LinksOnAnotherDevice,
                 run.LinksRefused,
+                run.FilesRefused,
                 run.LinksRemoved,
                 run.LinksWaiting,
                 run.RootsWithNoTree),
@@ -490,6 +496,7 @@ public static class ReflectOwnedJob
         counts += string.Create(
             CultureInfo.InvariantCulture,
             $"{tally.FilesAttached:N0} recorded by Whisparr, {tally.FoldersRefused:N0} refused");
+        counts = Figured(counts, tally.NotRecorded, "not recorded");
         counts = Figured(counts, tally.Removed, "taken back");
         counts = Figured(counts, tally.Waiting, "left until they settle");
 

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
+using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -805,6 +806,41 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(1, run.FoldersAttached);
     }
 
+    // A folder is handed over a batch at a time, so one batch landing and another being refused is
+    // the ordinary partial outcome. The refused files reach a figure of their own: counting only
+    // what landed reads as a folder that was recorded whole.
+    [Fact]
+    public async Task AFolderWhoseSecondBatchIsRefusedReportsTheFilesThatWereNotRecorded()
+    {
+        const int owned = 250;
+        var rows = new JsonArray();
+        var addresses = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+        for (var index = 0; index < owned; index++)
+        {
+            var name = $"38-{index}.mp4";
+            rows.Add(TreeRow(name));
+            addresses[name] = new EntryAddress(index + 1, 12);
+        }
+
+        var batchesSent = 0;
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("/data/.wsync-v3/4628"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed(rows.ToJsonString())),
+                (_, _) => Task.FromResult(++batchesSent == 1),
+                (_, _) => Batches(addresses)),
+            TestCt);
+
+        Assert.Equal(3, batchesSent);
+        Assert.Equal(ReflectOwnedPlanner.FilesAttachedAtOnce, run.FilesAttached);
+        Assert.Equal(owned - ReflectOwnedPlanner.FilesAttachedAtOnce, run.FilesRefused);
+        Assert.Contains("150 not recorded", ReflectOwnedJob.SummaryOf(run), StringComparison.Ordinal);
+    }
+
     // A chunk answers for the names it holds and no others. The middle row is one the instance
     // matched an entity in itself, and it is left where it is: what the instance parsed out of a
     // link name is a guess about which scene a file is, and the addresses are the library's answer.
@@ -953,12 +989,14 @@ public sealed class ReflectOwnedPlannerTests
             EntitiesGivenAFolder: 10,
             LinksMade: 11,
             LinksAlreadyThere: 12,
-            LinksOnAnotherDevice: 13);
+            LinksOnAnotherDevice: 13,
+            LinksRefused: 14,
+            FilesRefused: 15);
 
         var total = first.Plus(first);
 
         Assert.Equal(
-            [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26],
+            [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
             new[]
             {
                 total.FoldersAttached,
@@ -974,6 +1012,8 @@ public sealed class ReflectOwnedPlannerTests
                 total.LinksMade,
                 total.LinksAlreadyThere,
                 total.LinksOnAnotherDevice,
+                total.LinksRefused,
+                total.FilesRefused,
             });
     }
 
