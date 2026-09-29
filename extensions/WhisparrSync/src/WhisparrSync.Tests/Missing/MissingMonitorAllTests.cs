@@ -240,14 +240,16 @@ public sealed class MissingMonitorAllTests
         host.Client.Verbs.Clear();
         await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
 
-        // The catalogue read is the run's own source of scenes, and the two defaults reads compose
-        // the add. Nothing else reaches the instance, and in particular no search.
+        // The catalogue read is the run's own source of scenes, the exclusion reduction keeps a scene
+        // the instance excludes out of the offer, and the two defaults reads compose the add. Nothing
+        // else reaches the instance, and in particular no search.
         Assert.Equal(
             [
                 nameof(IWhisparrMissingSceneActing.AddSceneAsync),
                 nameof(IWhisparrEntityCatalogueReading.ReadEntityCatalogueAsync),
                 nameof(IWhisparrClient.ReadQualityProfilesAsync),
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
+                nameof(IWhisparrSceneExclusionReading.ReduceExclusionsAsync),
             ],
             host.Client.Verbs.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
     }

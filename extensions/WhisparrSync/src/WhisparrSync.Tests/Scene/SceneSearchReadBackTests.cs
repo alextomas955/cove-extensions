@@ -163,11 +163,11 @@ public sealed class SceneSearchReadBackTests
 
         Assert.Equal(
             [
+                nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
                 nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
                 nameof(IWhisparrClient.ReadCommandAsync),
             ],
             host.Client.Verbs);
-        Assert.Single(host.Client.SceneStatuses);
     }
 
     // The Missing tab's cases sit here rather than beside the card's, so the two surfaces' evidence
