@@ -24,11 +24,10 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
   );
   await waitFor("the field to render", () => container.querySelector("input") !== null);
 
-  // The warning spans after the template input; the library-path notices render before it.
-  const input = container.querySelector("input")!;
-  const hint = [...container.querySelectorAll("span.text-amber-400")].find(
-    (e) => input.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING,
-  );
+  // Both wordings of the hint open with the same sentence.
+  const hint = [...container.querySelectorAll("*")]
+    .filter((e) => e.textContent.startsWith("This is a folder template, not a path."))
+    .at(-1);
   return {
     hint: hint?.textContent ?? null,
     hasPicker: container.textContent.includes("Under"),
@@ -39,21 +38,14 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
   };
 }
 
-test("with no root picker on screen the hint does not send the user to one", async () => {
-  const field = await renderField({ paths: [], loading: false, failed: false });
-
-  expect(field.hasPicker).toBe(false);
-  expect(field.hint).not.toBeNull();
-  expect(field.hint).not.toMatch(/beside it/i);
-  field.teardown();
-});
-
-test("the hint still says the template is not a path", async () => {
+test("with no root picker on screen the hint still warns, without sending the user to one", async () => {
   // Rewording, not suppression: a typed path is still about to become literal folder names, and this
   // is the only line that says so.
   const field = await renderField({ paths: [], loading: false, failed: false });
 
-  expect(field.hint).toMatch(/folder template, not a path/i);
+  expect(field.hasPicker).toBe(false);
+  expect(field.hint).toMatch(/becomes folder names/i);
+  expect(field.hint).not.toMatch(/beside it/i);
   field.teardown();
 });
 

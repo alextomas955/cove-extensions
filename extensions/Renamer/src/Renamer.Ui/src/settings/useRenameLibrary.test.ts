@@ -10,17 +10,29 @@ import { createRoot } from "react-dom/client";
 import { waitFor } from "../common/lib/flushRender";
 
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
+import type {
+  LibraryRenameEnqueued,
+  LibraryRenameSummaryView,
+  RenamerJobStatus,
+} from "../wire/api";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
-const host = vi.hoisted(() => ({
+interface EndpointScript {
   // Every path the hook requested, in order.
-  reads: [] as string[],
+  reads: string[];
   // The status every job-status read answers with.
-  status: "running",
+  status: RenamerJobStatus["status"];
   // The progress every job-status read answers with. Held constant to starve the stall clock.
-  progress: 0.25,
+  progress: number;
   // What /last-library-rename answers with, or null to fail that read.
-  summary: null as object | null,
+  summary: LibraryRenameSummaryView | null;
+}
+
+const host = vi.hoisted((): EndpointScript => ({
+  reads: [],
+  status: "running",
+  progress: 0.25,
+  summary: null,
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
@@ -35,8 +47,15 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
     }
     return Promise.resolve(
       path.includes("/job-status/")
-        ? { status: host.status, progress: host.progress }
-        : { jobId: "job-under-test", runId: "run-under-test" },
+        ? ({
+            id: "job-under-test",
+            status: host.status,
+            progress: host.progress,
+            subTask: null,
+            error: null,
+            etaSeconds: null,
+          } satisfies RenamerJobStatus)
+        : ({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued),
     );
   },
 }));

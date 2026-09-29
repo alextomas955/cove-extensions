@@ -3,7 +3,6 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  filterByText,
   isRegexValid,
   isAbsolutePathShape,
   extensionShapeAdvisory,
@@ -11,27 +10,6 @@ import {
   numberInputValue,
   suggestionOptions,
 } from "./primitivesLogic";
-
-const items = [{ name: "Alpha" }, { name: "beta" }, { name: "Gamma" }, { name: "alphabet" }];
-const byName = (item: { name: string }) => item.name;
-
-test("a blank query returns the full list in original order", () => {
-  assert.deepEqual(filterByText("", items, byName), items);
-  assert.deepEqual(filterByText("   ", items, byName), items);
-});
-
-test("the filter matches case-insensitively as a substring", () => {
-  const result = filterByText("alph", items, byName);
-  assert.deepEqual(result.map(byName), ["Alpha", "alphabet"]);
-});
-
-test("the query is trimmed before comparing", () => {
-  assert.deepEqual(filterByText("  gamma  ", items, byName).map(byName), ["Gamma"]);
-});
-
-test("a query that matches nothing returns an empty list", () => {
-  assert.deepEqual(filterByText("zzz", items, byName), []);
-});
 
 test("a well-formed pattern is valid", () => {
   assert.deepEqual(isRegexValid("^C:/in/.*$"), { valid: true });
@@ -100,8 +78,9 @@ test("an empty extension value has no advisory", () => {
 
 const TOKENS = ["title", "studio", "parentStudio", "studioCode", "date", "year"];
 
-test("with nothing picked and no query, every suggestion is offered in the set's order", () => {
+test("with nothing picked and a blank query, every suggestion is offered in the set's order", () => {
   assert.deepEqual(suggestionOptions(TOKENS, [], ""), TOKENS);
+  assert.deepEqual(suggestionOptions(TOKENS, [], "   "), TOKENS);
 });
 
 test("a suggestion already picked is not offered again", () => {
@@ -134,9 +113,10 @@ test("without a key a pick in another case is a different pick", () => {
   ]);
 });
 
-test("the query filters case-insensitively and keeps the suggestion set's order", () => {
+test("the query is trimmed, filters case-insensitively and keeps the suggestion set's order", () => {
   assert.deepEqual(suggestionOptions(TOKENS, [], "stud"), ["studio", "parentStudio", "studioCode"]);
   assert.deepEqual(suggestionOptions(TOKENS, [], "STUD"), ["studio", "parentStudio", "studioCode"]);
+  assert.deepEqual(suggestionOptions(TOKENS, [], "  year  "), ["year"]);
 });
 
 test("a query matching nothing offers nothing, so the caller can hide the list", () => {

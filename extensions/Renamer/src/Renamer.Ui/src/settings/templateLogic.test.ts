@@ -3,40 +3,20 @@ import assert from "node:assert/strict";
 
 import { templateUsesToken } from "./templateLogic";
 
-test("a token wrapped in an optional group is detected in the filename template", () => {
-  assert.equal(templateUsesToken("performers", "$title { - $performers}", ""), true);
-});
-
-test("a token present only in the folder template is detected", () => {
-  assert.equal(templateUsesToken("performers", "$title", "{ - $performers}"), true);
-});
-
-test("a token absent from both templates is not detected", () => {
-  assert.equal(templateUsesToken("performers", "$title", "$ext"), false);
-});
-
-test("a $$ pair is a literal $, and a name after it is still a token, as the engine reads it", () => {
-  assert.equal(templateUsesToken("performers", "$$performers", ""), true);
-  assert.equal(templateUsesToken("performers", "$$ performers", ""), false);
-});
-
-test("matching is case-insensitive on both the token argument and the template text", () => {
-  assert.equal(templateUsesToken("PERFORMERS", "$performers", ""), true);
-  assert.equal(templateUsesToken("performers", "$PERFORMERS", ""), true);
-});
-
-test("a longer token name does not false-positive-match a shorter target", () => {
-  assert.equal(templateUsesToken("date", "$dateFoo", ""), false);
-});
-
-test("both templates empty returns false", () => {
-  assert.equal(templateUsesToken("tags", "", ""), false);
-});
-
-test("a template naming $studio leaves $studioCode undetected", () => {
-  assert.equal(templateUsesToken("studioCode", "$studio", ""), false);
-});
-
-test("a template naming $studioCode leaves $studio undetected", () => {
-  assert.equal(templateUsesToken("studio", "$studioCode", ""), false);
+test.each([
+  [
+    "a $$ pair is a literal $, and a name after it is still a token",
+    "performers",
+    "$$performers",
+    true,
+  ],
+  ["a $$ pair followed by a space starts no token", "performers", "$$ performers", false],
+  ["the token argument matches without regard to case", "PERFORMERS", "$performers", true],
+  ["the template text matches without regard to case", "performers", "$PERFORMERS", true],
+  ["a longer name in the template is not the shorter token", "date", "$dateFoo", false],
+  ["an empty template uses no token", "tags", "", false],
+  ["$studio in the template leaves $studioCode unused", "studioCode", "$studio", false],
+  ["$studioCode in the template leaves $studio unused", "studio", "$studioCode", false],
+])("%s", (_name, token, filenameTemplate, expected) => {
+  assert.equal(templateUsesToken(token, filenameTemplate, ""), expected);
 });

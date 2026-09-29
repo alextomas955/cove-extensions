@@ -26,5 +26,6 @@ test("a deleted entity names its kind, the id it held, and that the rule is iner
 });
 
 test("a live entity is left to the host to name", async () => {
-  expect(await render({ entityType: "studio", id: 210, orphaned: false })).not.toContain("Deleted");
+  // The host component's stand-in renders "entity <id>".
+  expect(await render({ entityType: "studio", id: 210, orphaned: false })).toBe("entity 210");
 });

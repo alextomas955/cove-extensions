@@ -20,6 +20,8 @@ async function marked(filenameTemplate: string, folderTemplate: string): Promise
 
   const chips = [...container.querySelectorAll("button")];
   expect(chips.length).toBeGreaterThan(0);
+  // A legend chip inserts its token, so it is a plain button whether or not it is tinted.
+  expect(chips.filter((c) => c.hasAttribute("aria-pressed"))).toEqual([]);
   const result = chips
     .filter((c) => c.classList.contains("bg-accent/15"))
     .map((c) => c.textContent.replace("{ }", "").trim());

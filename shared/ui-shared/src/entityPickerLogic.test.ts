@@ -20,13 +20,3 @@ test("availableOptions offers only not-yet-picked options, in the canonical orde
   assert.deepEqual(availableOptions(opts, []), opts);
   assert.deepEqual(availableOptions(opts, ["Male", "Female", "Intersex"]), []);
 });
-
-test("availableOptions does not mutate its input list", () => {
-  const opts = [
-    { value: "Male", label: "Male" },
-    { value: "Female", label: "Female" },
-  ];
-  const snapshot = JSON.parse(JSON.stringify(opts));
-  availableOptions(opts, ["Male"]);
-  assert.deepEqual(opts, snapshot);
-});

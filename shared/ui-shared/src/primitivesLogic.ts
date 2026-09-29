@@ -10,19 +10,9 @@ export interface RegexValidity {
   message?: string;
 }
 
-/**
- * Case-insensitive substring filter over an arbitrary item list. The label accessor keeps it generic
- * so the studio/tag picker and any future list reuse it without forking. A blank query yields the
- * whole list (a no-op filter, not an empty result) and input order is preserved.
- *
- * Diacritic-naive on purpose: a plain lowercased substring match mirrors the host's own simple
- * filtering - locale collation would diverge from what Cove does elsewhere.
- */
-export function filterByText<T>(
-  query: string,
-  items: readonly T[],
-  label: (item: T) => string,
-): T[] {
+// Diacritic-naive on purpose: a plain lowercased substring match mirrors the host's own simple
+// filtering, and locale collation would diverge from what Cove does elsewhere.
+function filterByText<T>(query: string, items: readonly T[], label: (item: T) => string): T[] {
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [...items];
   return items.filter((item) => label(item).toLowerCase().includes(q));

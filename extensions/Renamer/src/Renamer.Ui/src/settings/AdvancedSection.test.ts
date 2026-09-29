@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Each Advanced control is named once, its explanation sits above it, and every helper sentence
+// Each Advanced control is named once, its explanation sits above it, and every line of copy
 // reads as the engine behaves.
 import { test, expect } from "vitest";
 import { createElement } from "react";
@@ -77,7 +77,7 @@ function expected(sentences: readonly string[], n: number): Record<string, numbe
   return Object.fromEntries(sentences.map((s) => [s, n]));
 }
 
-test("each shipped helper sentence is on screen exactly once", async () => {
+test("each shipped line of helper and option copy is on screen exactly once", async () => {
   const view = await renderAdvanced();
 
   expect(counts(view.container, SHIPS)).toEqual(expected(SHIPS, 1));

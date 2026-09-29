@@ -207,11 +207,11 @@ export interface ProgressSample {
   progress: number;
 }
 
-/** The weight of the newest rate in the ETA's moving average: `smoothed = α·instant + (1 − α)·smoothed`. */
-export const ETA_SMOOTHING = 0.3;
+// The weight of the newest rate in the ETA's moving average: `smoothed = α·instant + (1 − α)·smoothed`.
+const ETA_SMOOTHING = 0.3;
 
-/** Rates folded into the average before an ETA is shown; the first only seeds it, unsmoothed. */
-export const ETA_MIN_RATES = 2;
+// Rates folded into the average before an ETA is shown; the first only seeds it, unsmoothed.
+const ETA_MIN_RATES = 2;
 
 /**
  * The ETA when the host sends none: `(1 − progress) / rate`, with the rate a moving average of per-poll

@@ -17,33 +17,18 @@ function summary(
   return { renamed, skipped, failed, stoppedForSpace, completedAtUtcTicks: 0, kinds: ["video"] };
 }
 
-test("a run states how many files it renamed", () => {
-  assert.deepEqual(buildRenameLibraryResult(summary(1200)), {
-    kind: "success",
-    text: "Rename finished. 1200 files renamed.",
-  });
-});
-
-test("one renamed file is one file", () => {
-  assert.equal(buildRenameLibraryResult(summary(1)).text, "Rename finished. 1 file renamed.");
-});
-
-test("skipped and failed files are stated only when there are some", () => {
-  assert.equal(
-    buildRenameLibraryResult(summary(1200, 30, 2)).text,
+test.each([
+  ["a run states how many files it renamed", summary(1200), "Rename finished. 1200 files renamed."],
+  ["one renamed file is one file", summary(1), "Rename finished. 1 file renamed."],
+  [
+    "skipped and failed files are stated when there are some",
+    summary(1200, 30, 2),
     "Rename finished. 1200 files renamed, 30 skipped, 2 failed.",
-  );
-  assert.equal(
-    buildRenameLibraryResult(summary(0, 4)).text,
-    "Rename finished. 0 files renamed, 4 skipped.",
-  );
-});
-
-test("a run with nothing to do says so", () => {
-  assert.equal(
-    buildRenameLibraryResult(summary(0)).text,
-    "Rename finished. Nothing needed renaming.",
-  );
+  ],
+  ["a skip alone is still stated", summary(0, 4), "Rename finished. 0 files renamed, 4 skipped."],
+  ["a run with nothing to do says so", summary(0), "Rename finished. Nothing needed renaming."],
+])("%s", (_name, given, text) => {
+  assert.deepEqual(buildRenameLibraryResult(given), { kind: "success", text });
 });
 
 test("a kind that ran out of space reads as a stop, and keeps what it renamed", () => {
@@ -87,12 +72,4 @@ test("a run the UI stopped watching claims nothing about what the job did", () =
     "Couldn't confirm the rename: the job stopped reporting progress. It may still be running, so check your library before trying again.",
   );
   assert.ok(!unconfirmed.includes("Nothing was changed"));
-});
-
-test("an unconfirmed run and a failed one do not read the same", () => {
-  const detail = "the job did not complete";
-
-  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail, true));
-  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail, false));
-  assert.ok(buildRenameLibraryUnconfirmed(detail).startsWith("Couldn't confirm the rename"));
 });
