@@ -12,14 +12,10 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { onConnectionChanged } from "./connectionChangedStore";
 
-import type {
-  FolderAgreementView,
-  FolderMappingSaveRequest,
-  FolderMappingSaveResult,
-} from "../wire/api";
+import type { FolderAgreementView, FolderMappingSaveRequest } from "../wire/api";
 import { api } from "../common/lib/extension";
 import { INITIAL_ASYNC_READ, type AsyncRead } from "../common/ui/asyncRegionLogic";
-import { saveSettled, type FolderSaveAnswer } from "./folderAgreementLogic";
+import { saveSettled, type FolderSaveAnswer, type FolderSaveResult } from "./folderAgreementLogic";
 
 const FOLDER_MAPPINGS_PATH = api("addressing/folder-mappings");
 
@@ -76,7 +72,7 @@ export function useFolderAgreement(): UseFolderAgreement {
       if (saving !== null) return;
       setSaving(root);
 
-      requestJson<FolderMappingSaveResult>(FOLDER_MAPPINGS_PATH, {
+      requestJson<FolderSaveResult>(FOLDER_MAPPINGS_PATH, {
         method: "PUT",
         body: JSON.stringify({
           coveRoot: root,

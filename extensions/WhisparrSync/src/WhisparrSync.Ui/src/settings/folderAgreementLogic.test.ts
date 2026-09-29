@@ -4,7 +4,6 @@ import type {
   FolderAgreementRefusal,
   FolderAgreementRootLine,
   FolderAgreementView,
-  FolderMappingSaveResult,
 } from "../wire/api";
 import {
   FOLDER_AGREEMENT_NEEDS_A_PATH,
@@ -34,6 +33,7 @@ import {
   stateOf,
   withdrawsOnly,
   type FolderSaveAnswer,
+  type FolderSaveResult,
 } from "./folderAgreementLogic";
 
 function lineFor(
@@ -53,7 +53,7 @@ function viewOf(...roots: FolderAgreementRootLine[]): FolderAgreementView {
   return { roots };
 }
 
-function answered(result: FolderMappingSaveResult): FolderSaveAnswer {
+function answered(result: FolderSaveResult): FolderSaveAnswer {
   return { kind: "answered", result };
 }
 

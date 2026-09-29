@@ -2,6 +2,7 @@ import type {
   FolderAgreementRefusal,
   FolderAgreementRootLine,
   FolderAgreementView,
+  FolderMappingSaveOutcome,
   FolderMappingSaveResult,
 } from "../wire/api";
 import {
@@ -26,8 +27,22 @@ import {
 // The wire type admits null for a folder whose stated path is working.
 type FolderRefusal = NonNullable<FolderAgreementRefusal>;
 
+/**
+ * The save result in the shapes the server answers with. A refused save always names its reason:
+ * an agreement reading carries the instance's spelling of the root or a refusal, never neither.
+ * The generated type holds the refusal nullable because the settled outcomes carry none.
+ */
+export type FolderSaveResult =
+  | (FolderMappingSaveResult & {
+      readonly outcome: Exclude<FolderMappingSaveOutcome, "refused">;
+    })
+  | (FolderMappingSaveResult & {
+      readonly outcome: "refused";
+      readonly refusal: FolderRefusal;
+    });
+
 export type FolderSaveAnswer =
-  | { readonly kind: "answered"; readonly result: FolderMappingSaveResult }
+  | { readonly kind: "answered"; readonly result: FolderSaveResult }
   | { readonly kind: "didNotReach" };
 
 // Keyed by the wire enum, so a refusal added to it fails this build until it gets a sentence.
@@ -139,9 +154,7 @@ export function saveAnswerSentence(answer: FolderSaveAnswer): string {
     case "notConfigured":
       return FOLDER_SAVE_NOT_CONFIGURED;
     case "refused":
-      return refusal === null
-        ? FOLDER_SAVE_DID_NOT_REACH
-        : [describeFolderRefusal(refusal), folderAgreementTriedSentence(tried)].join(" ");
+      return [describeFolderRefusal(refusal), folderAgreementTriedSentence(tried)].join(" ");
   }
 }
 
