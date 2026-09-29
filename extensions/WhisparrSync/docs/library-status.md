@@ -30,14 +30,10 @@ artwork.
 | ○ Unmonitored | Whisparr holds it and is not monitoring it.                       |
 | – Not added   | Whisparr has no entry for it.                                     |
 | ⊘ Excluded    | The scene is on your Whisparr's exclusion list. Scene cards only. |
-| ? Unknown     | The status of this one card could not be read.                    |
 
 These are the same words the Whisparr button and the Missing tab use. **Not added** and
 **Unmonitored** are different answers: the first means your Whisparr has never heard of the entity,
 the second means it holds it and is leaving it alone.
-
-**Unknown** is a card whose own read did not come back, while the rest of the page was answered
-for. It says nothing about what your Whisparr holds. Press the button again to ask again.
 
 A studio or performer card never reads **Excluded**. Whisparr Sync reads your Whisparr's exclusion
 list for scenes only, so a badge on either of those cards would be claiming something your instance
@@ -71,9 +67,13 @@ nothing, or names more than one series, nothing about the card is established an
 The button states no reason for it. Your instance answered every request it was given, and which of
 those two it was is a fact about that one card rather than about your connection.
 
+**That one card's read settled nothing.** Your Whisparr was asked and the answer established
+neither whether it holds the entity nor whether it is monitoring it. The card stays blank rather
+than reading as a status your instance gave, and the count row above the cards counts it under
+**Unknown**. Press the button again to ask again.
+
 **The whole page could not be read.** No card claims anything, and the reason is on the button
-rather than on every card. A card whose own read failed while the rest of the page was answered for
-reads **Unknown** instead of staying blank. Which reason the button gives says what happened:
+rather than on every card. Which reason the button gives says what happened:
 
 | On the button                                                                                                   | What happened                                                                          |
 | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -112,11 +112,10 @@ Nothing is cached between pages. Leaving the page and coming back asks again.
 nothing and writes nothing to your library. Whisparr Sync itself contacts no metadata source to
 answer it: the identifier it asks about is the one your library already stores.
 
-**There is no count row.** The toolbar shows no tally of how many of the cards are monitored, wanted
-or absent. A tally that summed to the whole library would mean fetching every matching entity from
-Cove and asking Whisparr about all of them on every press, and one that summed only to the forty
-cards on screen would read as a figure about your library while being a figure about one page. The
-badges say the same thing exactly, per card, at a cost that does not grow with your library.
+**The counts are for the page, never for your library.** The row under the toolbar counts the cards
+on screen and says so on hover. A tally that summed to the whole library would mean fetching every
+matching entity from Cove and asking Whisparr about all of them on every press, at a cost that grows
+with your library.
 
 **There is no marker for owning the file.** A scene card says whether Whisparr holds and monitors
 the scene, not whether Whisparr has the file. No Whisparr read reports that, and Cove's own answer

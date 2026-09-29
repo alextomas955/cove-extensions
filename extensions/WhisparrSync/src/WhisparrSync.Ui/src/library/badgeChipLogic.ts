@@ -3,9 +3,9 @@ import type { WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
 
 /**
  * `working` while a run this browser started is still working the card through, `state` for what
- * the instance holds, including the state a read that established nothing answers, `notLinked`
- * where the library holds no link this generation could name the entity by, and null while the
- * read is still in flight or the page could not be answered for.
+ * the instance holds, `notLinked` where the library holds no link this generation could name the
+ * entity by, and null while the read is still in flight, where the page could not be answered for,
+ * or where this one card's own read established nothing.
  */
 export type BadgeChip = "working" | "state" | "notLinked" | null;
 
@@ -21,6 +21,12 @@ export function badgeChipFor(input: {
   readonly pageRefused: boolean;
 }): BadgeChip {
   if (input.running) return "working";
+
+  // A read that established nothing is not a status the instance gave, and the tally above the grid
+  // is where the unknown reading is counted. Drawn here it would report a failed read as a status,
+  // and left to fall through it would read as "not linked", which is a claim about the library.
+  if (input.state === "statusUnknown") return null;
+
   if (input.state !== null) return "state";
 
   // A page nothing answered for establishes nothing about any card. Saying "not linked" there would
