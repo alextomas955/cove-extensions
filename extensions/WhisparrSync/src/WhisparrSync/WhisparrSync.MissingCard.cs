@@ -240,7 +240,7 @@ public sealed partial class WhisparrSync
         ILogger log,
         CancellationToken ct)
     {
-        if (cache.Held(target.Binding.Generation, owning, foreignId) is { } held)
+        if (cache.Held(target.Binding, owning, foreignId) is { } held)
         {
             return WhisparrEntityCatalogue.Listing(held);
         }
@@ -259,7 +259,7 @@ public sealed partial class WhisparrSync
 
         if (answered.Scenes is { } listed)
         {
-            cache.Hold(target.Binding.Generation, owning, foreignId, listed);
+            cache.Hold(target.Binding, owning, foreignId, listed);
         }
 
         return answered;

@@ -13,6 +13,11 @@ namespace WhisparrSync.Missing;
 //
 // The entry expires on its own rather than being invalidated by a writer: this extension is never
 // told what the instance holds, so an entry with no expiry could stay wrong until the host restarted.
+//
+// What the entry holds is one instance's own row ids, which no other instance answers to. So the
+// instance it was read from is part of what identifies it, rather than the entry being dropped when
+// a connection is saved: a read already in flight when the save lands would put the old instance's
+// rows back afterwards.
 internal sealed class InstanceCatalogueCache(TimeProvider clock)
 {
     // Long enough to cover one reader's page turns, short enough that a scene added in Whisparr
@@ -21,16 +26,19 @@ internal sealed class InstanceCatalogueCache(TimeProvider clock)
 
     private readonly Lock _gate = new();
 
-    private (WhisparrGeneration Generation, WhisparrEntityKind Kind, string ForeignId,
-        DateTimeOffset HeldAt, IReadOnlyList<WhisparrCatalogueScene> Scenes)? _held;
+    private ((WhisparrGeneration Generation, string Address) Instance, WhisparrEntityKind Kind,
+        string ForeignId, DateTimeOffset HeldAt,
+        IReadOnlyList<WhisparrCatalogueScene> Scenes)? _held;
 
     internal IReadOnlyList<WhisparrCatalogueScene>? Held(
-        WhisparrGeneration generation, WhisparrEntityKind kind, string foreignId)
+        WhisparrBinding binding, WhisparrEntityKind kind, string foreignId)
     {
+        ArgumentNullException.ThrowIfNull(binding);
+
         lock (_gate)
         {
             return _held is { } entry
-                && entry.Generation == generation
+                && entry.Instance == binding.Instance
                 && entry.Kind == kind
                 && string.Equals(entry.ForeignId, foreignId, StringComparison.Ordinal)
                 && clock.GetUtcNow() - entry.HeldAt < Lifetime
@@ -40,14 +48,16 @@ internal sealed class InstanceCatalogueCache(TimeProvider clock)
     }
 
     internal void Hold(
-        WhisparrGeneration generation,
+        WhisparrBinding binding,
         WhisparrEntityKind kind,
         string foreignId,
         IReadOnlyList<WhisparrCatalogueScene> scenes)
     {
+        ArgumentNullException.ThrowIfNull(binding);
+
         lock (_gate)
         {
-            _held = (generation, kind, foreignId, clock.GetUtcNow(), scenes);
+            _held = (binding.Instance, kind, foreignId, clock.GetUtcNow(), scenes);
         }
     }
 
