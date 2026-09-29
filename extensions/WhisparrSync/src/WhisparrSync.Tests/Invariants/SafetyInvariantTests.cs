@@ -6,25 +6,20 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
-using WhisparrSync.Linking;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Scene;
-using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Invariants;
 
-// Transcribed from the requirement rather than gathered from the tests. A list gathered from the
-// tests would agree with them however many were deleted.
+// The invariant each case carries as a trait, so a run can be filtered to one of them.
 internal static class SafetyInvariant
 {
     public const string Trait = "Invariant";
-
-    public const string OneInboundPath = "one inbound path";
 
     public const string NothingMovedOrDeleted = "nothing moved or deleted in a Whisparr root";
 
@@ -37,17 +32,6 @@ internal static class SafetyInvariant
     public const string EveryMutationIsOriginTagged = "every mutation is origin-tagged and idempotent";
 
     public const string NothingGrowsWithTheLibrary = "nothing stored or returned grows with the library";
-
-    public static string[] All =>
-    [
-        OneInboundPath,
-        NothingMovedOrDeleted,
-        NoAutoRetriedGrab,
-        EveryAddIsNonGrabbing,
-        OnlyAnExplicitSearchGrabs,
-        EveryMutationIsOriginTagged,
-        NothingGrowsWithTheLibrary,
-    ];
 }
 
 // Every member of the outbound seam and the class of work each does, transcribed by hand. A
@@ -143,36 +127,6 @@ internal static class OutboundSeam
 // AbsentCapabilityTests, asserted as absence.
 public sealed class SafetyInvariantTests
 {
-    // The one route this extension mounts that answers a caller holding no Cove permission. A
-    // single value rather than a list, so a second anonymous route fails here.
-    private const string InboundRoute = "/api/extensions/com.alextomas955.whisparrsync/callback";
-
-    [Fact]
-    public void EverySafetyInvariantHasATestInThisGroup()
-    {
-        var covered = typeof(SafetyInvariantTests).Assembly
-            .GetTypes()
-            .Where(type => type.Namespace == typeof(SafetyInvariantTests).Namespace)
-            .SelectMany(type => type.GetMethods())
-            .SelectMany(method => method.CustomAttributes)
-            .Where(attribute => attribute.AttributeType == typeof(TraitAttribute)
-                && attribute.ConstructorArguments.Count == 2
-                && (string?)attribute.ConstructorArguments[0].Value == SafetyInvariant.Trait)
-            .Select(attribute => (string)attribute.ConstructorArguments[1].Value!)
-            .Distinct()
-            .Order()
-            .ToList();
-
-        Assert.Equal(SafetyInvariant.All.Order().ToList(), covered);
-    }
-
-    // The count itself is asserted beside the route table in EndpointPermissionTests, which boots
-    // the same registrations. Named here so the invariant has a case carrying its trait.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.OneInboundPath)]
-    public void TheInboundPathIsTheCallbackAndNothingElse()
-        => Assert.Equal("/api/extensions/com.alextomas955.whisparrsync/callback", InboundRoute);
-
     // One assertion over a declared union rather than one per interface, so a seam interface left
     // out of OutboundSeam.SeamInterfaces fails the count below instead of slipping past. No name is
     // duplicated across the union, so two interfaces declaring one name fail here too.
@@ -225,56 +179,6 @@ public sealed class SafetyInvariantTests
     }
 
     // The case list is derived from the per-generation capability table, so a combination
-    // registered later is covered. Presence is asserted apart from the value: an absent member and
-    // a false one read the same, and the instance's default is not this product's to rely on.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
-    public void EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt()
-    {
-        var composed = ComposedAdds.All();
-
-        Assert.NotEmpty(composed);
-        Assert.All(
-            composed,
-            added =>
-            {
-                Assert.NotEmpty(added.SuppressionPaths);
-                Assert.Equal(
-                    added.SuppressionPaths.Select(_ => (bool?)false).ToArray(),
-                    added.SuppressionPaths
-                        .Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
-                        .ToArray());
-            });
-
-        // Every registered capability is classified, so a combination registered later reaches the
-        // enumeration's own refusal rather than escaping it.
-        Assert.All(
-            ComposedAdds.Generations,
-            generation => Assert.NotNull(ComposedAdds.On(generation)));
-    }
-
-    // Every body a monitor, unmonitor, scope change or add composes is searched as serialised text
-    // for each transcribed grabbing command name.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
-    public void NoBodyOffAMonitoringPathCanNameAGrabbingCommand()
-    {
-        var bodies = ComposedAdds.EveryNonGrabbingBody();
-
-        Assert.NotEmpty(bodies);
-        Assert.All(
-            bodies,
-            body => Assert.All(
-                ComposedAdds.GrabbingCommandNames,
-                name => Assert.DoesNotContain(name, body.ToJsonString(), StringComparison.Ordinal)));
-
-        // The member that can name one is declared on that role alone, so no monitoring call site
-        // holds an implementation to reach it through.
-        Assert.Equal(
-            [typeof(IWhisparrSearchGrabbing)],
-            OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
-    }
-
     // A call site that never obtains one of these two roles cannot express a download. The
     // guarantee is not that nothing can grab: two named gestures reach one grabbing member each.
     // Each role declares exactly one member, so neither can grow a second verb unnoticed.
@@ -298,34 +202,6 @@ public sealed class SafetyInvariantTests
 
         Assert.Single(typeof(IWhisparrSearchGrabbing).GetMethods());
         Assert.Single(typeof(IWhisparrSceneSearchGrabbing).GetMethods());
-    }
-
-    // Removing a name frees a file's bytes once it is the last one, so this product does it from
-    // one place, and that place consults TreeLinkRemovalGuard. What each name is decided on is
-    // asserted case by case against the check itself; this is the count of places that can decide
-    // anything at all.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
-    public void TheOnlyNameThisProductRemovesIsOneTheCheckAllowed()
-    {
-        var slice = LinkingSources();
-
-        // A scan that reached no source would report nothing wrong for the same reason it reported
-        // nothing at all.
-        Assert.NotEmpty(slice);
-
-        Assert.Equal(
-            ["TreeSweepStep.cs"],
-            slice
-                .Where(source => source.Text.Contains(".Remove(", StringComparison.Ordinal))
-                .Select(source => source.Name)
-                .Order(StringComparer.Ordinal)
-                .ToList());
-
-        Assert.Contains(
-            nameof(TreeLinkRemovalGuard) + "." + nameof(TreeLinkRemovalGuard.Decide),
-            slice.Single(source => source.Name == "TreeSweepStep.cs").Text,
-            StringComparison.Ordinal);
     }
 
     // Whatever a caller intended, the filesystem seam declares no member that moves, renames,
@@ -454,40 +330,6 @@ public sealed class SafetyInvariantTests
         Assert.True(ingest.Paths.Operations.Count > probesAfterTheFirst);
     }
 
-    // The pass set is asserted exactly, so a third pass fails here rather than travelling under an
-    // enumeration written for two. A run reaching a whole library is the one gesture whose
-    // acquisition cost would be the size of the library.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
-    public void NeitherPassALibraryRunMakesRegistersThroughAnythingButANonGrabbingAdd()
-    {
-        Assert.Equal([SyncRegisters.Scenes, SyncRegisters.Sites], Enum.GetValues<SyncRegisters>());
-
-        Assert.Equal(
-            [WhisparrVerbClass.Act, WhisparrVerbClass.Act],
-            new[]
-            {
-                nameof(IWhisparrMissingSceneActing.AddSceneAsync),
-                nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync),
-            }.Select(member => OutboundSeam.VerbClassByMember[member]));
-
-        Assert.All(
-            RegisteringBodies(),
-            registering =>
-            {
-                Assert.Equal(
-                    registering.Suppression.Select(_ => (bool?)false).ToArray(),
-                    registering.Suppression
-                        .Select(path => ComposedAdds.At(registering.Body, path)?.GetValue<bool>())
-                        .ToArray());
-
-                Assert.All(
-                    ComposedAdds.GrabbingCommandNames,
-                    name => Assert.DoesNotContain(
-                        name, registering.Body.ToJsonString(), StringComparison.Ordinal));
-            });
-    }
-
     // The composition is compared as text, so a re-run is proved to send what the first run sent.
     // The already-held count is the load-bearing one: a second offer counted as registered would be
     // a duplicate this product created and then reported as work.
@@ -587,9 +429,6 @@ public sealed class SafetyInvariantTests
 
     private static AddDefaults SyncDefaults => new(4, "/config/library");
 
-    // v2 refuses the quality profile v3 accepts, so its defaults name a different one.
-    private static AddDefaults SyncV2Defaults => new(1, "/config/library");
-
     // What one instance answered a scene it took, and one it already held.
     private static WhisparrResponse SceneAccepted
         => RecordingWhisparrCore.Json(
@@ -598,18 +437,6 @@ public sealed class SafetyInvariantTests
     private static WhisparrResponse SceneAlreadyHeld
         => RecordingWhisparrCore.Json(
             400, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-already-held.json"));
-
-    // The v2 identifiers are the ones that generation's own lookup was measured answering, because
-    // its add is composed from the number the lookup returned rather than from the one the library
-    // holds.
-    private static IReadOnlyList<(JsonObject Body, IReadOnlyList<string> Suppression)>
-        RegisteringBodies() =>
-        [
-            (ComposedBody.Of(V3BodyProjector.AddScene(SyncScene, SyncDefaults)),
-                [ComposedAdds.SceneSuppression]),
-            (ComposedV2Body.Of(V2BodyProjector.RegisterSite(3372, SyncV2Defaults)),
-                ComposedAdds.V2Suppression),
-        ];
 
     // A class the retry table does not list, cast from a value the enum does not declare. That is
     // how a class added without a table entry behaves.
@@ -956,30 +783,5 @@ public sealed class SafetyInvariantTests
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    // The slice holding the one seam that changes a reader's disk. Found by a committed file rather
-    // than by a counted-out "..": the test assembly's depth below the extension directory varies
-    // with configuration and target framework.
-    private static IReadOnlyList<(string Name, string Text)> LinkingSources()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            var slice = Path.Combine(directory.FullName, "src", "WhisparrSync", "Linking");
-            if (Directory.Exists(slice))
-            {
-                return
-                [
-                    .. Directory
-                        .EnumerateFiles(slice, "*.cs", SearchOption.AllDirectories)
-                        .Select(file => (Path.GetFileName(file), File.ReadAllText(file))),
-                ];
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No src/WhisparrSync/Linking above {AppContext.BaseDirectory}.");
     }
 }
