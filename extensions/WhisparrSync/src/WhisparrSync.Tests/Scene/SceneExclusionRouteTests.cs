@@ -18,6 +18,13 @@ public sealed class SceneExclusionRouteTests
 
     private const string RemoveExclusion = "remove-exclusion";
 
+    // The per-scene route answers a list whether or not the instance holds the scene, so a case
+    // that needs the scene read to establish something answers with one.
+    private const string SceneTheInstanceHolds =
+        """
+        [{"id":41,"monitored":true,"hasFile":false}]
+        """;
+
     [Fact]
     public async Task ExcludingASceneTheListAlreadyNamesIsTakenAndSendsNothing()
     {
@@ -103,7 +110,9 @@ public sealed class SceneExclusionRouteTests
     public async Task TheReadReportsWhetherTheInstancesListNamesTheScene(bool onTheList)
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, SceneTheInstanceHolds));
         var coveId = await SeedSceneAsync(host);
         if (onTheList)
         {
@@ -123,7 +132,9 @@ public sealed class SceneExclusionRouteTests
     public async Task AListReadThatDidNotCompleteRefusesTheRead()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(
+            nameof(RecordingWhisparrCore.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, SceneTheInstanceHolds));
         var coveId = await SeedSceneAsync(host);
         host.Client.ExclusionReadCompletes = false;
 
