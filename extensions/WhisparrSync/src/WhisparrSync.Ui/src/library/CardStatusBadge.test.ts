@@ -120,7 +120,7 @@ test("the answered reading is drawn on the card, and a row with none says it is 
   expect(unlinked.textContent).toContain(MARKER_NOT_LINKED);
 });
 
-test("a card whose status could not be read says so rather than claiming no link", async () => {
+test("a card whose status could not be read claims nothing at all", async () => {
   // What the server sends for a card whose batch was dropped or whose read failed: it is on the
   // list, and neither presence nor the monitored flag was established.
   answering([{ coveId: 7, reading: { excluded: false, present: null, monitored: null } }]);
@@ -128,6 +128,10 @@ test("a card whose status could not be read says so rather than claiming no link
 
   const drawn = await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
 
-  expect(drawn.textContent).toContain(STATE_STATUS_UNKNOWN);
+  // Not linked is the original defect: it claims the library holds no identifier, when the instance
+  // was asked and did not answer. Unknown is the tally's word, and on the card it would report the
+  // failed read as a status the instance gave.
   expect(drawn.textContent).not.toContain(MARKER_NOT_LINKED);
+  expect(drawn.textContent).not.toContain(STATE_STATUS_UNKNOWN);
+  expect(drawn.textContent).toBe("");
 });

@@ -52,7 +52,7 @@ It also adds a **Missing** tab to studio pages, and to performer pages on Whispa
 It also adds a button to the videos, studios and performers list toolbars:
 
 - **See what Whisparr holds for every card on the page**, as one small badge per card reading
-  Monitored, Unmonitored, Not added, Excluded or Unknown. The badges start off after every page load, and
+  Monitored, Unmonitored, Not added or Excluded. The badges start off after every page load, and
   turning them on changes nothing in either system. A full page costs up to forty requests to your
   instance, so it takes a moment. Read [Show Whisparr status on library
   cards](./library-status.md) for where the badges cannot appear and what they deliberately leave
