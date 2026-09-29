@@ -103,13 +103,13 @@ public enum MissingRefusalKind
     WhisparrCatalogueNotRead,
 
     /// <summary>
-    /// The instance was asked which scenes it excludes and no whole answer arrived, so which of the
-    /// catalogue is missing could not be derived.
+    /// The instance was asked which scenes it excludes and no whole answer arrived, so the list
+    /// carries the scenes this reader excluded as well as the ones missing.
     /// </summary>
     /// <remarks>
-    /// Held apart from an unread catalogue: the scenes were read and it is the exclusions that were
-    /// not. Listing them anyway would put back the scenes this reader excluded. Clears on a retry,
-    /// which the surface offers.
+    /// The one refusal answered beside a page rather than instead of one: the catalogue was read
+    /// and only the subtraction was lost, so the list is still worth showing and the reader is told
+    /// what is wrong with it. Clears on a retry, which the surface offers.
     /// </remarks>
     WhisparrExclusionsNotRead,
 

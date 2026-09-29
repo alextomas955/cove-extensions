@@ -11,6 +11,7 @@ import {
   NO_TITLES_MATCH,
   PROVIDER_UNREACHABLE,
   READ_IS_STALE,
+  WHISPARR_EXCLUSIONS_NOT_READ,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
 import type { MissingCard, MissingPageView, MissingRefusalKind } from "../wire/api";
@@ -228,6 +229,28 @@ describe("the Whisparr that keeps no per-scene records", () => {
   });
 });
 
+describe("the exclusion list that did not arrive", () => {
+  const stated = deriveGridState(situation({ view: pageOf([CARD], "whisparrExclusionsNotRead") }));
+
+  // The catalogue was read and only the subtraction was lost, so the list is worth showing with
+  // what is wrong with it said above it.
+  it("keeps the list on screen and states the reason above it", () => {
+    expect(stated).toBe("whisparrExclusionsNotRead");
+    expect(describeGridState(stated!).replacesTheGrid).toBe(false);
+  });
+
+  it("offers a retry, because the list may arrive whole on the next ask", () => {
+    expect(refreshIsOffered("whisparrExclusionsNotRead")).toBe(true);
+    expect(emptyStateFor("whisparrExclusionsNotRead")).toBe(WHISPARR_EXCLUSIONS_NOT_READ);
+  });
+
+  it("states the empty reason instead when the page carries no card", () => {
+    expect(deriveGridState(situation({ view: pageOf([], "whisparrExclusionsNotRead") }))).toBe(
+      "nothingMissing",
+    );
+  });
+});
+
 describe("the vocabulary itself", () => {
   it("states a sentence for every kind", () => {
     for (const kind of MISSING_GRID_STATE_KINDS) {
@@ -238,7 +261,11 @@ describe("the vocabulary itself", () => {
   // Named one by one rather than matched on the name: a kind is stated above the cards only when a
   // page of cards can exist alongside it, which is a fact about the kind and not about its spelling.
   it("never both replaces the grid and keeps cards", () => {
-    const statedAboveCards = new Set(["readIsStale", "whisparrKeepsNoSceneRecords"]);
+    const statedAboveCards = new Set([
+      "readIsStale",
+      "whisparrKeepsNoSceneRecords",
+      "whisparrExclusionsNotRead",
+    ]);
 
     for (const kind of MISSING_GRID_STATE_KINDS) {
       const state = describeGridState(kind);

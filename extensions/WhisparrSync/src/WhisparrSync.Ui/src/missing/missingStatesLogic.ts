@@ -147,7 +147,9 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
   whisparrExclusionsNotRead: {
     sentence: WHISPARR_EXCLUSIONS_NOT_READ,
     refreshIsOffered: true,
-    replacesTheGrid: true,
+    // Stated above the cards, not in their place: the catalogue was read and only the exclusion
+    // subtraction was lost, so the list is still worth showing with what is wrong with it said.
+    replacesTheGrid: false,
     ...NEITHER_ESCAPE,
   },
   readIsStale: {
@@ -205,11 +207,10 @@ export function deriveGridState(situation: MissingGridSituation): MissingGridSta
     case "whisparrCatalogueNotRead":
       return "whisparrCatalogueNotRead";
     case "whisparrExclusionsNotRead":
-      return "whisparrExclusionsNotRead";
     case "whisparrKeepsNoSceneRecords":
-      // Stated above the cards, so it is only the answer while there are cards.
+      // Stated above the cards, so either is only the answer while there are cards.
       if (view.cards.length > 0) {
-        return "whisparrKeepsNoSceneRecords";
+        return view.refusal;
       }
       break;
     case "none":
