@@ -26,7 +26,8 @@ internal sealed record MonitorBulkLinking(
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
     int EntriesLeftUnderAnotherRoot = 0,
     bool RootsCouldNotBeRead = false,
-    int FilesWithoutAnEntry = 0);
+    int FilesWithoutAnEntry = 0,
+    int FilesRefused = 0);
 
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
@@ -266,7 +267,8 @@ public static class MonitoringBulkJob
                 linking.AddressRefusals,
                 linking.EntriesLeftUnderAnotherRoot,
                 linking.RootsCouldNotBeRead,
-                linking.FilesWithoutAnEntry),
+                linking.FilesWithoutAnEntry,
+                NotRecorded: linking.FilesRefused),
             cancelled: false);
 
     // Every member is named and there is no discard arm, so a refusal kind added later stops the
