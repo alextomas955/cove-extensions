@@ -1244,18 +1244,17 @@ export function syncSkipsMany(grouped: string): string {
 }
 
 /**
- * What the run still has to hand over, stated where the count found any.
- *
- * Reads at one as it does at any other size: the figure carries no noun after it, so there is no
- * plural to disagree with, and the same sentence serves whichever noun the run registers.
+ * What the run still has to hand over, stated where the count found any. The verb follows the
+ * count; the figure carries no noun, so the same sentence serves whichever noun the run registers.
  *
  * Names where the figure was counted rather than saying "of them". It follows the clause about
  * what the run skips, so "them" read as the skipped ones, which is the opposite set.
  *
  * @param grouped the figure, already grouped
+ * @param count the same figure, which the verb agrees with
  */
-export function syncStillToHandOver(grouped: string): string {
-  return `${grouped} of those have no file in Whisparr yet.`;
+export function syncStillToHandOver(grouped: string, count: number): string {
+  return `${grouped} of those ${count === 1 ? "has" : "have"} no file in Whisparr yet.`;
 }
 
 /** What the monitor choice adds to the run, where the run registers scenes. */
