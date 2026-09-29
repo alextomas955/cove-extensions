@@ -27,13 +27,10 @@ const LIST_URL_MANAGED_KEYS = [
 
 describe("this tab's keys survive arriving on it", () => {
   it("collides with none of the keys the host deletes on a tab change", () => {
+    expect(Object.values(MISSING_URL_KEYS)).toHaveLength(4);
     for (const key of Object.values(MISSING_URL_KEYS)) {
       expect(LIST_URL_MANAGED_KEYS, key).not.toContain(key);
     }
-  });
-
-  it("has four keys to check", () => {
-    expect(Object.values(MISSING_URL_KEYS)).toHaveLength(4);
   });
 });
 

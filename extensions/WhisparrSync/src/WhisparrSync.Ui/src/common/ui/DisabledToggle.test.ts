@@ -6,27 +6,13 @@ import { test, expect } from "vitest";
 import { createElement } from "react";
 
 import { render, press } from "../lib/testRender";
+import { visibleText } from "../lib/visibleText";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 import { DisabledToggle } from "./DisabledToggle";
 
 const LABEL = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 const HELPER = "Monitoring a scene downloads nothing by itself.";
-
-function visibleText(element: Element): string {
-  return [...element.childNodes]
-    .map((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return node.textContent ?? "";
-      }
-      if (!(node instanceof Element)) {
-        return "";
-      }
-      const offScreen = node instanceof HTMLElement && node.style.position === "absolute";
-      return offScreen ? "" : visibleText(node);
-    })
-    .join("");
-}
 
 function toggle(reason: string | null, calls: boolean[], helper?: string) {
   return createElement(DisabledToggle, {

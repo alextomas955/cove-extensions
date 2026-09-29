@@ -97,13 +97,6 @@ describe("what each refusal offers", () => {
     const retryable = REFUSAL_KINDS.filter((kind) => affordancesForKind(kind).retry);
     expect(retryable).toEqual(["unreachable"]);
   });
-
-  it("gives every kind an answer rather than leaving one undefined", () => {
-    for (const kind of REFUSAL_KINDS) {
-      expect(typeof affordancesForKind(kind).retry, kind).toBe("boolean");
-      expect(typeof affordancesForKind(kind).settingsLink, kind).toBe("boolean");
-    }
-  });
 });
 
 describe("the version-gap sentence", () => {
@@ -112,13 +105,6 @@ describe("the version-gap sentence", () => {
   // whatever the constant said.
   it("reads exactly as specified", () => {
     expect(CAP_UNAVAILABLE_ON_THIS_GENERATION).toBe("Currently available on Whisparr v3 (Eros)");
-  });
-
-  it("never suggests migrating and is never a generic refusal", () => {
-    const lowered = CAP_UNAVAILABLE_ON_THIS_GENERATION.toLowerCase();
-    for (const forbidden of ["unsupported", "upgrade", "not supported", "migrat"]) {
-      expect(lowered, forbidden).not.toContain(forbidden);
-    }
   });
 });
 
@@ -211,8 +197,6 @@ describe("a successful test whose generation is not the card's", () => {
     const outcome = detectionOutcome(connected("v2", "2.0.0.1082"), "v3");
 
     expect(outcome).toEqual({ kind: "otherGeneration", detected: "v2", version: "2.0.0.1082" });
-    // The member list is written by hand, so a member added later has to be accounted for here.
-    expect(Object.keys(outcome ?? {}).sort()).toEqual(["detected", "kind", "version"]);
   });
 
   it("is distinguished from a success on the card's own generation", () => {

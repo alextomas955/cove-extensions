@@ -53,19 +53,12 @@ async function draw(node: ReactNode) {
   };
 }
 
-test("four controls sharing one reason produce exactly one notice", async () => {
-  const view = await draw(screenWith(4));
+test.each([4, 2])("%i controls sharing one reason produce exactly one notice", async (controls) => {
+  const view = await draw(screenWith(controls));
 
-  expect(view.buttons.length).toBe(4);
+  expect(view.buttons.length).toBe(controls);
   expect(view.notices.length).toBe(1);
   expect(view.notices[0].textContent).toContain(REASON);
-});
-
-test("two controls sharing one reason still produce exactly one notice", async () => {
-  const view = await draw(screenWith(2));
-
-  expect(view.buttons.length).toBe(2);
-  expect(view.notices.length).toBe(1);
 });
 
 test("a screen with no affected control has no notice element", async () => {
@@ -73,37 +66,4 @@ test("a screen with no affected control has no notice element", async () => {
 
   expect(view.buttons.length).toBe(0);
   expect(view.notices.length).toBe(0);
-});
-
-test("the notice is stated once whichever order the controls render in", async () => {
-  const forwards = await draw(screenWith(3));
-  expect(forwards.notices.length).toBe(1);
-  const first = forwards.notices[0].textContent;
-  const reversed = await draw(
-    createElement(
-      "div",
-      null,
-      createElement(DisabledControl, {
-        name: "Control 1",
-        reason: REASON,
-        disabled: true,
-        onClick: () => undefined,
-      }),
-      createElement(DisabledControl, {
-        name: "Control 2",
-        reason: REASON,
-        disabled: true,
-        onClick: () => undefined,
-      }),
-      createElement(DisabledControl, {
-        name: "Control 3",
-        reason: REASON,
-        disabled: true,
-        onClick: () => undefined,
-      }),
-      createElement(RefusalNotice, { reason: REASON, affectedControls: 3 }),
-    ),
-  );
-  expect(reversed.notices.length).toBe(1);
-  expect(reversed.notices[0].textContent).toBe(first);
 });

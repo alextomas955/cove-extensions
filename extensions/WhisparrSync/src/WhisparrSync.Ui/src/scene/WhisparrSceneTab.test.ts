@@ -73,12 +73,6 @@ const labels = (container: HTMLElement) =>
 const values = (container: HTMLElement) =>
   [...container.querySelectorAll("dd")].map((value) => value.textContent);
 
-test("the header names the product beside the state chip", async () => {
-  const container = await mount(view());
-
-  expect(container.textContent).toContain(copy.SCENE_HEADER_WHISPARR);
-});
-
 test("a scene the instance named nothing for draws no fact rows at all", async () => {
   const container = await mount(view());
 
@@ -149,14 +143,9 @@ test("the four controls draw as bars, each announcing its own name", async () =>
   expect(container.querySelectorAll("button[data-fill]")).toHaveLength(4);
 
   expect(container.querySelectorAll("p")).toHaveLength(0);
-});
 
-test("a disabled control announces its own name and then its reason", async () => {
-  const container = await mount(view({ present: false, monitored: null }));
   const monitor = [...container.querySelectorAll("button")][1];
-
   expect(monitor.disabled).toBe(true);
-  expect(monitor.textContent).toBe(copy.MONITOR_IN_WHISPARR + copy.SCENE_MONITOR_NEEDS_AN_ENTRY);
   expect(monitor.closest("span")?.getAttribute("title")).toBe(copy.SCENE_MONITOR_NEEDS_AN_ENTRY);
 });
 

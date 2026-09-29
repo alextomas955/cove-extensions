@@ -313,18 +313,7 @@ test("an empty selection opens nothing and posts nothing", async () => {
   expect(sent).toEqual([]);
 });
 
-test("a selection over the route's bound resolves rather than rejecting", async () => {
-  answering(offerOf());
-  postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
-
-  const { running } = await open("studios", [7, 8]);
-  await press(SCOPE_FUTURE_SCENES);
-  await press(BULK_CLOSE);
-
-  await expect(running).resolves.toEqual({ cancelled: true });
-});
-
-test("a selection over the bound is refused in this product's own sentence", async () => {
+test("a selection over the bound is refused in this product's own sentence and resolves", async () => {
   answering(offerOf());
   postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
 
@@ -334,7 +323,8 @@ test("a selection over the bound is refused in this product's own sentence", asy
   expect(document.body.textContent).toContain(bulkSelectionIsOverTheBoundSentence(1000));
   expect(labels()).toEqual([BULK_CLOSE]);
   await press(BULK_CLOSE);
-  await running;
+
+  await expect(running).resolves.toEqual({ cancelled: true });
 });
 
 test("no part of the refusal body reaches the sentence the reader is shown", async () => {

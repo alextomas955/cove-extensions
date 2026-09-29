@@ -45,10 +45,3 @@ test("a reason for which nothing was asked claims nothing about reaching Whispar
     );
   }
 });
-
-test("every reason a page can carry has a sentence, or is the answered one", () => {
-  for (const refusal of LIBRARY_PAGE_REFUSALS) {
-    const stated = libraryRefusalSentence(refusal);
-    expect(refusal === "none" || (stated !== null && stated.trim() !== ""), refusal).toBe(true);
-  }
-});

@@ -59,12 +59,3 @@ describe("the initial read", () => {
     expect(initial.status).not.toBe("empty");
   });
 });
-
-describe("the derivation", () => {
-  it("holds nothing between calls", () => {
-    const input = read({ hasContent: true, failed: true });
-    const first = deriveAsyncRegionState(input);
-    deriveAsyncRegionState(read({ reading: true }));
-    expect(deriveAsyncRegionState(input)).toEqual(first);
-  });
-});

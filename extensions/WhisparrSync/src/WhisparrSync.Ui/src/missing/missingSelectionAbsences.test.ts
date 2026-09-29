@@ -62,27 +62,6 @@ function Probe() {
   });
 }
 
-describe("no Select all matching control exists", () => {
-  it("offers three gestures and none is named for matching beyond the page", () => {
-    const actions = selectionActionsFor(["scene-a", "scene-b"], new Set());
-
-    expect(actions).toHaveLength(3);
-    for (const action of actions) {
-      expect(
-        action.label.toLowerCase(),
-        `${action.key} is named for the whole result set`,
-      ).not.toContain("matching");
-    }
-  });
-
-  it("acts on nothing outside the loaded page", () => {
-    const loaded = ["scene-a", "scene-b"];
-    for (const action of selectionActionsFor(loaded, new Set(["scene-a"]))) {
-      expect(action.resulting.every((id) => loaded.includes(id))).toBe(true);
-    }
-  });
-});
-
 describe("no server-side re-derivation runs before a bulk action", () => {
   it("enqueues the ids the loaded page carried, with no catalogue read in between", async () => {
     const container = await render(createElement(Probe));

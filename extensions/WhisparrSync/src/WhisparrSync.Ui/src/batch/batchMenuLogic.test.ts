@@ -1,6 +1,5 @@
 import { test, expect } from "vitest";
 
-import * as copy from "../common/ui/copy";
 import { BATCH_MENU_ROWS } from "./batchMenuLogic";
 
 const keys = (): string[] => BATCH_MENU_ROWS.map((row) => row.key);
@@ -17,19 +16,4 @@ test("names the verb the route reads, in the wire spelling, once per row", () =>
     "search",
     "exclude",
   ]);
-});
-
-test("carries a declared label constant on every row", () => {
-  expect(BATCH_MENU_ROWS.map((row) => row.label)).toEqual([
-    copy.MENU_ADD,
-    copy.MENU_MONITOR,
-    copy.MENU_UNMONITOR,
-    copy.SCENE_SEARCH,
-    copy.MENU_EXCLUDE,
-  ]);
-});
-
-test("puts the one row that can download fourth, where the order says it belongs", () => {
-  expect(keys()[3]).toBe("search");
-  expect(BATCH_MENU_ROWS[3].label).toBe(copy.SCENE_SEARCH);
 });

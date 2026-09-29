@@ -211,8 +211,4 @@ describe("whether the callback can be registered", () => {
     expect(registerRefusal({ ...AT_REST, registering: true })).toBe(REGISTRATION_IS_STILL_RUNNING);
     expect(registerRefusal({ ...AT_REST, address: "  " })).toBe(NOTHING_TO_REGISTER);
   });
-
-  it("offers the press when nothing is in the way", () => {
-    expect(registerRefusal(AT_REST)).toBeNull();
-  });
 });

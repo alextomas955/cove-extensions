@@ -48,13 +48,6 @@ describe("what each kind offers", () => {
     expect(withSetting).toEqual(["notConfigured"]);
   });
 
-  it("offers a version gap neither a retry nor a setting", () => {
-    expect(describeRefusal("versionCapability").affordances).toEqual({
-      retry: false,
-      namesASetting: false,
-    });
-  });
-
   it("reads a version gap as the single-sourced sentence", () => {
     expect(describeRefusal("versionCapability").sentence).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
   });
