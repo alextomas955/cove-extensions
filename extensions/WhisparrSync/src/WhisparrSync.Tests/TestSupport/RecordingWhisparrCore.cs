@@ -67,6 +67,9 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
 
     public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>The exclusion list answers as one that did not arrive whole.</summary>
+    public bool ExclusionListDoesNotArrive { get; set; }
+
 
     public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -486,15 +489,18 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         return Task.FromResult(Answer(nameof(ReadSceneByRemoteIdAsync)));
     }
 
-    public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+    public Task<SceneExclusionReading> ReduceExclusionsAsync(
         IReadOnlyCollection<string> providerSceneIds,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(providerSceneIds);
         ExclusionReads.Add([.. providerSceneIds]);
         Verbs.Add(nameof(ReduceExclusionsAsync));
-        return Task.FromResult<IReadOnlySet<string>>(
-            providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
+        return Task.FromResult(
+            ExclusionListDoesNotArrive
+                ? SceneExclusionReading.DidNotComplete
+                : SceneExclusionReading.Naming(
+                    providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal)));
     }
 
     public Task<ScenesHeld> ReduceHeldScenesAsync(

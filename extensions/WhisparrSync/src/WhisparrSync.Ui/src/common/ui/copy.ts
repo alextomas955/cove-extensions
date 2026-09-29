@@ -308,6 +308,14 @@ export const ADDING_TO_WHISPARR = "Adding...";
 export const WHISPARR_CATALOGUE_NOT_READ =
   "Couldn't read what Whisparr lists for {entity}. Try again shortly.";
 
+/**
+ * The instance was asked which scenes it excludes and nothing whole arrived, so which of the
+ * catalogue is missing could not be worked out.
+ */
+export const WHISPARR_EXCLUSIONS_NOT_READ =
+  "Couldn't read what you've excluded in Whisparr, so this list would show scenes you removed. " +
+  "Try again shortly.";
+
 /** The connected generation addresses no entity of this kind, so it can track none. */
 export const WHISPARR_CANNOT_TRACK_THIS_KIND = "This Whisparr doesn't hold entries of this kind.";
 

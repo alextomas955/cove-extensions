@@ -747,14 +747,15 @@ public sealed class SafetyInvariantTests
 
         public List<IReadOnlyList<string>> AskedAbout { get; } = [];
 
-        public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+        public Task<SceneExclusionReading> ReduceExclusionsAsync(
             IReadOnlyCollection<string> providerSceneIds,
             CancellationToken ct)
         {
             Calls++;
             AskedAbout.Add([.. providerSceneIds]);
-            return Task.FromResult<IReadOnlySet<string>>(
-                providerSceneIds.Where(excluded.Contains).ToHashSet(StringComparer.Ordinal));
+            return Task.FromResult(
+                SceneExclusionReading.Naming(
+                    providerSceneIds.Where(excluded.Contains).ToHashSet(StringComparer.Ordinal)));
         }
 
         public Task<SceneExclusionLookup> FindSceneExclusionAsync(

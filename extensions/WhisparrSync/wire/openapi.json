@@ -2946,6 +2946,7 @@
           "providerUnreachable",
           "entityNotInWhisparr",
           "whisparrCatalogueNotRead",
+          "whisparrExclusionsNotRead",
           "whisparrKeepsNoSceneRecords"
         ]
       },

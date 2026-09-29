@@ -103,6 +103,17 @@ public enum MissingRefusalKind
     WhisparrCatalogueNotRead,
 
     /// <summary>
+    /// The instance was asked which scenes it excludes and no whole answer arrived, so which of the
+    /// catalogue is missing could not be derived.
+    /// </summary>
+    /// <remarks>
+    /// Held apart from an unread catalogue: the scenes were read and it is the exclusions that were
+    /// not. Listing them anyway would put back the scenes this reader excluded. Clears on a retry,
+    /// which the surface offers.
+    /// </remarks>
+    WhisparrExclusionsNotRead,
+
+    /// <summary>
     /// The catalogue was read and the instance keeps no per-scene records, so every card carries an
     /// unknown status.
     /// </summary>
