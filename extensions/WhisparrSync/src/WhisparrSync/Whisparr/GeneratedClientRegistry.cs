@@ -13,6 +13,11 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     // connection supplies a pair per attempt, so the set is not bounded by how many instances exist.
     internal const int MaxRegistrations = 8;
 
+    // Held across the disposed check and the entry it adds, and across the transition disposal
+    // makes. The two steps apart would let a reach that read an undisposed registry add its entry
+    // after disposal had taken the entries away, leaving a provider with nothing that will discard
+    // it.
+    private readonly Lock _lifecycle = new();
     private readonly ConcurrentDictionary<TTarget, Registration> _registrations = new();
     private long _reachCount;
     private bool _disposed;
@@ -21,44 +26,56 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     // teardown would otherwise register against a cleared cache and leak the provider it built.
     public Lease Reach(TTarget target)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        Lease? lease;
         while (true)
         {
-            var registration = _registrations.GetOrAdd(
-                target, key => new Registration(key, register));
-            registration.ReachedAt = Interlocked.Increment(ref _reachCount);
-            lease = registration.TryLease();
+            Registration registration;
+            lock (_lifecycle)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                registration = _registrations.GetOrAdd(
+                    target, key => new Registration(key, register));
+                registration.ReachedAt = Interlocked.Increment(ref _reachCount);
+            }
+
+            // Outside the lifecycle lock: the registration is in the dictionary by now, so disposal
+            // reaches it whatever this does, and building a provider is the slow part of a reach.
+            var lease = registration.TryLease();
             if (lease is not null)
             {
-                break;
+                DiscardBeyondCap(target);
+                return lease;
             }
 
             // Discarded between the lookup and the lease. Only that exact entry is removed, so a
-            // registration another thread has since added in its place is left alone.
+            // registration another thread has since added in its place is left alone. The next turn
+            // of the loop reads the disposed flag again, so a discard that came from disposal ends
+            // as a refusal rather than a second registration.
             _registrations.TryRemove(
                 new KeyValuePair<TTarget, Registration>(target, registration));
         }
-
-        DiscardBeyondCap(target);
-        return lease;
     }
 
     public void Dispose()
     {
-        if (_disposed)
+        Registration[] taken;
+        lock (_lifecycle)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            taken = [.. _registrations.Values];
+            _registrations.Clear();
         }
 
-        _disposed = true;
-        foreach (var registration in _registrations.Values)
+        // Outside the lock, because discarding waits on any request still sending through the
+        // registration it discards.
+        foreach (var registration in taken)
         {
             registration.Discard();
         }
-
-        _registrations.Clear();
     }
 
     // The reached entry is excluded so that traffic against one pair cannot discard the registration
