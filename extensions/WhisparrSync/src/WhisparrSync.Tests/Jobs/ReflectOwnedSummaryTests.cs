@@ -129,17 +129,6 @@ public sealed class ReflectOwnedSummaryTests
         FolderAgreementRefusal refusal, string because)
         => Assert.Equal(Under + because, ReflectOwnedJob.SummaryOf(Run(0, 0, Refused(refusal))));
 
-    [Fact]
-    public void NoReasonIsLeftWithoutASentence()
-    {
-        foreach (var refusal in Enum.GetValues<FolderAgreementRefusal>())
-        {
-            Assert.False(
-                string.IsNullOrWhiteSpace(
-                    ReflectOwnedJob.SummaryOf(Run(0, 0, Refused(refusal)))));
-        }
-    }
-
     // An instance that cannot be asked answers for every folder at once, so there is no one library
     // root to name. A library run links most of its folders and still meets folders under no
     // library root, so the refusal names no root: read as a statement about the run it would

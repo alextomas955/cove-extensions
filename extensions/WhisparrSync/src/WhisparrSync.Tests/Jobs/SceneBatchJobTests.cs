@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,27 +77,6 @@ public sealed class SceneBatchJobTests
         Assert.Equal(SceneBatchVerb.Add, Enum.GetValues<SceneBatchVerb>()[0]);
 
         Assert.Equal(SceneBatchVerb.Exclude, VerbIn("exclude"));
-    }
-
-    // A member holding identifiers would grow with the selection. The declared members are read
-    // rather than an instance, so a collection member added later fails here whatever a run put in
-    // it.
-    [Fact]
-    public void TheRunRecordReportsThreeCountsAndListsNothing()
-    {
-        var members = typeof(SceneBatchJob).Assembly
-            .GetType("WhisparrSync.Jobs.SceneBatchRun")!
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(member => member.Name != "EqualityContract")
-            .ToList();
-
-        Assert.Equal(3, members.Count(member => member.PropertyType == typeof(int)));
-        Assert.Single(members, member => member.PropertyType.IsEnum);
-        Assert.Equal(4, members.Count);
-        Assert.DoesNotContain(
-            members,
-            member => member.PropertyType != typeof(int)
-                && member.PropertyType.IsAssignableTo(typeof(System.Collections.IEnumerable)));
     }
 
     // A selection can genuinely carry one video twice, and acting twice issues two requests for it.

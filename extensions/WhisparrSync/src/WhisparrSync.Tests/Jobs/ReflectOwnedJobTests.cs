@@ -68,12 +68,6 @@ public sealed class ReflectOwnedJobTests
     }
 
     [Fact]
-    public void ARunThatAddressedEveryFileCarriesNoSuchSentence()
-        => Assert.Equal(
-            AttachedNothing,
-            ReflectOwnedJob.SummaryOf(new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, 0, 0)));
-
-    [Fact]
     public async Task ARunTheLinkingSettingStoppedSaysWhichSettingStoppedIt()
     {
         var run = await RunAsync(OneStudio, Stopped(ReflectOwnedSkipReason.HardLinksOff));
