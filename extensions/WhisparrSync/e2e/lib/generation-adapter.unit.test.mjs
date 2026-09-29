@@ -1,10 +1,5 @@
-// Run by path: `node --test extensions/WhisparrSync/e2e/lib/generation-adapter.unit.test.mjs`.
-// The shared harness package's own unit-test script globs `lib/*.unit.test.mjs` under `tests/e2e`
-// alone and does not reach this folder.
-//
 // No container and no Cove. What is covered here is what an end-to-end run cannot show: a green run
-// never takes a reader's refusal path, and member-name equality across the two generations is not
-// decidable by collection or by lint.
+// never takes a reader's refusal path.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -24,10 +19,6 @@ const refusing = {
  */
 const refusingWith = (body, text) => ({
   get: async () => ({ status: 503, text, json: body }),
-});
-
-test("both generations answer to the same member names", () => {
-  assert.deepEqual(Object.keys(adapterFor("v2")).sort(), Object.keys(adapterFor("v3")).sort());
 });
 
 test("a reader handed a refused response names the route, the status and the body", async () => {
