@@ -3,11 +3,12 @@
 // the shared table's marks. Before the table the bar named its own icons and drew the monitor verb
 // as a bookmark while every other surface drew a radar.
 import { expect, test, vi } from "vitest";
-import { createElement } from "react";
+import { act, createElement, useState } from "react";
 
-import { render } from "../common/lib/testRender";
+import { press, render } from "../common/lib/testRender";
 import { SELECTION_MONITOR, SELECTION_UNMONITOR } from "../common/ui/copy";
 import { VERB_GLYPH } from "../common/ui/verbGlyphs";
+import type { SelectionOutcome } from "./missingSelectionLogic";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
@@ -67,4 +68,51 @@ test("the bar's two verbs are not the same mark", async () => {
   expect(markIn(verbNamed(bar, SELECTION_MONITOR))).not.toBe(
     markIn(verbNamed(bar, SELECTION_UNMONITOR)),
   );
+});
+
+// A press disables the verb it was made on, the browser blurs a control it disables, and a refused
+// run leaves the reader with nowhere to press again from.
+test("focus returns to the verb a refused run was pressed from", async () => {
+  let settle: (() => void) | undefined;
+
+  function Harness() {
+    const [outcome, setOutcome] = useState<SelectionOutcome>({ kind: "atRest" });
+    settle = () => {
+      setOutcome({ kind: "refused", refusal: "noInstanceConnected" });
+    };
+    return createElement(MissingSelectionBar, {
+      loadedPageIds: ["s-1"],
+      selected: new Set(["s-1"]),
+      outcome,
+      runUnderWay: false,
+      onSelect: () => undefined,
+      onMonitorSelection: () => {
+        setOutcome({ kind: "inFlight" });
+      },
+      onUnmonitorSelection: () => undefined,
+    });
+  }
+
+  const bar = await render(createElement(Harness));
+  const monitor = verbNamed(bar, SELECTION_MONITOR) as HTMLButtonElement;
+  monitor.focus();
+
+  await press(monitor);
+  // Every browser blurs a control the moment it is disabled, leaving focus on the body. jsdom
+  // leaves focus where it is and ignores `blur()` on a disabled element, so the state the bar has
+  // to repair is reached by dropping focus off an element that is removed.
+  const goes = document.createElement("input");
+  document.body.append(goes);
+  goes.focus();
+  goes.remove();
+  expect(document.activeElement, "the press was set up with focus still somewhere").toBe(
+    document.body,
+  );
+
+  await act(async () => {
+    settle?.();
+    await Promise.resolve();
+  });
+
+  expect(document.activeElement).toBe(verbNamed(bar, SELECTION_MONITOR));
 });
