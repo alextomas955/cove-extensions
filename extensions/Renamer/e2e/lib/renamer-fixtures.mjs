@@ -53,7 +53,7 @@ export function clientFor(harness) {
 export async function storedOptions(api) {
   const all = await api.get(`${ROUTE}/data`);
   expect(all.ok, `reading the extension store answered ${all.status}: ${all.text}`).toBe(true);
-  const blob = (all.json ?? {}).options;
+  const blob = all.json?.options;
   return blob ? JSON.parse(blob) : undefined;
 }
 
