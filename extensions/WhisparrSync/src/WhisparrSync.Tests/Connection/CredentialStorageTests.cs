@@ -63,29 +63,20 @@ public sealed class CredentialStorageTests
             await database.ReadConnectionAsync(WhisparrGeneration.V3));
     }
 
-    // An append would leave two keys for one instance with nothing to say which is current.
-    [Fact]
-    public async Task ASecondWriteForTheSameGenerationLeavesExactlyOneRow()
+    // An append would leave two keys for one instance with nothing to say which is current. The row
+    // is keyed on the generation, so the key's value never decides how many rows exist.
+    [Theory]
+    [InlineData("first-key", "second-key")]
+    [InlineData("same-key", "same-key")]
+    public async Task ASecondWriteForTheSameGenerationLeavesExactlyOneRow(string first, string second)
     {
         await using var database = await CredentialDatabase.CreateAsync();
 
-        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace("first-key"), FirstWriteAt);
-        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace("second-key"), SecondWriteAt);
+        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace(first), FirstWriteAt);
+        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace(second), SecondWriteAt);
 
         Assert.Equal(1, await database.CountRowsAsync(V3Stored));
-        Assert.Equal("second-key", await database.ReadAsync(WhisparrGeneration.V3));
-    }
-
-    // The row is keyed on the generation, so the key's value never decides how many rows exist.
-    [Fact]
-    public async Task AWriteIdenticalToTheStoredKeyLeavesExactlyOneRow()
-    {
-        await using var database = await CredentialDatabase.CreateAsync();
-
-        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace("same-key"), FirstWriteAt);
-        await database.ApplyAsync(WhisparrGeneration.V3, CredentialWrite.Replace("same-key"), SecondWriteAt);
-
-        Assert.Equal(1, await database.CountRowsAsync(V3Stored));
+        Assert.Equal(second, await database.ReadAsync(WhisparrGeneration.V3));
     }
 
     [Fact]

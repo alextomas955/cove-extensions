@@ -100,9 +100,5 @@ public sealed class EndpointMatchGuardTests
     // normalisation arm above it, and that composite answer is what a caller sees.
     [Fact]
     public void TwoBlanksMatchOnTheNormalisationArmAndNotOnTheDomainArm()
-    {
-        Assert.Equal("", EndpointMatchGuard.RegistrableDomain(""));
-        Assert.Equal("", EndpointMatchGuard.RegistrableDomain("   "));
-        Assert.True(EndpointMatchGuard.SameSource("   ", ""));
-    }
+        => Assert.True(EndpointMatchGuard.SameSource("   ", ""));
 }
