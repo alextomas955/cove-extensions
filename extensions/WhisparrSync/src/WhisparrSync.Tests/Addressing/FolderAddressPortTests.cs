@@ -97,7 +97,7 @@ public sealed class FolderAddressPortTests
     public async Task ManyFoldersUnderOneRootCostOneSampleFileAndOneRoundOfProbes()
     {
         var samples = new CountingSampleFiles(new SampleFile(Sample, SampleSize));
-        var declared = new StubInstanceRoots(["/data"]);
+        var declared = new CountingInstanceRoots(["/data"]);
         var (port, handler) = Over(HoldingTheSample, declared, samples);
         var target = Target(handler);
 
@@ -173,7 +173,7 @@ public sealed class FolderAddressPortTests
         var port = new FolderAddressPort(
             new CountingSampleFiles(new SampleFile(nestedSample, SampleSize)),
             new StubLibraryRoots(["/shared", "/shared/media"]),
-            new StubInstanceRoots(["/data/media"]),
+            new CountingInstanceRoots(["/data/media"]),
             new OptionsStore(new FakeStore()),
             new FolderAgreementCache(TimeProvider.System),
             NullLogger.Instance);
@@ -195,7 +195,7 @@ public sealed class FolderAddressPortTests
         string listing,
         string[] declaredRoots,
         ISampleFilePort? samples = null)
-        => Over(listing, new StubInstanceRoots(declaredRoots), samples);
+        => Over(listing, new CountingInstanceRoots(declaredRoots), samples);
 
     private static (IFolderAddressPort Port, BodyRecordingHandler Handler) Over(
         string listing,
@@ -213,17 +213,6 @@ public sealed class FolderAddressPortTests
                 new FolderAgreementCache(TimeProvider.System),
                 NullLogger.Instance),
             handler);
-    }
-
-    private sealed class CountingSampleFiles(SampleFile? answer) : ISampleFilePort
-    {
-        public int Reads { get; private set; }
-
-        public Task<SampleFile?> ReadSampleFileAsync(string coveRoot, CancellationToken ct)
-        {
-            Reads++;
-            return Task.FromResult(answer);
-        }
     }
 
     // Only the roots are supplied. Every other member raises, so a test reaching one fails rather
@@ -263,16 +252,5 @@ public sealed class FolderAddressPortTests
         public Task<bool> EnrichAsync(
             int videoId, string endpoint, string remoteId, CancellationToken ct)
             => throw new NotSupportedException();
-    }
-
-    private sealed class StubInstanceRoots(IReadOnlyList<string> roots) : IReportedRootPort
-    {
-        public int Reads { get; private set; }
-
-        public Task<IReadOnlyList<string>?> ReadAsync(WhisparrGeneration generation, CancellationToken ct)
-        {
-            Reads++;
-            return Task.FromResult<IReadOnlyList<string>?>(roots);
-        }
     }
 }

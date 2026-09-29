@@ -112,7 +112,7 @@ public sealed class FolderMappingRouteTests
     }
 
     [Fact]
-    public async Task ABlankPathRemovesTheStoredMapping()
+    public async Task ABlankPathRemovesTheStoredMappingAndLeavesThatRootNoLine()
     {
         var (host, _) = await ProbingHostAsync(Holding.TheSample);
         await using var driven = host;
@@ -122,6 +122,7 @@ public sealed class FolderMappingRouteTests
 
         Assert.Equal(FolderMappingSaveOutcome.Removed, removed.Outcome);
         Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
+        Assert.Empty((await host.ReadFolderMappingsAsync()).Roots);
     }
 
     // The line stays after the refusal is settled, so the operator can still read and withdraw the
@@ -148,18 +149,6 @@ public sealed class FolderMappingRouteTests
         Assert.Equal(Mapping, line.Mapping);
         Assert.Null(line.Refusal);
         Assert.Empty(line.PathsTried);
-    }
-
-    [Fact]
-    public async Task ASaveThatWithdrewThePathLeavesThatRootNoLine()
-    {
-        var (host, _) = await ProbingHostAsync(Holding.TheSample);
-        await using var driven = host;
-        await host.SaveFolderMappingAsync(CoveRoot, Mapping);
-
-        await host.SaveFolderMappingAsync(CoveRoot, "  ");
-
-        Assert.Empty((await host.ReadFolderMappingsAsync()).Roots);
     }
 
     // Both routes sit at the configure tier. The cases above drive the same routes with a caller

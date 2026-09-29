@@ -61,7 +61,7 @@ public sealed class BackgroundLifecycleTests
     // fault and does not restart. The status is asserted rather than the completion, because a
     // worker that swallowed the cancellation also finishes.
     [Fact]
-    public async Task ACancelledWorkerEndsAsCancelledRatherThanFaulted()
+    public async Task ACancelledWorkerEndsAsCancelledAndLeavesBothHalvesOfTheLifecycleReadable()
     {
         var extension = WhisparrSyncFixture.Create();
         await using var services = WorkerServices();
@@ -73,18 +73,6 @@ public sealed class BackgroundLifecycleTests
 
         Assert.True(worker.IsCanceled, "the worker did not end as cancelled");
         Assert.False(worker.IsFaulted);
-    }
-
-    [Fact]
-    public async Task BothHalvesOfTheLifecycleAreReadableAfterTheStop()
-    {
-        var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices();
-        using var stop = new CancellationTokenSource();
-
-        var worker = extension.RunAsync(services, stop.Token);
-        await stop.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
 
         var probe = ProbeOf(extension);
         Assert.NotNull(probe.WorkerStartedAtUtc);
@@ -94,8 +82,8 @@ public sealed class BackgroundLifecycleTests
             $"the worker was recorded as cancelled at {probe.WorkerCancelledAtUtc:O}, before it started at {probe.WorkerStartedAtUtc:O}");
     }
 
-    // The control for the three cases above: without it each of them could be reading a value that
-    // is set from construction.
+    // The control for the cases above: without it each of them could be reading a value that is set
+    // from construction.
     [Fact]
     public void AnExtensionWhoseWorkerNeverRanReportsNeitherInstant()
     {

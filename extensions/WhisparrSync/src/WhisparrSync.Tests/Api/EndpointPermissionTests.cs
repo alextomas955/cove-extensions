@@ -27,8 +27,10 @@ public sealed class EndpointPermissionTests
     // list, so a second anonymous route fails here instead of being added beside this one.
     private const string AnonymousRoute = "POST /api/extensions/com.alextomas955.whisparrsync/callback";
 
+    // The tier assertion accepts an anonymous declaration, so a second anonymous route would pass
+    // it. Comparing the anonymous set against one transcribed route is what catches that.
     [Fact]
-    public async Task EveryMountedRouteDeclaresItsAccessTier()
+    public async Task EveryMountedRouteDeclaresItsAccessTierAndExactlyOneIsAnonymous()
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -65,30 +67,6 @@ public sealed class EndpointPermissionTests
                 + "anonymous convention, so the host admits them anonymously and logs a warning rather "
                 + "than refusing: " + string.Join(", ", undeclared));
 
-        await app.StopAsync(TestContext.Current.CancellationToken);
-    }
-
-    // The tier assertion above accepts an anonymous declaration, so a second anonymous route would
-    // pass it. Comparing the anonymous set against one transcribed route is what catches that.
-    [Fact]
-    public async Task ExactlyOneMountedRouteIsAnonymousAndItIsTheCallback()
-    {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Services.AddWhisparrSyncBindingServices();
-        builder.Services.AddRouting();
-
-        await using var app = builder.Build();
-        WhisparrSyncFixture.Create().MapEndpoints(app);
-        await app.StartAsync(TestContext.Current.CancellationToken);
-
-        var routes = app.Services
-            .GetRequiredService<EndpointDataSource>()
-            .Endpoints.OfType<RouteEndpoint>()
-            .ToList();
-
-        Assert.NotEmpty(routes);
-
         var anonymous = routes
             .Where(route => route.Metadata.GetMetadata<CoveAllowAnonymousMetadata>() is not null)
             .Select(Describe)
@@ -105,12 +83,17 @@ public sealed class EndpointPermissionTests
         await app.StopAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
-    public void TheHostConfigurationProbeRefusesACallerWithoutTheReadTier()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheHostConfigurationProbeRefusesACallerWithoutTheReadTier(bool noPrincipalAtAll)
     {
         var extension = WhisparrSyncFixture.Create();
+        var refused = noPrincipalAtAll
+            ? FakePrincipalAccessor.NullPrincipal()
+            : FakePrincipalAccessor.None();
 
-        Assert.Equal(403, StatusOf(extension.HostConfiguration(FakePrincipalAccessor.None())));
+        Assert.Equal(403, StatusOf(extension.HostConfiguration(refused)));
         Assert.NotEqual(
             403,
             StatusOf(extension.HostConfiguration(
@@ -267,14 +250,6 @@ public sealed class EndpointPermissionTests
         Assert.Contains(
             credentials.Writes,
             write => write.Generation == WhisparrGeneration.V3 && write.ApiKey == "a-key");
-    }
-
-    [Fact]
-    public void ACallerWithNoPrincipalAtAllIsRefused()
-    {
-        var extension = WhisparrSyncFixture.Create();
-
-        Assert.Equal(403, StatusOf(extension.HostConfiguration(FakePrincipalAccessor.NullPrincipal())));
     }
 
     private static async Task<IResult> SceneWriteAsync(
