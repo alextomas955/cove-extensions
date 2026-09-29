@@ -3,9 +3,9 @@ import type { WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
 
 /**
  * `working` while a run this browser started is still working the card through, `state` for what
- * the instance holds, `notLinked` where the library holds no link this generation could name the
- * entity by, and null while the read is still in flight or the state is one this surface leaves
- * undrawn.
+ * the instance holds, including the state a read that established nothing answers, `notLinked`
+ * where the library holds no link this generation could name the entity by, and null while the
+ * read is still in flight or the page could not be answered for.
  */
 export type BadgeChip = "working" | "state" | "notLinked" | null;
 

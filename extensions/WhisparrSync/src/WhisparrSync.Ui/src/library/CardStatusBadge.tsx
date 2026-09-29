@@ -24,9 +24,8 @@ export function CardStatusBadge({
   const { reading, settled, running, pageRefused } = useCardStatus(kind, coveId, on);
 
   const state: WhisparrEntityState | null = reading === null ? null : deriveState(reading);
-  const drawn = state === "statusUnknown" ? null : state;
 
-  const chip = badgeChipFor({ running, settled, state: drawn, pageRefused });
+  const chip = badgeChipFor({ running, settled, state, pageRefused });
 
   const region = deriveAsyncRegionState({
     reading: on && !settled,
@@ -52,8 +51,8 @@ export function CardStatusBadge({
               <WorkingChip />
             ) : chip === "notLinked" ? (
               <NotLinkedChip />
-            ) : drawn === null ? null : (
-              <StateChip state={drawn} />
+            ) : state === null ? null : (
+              <StateChip state={state} />
             )}
           </div>
         )
