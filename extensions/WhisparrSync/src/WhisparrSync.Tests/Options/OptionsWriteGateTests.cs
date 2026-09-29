@@ -54,6 +54,64 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(2, store.Saves);
     }
 
+    // A settings save writes the connection rows and then folds the blob. Written outside the gate
+    // the two saves could interleave their rows and leave one generation from each, under a blob
+    // describing only one of them. Recorded as the order the steps actually ran in, so the
+    // assertion fails on any interleaving rather than on a count.
+    [Fact]
+    public async Task AWriteBeforeTheFoldRunsInsideTheSameHold()
+    {
+        var store = new ParkingStore();
+        var options = new OptionsStore(store);
+        using var gate = new OptionsWriteGate();
+        var steps = new ConcurrentQueue<string>();
+
+        var first = gate.MutateAfterAsync(
+            options,
+            async (_, writeCt) =>
+            {
+                steps.Enqueue("write:first");
+                await Task.Yield();
+                steps.Enqueue("wrote:first");
+            },
+            stored =>
+            {
+                steps.Enqueue("fold:first");
+                return stored with { CallbackHost = MovedHost };
+            },
+            TestCt);
+
+        await store.LoadBegun;
+
+        var second = gate.MutateAfterAsync(
+            options,
+            async (_, writeCt) =>
+            {
+                steps.Enqueue("write:second");
+                await Task.Yield();
+                steps.Enqueue("wrote:second");
+            },
+            stored =>
+            {
+                steps.Enqueue("fold:second");
+                return stored with { UpgradeBehavior = UpgradeBehavior.Replace };
+            },
+            TestCt);
+
+        await store.LoadsBegunOrLapse(2, Lapse);
+        store.ReleaseLoads();
+        await Task.WhenAll(first, second).WaitAsync(Budget, TestCt);
+
+        Assert.Equal(
+            ["write:first", "wrote:first", "fold:first",
+             "write:second", "wrote:second", "fold:second"],
+            steps);
+
+        var persisted = await options.LoadAsync(TestCt);
+        Assert.Equal(MovedHost, persisted.CallbackHost);
+        Assert.Equal(UpgradeBehavior.Replace, persisted.UpgradeBehavior);
+    }
+
     [Fact]
     public async Task AFoldThatChangesNothingWritesNothing()
     {

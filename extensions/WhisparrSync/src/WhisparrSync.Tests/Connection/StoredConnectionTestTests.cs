@@ -434,12 +434,8 @@ public sealed class StoredConnectionTestTests
         }
 
         public Task ApplyAsync(
-            WhisparrGeneration generation,
-            CredentialWrite write,
-            string address,
-            DateTimeOffset nowUtc,
-            CancellationToken ct)
-            => inner.ApplyAsync(generation, write, address, nowUtc, ct);
+            IReadOnlyList<CredentialApply> writes, DateTimeOffset nowUtc, CancellationToken ct)
+            => inner.ApplyAsync(writes, nowUtc, ct);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
