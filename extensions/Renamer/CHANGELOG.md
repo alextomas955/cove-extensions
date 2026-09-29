@@ -17,7 +17,8 @@ longer disagree.
   that every size from 4K upwards used to collapse into. Note the capital K.
 - `540p` stays `540p` instead of rounding down to `480p`.
 - Small frames are labelled more coarsely. A 768 x 432 frame is now `480p`, where it used to render
-  its exact height as `432p`. A frame under 144 pixels on its longer edge gets no label at all.
+  its exact height as `432p`. Use `$height` to keep `432p`. A frame under 144 pixels on its longer
+  edge gets no label at all.
 - A portrait video is labelled like the landscape video of the same shape. A 1080 x 1920 video is
   `1080p`, not `1440p`.
 - A file Cove has no width and height for gets no label, the same pair Cove needs for its own badge.
@@ -30,6 +31,14 @@ it, so the drop shortens the name.
 A find-and-replace rule now applies only to the token it names. A rule on the width or the height no
 longer rewrites the resolution in your name, and a rule on the resolution reaches the label Renamer
 computed, which it could not before.
+
+### `$height` is a label, not a number
+
+`$height` now renders the frame height with a `p` after it, so a 768 x 432 frame is `432p` where it
+used to be `432`. From 2160 pixels high it is `4K`, `5K`, `6K`, `7K` or `8K`, the labels Cove uses.
+A file with no height stored gets no `$height`, so its bracketed group drops instead of rendering
+`0`. A label already at the end of the title is not repeated. A find-and-replace rule on `$height`
+now sees the label, for example `1080p`. `$width` is unchanged and is still a plain number.
 
 ### A settings page you can scan
 

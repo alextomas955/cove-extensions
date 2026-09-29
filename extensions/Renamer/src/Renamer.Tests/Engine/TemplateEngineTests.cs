@@ -364,6 +364,55 @@ public class TemplateEngineTests
     }
 
     [Fact]
+    public void Height_RendersTheStoredHeight_WhileResolutionRoundsToCovesBucket()
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Alyssa",
+            ["width"] = "768",
+            ["height"] = "432",
+        };
+        var r = Render("$title [$height] [$resolution]", tokens);
+        Assert.Equal("Alyssa [432p] [480p]", r.Filename);
+    }
+
+    [Fact]
+    public void Height_UnknownHeight_DropsItsGroup()
+    {
+        var r = Render("X{ [$height]}", new Dictionary<string, string> { ["height"] = "0" });
+        Assert.Equal("X", r.Filename);
+    }
+
+    [Theory]
+    [InlineData("Alyssa [432p]")]
+    [InlineData("Alyssa [480p]")]
+    public void TrailingResolution_InTitle_NotDoubled_WhenTemplateAppendsHeight(string title)
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["height"] = "432",
+        };
+        var r = Render("$title{ [$height]}", tokens);
+        Assert.Equal("Alyssa [432p]", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_LengthReducerDropsHeight_DropsTheTitleTagToo()
+    {
+        // "Movie [4K]" is over the cap, and the title tag is longer than the dropped label, so keeping
+        // it would push the name back over the budget and into a hard truncation.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["height"] = "2160",
+        };
+        var options = new RenamerOptions { FilenameMax = 9, FullPathMax = 9, DropOrder = ["height"] };
+        var r = Render("$title{ [$height]}", tokens, options: options);
+        Assert.Equal("Movie", r.Filename);
+    }
+
+    [Fact]
     public void CoreTokens_Performers_FromMultiValueSideInput()
     {
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -463,14 +512,12 @@ public class TemplateEngineTests
     // ---- default grouped template: {$date - }$title{ [$height]} degradation ----
 
     [Theory]
-    [InlineData("2026-03-12", "1080", "2026-03-12 - Title [1080]")] // both groups render
-    [InlineData("", "1080", "Title [1080]")]                        // date-less: no leading " - "
-    [InlineData("2026-03-12", "", "2026-03-12 - Title")]            // height-less: no empty brackets
-    [InlineData("", "", "Title")]                                   // bare title only
+    [InlineData("2026-03-12", "1080", "2026-03-12 - Title [1080p]")] // both groups render
+    [InlineData("", "1080", "Title [1080p]")]                        // date-less: no leading " - "
+    [InlineData("2026-03-12", "", "2026-03-12 - Title")]             // height-less: no empty brackets
+    [InlineData("", "", "Title")]                                    // bare title only
     public void DefaultGroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
-        // $height is the raw numeric token (1080), distinct from the derived $resolution bucket
-        // (which would render "1080p").
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
         if (date.Length > 0)
         {

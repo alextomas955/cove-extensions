@@ -34,6 +34,25 @@ public class ResolutionLabelTests
     }
 
     [Theory]
+    [InlineData(432, "432p")]
+    [InlineData(1080, "1080p")]
+    [InlineData(1440, "1440p")]
+    [InlineData(2159, "2159p")]
+    [InlineData(2160, "4K")]
+    [InlineData(2880, "5K")]
+    [InlineData(3383, "5K")]
+    [InlineData(3384, "6K")]
+    [InlineData(4032, "7K")]
+    [InlineData(4320, "8K")]
+    [InlineData(9000, "8K")]
+    [InlineData(0, "")]
+    [InlineData(-1, "")]
+    public void FromHeight_ReturnsExpectedLabel(int height, string expected)
+    {
+        Assert.Equal(expected, ResolutionLabel.FromHeight(height));
+    }
+
+    [Theory]
     [InlineData(143, 136)]
     [InlineData(136, 136)]
     [InlineData(100, 100)]
