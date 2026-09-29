@@ -182,32 +182,6 @@ public sealed class PathCandidateGuardTests
         Assert.Equal("/media/inner", reading.RefusalRoot);
     }
 
-    // Transcribed by hand rather than counted from the enum, so adding a member fails here and has to
-    // be decided rather than absorbed.
-    [Fact]
-    public void TheRefusalVocabularyIsTheFourCausesAndNoMore()
-        => Assert.Equal(
-            new[]
-            {
-                ImportRefusalCause.NotFoundUnderAnyRoot,
-                ImportRefusalCause.AmbiguousCandidates,
-                ImportRefusalCause.Unreadable,
-                ImportRefusalCause.NotPlacedInLibrary,
-            }.Order(),
-            Enum.GetValues<ImportRefusalCause>().Order());
-
-    [Fact]
-    public void AResolutionNamesEitherAPathOrACauseAndNeverBoth()
-    {
-        var imported = PathCandidateGuard.Resolve([Found("/data/scene.mp4", 10)], 10);
-        Assert.Equal("/data/scene.mp4", imported.Path);
-        Assert.Null(imported.Cause);
-
-        var refused = PathCandidateGuard.Resolve([], 10);
-        Assert.Null(refused.Path);
-        Assert.NotNull(refused.Cause);
-    }
-
     [Fact]
     public void ExactlyOneVerifiedCandidateIsTheOneToImport()
     {

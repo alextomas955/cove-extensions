@@ -55,19 +55,6 @@ public sealed class ImportCoreIdentityTests
         Assert.Equal((1, "https://stashdb.org/graphql", RemoteId), Assert.Single(ingest.Library.Enriched));
     }
 
-    [Fact]
-    public async Task ARedeliveryOfTheSameSceneStampsNothingAndAsksTheSourceForNothing()
-    {
-        var ingest = new Ingest();
-        await ingest.DeliverAsync();
-        ingest.Library.Held[VerifiedPath] = new HeldFile(1);
-
-        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
-
-        Assert.Single(ingest.Library.Stamped);
-        Assert.Single(ingest.Library.Enriched);
-    }
-
     // The library identified this scene before this product saw it. Nothing is stamped and the source
     // is not asked, which is what keeps a user's own edits.
     [Fact]

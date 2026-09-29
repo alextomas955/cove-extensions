@@ -17,6 +17,9 @@ public sealed class HistoryProjectorTests
     public void TheActedEventTypeIsTheHistorySpelling()
         => Assert.Equal("downloadFolderImported", HistoryProjector.ImportedEventType);
 
+    // A size has not been shown to live on a history record, so none is read, and a candidate with no
+    // size is verified on presence alone. A file an instance never matched is still a file to
+    // register, and the absent identifier is what tells a later match there is nothing to match on.
     [Fact]
     public void AnImportRecordProjectsToACandidateAtTheImportedPath()
     {
@@ -26,13 +29,9 @@ public sealed class HistoryProjectorTests
         Assert.Equal(ImportedPath, reading.Candidate?.ReportedPath);
         Assert.Equal(WhisparrGeneration.V3, reading.Candidate?.Generation);
         Assert.Equal(HistoryProjector.ImportedEventType, reading.Candidate?.EventType);
+        Assert.Null(reading.Candidate?.ReportedSize);
+        Assert.Null(reading.Candidate?.RemoteId);
     }
-
-    // A size has not been shown to live on a history record, so none is read, and a candidate with no
-    // size is verified on presence alone.
-    [Fact]
-    public void AProjectedCandidateCarriesNoSize()
-        => Assert.Null(HistoryProjector.Read(WhisparrGeneration.V3, Record(ImportedPath)).Candidate?.ReportedSize);
 
     // The entity and the member are the ones the live channel reads for the same lineage, which is what
     // makes one scene the same scene whichever channel reported it. Transcribed by hand from an
@@ -61,17 +60,6 @@ public sealed class HistoryProjectorTests
         var other = generation == WhisparrGeneration.V3 ? WhisparrGeneration.V2 : WhisparrGeneration.V3;
 
         Assert.Null(HistoryProjector.Read(other, record).Candidate?.RemoteId);
-    }
-
-    // A file an instance never matched is still a file to register, and the absence is what tells a
-    // later match there is nothing to match on.
-    [Fact]
-    public void ARecordCarryingNoEntityStillProjectsWithNoIdentifier()
-    {
-        var reading = HistoryProjector.Read(WhisparrGeneration.V3, Record(ImportedPath));
-
-        Assert.Equal(HistoryProjectionOutcome.Projected, reading.Outcome);
-        Assert.Null(reading.Candidate?.RemoteId);
     }
 
     // One lineage omits its member or leaves it blank; the other carries a number its schema starts

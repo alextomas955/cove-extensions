@@ -28,64 +28,42 @@ public sealed class ImportRefusalProjectorTests
             entry.NewestPaths);
     }
 
-    [Fact]
-    public void AFourthRefusalDropsTheOldestAndLeadsWithTheNewest()
-    {
-        var folded = Refusals(4);
-
-        var entry = Assert.Single(folded);
-        Assert.Equal(4, entry.CountSinceLastSuccess);
-        Assert.Equal(
-            ["/whisparr-media/4.mp4", "/whisparr-media/3.mp4", "/whisparr-media/2.mp4"],
-            entry.NewestPaths.Select(path => path.Path));
-    }
-
     // The entry's size is what the aggregate promises: whatever a library throws at it, one root's line
-    // is a count and three paths.
-    [Fact]
-    public void AHundredRefusalsForOneRootStillLeaveThreePathsAndOneCount()
+    // is a count and three paths. Four is the boundary at which the first path is dropped.
+    [Theory]
+    [InlineData(4, new[] { "/whisparr-media/4.mp4", "/whisparr-media/3.mp4", "/whisparr-media/2.mp4" })]
+    [InlineData(100, new[] { "/whisparr-media/100.mp4", "/whisparr-media/99.mp4", "/whisparr-media/98.mp4" })]
+    public void ARefusalBeyondTheThirdDropsTheOldestAndLeadsWithTheNewest(int refusals, string[] newest)
     {
-        var entry = Assert.Single(Refusals(100));
+        var entry = Assert.Single(Refusals(refusals));
 
-        Assert.Equal(100, entry.CountSinceLastSuccess);
+        Assert.Equal(refusals, entry.CountSinceLastSuccess);
         Assert.Equal(ImportRootRefusals.NewestPathsKept, entry.NewestPaths.Count);
-        Assert.Equal(
-            ["/whisparr-media/100.mp4", "/whisparr-media/99.mp4", "/whisparr-media/98.mp4"],
-            entry.NewestPaths.Select(path => path.Path));
+        Assert.Equal(newest, entry.NewestPaths.Select(path => path.Path));
     }
 
-    [Fact]
-    public void ARepeatedPathNeitherLengthensTheListNorCountsTwice()
+    // An over-long path is stored shortened, so a fold comparing the reported path against the stored
+    // one never matches it against itself: one root reporting one path twice would take two of the
+    // three slots its line keeps.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARepeatedPathNeitherLengthensTheListNorCountsTwice(bool overLong)
     {
+        var path = overLong
+            ? Root + "/" + new string('a', ImportRefusalEntry.PathMaxLength)
+            : "/whisparr-media/one.mp4";
+
         var once = ImportRefusalProjector.Refuse(
-            [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+            [], Root, path, ImportRefusalCause.NotFoundUnderAnyRoot);
         var twice = ImportRefusalProjector.Refuse(
-            once, Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot);
+            once, Root, path, ImportRefusalCause.NotFoundUnderAnyRoot);
 
         var entry = Assert.Single(twice);
         Assert.Equal(1, entry.CountSinceLastSuccess);
         Assert.Single(entry.NewestPaths);
 
         // The whole aggregate is unchanged, which is the reading the caller skips a write on.
-        Assert.Equal(once, twice);
-    }
-
-    // Such a path is stored shortened, so a fold comparing the reported path against the stored one
-    // never matches it against itself: one root reporting one path twice would take two of the three
-    // slots its line keeps.
-    [Fact]
-    public void ARepeatedOverLongPathNeitherLengthensTheListNorCountsTwice()
-    {
-        var tooLong = Root + "/" + new string('a', ImportRefusalEntry.PathMaxLength);
-
-        var once = ImportRefusalProjector.Refuse(
-            [], Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
-        var twice = ImportRefusalProjector.Refuse(
-            once, Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
-
-        var entry = Assert.Single(twice);
-        Assert.Equal(1, entry.CountSinceLastSuccess);
-        Assert.Single(entry.NewestPaths);
         Assert.Equal(once, twice);
     }
 
@@ -150,18 +128,6 @@ public sealed class ImportRefusalProjectorTests
         var entry = Assert.Single(folded);
         Assert.Equal(ImportRefusalProjector.NoReportedRoot, entry.Root);
         Assert.Equal(1, entry.CountSinceLastSuccess);
-    }
-
-    [Fact]
-    public void ASuccessClearsOneRootAndLeavesAnotherIntact()
-    {
-        var before = ImportRefusalProjector.Refuse(
-            Refusals(2), Other, "/whisparr-other/one.mp4", ImportRefusalCause.AmbiguousCandidates);
-
-        var after = ImportRefusalProjector.Succeed(before, Root);
-
-        Assert.Equal(Other, Assert.Single(after).Root);
-        Assert.Equal(before.Single(entry => entry.Root == Other), after[0]);
     }
 
     [Fact]

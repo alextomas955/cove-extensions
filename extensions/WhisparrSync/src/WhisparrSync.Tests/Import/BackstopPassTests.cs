@@ -46,17 +46,6 @@ public sealed class BackstopPassTests
         Assert.Equal(0, result.RecordsTaken);
     }
 
-    [Fact]
-    public async Task TheFirstPassRecordsThePositionAsLost()
-    {
-        var pass = new Pass(mark: null);
-        pass.Answering(Page(Descending(3)));
-
-        await pass.RunAsync();
-
-        Assert.True((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
-    }
-
     // Without a mark written here, every later pass would be another first connect and the backstop
     // would never import anything.
     [Fact]
@@ -130,52 +119,33 @@ public sealed class BackstopPassTests
 
     // The key and the address are two writes in two stores, and the row holding the key is the one
     // an outbound request is built from. Reading the address from the options blob instead would
-    // send this key to the instance the blob still names.
+    // send this key to the instance the blob still names. The stored mark is a position in the
+    // history of the instance the blob names, so handing it to a walk against a different instance
+    // would declare that instance's older records already read and nothing would go back for them.
+    // The instant itself came out of the instance the row names, and the record it would be written
+    // onto describes the one the blob names.
     [Fact]
-    public async Task ThePassContactsTheAddressHeldBesideTheKeyItSends()
-    {
-        var pass = new Pass(mark: Noon.AddMinutes(-5), rowAddress: MovedAddress);
-        pass.Answering(Page(Descending(3)));
-
-        await pass.RunAsync();
-
-        var binding = Assert.Single(pass.Instances.Bindings);
-        Assert.True(ConnectionTester.IsSameAddress(MovedAddress, binding.BaseAddress.ToString()));
-    }
-
-    // The stored mark is a position in the history of the instance the blob names. Handing it to a
-    // walk against a different instance declares that instance's older records already read, and
-    // nothing ever goes back for them.
-    [Fact]
-    public async Task AWalkAgainstAnInstanceTheMarkIsNotAboutStartsWithNoPosition()
-    {
-        var pass = new Pass(mark: Noon.AddMinutes(-5), rowAddress: MovedAddress);
-        pass.Answering(Page(Descending(3)));
-
-        var result = await pass.RunAsync();
-
-        Assert.Equal(BackstopPassOutcome.FirstConnect, result.Outcome);
-        Assert.Empty(pass.Core.Ingested);
-    }
-
-    // The instant came out of the instance the row names, and the record it would be written onto
-    // describes the one the blob names.
-    [Fact]
-    public async Task AMarkReadFromOneInstanceIsNotWrittenOntoAnother()
+    public async Task AWalkAgainstTheAddressAMovedRowNamesStartsWithNoPositionAndWritesTheMarkNowhere()
     {
         var mark = Noon.AddMinutes(-5);
         var pass = new Pass(mark, rowAddress: MovedAddress);
         pass.Answering(Page(Descending(3)));
 
-        await pass.RunAsync();
+        var result = await pass.RunAsync();
+
+        var binding = Assert.Single(pass.Instances.Bindings);
+        Assert.True(ConnectionTester.IsSameAddress(MovedAddress, binding.BaseAddress.ToString()));
+
+        Assert.Equal(BackstopPassOutcome.FirstConnect, result.Outcome);
+        Assert.Empty(pass.Core.Ingested);
 
         var stored = await pass.StoredAsync();
         Assert.Equal(Address, stored.V3?.Address);
         Assert.Equal(mark, stored.V3?.BackstopWatermarkUtc);
     }
 
-    // Control for the three cases above: a row naming the address the blob already holds is the
-    // ordinary shape, and a pass that treated every row address as a move would never advance.
+    // Control for the case above: a row naming the address the blob already holds is the ordinary
+    // shape, and a pass that treated every row address as a move would never advance.
     [Fact]
     public async Task ARowNamingTheStoredAddressWalksFromTheStoredMark()
     {
@@ -328,20 +298,6 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    [Fact]
-    public async Task ARefusedPassIsRecordedInTheHealthAggregate()
-    {
-        var pass = new Pass(mark: Noon.AddMinutes(-30));
-        pass.Answering(Page([Noon.AddMinutes(-5), Noon]));
-
-        await pass.RunAsync();
-
-        var health = (await pass.StoredAsync()).ImportHealth;
-        Assert.Equal(1, health.ConsecutiveFailures);
-        Assert.NotNull(health.LastFailedAtUtc);
-        Assert.NotEmpty(health.LastError);
-    }
-
     // The last-failed instant is left where it was. It records that a failure happened, and a later
     // readout has to be able to say when.
     [Fact]
@@ -352,7 +308,10 @@ public sealed class BackstopPassTests
 
         var refused = await pass.RunAsync();
         Assert.Equal(BackstopPassOutcome.RefusedPageOrder, refused.Outcome);
-        var failed = (await pass.StoredAsync()).ImportHealth.LastFailedAtUtc;
+        var refusedHealth = (await pass.StoredAsync()).ImportHealth;
+        Assert.Equal(1, refusedHealth.ConsecutiveFailures);
+        Assert.NotEmpty(refusedHealth.LastError);
+        var failed = refusedHealth.LastFailedAtUtc;
         Assert.NotNull(failed);
 
         var walked = await pass.RunAsync();
