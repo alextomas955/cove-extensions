@@ -236,7 +236,9 @@ for (const generation of ["v3", "v2"]) {
       expect(bounded).toHaveLength(1);
 
       // Four refusals, three paths, and the one no longer listed is the oldest.
-      expect(bounded[0], "act two: the count is not the stored one").toContain("4");
+      expect(bounded[0], "act two: the count is not the stored one").toContain(
+        `4 files under ${WHISPARR_ROOT}`,
+      );
       for (const tail of tails.slice(1)) {
         expect(bounded[0], `act two: ${tail} is not listed`).toContain(tail);
       }
