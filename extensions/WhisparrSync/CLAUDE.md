@@ -21,6 +21,10 @@ in code, comments, tests, documentation or commit messages: the framing makes a 
 read as acceptable, which is how this extension came to drive several shared capabilities on v3
 alone. Write `v2` and `v3`, or name the architecture.
 
+`Whisparr/V2` and `Whisparr/V3` hold each one's own spellings, and `Whisparr/Common` holds what
+speaks neither. Everything above the folder speaks this product's own terms. The tests mirror it.
+All three share one namespace, so moving a file between them changes no caller.
+
 ## Identity and routing
 
 - `extension.json` is the only source of identity (id, name, version, description, host floor,
@@ -91,6 +95,10 @@ A capability a generation cannot honor is a role interface its backend does not 
 obtains the role or is refused before any request leaves. There is no `Supports*` probe and no
 version-mismatch throw. Bind a role to behavior that was measured against a real instance, not to a
 field the API documentation names.
+
+The capability list a browser reads is derived from the roles each instance implements. Adding a
+capability means implementing its role and naming the role beside the capability in
+`GenerationCapabilities`. Never write a generation's list out by hand.
 
 ## Where an e2e spec lives, and what its name says
 
