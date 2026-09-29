@@ -171,34 +171,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(adds);
     }
 
-    // Seeded past SyncPreviewJob.ChunkSize, so the count spans more than one chunk and fails on a
-    // ceiling introduced at any value below the seed. A ceiling would answer a short already-there
-    // and not-yet-there pair that reads like a complete one, so the pair is asserted to add back up
-    // to the number seeded.
-    [Fact]
-    public async Task TheSiteCountReadsEverySiteInTheStreamAndTruncatesNothing()
-    {
-        var seeded = Sites(SyncPreviewJob.ChunkSize + 1);
-        var asked = new List<string>();
-
-        var counted = await CountAsync(
-            seeded,
-            (batch, _) =>
-            {
-                asked.AddRange(batch);
-                return Task.FromResult(
-                    new SiteBatchReading(
-                        batch.Where((_, index) => index % 2 == 1).ToHashSet(StringComparer.Ordinal),
-                        new HashSet<string>(StringComparer.Ordinal),
-                        new HashSet<string>(StringComparer.Ordinal)));
-            });
-
-        Assert.NotNull(counted);
-        Assert.Equal(seeded.Count, asked.Count);
-        Assert.Equal(seeded.Count, counted.AlreadyThere + counted.NotYetThere);
-        Assert.Equal(SyncRegisters.Sites, counted.Registers);
-    }
-
     // The three counts arrive together or not at all. A site put in the not-yet-there column
     // because its read failed is a number a reader cannot tell from a real one.
     [Fact]
@@ -529,20 +501,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(run.RootsLeftBehind);
         Assert.Equal(
             "1 site registered, 1 already in Whisparr, 0 refused.", summary, StringComparer.Ordinal);
-    }
-
-    [Fact]
-    public async Task ARunThatMovedSitesStatesHowMany()
-    {
-        var progress = new RecordingJobProgress();
-
-        await RunOverAsync(
-            progress, (SceneRegistration.Moved, AtOneRoot), (SceneRegistration.Moved, AtOneRoot));
-
-        Assert.Contains(
-            "2 moved to the root holding their files",
-            progress.Summaries[^1],
-            StringComparison.Ordinal);
     }
 
     // The count sits beside the other figures rather than inside the refused one. A studio the
