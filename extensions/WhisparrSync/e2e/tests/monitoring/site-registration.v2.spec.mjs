@@ -45,13 +45,17 @@ test("it registers a site the instance does not hold", async ({ v2 }) => {
 
   const job = await pollUntil(
     async () => (await api.get(extensionRoute(`job-status/${String(started.json?.jobId)}`))).json,
-    (one) => /complete|fail/i.test(String(one?.status)),
+    (one) => /completed|failed|cancelled/i.test(String(one?.status)),
     { timeoutMs: 180_000, intervalMs: 2000, label: "the run's own job status" },
   );
 
   // Asserted before waiting on the effect: the instance-side poll below takes minutes to fail and
   // says only that nothing arrived, while this says what the run decided.
   expect(job?.error ?? null, `the run faulted: ${job?.error}`).toBeNull();
+  expect(
+    String(job?.status).toLowerCase(),
+    `the run did not complete: ${JSON.stringify(job)}`,
+  ).toBe("completed");
   expect(job?.entitiesTotal ?? 0, `the run considered no site: ${job?.summary}`).toBe(2);
   expect(job?.entitiesRefused ?? 0, `the run refused a site: ${job?.summary}`).toBe(0);
   expect(

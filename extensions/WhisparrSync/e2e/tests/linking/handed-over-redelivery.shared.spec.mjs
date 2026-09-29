@@ -63,10 +63,14 @@ for (const generation of ["v3", "v2"]) {
       const run = await pollUntil(
         async () =>
           (await api.get(extensionRoute(`job-status/${String(started.json?.jobId)}`))).json,
-        (one) => /complete|fail/i.test(String(one?.status)),
+        (one) => /completed|failed|cancelled/i.test(String(one?.status)),
         { timeoutMs: RUN_BUDGET_MS, intervalMs: 2_000, label: "the library run's own job status" },
       );
       expect(run?.error ?? null, `the run faulted: ${String(run?.error)}`).toBeNull();
+      expect(
+        String(run?.status).toLowerCase(),
+        `the run did not complete: ${JSON.stringify(run)}`,
+      ).toBe("completed");
 
       // The subject of the delivery below. Without one the run linked nothing, and everything after
       // this would hold for a product that linked nothing either.
