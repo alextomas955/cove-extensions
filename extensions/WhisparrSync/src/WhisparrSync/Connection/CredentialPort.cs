@@ -40,15 +40,24 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
         return row is null ? null : new WhisparrStoredConnection(row.Address, row.ApiKey);
     }
 
+    // Staged a row at a time and committed once, so the generations move together.
     public async Task ApplyAsync(
-        WhisparrGeneration generation,
-        CredentialWrite write,
-        string address,
-        DateTimeOffset nowUtc,
-        CancellationToken ct)
+        IReadOnlyList<CredentialApply> writes, DateTimeOffset nowUtc, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(write);
+        ArgumentNullException.ThrowIfNull(writes);
 
+        foreach (var applying in writes)
+        {
+            await StageAsync(applying, nowUtc, ct).ConfigureAwait(false);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task StageAsync(
+        CredentialApply applying, DateTimeOffset nowUtc, CancellationToken ct)
+    {
+        var (generation, write, address) = applying;
         var key = StoredNameOf(generation);
         var rows = db.Set<WhisparrCredentialEntity>();
         var stored = await rows
@@ -59,11 +68,10 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
         {
             // The key is left alone and the address still written: the two travel together, and a
             // row naming the instance before this save is the pair a request would be built from.
-            if (stored is not null && stored.Address != address)
+            if (stored is not null)
             {
                 stored.Address = address;
                 stored.UpdatedAtUtcTicks = nowUtc.UtcTicks;
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
             }
 
             return;
@@ -71,14 +79,15 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
 
         if (write.Kind == CredentialWriteKind.Clear)
         {
-            if (stored is null)
+            if (stored is not null)
             {
-                return;
+                rows.Remove(stored);
             }
 
-            rows.Remove(stored);
+            return;
         }
-        else if (stored is null)
+
+        if (stored is null)
         {
             rows.Add(new WhisparrCredentialEntity
             {
@@ -87,16 +96,13 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
                 Address = address,
                 UpdatedAtUtcTicks = nowUtc.UtcTicks,
             });
-        }
-        else
-        {
-            stored.ApiKey = write.ApiKey!;
-            // Written with the key, never separately: the two are one outbound value.
-            stored.Address = address;
-            stored.UpdatedAtUtcTicks = nowUtc.UtcTicks;
+            return;
         }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        stored.ApiKey = write.ApiKey!;
+        // Written with the key, never separately: the two are one outbound value.
+        stored.Address = address;
+        stored.UpdatedAtUtcTicks = nowUtc.UtcTicks;
     }
 
     // The one entry point for a background path, elevated to System. Under an under-privileged

@@ -93,6 +93,33 @@ public sealed class CredentialStorageTests
         Assert.Equal("v2-key", await database.ReadAsync(WhisparrGeneration.V2));
     }
 
+    // One settings save states both connections, and they are committed together. Written a row at
+    // a time, a failure after the first would leave the reader connected to one instance from this
+    // save and the other from the one before it, with the settings page describing neither pairing.
+    //
+    // The commit count is the subject. Both rows landing says nothing about how many writes it
+    // took, and it is the number of commits that decides what a failure part way through leaves
+    // behind.
+    [Fact]
+    public async Task BothGenerationsAreWrittenInOneCommit()
+    {
+        await using var database = await CredentialDatabase.CreateAsync();
+
+        var commits = await database.CommitsDuringAsync(port => port.ApplyAsync(
+            [
+                new CredentialApply(
+                    WhisparrGeneration.V3, CredentialWrite.Replace("v3-key"), "http://a.invalid"),
+                new CredentialApply(
+                    WhisparrGeneration.V2, CredentialWrite.Replace("v2-key"), "http://b.invalid"),
+            ],
+            FirstWriteAt,
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, commits);
+        Assert.Equal("v3-key", await database.ReadAsync(WhisparrGeneration.V3));
+        Assert.Equal("v2-key", await database.ReadAsync(WhisparrGeneration.V2));
+    }
+
     [Fact]
     public async Task ReplacingOneGenerationLeavesTheOtherUntouched()
     {
@@ -258,8 +285,20 @@ public sealed class CredentialStorageTests
             string address = "")
         {
             await using var context = NewContext();
-            await new CredentialPort(context)
-                .ApplyAsync(generation, write, address, nowUtc, TestContext.Current.CancellationToken);
+            await new CredentialPort(context).ApplyAsync(
+                [new CredentialApply(generation, write, address)],
+                nowUtc,
+                TestContext.Current.CancellationToken);
+        }
+
+        // How many times the context was asked to commit while the call ran.
+        public async Task<int> CommitsDuringAsync(Func<CredentialPort, Task> run)
+        {
+            await using var context = NewContext();
+            var commits = 0;
+            context.SavingChanges += (_, _) => commits++;
+            await run(new CredentialPort(context));
+            return commits;
         }
 
         public async Task<WhisparrStoredConnection?> ReadConnectionAsync(WhisparrGeneration generation)

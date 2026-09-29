@@ -14,8 +14,12 @@ namespace WhisparrSync.Options;
 /// <para>
 /// The gate is held across the load, the fold and the save, because the loss happens between a load
 /// and the save built on it. Registered as a singleton: a gate per scope would be a gate per
-/// request. The fold is synchronous, so no outbound request or host call is awaited while the gate
-/// is held.
+/// request. The fold is synchronous, so no outbound request is awaited while the gate is held.
+/// <para>
+/// A save that writes elsewhere before folding the blob passes that write to
+/// <see cref="MutateAfterAsync"/>, so the two are one serialized step rather than two that can
+/// interleave with another save's.
+/// </para>
 /// </para>
 /// </remarks>
 public sealed class OptionsWriteGate(ILogger? logger = null) : IDisposable
@@ -42,8 +46,28 @@ public sealed class OptionsWriteGate(ILogger? logger = null) : IDisposable
     /// <paramref name="options"/> or <paramref name="fold"/> is null.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
-    public async Task<WhisparrSyncOptions> MutateAsync(
+    public Task<WhisparrSyncOptions> MutateAsync(
         OptionsStore options,
+        Func<WhisparrSyncOptions, WhisparrSyncOptions> fold,
+        CancellationToken ct)
+        => MutateAfterAsync(options, null, fold, ct);
+
+    /// <summary>
+    /// Runs <paramref name="write"/> and then applies <paramref name="fold"/>, under one hold.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="write"/> receives the options as this call loaded them, so a value it derives
+    /// from the stored blob is the one the fold then lands on. It is for a store this extension owns
+    /// beside the options, never for an outbound request: the gate is held while it runs, and
+    /// everything else that writes the blob waits behind it.
+    /// <para>
+    /// The write is not undone when the fold declines to save. The two stores commit separately,
+    /// which is what holding them under one gate narrows rather than removes.
+    /// </para>
+    /// </remarks>
+    public async Task<WhisparrSyncOptions> MutateAfterAsync(
+        OptionsStore options,
+        Func<WhisparrSyncOptions, CancellationToken, Task>? write,
         Func<WhisparrSyncOptions, WhisparrSyncOptions> fold,
         CancellationToken ct)
     {
@@ -56,6 +80,12 @@ public sealed class OptionsWriteGate(ILogger? logger = null) : IDisposable
         {
             var load = await options.LoadBoundAsync(ct).ConfigureAwait(false);
             var stored = load.Options;
+
+            if (write is not null)
+            {
+                await write(stored, ct).ConfigureAwait(false);
+            }
+
             var next = fold(stored);
 
             // Compared as the blob they persist as, so every member that reaches the store takes

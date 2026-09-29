@@ -92,17 +92,22 @@ public interface ICredentialPort
     Task<WhisparrStoredConnection?> ReadConnectionAsync(
         WhisparrGeneration generation, CancellationToken ct);
 
-    /// <summary>Applies <paramref name="write"/> and <paramref name="address"/> as one row.</summary>
+    /// <summary>Applies every entry in <paramref name="writes"/> as one commit.</summary>
     /// <remarks>
     /// The address is written whatever the write does to the key, including
     /// <see cref="CredentialWriteKind.Keep"/>: a save that moves the instance and leaves the key
     /// alone would otherwise leave this row naming the instance before it, which is the pair an
     /// outbound request is built from.
+    /// <para>
+    /// Every generation named is written together rather than a row at a time. One save moves both
+    /// connections, so a failure part way through leaves neither changed instead of one instance
+    /// from this save beside the other from the one before it.
+    /// </para>
     /// </remarks>
     Task ApplyAsync(
-        WhisparrGeneration generation,
-        CredentialWrite write,
-        string address,
-        DateTimeOffset nowUtc,
-        CancellationToken ct);
+        IReadOnlyList<CredentialApply> writes, DateTimeOffset nowUtc, CancellationToken ct);
 }
+
+/// <summary>One generation's row as a save states it.</summary>
+public sealed record CredentialApply(
+    WhisparrGeneration Generation, CredentialWrite Write, string Address);

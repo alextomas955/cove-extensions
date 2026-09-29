@@ -63,14 +63,21 @@ internal sealed class RecordingCredentialPort : ICredentialPort
                 : null);
     }
 
-    public Task ApplyAsync(
-        WhisparrGeneration generation,
-        CredentialWrite write,
-        string address,
-        DateTimeOffset nowUtc,
-        CancellationToken ct)
+    public async Task ApplyAsync(
+        IReadOnlyList<CredentialApply> writes, DateTimeOffset nowUtc, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(write);
+        ArgumentNullException.ThrowIfNull(writes);
+
+        foreach (var applying in writes)
+        {
+            ct.ThrowIfCancellationRequested();
+            await ApplyOneAsync(applying).ConfigureAwait(false);
+        }
+    }
+
+    private Task ApplyOneAsync(CredentialApply applying)
+    {
+        var (generation, write, address) = applying;
         Writes.Add((generation, write.Kind, write.ApiKey));
         // Written whatever the key write does, as production writes it: the address and the key are
         // one row, so a double that kept them apart could not show a torn pair being impossible.
