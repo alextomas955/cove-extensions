@@ -430,6 +430,29 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(ImportRefusalCause.Unreadable, entry.Cause);
     }
 
+    // The host's bulk extension-data route writes the whole blob, so the list one entry binds is
+    // held to the named size on the way in rather than only where the extension composes an entry.
+    [Fact]
+    public void TheNewestPathsOneEntryKeepsAreBoundedByTheNamedConstant()
+    {
+        var entry = new ImportRootRefusals
+        {
+            Root = "/whisparr/media",
+            CountSinceLastSuccess = 20,
+            NewestPaths =
+            [
+                .. Enumerable.Range(0, 20).Select(index => new ImportRefusalEntry
+                {
+                    Path = $"/whisparr/media/{index}.mp4",
+                    Cause = ImportRefusalCause.Unreadable,
+                }),
+            ],
+        };
+
+        Assert.Equal(ImportRootRefusals.NewestPathsKept, entry.NewestPaths.Count);
+        Assert.Equal("/whisparr/media/0.mp4", entry.NewestPaths[0].Path);
+    }
+
     // Written as a literal because the serializer never emits this shape, and nothing else on the
     // load path reaches it. A property initialiser runs only for an absent key, and the store's
     // non-null restore does not descend into a collection's elements.
