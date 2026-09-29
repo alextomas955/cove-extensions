@@ -413,7 +413,6 @@ public sealed class SecondaryVerbTests
 
     private const string EmptyEntity = """{"id":1}""";
 
-    private static Uri Address { get; } = new(MonitorHost.StoredAddress);
 
     // The instance answers the held read as not holding the entity. The stored 404 is the instance's
     // own answer rather than one this product composed, which is what makes the reading a fact read

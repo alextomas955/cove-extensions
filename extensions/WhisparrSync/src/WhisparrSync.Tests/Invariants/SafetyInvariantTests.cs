@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Cove.Plugins;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;

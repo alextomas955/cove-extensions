@@ -546,7 +546,6 @@ public sealed class MissingPagePlannerTests
 
         public int Reads { get; private set; }
 
-        public string? AskedAbout { get; private set; }
 
         public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
             WhisparrEntityKind kind,
@@ -554,7 +553,6 @@ public sealed class MissingPagePlannerTests
             CancellationToken ct)
         {
             Reads++;
-            AskedAbout = foreignId;
             return Task.FromResult(_answer);
         }
     }
@@ -588,7 +586,6 @@ public sealed class MissingPagePlannerTests
 
         public int MenuReads { get; private set; }
 
-        public List<ProviderCatalogueRequest> Requests { get; } = [];
 
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
 
@@ -619,7 +616,6 @@ public sealed class MissingPagePlannerTests
             ProviderCatalogueRequest request, CancellationToken ct)
         {
             PageReads++;
-            Requests.Add(request);
             return Task.FromResult(
                 ProviderCatalogueAnswer.Answered(
                     new ProviderCataloguePage(
@@ -635,7 +631,6 @@ public sealed class MissingPagePlannerTests
             ProviderCatalogueRequest request, CancellationToken ct)
         {
             SizeReads++;
-            Requests.Add(request);
             return Task.FromResult<int?>(catalogueSize);
         }
 

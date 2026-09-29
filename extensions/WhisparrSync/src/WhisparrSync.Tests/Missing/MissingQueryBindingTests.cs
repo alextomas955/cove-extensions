@@ -289,11 +289,9 @@ public sealed class MissingQueryBindingTests
 
     private sealed class RecordingCatalogue : IProviderCatalogue
     {
-        public List<ProviderCatalogueRequest> Requests { get; } = [];
 
         public List<string> Fragments { get; } = [];
 
-        public List<string> Resolutions { get; } = [];
 
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
 
@@ -309,7 +307,6 @@ public sealed class MissingQueryBindingTests
         public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)
         {
-            Requests.Add(request);
             return Task.FromResult(
                 ProviderCatalogueAnswer.Answered(
                     new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0)));
@@ -318,7 +315,6 @@ public sealed class MissingQueryBindingTests
         public Task<int?> ReadCatalogueSizeAsync(
             ProviderCatalogueRequest request, CancellationToken ct)
         {
-            Requests.Add(request);
             return Task.FromResult<int?>(0);
         }
 
@@ -333,7 +329,6 @@ public sealed class MissingQueryBindingTests
         // is recorded and answered null rather than answered with a number nothing measured.
         public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
         {
-            Resolutions.Add(providerSceneId);
             return Task.FromResult<int?>(null);
         }
 
