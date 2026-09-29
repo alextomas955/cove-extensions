@@ -75,8 +75,14 @@ const hostDetailTabs = (page) => page.getByRole("tablist").first();
 /** The cards the grid drew. */
 const cards = (page) => page.locator("article").filter({ has: page.locator("img, h3") });
 
-/** Any sentence the tab stated in place of a grid. */
-const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
+/**
+ * Any sentence the tab stated in place of a grid.
+ *
+ * Taken from below the host's own tab strip. The tab's root carries no marker of its own, and the
+ * host draws copy of its own above the strip, which a page-wide paragraph filter matches.
+ */
+const statedReasons = (page) =>
+  hostDetailTabs(page).locator("xpath=following::p").filter({ hasText: /\S/ });
 
 /** One page of the catalogue, as the extension's own route answers it. */
 async function readMissingPage(api, kind, coveId) {
