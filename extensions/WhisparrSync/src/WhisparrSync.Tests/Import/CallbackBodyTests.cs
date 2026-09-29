@@ -20,30 +20,19 @@ public sealed class CallbackBodyTests
     private const string V3UserAgent = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
     private const string V2UserAgent = "Whisparr/2.2.0.231 (alpine 3.23.5)";
 
-    [Fact]
-    public async Task AWrongSecretIsRefusedWithoutTheBodyBeingRead()
+    [Theory]
+    [InlineData("not-the-stored-secret")]
+    [InlineData(null)]
+    public async Task ASecretThatIsNotTheStoredOneIsRefusedWithoutTheBodyBeingRead(string? secret)
     {
         var core = new RecordingImportCore();
         var body = new WatchedStream(Captured());
 
-        var answered = await CallbackAsync(Request(body, secret: "not-the-stored-secret"), core);
+        var answered = await CallbackAsync(Request(body, secret), core);
 
         Assert.Equal(401, StatusOf(answered));
         Assert.Equal(0, body.BytesRead);
         Assert.False(body.WasRead, "the request body was read before the secret was compared");
-        Assert.Empty(core.Ingested);
-    }
-
-    [Fact]
-    public async Task ADeliveryPresentingNoSecretIsRefusedWithoutTheBodyBeingRead()
-    {
-        var core = new RecordingImportCore();
-        var body = new WatchedStream(Captured());
-
-        var answered = await CallbackAsync(Request(body, secret: null), core);
-
-        Assert.Equal(401, StatusOf(answered));
-        Assert.False(body.WasRead);
         Assert.Empty(core.Ingested);
     }
 

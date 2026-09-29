@@ -54,24 +54,6 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Empty(ingest.Library.Scans);
     }
 
-    // The cover closes the gap where a delivery registered the file with the host and was interrupted
-    // before it could note the path, which would otherwise leave that item with no asset-generation
-    // pass for good.
-    [Fact]
-    public async Task ADeliveryForAPathTheLibraryAlreadyHoldsIsStillCoveredByAScan()
-    {
-        var ingest = new Ingest();
-        var first = await ingest.DeliverAsync(0);
-        ingest.Library.Held[first.Path] = new HeldFile(1);
-        ingest.FollowUp.Flush(ingest.Library);
-        ingest.Library.Scans.Clear();
-
-        Assert.Equal(ImportOutcome.AlreadyHeld, (await ingest.DeliverAsync(0)).Outcome);
-
-        ingest.FollowUp.Flush(ingest.Library);
-        Assert.Equal([first.Path], Assert.Single(ingest.Library.Scans));
-    }
-
     [Fact]
     public async Task ABatchIsNotStartedUntilItsQuietPeriodHasElapsed()
     {

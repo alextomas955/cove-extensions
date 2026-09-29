@@ -1,11 +1,10 @@
 using Cove.Core.DTOs;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Import;
+using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
@@ -128,25 +127,15 @@ public sealed class CoveLibraryPortTests
     }
 
     [Fact]
-    public async Task AnIdentifierNoRowCarriesResolvesToNothingWithoutThrowing()
-    {
-        await using var library = await LibraryFixture.CreateAsync();
-        await library.SeedVideoWithFileAsync("/data/scene.mp4");
-
-        var resolution = await library.Port.ResolveByRemoteIdAsync(ConfiguredEndpoint, RemoteId, Ct);
-
-        Assert.Null(resolution.VideoId);
-        Assert.False(resolution.Ambiguous);
-    }
-
-    [Fact]
     public async Task ALibraryWithNoIdentityRowsAnswersUnmatchedForEveryVideoAndWritesNothing()
     {
         await using var library = await LibraryFixture.CreateAsync();
         var first = await library.SeedVideoWithFileAsync("/data/first.mp4");
         var second = await library.SeedVideoWithFileAsync("/data/second.mp4");
 
-        Assert.Null((await library.Port.ResolveByRemoteIdAsync(ConfiguredEndpoint, RemoteId, Ct)).VideoId);
+        var resolution = await library.Port.ResolveByRemoteIdAsync(ConfiguredEndpoint, RemoteId, Ct);
+        Assert.Null(resolution.VideoId);
+        Assert.False(resolution.Ambiguous);
         Assert.False(await library.Port.CarriesIdentityAsync(first, ConfiguredEndpoint, Ct));
         Assert.False(await library.Port.CarriesIdentityAsync(second, ConfiguredEndpoint, Ct));
 
@@ -373,114 +362,6 @@ public sealed class CoveLibraryPortTests
             {
                 _lines.Add($"{formatter(state, exception)} {exception}");
             }
-        }
-    }
-
-    private sealed class LibraryFixture : IAsyncDisposable
-    {
-        private DbContext _db = null!;
-        private SqliteConnection _connection = null!;
-        private CoveConfiguration _config = null!;
-        private IScanService? _scan;
-        private ILogger _log = NullLogger.Instance;
-
-        public CoveLibraryPort Port { get; private set; } = null!;
-
-        public static async Task<LibraryFixture> CreateAsync(
-            IReadOnlyList<string>? configuredEndpoints = null,
-            IScanService? scan = null,
-            ILogger? log = null,
-            IMetadataServerService? metadata = null)
-        {
-            var fixture = new LibraryFixture();
-            (fixture._db, fixture._connection) = await CoveContextFactory.CreateSqliteContextAsync();
-
-            var config = new CoveConfiguration();
-            foreach (var endpoint in configuredEndpoints ?? [])
-            {
-                config.Scraping.MetadataServers.Add(new MetadataServerInstance { Endpoint = endpoint });
-            }
-
-            fixture._config = config;
-            fixture._scan = scan;
-            fixture._log = log ?? NullLogger.Instance;
-            fixture.Reconfigure(metadata);
-            return fixture;
-        }
-
-        // A metadata double that has to reach back into this fixture cannot be constructed before it, so it
-        // is supplied afterwards rather than the fixture being built in two halves.
-        public void Reconfigure(IMetadataServerService? metadata)
-            => Port = new CoveLibraryPort(_db, _scan, metadata, _config, _log);
-
-        public void DropTheConnection() => _connection.Close();
-
-        public async Task<string?> TitleOfAsync(int videoId)
-            => (await _db.Set<Video>().AsNoTracking().FirstAsync(video => video.Id == videoId, Ct)).Title;
-
-        // The file's stored path is left for the host's own save to compute from the folder, so the fixture
-        // does not supply the value a read then checks.
-        public async Task<int> SeedVideoWithFileAsync(
-            string path, string? title = null, DateOnly? date = null)
-        {
-            var folder = await FolderAsync(Directory(path));
-            var video = new Video { Title = title, Date = date };
-            _db.Add(video);
-            await _db.SaveChangesAsync(Ct);
-
-            _db.Add(new VideoFile
-            {
-                Basename = path[(path.LastIndexOf('/') + 1)..],
-                ParentFolder = folder,
-                VideoId = video.Id,
-            });
-            await _db.SaveChangesAsync(Ct);
-            return video.Id;
-        }
-
-        public async Task AttachFileAsync(int videoId, string path)
-        {
-            _db.Add(new VideoFile
-            {
-                Basename = path[(path.LastIndexOf('/') + 1)..],
-                ParentFolder = await FolderAsync(Directory(path)),
-                VideoId = videoId,
-            });
-            await _db.SaveChangesAsync(Ct);
-        }
-
-        public async Task SeedIdentityAsync(int videoId, string endpoint, string remoteId)
-        {
-            _db.Add(new VideoRemoteId { VideoId = videoId, Endpoint = endpoint, RemoteId = remoteId });
-            await _db.SaveChangesAsync(Ct);
-        }
-
-        public Task<List<VideoRemoteId>> IdentityRowsAsync()
-            => _db.Set<VideoRemoteId>().AsNoTracking().ToListAsync(Ct);
-
-        public Task<int> IdentityRowCountAsync()
-            => _db.Set<VideoRemoteId>().AsNoTracking().CountAsync(Ct);
-
-        public async ValueTask DisposeAsync()
-        {
-            await _db.DisposeAsync();
-            await _connection.DisposeAsync();
-        }
-
-        private static string Directory(string path) => path[..path.LastIndexOf('/')];
-
-        private async Task<Folder> FolderAsync(string path)
-        {
-            var existing = await _db.Set<Folder>().FirstOrDefaultAsync(folder => folder.Path == path, Ct);
-            if (existing is not null)
-            {
-                return existing;
-            }
-
-            var folder = new Folder { Path = path };
-            _db.Add(folder);
-            await _db.SaveChangesAsync(Ct);
-            return folder;
         }
     }
 }
