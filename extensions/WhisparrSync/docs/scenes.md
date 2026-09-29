@@ -25,7 +25,7 @@ On a Whisparr v2 connection the tab is absent. See
 ## What the tab says
 
 The tab leads with a header carrying the Whisparr mark, the word Whisparr, and the scene's state on
-the right. The state is one of Monitored, Unmonitored, Not added, Excluded or Status unknown.
+the right. The state is one of Monitored, Unmonitored, Not added, Excluded or Unknown.
 
 Beneath the header the tab states up to three facts, all of them your Whisparr's own. It repeats no
 title, performer, studio, date or runtime, because Cove's own page already carries those above the
