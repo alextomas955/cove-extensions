@@ -1,17 +1,17 @@
 // A connected instance of v2, and what a spec reads its answers off.
 //
-// WHY THIS EXISTS. The product declares a capability set per generation and tells the browser which
+// The product declares a capability set per generation and tells the browser which
 // one it is connected to. Seven entries belong to this generation, and two of them belong to no
 // other, so nothing else in this suite can reach them. The rest of the suite pins v3 and mostly
-// asserts that surfaces are ABSENT on this one, which proves the gate and proves nothing about the
+// asserts that surfaces are absent on this one, which proves the gate and proves nothing about the
 // surfaces that are present. Every `*.v2.spec.mjs` beside this drives one of those capabilities
 // through this fixture.
 //
-// WHAT A SPEC ASSERTS ON. The instance's own rows and its own command queue, never this product's
+// A spec asserts on the instance's own rows and its own command queue, never this product's
 // return code. A route that answered 200 and wrote nothing would pass any assertion made against its
 // answer, so the readers below address the instance directly.
 //
-// WHY A METADATA STUB. Neither generation calls a metadata source directly: every identifier resolves
+// The metadata stub is needed because neither generation calls a metadata source directly: every identifier resolves
 // through a hosted service of the vendor's, which no sealed run can reach, so without a stand-in
 // every entity read answers "the instance refused". The stub answers only for the rows this fixture
 // seeded and reaches nothing.
@@ -36,13 +36,13 @@ import {
 /**
  * Where the volume is mounted, and where this generation's catalogue is rooted on it.
  *
- * The SAME path in both containers, which is what an install on one host has and what a split one
+ * The same path in both containers, which is what an install on one host has and what a split one
  * arranges with a path mapping on the instance. The acquire spec deliberately mounts it at different
  * paths, because what it measures is the extension re-rooting a path the instance reported; here the
  * traffic goes the other way, and a folder this product names is one the instance has to recognise.
  */
 const SHARED_MOUNT = "/shared";
-export const WHISPARR_ROOT = `${SHARED_MOUNT}/media`;
+const WHISPARR_ROOT = `${SHARED_MOUNT}/media`;
 
 /**
  * The source this generation identifies an entity against.
@@ -55,7 +55,7 @@ export const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 /**
  * The budget one of these specs runs under.
  *
- * Configured per file rather than inside a test body. A body runs AFTER its fixtures are built, so a
+ * Configured per file rather than inside a test body. A body runs after its fixtures are built, so a
  * budget raised there never covers the setup - and the setup here is a container stack, which is the
  * slowest part and the part that outruns the default when the machine is loaded.
  *

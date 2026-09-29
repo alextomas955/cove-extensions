@@ -1,27 +1,19 @@
 // The catalogue tab in a real containerized host, and the proof that this bundle still loads.
 //
-// WHY THIS SPEC EXISTS. The host component declarations this surface imports are a hand
-// transcription of a module in Cove's own checkout, and nothing in this repository can check one. A
-// wrong prop shape type-checks. A wrong EXPORT NAME throws an ESM SyntaxError at bundle load, and
-// the host loads every extension bundle under one promise, so that one throw takes down every
-// extension surface on the page with no build failure anywhere. This spec loads a built bundle in a
-// real host, which is the only evidence that the transcription is right. The bundle imports the tab
-// component, which imports the module re-exporting all seven symbols, so all seven are resolved when
-// the bundle is evaluated whether or not the tab is ever drawn.
+// The host component declarations this surface imports are a hand transcription of a module in
+// Cove's own checkout, and nothing in this repository can check one. A wrong prop shape
+// type-checks. A wrong export name throws an ESM SyntaxError at bundle load, and the host loads
+// every extension bundle under one promise, so that one throw takes down every extension surface on
+// the page with no build failure anywhere. This spec loads a built bundle in a real host, which is
+// the only evidence that the transcription is right. The bundle imports the tab component, which
+// imports the module re-exporting all seven symbols, so all seven are resolved when the bundle is
+// evaluated whether or not the tab is ever drawn.
 //
-// THE ORDER IS THE POINT. The settings panel is asserted FIRST and again LAST. First, because a
+// The order is the point. The settings panel is asserted first and again last. First, because a
 // bundle that failed to load makes nothing below meaningful. Last, because everything between the
 // two navigations exercises the bundle further.
 //
-// WHAT SKIPS, AND WHY. One assertion is conditional and names its reason in an annotation rather
-// than passing silently:
-//
-// - The STATUS-PILL assertion needs a real metadata credential, lifted read-only from this machine's
-//   own Cove install. A machine with none is the ordinary case off this desk.
-//
-// The bundle-load assertions never skip, because they are the ones this spec exists for.
-//
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -37,9 +29,6 @@ import {
 import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
 import { SETTINGS_PAGE_PATH, SETTINGS_PANEL_SENTENCE } from "../../lib/contract.mjs";
 import { visit } from "../../lib/steps.mjs";
-
-// The sentence the settings panel itself draws. It exists only inside the component this extension
-// ships, so reaching it means the whole bundle loaded and the host resolved its component map.
 
 // The tab's label, transcribed by hand from the manifest that advertises it. A spec importing the
 // same constant the manifest declares would be asserting that a string equals itself.
@@ -153,7 +142,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
   const tag = await coveApi.post("/api/tags", { name: `Tag ${randomUUID().slice(0, 8)}` });
   expect(tag.status, `POST /api/tags answered ${String(tag.status)}`).toBeLessThan(300);
 
-  // FIRST, and the order is the point. A bundle that throws takes down every extension surface on
+  // Read first, and the order is the point. A bundle that throws takes down every extension surface on
   // the page, so a failure here means nothing below is meaningful.
   await visit(
     page,
@@ -206,7 +195,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     `the tag detail page: a ${TAB_LABEL} tab was drawn for a kind this product registers none for.`,
   ).toHaveCount(0);
 
-  // Mounting the tab is what renders the transcribed host components, so a wrong PROP SHAPE shows
+  // Mounting the tab is what renders the transcribed host components, so a wrong prop shape shows
   // up here as a region that draws nothing.
   await visit(
     page,
@@ -227,7 +216,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     })
     .toBeGreaterThan(0);
 
-  // The transcription proof, and it does NOT depend on the tab rendering. The bundle imports the
+  // The transcription proof, and it does not depend on the tab rendering. The bundle imports the
   // tab component, which imports the module re-exporting all seven host symbols, so every one of
   // those names is resolved when the bundle is evaluated. A wrong export name throws an ESM
   // SyntaxError there and takes the settings panel down with it.
@@ -257,7 +246,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     "the first card carries no status pill in this product's own vocabulary",
   ).toBeVisible();
 
-  // LAST, and for the reason stated at the head of this file: the tab is what pulls the host
+  // Read last, and for the reason stated at the head of this file: the tab is what pulls the host
   // component module in, so the bundle has to still be intact after it mounted.
   await visit(
     page,

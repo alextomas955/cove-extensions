@@ -1,4 +1,4 @@
-// The whole settings page against a live Cove with BOTH Whisparr generations running: the
+// The whole settings page against a live Cove with both Whisparr generations running: the
 // generation row, the callback edit, the save bar and the reload.
 //
 // One test rather than several. The settings this writes are instance-global, so splitting the
@@ -17,11 +17,6 @@ import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 
 const PANEL_PATH = "/settings/whisparr-sync";
 const STATUS_PATH = "/api/v3/system/status";
-
-// A host that resolves on the shared network, so Whisparr's own save-time connection test of the
-// registered address does not refuse it - a refusal would measure that rather than the edit.
-// Composed per test from the harness: see registration.spec.mjs for why the bare service name is
-// not a stack's own address.
 
 // A cold container serving the extension bundle for the first time is slow rather than broken and
 // raises no signal to wait on.
@@ -212,7 +207,7 @@ test("both generations are configured independently, and only a generation chang
 
   await test.step("testing the connection as stored records the version the two lines report", async () => {
     // The key field is blank now, and correctly so: a saved key is never handed back to the browser.
-    // Pressing Test in that state asks about the STORED connection, which is the only test whose
+    // Pressing Test in that state asks about the stored connection, which is the only test whose
     // answer updates the recorded version.
     await expect(panel.keyField).toHaveValue("");
     await panel.testButton.click();

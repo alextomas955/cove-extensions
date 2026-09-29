@@ -1,22 +1,18 @@
 // The catalogue toolbar driven in a real containerized host.
 //
-// WHY THIS SPEC EXISTS. The unit tests for this toolbar run in a node environment and render no
+// The unit tests for this toolbar run in a node environment and render no
 // `.tsx`, so every claim about typing, focus, keyboard and the address bar is unproven until a real
 // browser makes it. This spec is where those claims are settled.
 //
-// WHY THE `.ui` SUFFIX. Every control below is driven against responses this file serves itself, so
-// the suffix is what tells a reader this spec from one that drives a real instance. Without it the
-// filename claims coverage the file does not hold, and only opening it says otherwise.
+// The `.ui` suffix is what this file earns by driving every control below is driven against responses this file serves itself, so
+// against responses it serves itself. Without it the filename claims coverage the file does not
+// hold, and only opening it says otherwise.
 //
-// WHAT IT NEEDS. One Cove installation and an installed extension, and nothing else: the search
+// What it needs: one Cove installation and an installed extension, and nothing else: the search
 // field and Refresh are drawn before any page has answered, so no Whisparr instance and no provider
 // credential are involved.
 //
-// WHAT SKIPS, AND WHY. Three assertions need a control that only exists once a catalogue page has
-// answered into the toolbar - the ordering menu, the facet menus and the count line beneath them.
-// Each names its reason in an annotation, so a green run is not read as covering more than it did.
-//
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -30,8 +26,6 @@ const TAB_LABEL = "Missing";
 /** The toolbar's own control names, transcribed from the shipped labels the same way. */
 const SEARCH_PLACEHOLDER = "Search titles";
 const REFRESH_LABEL = "Refresh";
-
-/** The placeholder in a menu's own search box, transcribed the same way. */
 
 /**
  * The keys Cove deletes from the address on every tab change, including the change into this tab.
@@ -188,7 +182,7 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     "the answered page never arrived, so every control below would be absent rather than asserted",
   ).toBe(true);
 
-  // 1. Typing settles and rewrites the address ONCE. A history entry per keystroke would leave the
+  // 1. Typing settles and rewrites the address once. A history entry per keystroke would leave the
   //    back button stepping through half-typed searches.
   const historyBefore = await page.evaluate(() => window.history.length);
   await searchField(page).pressSequentially(TYPED_SEARCH, { delay: 30 });

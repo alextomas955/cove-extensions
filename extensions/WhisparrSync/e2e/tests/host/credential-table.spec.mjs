@@ -1,13 +1,13 @@
 // The credential table, proven against a real host on real Postgres - the one tier that can.
 //
-// Every other tier proves the migration STRING or the port behind it. None of them proves that the
+// Every other tier proves the migration string or the port behind it. None of them proves that the
 // host ran that string against its own database, and the gap is not academic: a failed extension
 // migration is a host log line and nothing more, so the extension loads, enables and answers every
 // request with no table behind it. "The extension is enabled" is therefore not evidence, and neither
 // is a green unit test - the entity model those tests run against comes from code, so it agrees with
 // the code that produced it whatever the database holds.
 //
-// The answer is read from the database CATALOG rather than from the extension's own API for the same
+// The answer is read from the database catalog rather than from the extension's own API for the same
 // reason. The columns are asserted by name, so a mapping that drifts from the migration fails here
 // even though both halves still compile.
 //
@@ -28,8 +28,8 @@ const MIGRATION_NAME = "001_create_whisparrsync_credentials";
 //
 // The address is here because an outbound request is built from one row: reading it from the
 // options blob and the key from this table lets a caller pair them from either side of a save that
-// moved both. It arrives by a migration of its own, so this list also states that the host applied
-// more than the first one.
+// moved both. So the list states that every column an outbound request is built from is on the one
+// row this table holds.
 const COLUMNS = "address,api_key,generation,updated_at_utc_ticks";
 
 const test = base.extend({

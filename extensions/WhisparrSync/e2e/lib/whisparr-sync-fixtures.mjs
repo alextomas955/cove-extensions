@@ -1,7 +1,7 @@
 // Whisparr Sync's wiring on top of the shared harness at tests/e2e/: pre-fills the `extension`
 // fixture option with this extension's own build paths, and re-exports the shared helpers.
 //
-// The harness is imported BY PACKAGE NAME through npm workspaces. A second @playwright/test install
+// The harness is imported by package name through npm workspaces. A second @playwright/test install
 // under this directory would break Playwright's module singleton, so this must never declare one.
 //
 // This file must stay at e2e/lib/: resolveExtensionPaths walks a fixed number of parents from the
@@ -83,8 +83,8 @@ export async function connectWhisparr(api, whisparr, generation) {
 /**
  * Creates one Cove studio, optionally carrying the identity rows the connected generation reads.
  *
- * A studio created with no `remoteIds` is the unreachable case D-08 calls ordinary rather than rare:
- * roughly a tenth of the owner's studios carry no id in the v3 namespace.
+ * A studio created with no `remoteIds` is the ordinary case rather than a rare one: roughly a tenth
+ * of the owner's studios carry no id in the v3 namespace.
  */
 export async function seedCoveStudio(api, { name, remoteIds = [] }) {
   return created(await api.post("/api/studios", { name, remoteIds }), "POST /api/studios");

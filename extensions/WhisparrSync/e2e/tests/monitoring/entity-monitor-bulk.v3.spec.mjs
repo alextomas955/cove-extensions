@@ -1,33 +1,33 @@
 // The bulk buttons on the studios and performers selection bars, in a real host.
 //
-// 53-09 pinned the registered spelling by reading the built manifest, which proves the extension
-// DECLARES the right string. This spec proves the HOST agrees, and that is the half no tier inside
-// this repository can reach: the host matches an action's declared types with a literal
+// The registered spelling is pinned against the built manifest elsewhere, which proves the
+// extension declares the right string. This spec proves the host agrees, and that is the half no
+// tier inside this repository can reach: the host matches an action's declared types with a literal
 // `entityTypes.includes(...)` over a value its selection bar normalizes for the two media plurals
-// only. A studio selection arrives as the RAW PLURAL, and a singular registration makes the button
-// simply not appear - with no error anywhere, in the host or in the extension.
+// only. A studio selection arrives as the raw plural, and a singular registration makes the button
+// simply not appear, with no error anywhere, in the host or in the extension.
 //
-// So the button's PRESENCE is asserted explicitly rather than inferred from a click that worked. An
+// So the button's presence is asserted explicitly rather than inferred from a click that worked. An
 // inferred assertion cannot tell a missing button from a click that went somewhere else.
 //
-// THE EMPTY-SELECTION CASE IS NOT REACHABLE HERE, and this is a fact about the host rather than a
+// The empty-selection case is not reachable here, and that is a fact about the host rather than a
 // gap. The host's own selection actions component returns nothing at all while no entity is
 // selected, so no extension button exists to press and no test written here could fail. That
 // behaviour stays asserted on the handler in the unit tier, where a payload carrying no ids is an
 // input a test can supply.
 //
-// THE CANCEL PATH'S LOAD-BEARING ASSERTION IS THAT NOTHING WAS SENT. The absence of a host toast is
+// The cancel path's load-bearing assertion is that nothing was sent. The absence of a host toast is
 // asserted too, but it discriminates nothing on its own: this extension's actions declare
 // `suppressSuccessAlert`, so the host raises no alert on the success path either.
 //
-// THE RUN'S OWN SUMMARY SENTENCE IS NOT ASSERTED HERE, and the reason is a defect rather than a
+// The run's own summary sentence is not asserted here, and the reason is a defect rather than a
 // choice: the host recomputes a unit-reporting job's summary from its unit tallies and mirrors that
-// onto the sub-task, so this extension's composed line - and the separate linking clause 53-18 added
-// to it - never reaches the reader. See the note at the assertion itself.
+// onto the sub-task, so this extension's composed line never reaches the reader. See the note at
+// the assertion itself.
 //
-// NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC.
+// No search is executed anywhere in this spec.
 //
-// IF THIS SPEC GOES RED, read the job log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the job log for a container-not-running line before debugging the UI.
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 
 import {
@@ -316,9 +316,9 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     ).toBe(true);
   }
 
-  // 53-18's correction, taken against the instance rather than against the answer. A run reports
-  // applied from a READ of each entity, so the count it reports and the count the instance holds
-  // are the same number or the read-back is not happening.
+  // Taken against the instance rather than against the run's own answer. A run reports applied
+  // from a read of each entity, so the count it reports and the count the instance holds are the
+  // same number or the read-back is not happening.
   const monitoredOnTheInstance = await Promise.all(
     studioForeignIds.map(async (foreignId) =>
       (await whisparrEntity(instance, "studio", foreignId))?.monitored === true ? 1 : 0,
@@ -329,7 +329,7 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     `the job reported ${String(finished.entitiesApplied)} applied and the instance holds ${String(monitoredOnTheInstance)} of the ${String(SEEDED_STUDIOS)} selected studios monitored, so the reported count is not a read of what the instance does`,
   ).toBe(monitoredOnTheInstance);
 
-  // ONE job for the whole selection, and the per-entity linking inside it. Enqueuing one linking
+  // One job for the whole selection, and the per-entity linking inside it. Enqueuing one linking
   // run per entity was the measured alternative, and a selection of a thousand entities is exactly
   // where that difference stops being cosmetic.
   const ownJobs = await Promise.all([coveApi.get(HOST_JOBS), coveApi.get(HOST_JOB_HISTORY)]).then(
@@ -349,16 +349,16 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
 
   // What the run reports, taken on the members it owns rather than on its own sentence.
   //
-  // THE COMPOSED LINE DOES NOT REACH A READER, AND THAT IS A DEFECT THIS SPEC RECORDS RATHER THAN
-  // PINS. The extension writes its own summary through the final progress report - "N applied, M
-  // refused." followed by a separate linking clause, which is the shape 53-18 chose so the
-  // per-entity linking is reported apart from the monitor outcomes. The host overwrites it: every
+  // The composed line does not reach a reader, and that is a defect this spec records rather than
+  // pins. The extension writes its own summary through the final progress report - "N applied, M
+  // refused." followed by a separate linking clause, so the per-entity linking is reported apart
+  // from the monitor outcomes. The host overwrites it: every
   // unit tally recomputes `Summary` as its own "N of M units succeeded" and then mirrors that onto
   // `SubTask`, so a job that reports units - which this one must, because the browser reads the
   // per-entity counts off them - can never keep a sentence of its own. The reflect-owned and
   // add-all-missing runs are unaffected and their lines are asserted in the sibling spec, because
   // neither reports units. Asserting the absence here would read as coverage of a decision nobody
-  // took, so what is asserted is the counts, and the line is left named in the SUMMARY.
+  // took, so what is asserted is the counts, and the line is left named in the summary.
   expect(
     {
       total: finished.entitiesTotal,

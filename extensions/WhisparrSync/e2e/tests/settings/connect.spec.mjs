@@ -1,11 +1,11 @@
-// The connect path, end to end, on BOTH generations: a user types an address and a key into the
+// The connect path, end to end, on both generations: a user types an address and a key into the
 // settings tab, presses Test connection, and the page reports what answered.
 //
 // The Whisparr instance is a real container on Cove's own network, so the request under test leaves
 // Cove's process, crosses the network and is answered by the application itself. The address typed is
-// the instance's IN-NETWORK one: Cove has no route to the host-published port a test process uses.
+// the instance's in-network one: Cove has no route to the host-published port a test process uses.
 //
-// The success assertion is the instance's OWN version string, taken from the running container rather
+// The success assertion is the instance's own version string, taken from the running container rather
 // than written here, and then also asserted to be the literal this suite was pinned against. Either
 // alone would be weaker: a value read back from the instance agrees with whatever it says, and a bare
 // literal stops describing the instance the day the image moves.

@@ -1,24 +1,24 @@
 // Ticking a page of scenes and marking them wanted, in a real containerized host.
 //
-// WHY THIS SPEC EXISTS. Two of these properties are provable nowhere else. The first is that Cove's
+// Two of these properties are provable nowhere else. The first is that Cove's
 // own list shortcuts reach a component an extension mounted inside a detail page: the hook is
 // exported to extensions, but no extension had registered a built-in list action before this one,
 // and reading the host's source cannot settle whether the surface is active there. The second is
 // that a run started from the bar is a background job and nothing else: no dialog, no native alert,
 // and an entry in the host's own job area.
 //
-// WHERE THE CATALOGUE COMES FROM. The tab's page read is answered at the network with a recorded
+// The tab's page read is answered at the network with a recorded
 // page, so a range selection and a select-all count mean the same thing on every run. Intercepting
 // the extension's own route keeps that seam inside this file; the shipped bundle carries no test
 // hook. The host, the extension bundle, the tab and the bulk route are the real ones, and the run
 // this spec starts is enqueued by the real server. The file keeps its unsuffixed name for that
 // reason: the run below is started against a real instance.
 //
-// WHAT THIS SPEC DOES NOT ASSERT. Cove's own pagination controls carry no focus utility of any
+// Cove's own pagination controls carry no focus utility of any
 // kind, so no case here focuses one and reads a ring off it. That is the host's to change, and a red
 // run against it would say nothing about this extension.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -195,7 +195,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
   await expect(cards(page).first()).toBeVisible({ timeout: REGION_BUDGET_MS });
   await expect(cards(page)).toHaveCount(SCENES_ON_THE_PAGE);
 
-  // CASE 3, taken first because it is the one assertion that has to run with no pointer interaction
+  // Case 3, taken first because it is the one assertion that has to run with no pointer interaction
   // in the grid before it. Cove's own list shortcuts reach a component an extension mounted inside a
   // detail page.
   await page.locator("body").click({ position: { x: 2, y: 2 } });
@@ -225,13 +225,13 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     .poll(async () => selectedCount(page), { message: "the select-none sequence kept the ticks" })
     .toBeNull();
 
-  // CASE 1. A pointer tick reads in the singular at one and in the plural at two.
+  // Case 1. A pointer tick reads in the singular at one and in the plural at two.
   await cards(page).nth(0).getByRole("button", { name: SELECT_SCENE }).click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   await cards(page).nth(1).getByRole("button", { name: SELECT_SCENE }).click();
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
 
-  // CASE 2. Shift-clicking a card selects the range between it and the last one ticked.
+  // Case 2. Shift-clicking a card selects the range between it and the last one ticked.
   await cards(page)
     .nth(5)
     .getByRole("button", { name: SELECT_SCENE })
@@ -243,7 +243,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     "a shift-click ticked one card rather than the range between it and the anchor",
   ).toBe(6);
 
-  // CASE 8. No control anywhere in the bar acts on the whole result set.
+  // Case 8. No control anywhere in the bar acts on the whole result set.
   const barText = await selectionBar(page).innerText();
   expect(
     barText.toLowerCase(),
@@ -259,7 +259,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     selectionBar(page).getByRole("button", { name: INVERT_SELECTION, exact: true }),
   ).toBeVisible();
 
-  // CASE 7. Every control in the bar shows a keyboard user where it is. Read as a computed box
+  // Case 7. Every control in the bar shows a keyboard user where it is. Read as a computed box
   // shadow, because a class in the markup says nothing about whether the host declares it.
   // Named exactly: "Select all" is a substring of "Deselect all", so a loose name matches both.
   for (const name of [SELECT_ALL, SELECT_NONE, INVERT_SELECTION, MONITOR]) {
@@ -269,7 +269,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     expect(shadow, `${name} paints no focus ring at all`).not.toBe("none");
   }
 
-  // CASE 6. A run refused before it starts states the reason in a live region, keeps the ticks, and
+  // Case 6. A run refused before it starts states the reason in a live region, keeps the ticks, and
   // leaves focus where it was, so the reader can fix the named cause and press again.
   //
   // The ticks are the premise of this case. Read before the press, because a bar that is not on
@@ -305,7 +305,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
 
   await page.unroute(/\/missing\/bulk-monitor$/);
 
-  // CASE 5. The real route enqueues the ticked scenes, the ticks clear once it has, and nothing
+  // Case 5. The real route enqueues the ticked scenes, the ticks clear once it has, and nothing
   // blocks the page at any point.
   const enqueued = page.waitForResponse(
     (response) => /\/missing\/bulk-monitor$/.test(response.url()) && response.status() === 200,
@@ -344,7 +344,7 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     "the run was enqueued under a type that is not this extension's own",
   ).toBe(BULK_JOB_TYPE);
 
-  // CASE 4. Changing page clears the selection, so a tick always means a scene currently on screen.
+  // Case 4. Changing page clears the selection, so a tick always means a scene currently on screen.
   await cards(page).nth(0).getByRole("button", { name: SELECT_SCENE }).click();
   expect(await selectedCount(page)).toBe(1);
 

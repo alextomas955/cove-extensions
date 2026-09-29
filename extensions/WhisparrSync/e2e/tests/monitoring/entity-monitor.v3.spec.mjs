@@ -3,7 +3,7 @@
 // Everything upstream of this spec is asserted against doubles and source text. Three facts cannot
 // be reached that way, and this is where they are settled:
 //
-// - Whether the HOST renders the slot component in its hero action row at all. That is a fact about
+// - Whether the host renders the slot component in its hero action row at all. That is a fact about
 //   a released host image this repository does not build.
 // - Whether the control sits where this product says it does, which is the host's own ordering
 //   rather than anything this bundle decides.
@@ -15,19 +15,19 @@
 // observation is taken across it, and because the performer page, the unreachable studio and the
 // whole capability list are observable on this connection alone.
 //
-// WHAT THE NEVER-SEARCHED OBSERVATION PROVES, AND WHAT IT DOES NOT. The fixture instance reports
-// zero indexers and zero download clients, asserted below rather than assumed, so a search that DID
+// What the never-searched observation proves, and what it does not. The fixture instance reports
+// zero indexers and zero download clients, asserted below rather than assumed, so a search that did
 // start could have found nothing and fetched nothing. The observation is therefore the instance's
 // own command roster and its queue total, which is the same evidence the fixture ledger uses. It is
 // deliberately weaker than the composed-body assertions in the unit tier, and nothing stronger is
-// claimed from it here. The roster is never expected to be EMPTY either: the instance runs scheduled
+// claimed from it here. The roster is never expected to be empty either: the instance runs scheduled
 // tasks of its own and they appear in it, so what is asserted is the absence of a command whose name
 // says it searches.
 //
-// NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC. The grabbing verb's correctness is asserted on its
+// No search is executed anywhere in this spec. The grabbing verb's correctness is asserted on its
 // composed body in the unit tier and is deliberately never run.
 //
-// IF THIS SPEC GOES RED, read the job log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the job log for a container-not-running line before debugging the UI.
 // A red e2e in this repository is usually the Cove container dying rather than the page under test.
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
@@ -50,7 +50,7 @@ import {
 
 // The sentence the settings panel itself draws. It exists only inside the component this extension
 // ships, so reaching it means the whole bundle loaded and the host resolved its component map. The
-// extension's NAME would not do: the host draws that from the manifest alone.
+// extension's name would not do: the host draws that from the manifest alone.
 
 // Transcribed by hand from the extension's own copy module, never imported: a spec reading the same
 // constant the component renders would be asserting that a string equals itself.
@@ -170,8 +170,8 @@ test("the control renders and works on both real detail pages, and the instance 
     title: `Cove E2E Performer ${run}`,
   });
 
-  // D-08's ordinary case rather than a rare one: roughly a tenth of the owner's studios carry no
-  // id in this generation's namespace, and this is the only place that is exercised in a real host.
+  // The ordinary case rather than a rare one: roughly a tenth of the owner's studios carry no id
+  // in this generation's namespace, and this is the only place that is exercised in a real host.
   const unreachableStudio = await seedCoveStudio(api, { name: `Unreachable ${run}` });
   const reachablePerformer = await seedCovePerformer(api, {
     name: `Reachable Performer ${run}`,
@@ -182,7 +182,7 @@ test("the control renders and works on both real detail pages, and the instance 
     "this spec seeded a different number of entities than it declares, so its bound is not the one stated",
   ).toBe(SEEDED_STUDIOS + SEEDED_PERFORMERS);
 
-  // FIRST, and the order is the point. The host loads every extension's bundle under one promise,
+  // Read first, and the order is the point. The host loads every extension's bundle under one promise,
   // so a bundle that throws takes down every extension surface on the page. A failure here means
   // nothing else below is meaningful, and the failure a reader must see is this one.
   await visit(
@@ -293,7 +293,7 @@ test("the control renders and works on both real detail pages, and the instance 
     "Escape closed the menu and left focus on the document, so a reader is told nothing about where they now are",
   ).toBeFocused();
 
-  // THE ONE-WAY-DOOR SENTENCE. A scope change is not retroactive on this generation, so what the
+  // The one-way-door sentence. A scope change is not retroactive on this generation, so what the
   // wider scope makes wanted stays wanted and the confirmation has to say so. Its counterpart is
   // asserted absent on the other generation. Cancelled rather than confirmed: what is under test is
   // the sentence, and confirming would mark the instance's catalogue wanted.

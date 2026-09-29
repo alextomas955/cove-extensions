@@ -1,36 +1,36 @@
 // Counting a library, offering it to the instance, and offering it again, against a real instance.
 //
-// The subject is what the INSTANCE holds afterwards, not what the section wrote on screen. A
+// The subject is what the instance holds afterwards, not what the section wrote on screen. A
 // rendered sentence says the extension believes something happened; the instance's own rows say
 // whether it did. The three counts are read off the page because those figures are the reader's
 // whole basis for pressing the button, and they are asserted against tallies this spec seeded.
 //
-// THE RE-RUN IS THE POINT. Offering a scene the instance already holds must leave one row and start
+// The re-run is the point. Offering a scene the instance already holds must leave one row and start
 // no download, however many times it is offered. Both halves are asserted on the instance: one row
 // per identifier after three offers of it, and a download queue still empty.
 //
-// A REGISTRATION LANDING IS NOT REACHABLE HERE, and that is a fact about the sealed container rather
-// than a gap in the product. This generation resolves an add's identifier against its own metadata
-// service before it will create a catalogue row, and no stand-in for that service is wired for it,
-// so an identifier invented by a test is refused however the extension composed the request. The
-// refusals are therefore asserted by count: a fixture that later gains such a stand-in makes this
-// test red rather than quietly changing what it means. A registration landing, and the not-yet-there
-// figure falling behind it, are observed against live instances in this phase's live verification.
+// A registration landing is not reachable here, and that is a fact about the sealed container
+// rather than a gap in the product. This generation resolves an add's identifier against its own
+// metadata service before it will create a catalogue row, and no stand-in for that service is wired
+// for it, so an identifier invented by a test is refused however the extension composed the
+// request. The refusals are therefore asserted by count: a fixture that later gains such a stand-in
+// makes this test red rather than quietly changing what it means. A registration landing, and the
+// not-yet-there figure falling behind it, are observed against a live instance instead.
 //
-// WHAT THE MONITOR CHOICE DECIDES IS THE SCENE THE INSTANCE ALREADY HELD. A scene this product
+// What the monitor choice decides is the scene the instance already held. A scene this product
 // registers arrives monitored, because the add resource it composes says so and suppresses the
 // search beside it. So the choice cannot be read off a newly registered row at all: the row it
-// decides is the one the instance held BEFORE the run, which is the difference between monitoring
+// decides is the one the instance held before the run, which is the difference between monitoring
 // what was just added and monitoring what the reader owns.
 //
-// NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC. The instance is asserted to hold nothing in its
+// No search is executed anywhere in this spec. The instance is asserted to hold nothing in its
 // download queue and to have run no command whose name says it searches.
 //
-// THE INSTANCE IS DISPOSABLE. It is a container this test's own fixture starts and that fixture's
+// The instance is disposable. It is a container this test's own fixture starts and that fixture's
 // cleanup stack stops, so there is no saved state to put back; the Cove installation beside it is
 // equally per-test. Nothing here writes to an instance anybody uses.
 //
-// IF THIS SPEC GOES RED, read the run's own tallies in the failure message before debugging the UI:
+// If this spec goes red, read the run's own tallies in the failure message before debugging the UI:
 // they say what the run decided, and an instance-side poll says only what did not arrive.
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
