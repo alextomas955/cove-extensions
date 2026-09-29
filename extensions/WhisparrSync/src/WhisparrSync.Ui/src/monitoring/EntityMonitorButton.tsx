@@ -101,11 +101,11 @@ function EntityMonitorControl({
 
   const cannotBePressed = unavailable !== null || region.status === "reading";
 
-  // A press refusal outranks the view's own, and a failed read contributes none: the control
-  // already says the read failed. Which refusal speaks where is decided in `controlNotice` alone.
+  // A press refusal outranks the view's own. Which refusal speaks where is decided in
+  // `controlNotice` alone.
   const outcome = controlNotice({
     failed: state.actionFailed,
-    refusal: state.actionRefusal ?? (region.status === "failed" ? null : (view?.refusal ?? null)),
+    refusal: state.actionRefusal ?? view?.refusal ?? null,
     skip: state.actionSkip,
   });
 
