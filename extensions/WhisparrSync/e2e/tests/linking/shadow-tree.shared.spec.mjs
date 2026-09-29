@@ -132,10 +132,14 @@ for (const generation of ["v3", "v2"]) {
       const run = await pollUntil(
         async () =>
           (await api.get(extensionRoute(`job-status/${String(started.json?.jobId)}`))).json,
-        (one) => /complete|fail/i.test(String(one?.status)),
+        (one) => /completed|failed|cancelled/i.test(String(one?.status)),
         { timeoutMs: RUN_BUDGET_MS, intervalMs: 2_000, label: "the library run's own job status" },
       );
       expect(run?.error ?? null, `the run faulted: ${String(run?.error)}`).toBeNull();
+      expect(
+        String(run?.status).toLowerCase(),
+        `the run did not complete: ${JSON.stringify(run)}`,
+      ).toBe("completed");
 
       // The folder, and one name in it per file the entity owns. The message names which of the
       // three steps did not happen rather than only that the folder is empty: the tree root absent
