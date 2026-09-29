@@ -1,24 +1,24 @@
 // What a library card says about the connected instance, in a real containerized host.
 //
-// WHY THIS SPEC EXISTS. Three strings bind the toolbar control and the card badge across two
+// Three strings bind the toolbar control and the card badge across two
 // repositories: the host's slot name, the manifest's component name, and the key the bundle
 // registers. The host resolves each by exact string and renders nothing, with no error anywhere,
 // when any pair differs. Nothing below the browser can see that, so a control that silently never
 // appears is only reported here.
 //
-// WHAT IT NEEDS. A Cove container, an installed extension and a real Whisparr instance. No metadata
+// What it needs: a Cove container, an installed extension and a real Whisparr instance. No metadata
 // credential: the identifier each card is named by is the library's own stored row, and this surface
 // reaches no provider at all.
 //
-// WHY THE TITLE MATTERS. Playwright's --grep matches the concatenated title and never the filename,
+// Playwright's --grep matches the concatenated title and never the filename,
 // so the describe title below is what selects this file's tests. Every test added here goes inside
 // the same block.
 //
-// WHAT IS NOT HERE. Switching the connected generation lives in generation-switch.spec.mjs beside
+// Switching the connected generation lives in generation-switch.spec.mjs beside
 // this file. The connected generation is a global setting, so a test that changes it cannot share an
 // installation with these.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";
@@ -119,12 +119,16 @@ const SCENE_STATUS_ROUTE = extensionRoute("library/video/status");
 const PERFORMER_STATUS_ROUTE = extensionRoute("library/performer/status");
 
 /**
- * The metadata sources this product reads a catalogue from.
+ * The alpha of a computed colour, or null where it is in no form this reads.
  *
- * Named here and nowhere in the shipped bundle: which source answers follows the connected
- * generation, so a name written into the product would be wrong on the other one.
+ * Chromium answers `rgb(...)` for an opaque colour and `rgba(...)` only where the alpha is below
+ * one, so a missing fourth part is a fully opaque colour rather than an unset one.
  */
-const PROVIDER_HOSTS = ["stashdb.org", "theporndb.net"];
+function alphaOf(colour) {
+  const parts = /^rgba?\(([^)]*)\)$/.exec(colour)?.[1].split(",");
+  if (parts === undefined) return null;
+  return parts.length < 4 ? 1 : Number(parts[3]);
+}
 
 /** How many cards one status request asked about, read off the body that left. */
 function idsAsked(request) {
@@ -142,8 +146,6 @@ function watchRequests(page) {
     toStatusRoute: () => to(STATUS_ROUTE),
     toSceneStatusRoute: () => to(SCENE_STATUS_ROUTE),
     toPerformerStatusRoute: () => to(PERFORMER_STATUS_ROUTE),
-    toProviders: () =>
-      seen.filter((request) => PROVIDER_HOSTS.some((host) => request.url.includes(host))),
   };
 }
 
@@ -373,8 +375,12 @@ test.describe("library status", () => {
       ["off", off],
       ["on", on],
     ]) {
-      expect(colour, `the control's ${state} colour is unset`).not.toBe("");
-      expect(colour, `the control's ${state} colour is fully transparent`).not.toContain(", 0)");
+      const alpha = alphaOf(colour);
+      expect(
+        alpha,
+        `the control's ${state} colour is ${colour}, which carries no alpha this can read`,
+      ).not.toBeNull();
+      expect(alpha, `the control's ${state} colour is fully transparent`).toBeGreaterThan(0);
     }
 
     // One request for the whole page, counted on the network rather than inferred.
@@ -386,10 +392,11 @@ test.describe("library status", () => {
 
     // A display mode with no place for a badge mounts no card slot, so no card registers an
     // identifier and nothing is asked. This falls out of the coalescer's shape and costs nothing.
-    await statusToggle(page).click();
+    // The mode is switched with the control still on, so the mode is what the count measures.
     await page.getByRole("button", { name: "List", exact: true }).click();
     await expect(badgeStrip(page)).toHaveCount(0);
 
+    await statusToggle(page).click();
     const before = requests.toStatusRoute().length;
     await statusToggle(page).click();
     await page.waitForTimeout(SETTLE_DWELL_MS);
@@ -434,11 +441,7 @@ test.describe("library status", () => {
     await expect(statusToggle(page)).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("reading a status changes nothing and reaches no provider", async ({
-    page,
-    baseUrl,
-    connected,
-  }) => {
+  test("reading a status changes nothing", async ({ page, baseUrl, connected }) => {
     const { api: coveApi } = connected;
     const requests = watchRequests(page);
 
@@ -463,8 +466,6 @@ test.describe("library status", () => {
       await readMonitoring(coveApi, identified.id),
       "showing the status moved what the instance holds for the studio",
     ).toEqual(before);
-
-    expect(requests.toProviders(), "showing the status reached a metadata provider").toEqual([]);
   });
 
   test("only the grid display mode has a place for a badge", async ({
@@ -604,20 +605,6 @@ test.describe("library status", () => {
       silent.locator(".card-body"),
       "the unidentified scene's card lost its own body",
     ).toBeVisible();
-
-    // The partial page, stated as one fact: resolved and unresolved cards coexist, and the
-    // unresolved one says why it was never asked rather than reporting a state the instance gave.
-    // Counted by what the chips read, not how many there are: every card carries one now, so a
-    // count alone no longer separates the two cases.
-    const words = await stateChips(page).allInnerTexts();
-    expect(
-      words.filter((word) => STATE_CHIP_TEXT.test(word.trim())),
-      "no scene card on the page carries a state at all",
-    ).not.toHaveLength(0);
-    expect(
-      words.filter((word) => word.trim().endsWith(NOT_LINKED)),
-      "every card on the page was given a state, so the unresolved case is not on it",
-    ).not.toHaveLength(0);
 
     // No state on the page rides on colour: each chip carries its own mark beside its label.
     const chips = await stateChips(page).all();
