@@ -238,6 +238,20 @@ public sealed class MonitoringBulkJobTests
             progress.Units.Select(unit => unit.Outcome));
     }
 
+    // The figure a reader compares against what was applied is the files Whisparr recorded. A
+    // folder count in its place understates a selection by orders of magnitude.
+    [Fact]
+    public void ASelectionsLinkingLineStatesTheFilesRecordedRatherThanTheFolders()
+    {
+        var run = MonitorBulkRun.Completed([new MonitorBulkOutcome(7, MonitorRefusalKind.None)]);
+
+        var summary = MonitoringBulkJob.SummaryOf(
+            run,
+            new MonitorBulkLinking(null, FilesAttached: 9, FoldersRefused: 0));
+
+        Assert.Contains("9 recorded by Whisparr", summary, StringComparison.Ordinal);
+    }
+
     private static Task<MonitorBulkRun> RunAsync(
         int[] entityIds,
         Func<IServiceProvider, int, CancellationToken, Task<MonitorRefusalKind>> act)
