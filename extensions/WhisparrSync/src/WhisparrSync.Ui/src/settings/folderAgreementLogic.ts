@@ -57,7 +57,7 @@ export const FOLDER_AGREEMENT_REFUSALS: readonly FolderRefusal[] = [
 
 // Refusals a stated path cannot settle. Cove holds no file under the folder, so no typed path
 // would change anything.
-const NOTHING_TO_STATE: readonly FolderRefusal[] = ["noFileToProbeWith"];
+const NOTHING_TO_STATE: ReadonlySet<FolderRefusal> = new Set(["noFileToProbeWith"]);
 
 export function describeFolderRefusal(refusal: FolderRefusal): string {
   return REFUSAL_SENTENCES[refusal];
@@ -68,7 +68,7 @@ export function describeFolderRefusal(refusal: FolderRefusal): string {
  * the refusal, so every path a reader could type is refused again.
  */
 export function withdrawsOnly(line: FolderAgreementRootLine): boolean {
-  return line.mapping !== null && line.refusal !== null && NOTHING_TO_STATE.includes(line.refusal);
+  return line.mapping !== null && line.refusal !== null && NOTHING_TO_STATE.has(line.refusal);
 }
 
 /**
@@ -80,7 +80,7 @@ export function asksForAPath(line: FolderAgreementRootLine): boolean {
   if (line.mapping !== null) {
     return !withdrawsOnly(line);
   }
-  return line.refusal === null || !NOTHING_TO_STATE.includes(line.refusal);
+  return line.refusal === null || !NOTHING_TO_STATE.has(line.refusal);
 }
 
 /** The folders to prompt for, in the order the server stored them. */
@@ -105,7 +105,7 @@ export function stateOf(line: FolderAgreementRootLine): FolderAgreementState {
   if (line.refusal === null) {
     return "settled";
   }
-  return NOTHING_TO_STATE.includes(line.refusal) ? "nothingToSettle" : "needsAPath";
+  return NOTHING_TO_STATE.has(line.refusal) ? "nothingToSettle" : "needsAPath";
 }
 
 const STATE_LABELS: Record<FolderAgreementState, string> = {

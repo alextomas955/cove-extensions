@@ -133,13 +133,9 @@ export function useOverlayKeys(
       // -1 is focus on nothing in the list, which is the state a settled press leaves: the
       // pressed row is disabled while its action runs, the browser moves focus off it, and the
       // rows re-enable. An arrow press from there enters the list at the end it points at, in
-      // both directions; a wrap from inside the list is the modulus below.
-      const next =
-        current < 0
-          ? down
-            ? 0
-            : list.length - 1
-          : (current + (down ? 1 : list.length - 1)) % list.length;
+      // both directions; a wrap from inside the list is the modulus.
+      const entering = down ? 0 : list.length - 1;
+      const next = current < 0 ? entering : (current + (down ? 1 : list.length - 1)) % list.length;
       list[next]?.focus();
     }
 
