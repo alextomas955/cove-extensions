@@ -268,8 +268,10 @@ public sealed record MissingSortOption(string Value, string Label);
 /// Discloses no provider credential and no part of any response body: classified values and the
 /// named ones a sentence needs.
 /// <para>
-/// <c>CatalogueSize</c> is how many scenes the provider lists for the entity, not the number
-/// missing. <c>SizeIsLowerBound</c> says the provider's figure is a floor rather than a count, so
+/// <c>CatalogueSize</c> is how many scenes this page was drawn from: the instance's catalogue less
+/// what the library holds and less what the reader excluded, narrowed by the search and the filters
+/// in force. It is the figure the count line renders, so it counts what a reader could page
+/// through. <c>SizeIsLowerBound</c> says the provider's figure is a floor rather than a count, so
 /// the count line renders a trailing plus; the badge carries the plain figure either way, the host
 /// taking a number. <c>LastPage</c> is held apart from <c>CatalogueSize</c> because a page count
 /// derived from the size would offer pages past a provider ceiling, and one provider clamps a page
