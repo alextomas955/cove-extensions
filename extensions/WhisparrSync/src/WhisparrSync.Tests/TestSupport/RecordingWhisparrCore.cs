@@ -474,6 +474,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         CancellationToken ct)
     {
         SceneStatuses.Add(new SceneStatusCall(kind, foreignId, null));
+        Verbs.Add(nameof(ReadEntityPresenceAsync));
         return Task.FromResult(Answer(nameof(ReadEntityPresenceAsync)));
     }
 
@@ -481,6 +482,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
         string remoteId, CancellationToken ct)
     {
         SceneStatuses.Add(new SceneStatusCall(null, null, remoteId));
+        Verbs.Add(nameof(ReadSceneByRemoteIdAsync));
         return Task.FromResult(Answer(nameof(ReadSceneByRemoteIdAsync)));
     }
 
@@ -490,6 +492,7 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
     {
         ArgumentNullException.ThrowIfNull(providerSceneIds);
         ExclusionReads.Add([.. providerSceneIds]);
+        Verbs.Add(nameof(ReduceExclusionsAsync));
         return Task.FromResult<IReadOnlySet<string>>(
             providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
     }
