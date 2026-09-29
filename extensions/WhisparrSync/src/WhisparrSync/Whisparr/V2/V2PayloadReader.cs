@@ -64,15 +64,17 @@ internal sealed class V2PayloadReader : IWhisparrPayloadReading
         }
 
         var episodeIds = new JsonArray();
+        var identified = 0;
         foreach (var episode in episodes.OfType<JsonObject>())
         {
             if (episode["id"] is JsonValue named && named.TryGetValue<int>(out var episodeId))
             {
                 episodeIds.Add(episodeId);
+                identified++;
             }
         }
 
-        if (episodeIds.Count == 0)
+        if (identified == 0)
         {
             return null;
         }
