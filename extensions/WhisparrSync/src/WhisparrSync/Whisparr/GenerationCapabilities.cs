@@ -1,4 +1,5 @@
 using WhisparrSync.Contracts;
+using WhisparrSync.Scene;
 
 namespace WhisparrSync.Whisparr;
 
@@ -6,62 +7,48 @@ namespace WhisparrSync.Whisparr;
 /// <remarks>
 /// A declaration and nothing more. Which roles a connected instance actually has members for is the
 /// interface set its type declares, and a caller reaches for a role by testing the instance for it.
-/// These arrays are on the wire, so the settings page and the monitor menu can say what a
-/// generation offers before any request is sent. One test asserts that each array names exactly the
-/// roles its instance implements.
+/// These lists are on the wire, so the settings page and the monitor menu can say what a generation
+/// offers before any request is sent. Each is read from the roles its own instance implements, so a
+/// generation cannot offer a control with no member behind it, nor hold a member no control offers.
+/// Why an instance holds the roles it does is stated on that instance.
 /// </remarks>
 public static class GenerationCapabilities
 {
-    // Declaration order, so the list a browser reads is stable. A capability is listed only once
-    // some generation has an implementation to register for it.
+    // One row per capability, beside the role expressing it. This is the whole tie between the two:
+    // a capability with no row here is declared by no generation.
     //
-    // No site-registration entry on v3: presence there is a scene add and a site arrives as a side
-    // effect of one.
-    //
-    // Both generations hold the filesystem read. Each generated client declares the route, and v2
-    // was measured answering it at 2.2.0.231, an unknown path giving an empty listing rather than a
-    // failure.
-    private static readonly WhisparrCapability[] V3Capabilities =
+    // In the enum's own order, which is the order a generation's list reaches a browser in.
+    private static readonly (WhisparrCapability Capability, Type Role)[] Roles =
     [
-        WhisparrCapability.OutOfBandCallbackSecret,
-        WhisparrCapability.MonitorStudio,
-        WhisparrCapability.MonitorPerformer,
-        WhisparrCapability.RegisterMissingScenes,
-        WhisparrCapability.ReflectOwnedFiles,
-        WhisparrCapability.SearchMonitored,
-        WhisparrCapability.ReadSceneStatus,
-        WhisparrCapability.ReadSceneExclusions,
-        WhisparrCapability.SearchScene,
-        WhisparrCapability.MonitorScene,
-        WhisparrCapability.ExcludeScene,
-        WhisparrCapability.ReadEntityCardsInBatch,
-        WhisparrCapability.ReadSceneCardsInBatch,
-        WhisparrCapability.TrackEntityCatalogue,
-        WhisparrCapability.ReadEntityCatalogue,
-        WhisparrCapability.ReadInstanceFilesystem,
+        (WhisparrCapability.OutOfBandCallbackSecret, typeof(IOutOfBandSecretRegistration)),
+        (WhisparrCapability.MonitorStudio, typeof(IWhisparrStudioActing)),
+        (WhisparrCapability.MonitorPerformer, typeof(IWhisparrPerformerActing)),
+        (WhisparrCapability.RegisterMissingScenes, typeof(IWhisparrMissingSceneActing)),
+        (WhisparrCapability.ReflectOwnedFiles, typeof(IWhisparrReflectOwnedActing)),
+        (WhisparrCapability.SearchMonitored, typeof(IWhisparrSearchGrabbing)),
+        (WhisparrCapability.ReadSceneStatus, typeof(IWhisparrSceneStatusReading)),
+        (WhisparrCapability.ReadSceneExclusions, typeof(IWhisparrSceneExclusionReading)),
+        (WhisparrCapability.SearchScene, typeof(IWhisparrSceneSearchGrabbing)),
+        (WhisparrCapability.MonitorScene, typeof(IWhisparrSceneMonitorActing)),
+        (WhisparrCapability.ExcludeScene, typeof(IWhisparrSceneExclusionActing)),
+        (WhisparrCapability.RegisterOwnedSites, typeof(IWhisparrSiteRegistrationActing)),
+        (WhisparrCapability.ReadSiteSceneRows, typeof(IWhisparrSiteSceneReading)),
+        (WhisparrCapability.ReadHeldSites, typeof(IWhisparrHeldSiteReading)),
+        (WhisparrCapability.ReadEntityCardsInBatch, typeof(IWhisparrEntityBatchReading)),
+        (WhisparrCapability.ReadSceneCardsInBatch, typeof(IWhisparrSceneBatchReading)),
+        (WhisparrCapability.TrackEntityCatalogue, typeof(IWhisparrEntityTrackingActing)),
+        (WhisparrCapability.ReadEntityCatalogue, typeof(IWhisparrEntityCatalogueReading)),
+        (WhisparrCapability.ReadInstanceFilesystem, typeof(IWhisparrInstanceFilesystemReading)),
     ];
 
-    // Measured against a real v2. It answers a not-found on every performer and per-scene route,
-    // adds no catalogue item, and keeps no scene exclusions, so it holds none of those entries. It
-    // does keep a row per scene, under a site and named by the provider's number, so the per-scene
-    // monitor and the site-row read are held: what it lacks is a route reaching a scene without its
-    // site, not the flag. Site registration and the held-site read are v2's alone, a site being its
-    // unit of presence and its list the only route answering presence for many sites at once.
-    private static readonly WhisparrCapability[] V2Capabilities =
-    [
-        WhisparrCapability.OutOfBandCallbackSecret,
-        WhisparrCapability.MonitorStudio,
-        WhisparrCapability.ReflectOwnedFiles,
-        WhisparrCapability.SearchMonitored,
-        WhisparrCapability.MonitorScene,
-        WhisparrCapability.RegisterOwnedSites,
-        WhisparrCapability.ReadSiteSceneRows,
-        WhisparrCapability.ReadHeldSites,
-        WhisparrCapability.ReadEntityCardsInBatch,
-        WhisparrCapability.TrackEntityCatalogue,
-        WhisparrCapability.ReadEntityCatalogue,
-        WhisparrCapability.ReadInstanceFilesystem,
-    ];
+    // Read once from the instance types, because which roles a type implements cannot change after
+    // it is loaded. Declared below the rows it reads: a static initialiser runs where it is written.
+    private static readonly Dictionary<WhisparrGeneration, IReadOnlyList<WhisparrCapability>>
+        ByGeneration = new()
+        {
+            [WhisparrGeneration.V3] = DeclaredBy(typeof(WhisparrV3Instance)),
+            [WhisparrGeneration.V2] = DeclaredBy(typeof(WhisparrV2Instance)),
+        };
 
     // Whether widening the scope of something already monitored rewrites what that monitoring
     // already covers. v2 applies the scope it is given to the whole catalogue it holds, so a
@@ -70,7 +57,7 @@ public static class GenerationCapabilities
     // wider scope is a one-way door.
     //
     // Not a capability: it describes how a route this product already calls behaves, not whether
-    // the route is there. So it joins neither the enum nor either array.
+    // the route is there. So it joins neither the enum nor the rows above.
     private static readonly Dictionary<WhisparrGeneration, bool> ScopeChangeIsRetroactive = new()
     {
         [WhisparrGeneration.V3] = false,
@@ -79,12 +66,7 @@ public static class GenerationCapabilities
 
     // The authoritative list per generation. An unrecognised generation declares nothing.
     internal static IReadOnlyList<WhisparrCapability> CapabilitiesOf(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => V3Capabilities,
-            WhisparrGeneration.V2 => V2Capabilities,
-            _ => [],
-        };
+        => ByGeneration.TryGetValue(generation, out var declared) ? declared : [];
 
     // Throws on a generation that declared nothing, rather than answering one of the two: a false
     // here drops the warning a reader sees before a back catalogue is marked wanted, and a true
@@ -94,4 +76,15 @@ public static class GenerationCapabilities
 
     internal static IReadOnlyCollection<WhisparrGeneration> GenerationsDeclaringScopeBehaviour
         => ScopeChangeIsRetroactive.Keys;
+
+    private static IReadOnlyList<WhisparrCapability> DeclaredBy(Type instance)
+    {
+        var implemented = instance.GetInterfaces();
+        return
+        [
+            .. Roles
+                .Where(row => implemented.Contains(row.Role))
+                .Select(row => row.Capability),
+        ];
+    }
 }
