@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Linking;
 using WhisparrSync.Whisparr;
@@ -9,24 +10,31 @@ namespace WhisparrSync.Monitoring;
 // rather than registered, which would add a site the instance may already hold. The instance's id
 // comes off that same answer. With no agreed root nothing is sent: nothing here knows where the
 // site belongs.
+/// <summary>The instance this step reads and registers a site on, and the generation it is.</summary>
+/// <remarks>
+/// The generation travels with the calls because what a site's answer states is read in that
+/// generation's own spelling, and the step holds none of them.
+/// </remarks>
+internal sealed record SiteRegistering(
+    WhisparrGeneration Generation,
+    Func<string, CancellationToken, Task<WhisparrResponse?>> ReadSite,
+    Func<string, CancellationToken, Task<WhisparrResponse?>> RegisterSite,
+    Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? Relocate,
+    Func<int, CancellationToken, Task<WhisparrResponse?>> RefreshSiteCatalogue);
+
 internal static class SiteRegistrationStep
 {
     internal static async Task<SyncRegistration> RegisterAsync(
-        Func<string, CancellationToken, Task<WhisparrResponse?>> readSite,
-        Func<string, CancellationToken, Task<WhisparrResponse?>> registerSite,
-        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? relocate,
-        Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
+        SiteRegistering on,
         EntityPlacement agreed,
         LibrarySiteIdentity site,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(on);
         ArgumentNullException.ThrowIfNull(agreed);
-        ArgumentNullException.ThrowIfNull(readSite);
-        ArgumentNullException.ThrowIfNull(registerSite);
-        ArgumentNullException.ThrowIfNull(refreshSiteCatalogue);
         ArgumentNullException.ThrowIfNull(site);
 
-        var held = await readSite(site.RemoteId, ct).ConfigureAwait(false);
+        var held = await on.ReadSite(site.RemoteId, ct).ConfigureAwait(false);
         var reading = held is null
             ? MonitoringProjector.EntityReading.Refused
             : MonitoringProjector.Classify(held).Reading;
@@ -34,12 +42,10 @@ internal static class SiteRegistrationStep
         switch (reading)
         {
             case MonitoringProjector.EntityReading.Held:
-                return await HeldAsync(
-                    relocate, refreshSiteCatalogue, agreed, held!, ct)
-                    .ConfigureAwait(false);
+                return await HeldAsync(on, agreed, held!, ct).ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 return SyncRegistration.Offered(
-                    await registerSite(site.RemoteId, ct).ConfigureAwait(false));
+                    await on.RegisterSite(site.RemoteId, ct).ConfigureAwait(false));
             default:
                 return new SyncRegistration(SceneRegistration.Refused, held, null);
         }
@@ -49,8 +55,7 @@ internal static class SiteRegistrationStep
     // the root: two sites under one root are both at that root and only their folders differ, so a
     // root comparison would read a site still at another entity's folder as correctly placed.
     private static async Task<SyncRegistration> HeldAsync(
-        Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? relocate,
-        Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
+        SiteRegistering on,
         EntityPlacement agreed,
         WhisparrResponse held,
         CancellationToken ct)
@@ -69,9 +74,9 @@ internal static class SiteRegistrationStep
         var relocated = await TreeRelocationStep.RelocateAsync(
             heldAt,
             agreed,
-            relocate is null
+            on.Relocate is null
                 ? null
-                : (root, folder, moveCt) => relocate(instanceId, root, folder, moveCt),
+                : (root, folder, moveCt) => on.Relocate(instanceId, root, folder, moveCt),
             ct).ConfigureAwait(false);
 
         switch (relocated.Act)
@@ -82,9 +87,9 @@ internal static class SiteRegistrationStep
                 // the re-read has to be reachable without moving the site again. A site is
                 // registered only when it owns files under an agreed root, so a stated zero is an
                 // unread catalogue.
-                if (MonitoringProjector.FileCountIn(held.Body) is 0)
+                if (MonitoringProjector.FileCountIn(on.Generation, held.Body) is 0)
                 {
-                    await refreshSiteCatalogue(instanceId, ct).ConfigureAwait(false);
+                    await on.RefreshSiteCatalogue(instanceId, ct).ConfigureAwait(false);
                 }
 
                 return alreadyThere;
