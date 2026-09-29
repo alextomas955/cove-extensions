@@ -834,7 +834,6 @@ public sealed class BackstopPassTests
             int? requestBudget = null,
             string? rowAddress = null)
         {
-            Generation = generation;
             _requestBudget = requestBudget;
             _credentials = new RecordingCredentialPort()
                 .Holding(generation, rowAddress ?? address, ApiKey);
@@ -861,7 +860,6 @@ public sealed class BackstopPassTests
                 .GetResult();
         }
 
-        public WhisparrGeneration Generation { get; }
 
         public FakeStore Store { get; } = new();
 

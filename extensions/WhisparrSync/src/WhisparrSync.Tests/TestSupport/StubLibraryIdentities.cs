@@ -41,17 +41,6 @@ internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
         IReadOnlyList<string> scenes, int? unidentified = null)
         => new(scenes, [], unidentified, null);
 
-    // For a case whose subject is the folder walk: which folder each scene is carried under, and
-    // which folders carry none.
-    public static StubLibraryIdentities OfScenesInFolders(
-        IReadOnlyList<LibrarySceneInFolder> byFolder, int? unidentified = null)
-        => new(
-            [.. byFolder.Select(row => row.RemoteId).OfType<string>()],
-            [],
-            unidentified,
-            null,
-            byFolder);
-
     public static StubLibraryIdentities OfSites(
         IReadOnlyList<LibrarySiteIdentity> sites, int? unidentified = null)
         => new([], sites, null, unidentified);

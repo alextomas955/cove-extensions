@@ -17,8 +17,6 @@ internal sealed class StubInstanceCatalogue : IWhisparrEntityCatalogueReading
     internal StubInstanceCatalogue(IReadOnlyList<WhisparrCatalogueScene> scenes)
         => _answer = WhisparrEntityCatalogue.Listing(scenes);
 
-    internal StubInstanceCatalogue(WhisparrCatalogueRefusal refusal)
-        => _answer = WhisparrEntityCatalogue.Refused(refusal);
 
     internal int Reads { get; private set; }
 
