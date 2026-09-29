@@ -20,17 +20,12 @@ public sealed class CommandProjectorTests
     public void TheAnswerToAPostNamesTheCommandTheInstanceTook()
         => Assert.Equal(8123, CommandProjector.IdIn(Json(Posted)));
 
-    [Fact]
-    public void AnUnreadableAnswerNamesNoCommand()
-        => Assert.Null(CommandProjector.IdIn(Json("{\"id\":")));
-
-    [Fact]
-    public void AnEmptyAnswerNamesNoCommand()
-        => Assert.Null(CommandProjector.IdIn(Json(string.Empty)));
-
-    [Fact]
-    public void AnAnswerWhoseIdentifierIsNotANumberNamesNoCommand()
-        => Assert.Null(CommandProjector.IdIn(Json("""{"id":"8123","name":"MoviesSearch"}""")));
+    [Theory]
+    [InlineData("{\"id\":")]
+    [InlineData("")]
+    [InlineData("""{"id":"8123","name":"MoviesSearch"}""")]
+    public void AnAnswerCarryingNoReadableIdentifierNamesNoCommand(string body)
+        => Assert.Null(CommandProjector.IdIn(Json(body)));
 
     // A just-posted command's status is unmeasured, so confirmation is identifier equality alone.
     [Fact]

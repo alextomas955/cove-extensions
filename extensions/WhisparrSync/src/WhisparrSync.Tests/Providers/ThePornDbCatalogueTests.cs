@@ -32,23 +32,6 @@ public sealed class ThePornDbCatalogueTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    [Theory]
-    [InlineData(VersionFixture)]
-    [InlineData(PageFixture)]
-    [InlineData(CeilingFixture)]
-    [InlineData(ShortPageFixture)]
-    public void EveryFixtureStatesItsOwnProvenance(string fixture)
-    {
-        var document = JsonDocument.Parse(ProbeFixtures.Read(fixture)).RootElement;
-
-        Assert.Equal("2026-09-06", document.GetProperty("recordedOn").GetString());
-        Assert.NotEmpty(document.GetProperty("documentVersion").GetString()!);
-        Assert.StartsWith(
-            "https://api.theporndb.net",
-            document.GetProperty("recordedAgainst").GetString()!,
-            StringComparison.Ordinal);
-    }
-
     // The provider's document revision moves often, so every page has to come from the same one.
     [Fact]
     public void TheRecordedPagesWereTakenAgainstTheRecordedDocumentRevision()

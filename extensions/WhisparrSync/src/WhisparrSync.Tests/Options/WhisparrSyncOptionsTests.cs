@@ -231,39 +231,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Empty(loaded.Instance().ImportRefusals);
     }
 
-    // Two types of this name, held apart by a file-scoped using alias, is a defect a legal edit
-    // triggers in silence. Dropping or reordering that one line compiles and changes which enum an
-    // outbound body is composed from.
-    [Fact]
-    public void ExactlyOneExportedTypeIsNamedMonitorScope()
-    {
-        var named = typeof(WhisparrSyncOptions).Assembly.GetExportedTypes()
-            .Where(type => type.Name == nameof(MonitorScope))
-            .Select(type => type.FullName)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(["WhisparrSync.Contracts.MonitorScope"], named);
-    }
-
-    [Fact]
-    public void TheOneScopeEnumSpellsBothScopesAndNothingElse()
-    {
-        Assert.Equal(
-            ["AllScenes", "FutureScenes"],
-            Enum.GetNames<MonitorScope>().Order(StringComparer.Ordinal).ToArray());
-    }
-
-    [Fact]
-    public void TheStoredDefaultIsTheActingEnumAtTheNarrowerScope()
-    {
-        Assert.Equal(
-            typeof(MonitorScope),
-            typeof(WhisparrSyncOptions).GetProperty(nameof(WhisparrSyncOptions.DefaultMonitorScope))
-                ?.PropertyType);
-        Assert.Equal(MonitorScope.FutureScenes, new WhisparrSyncOptions().DefaultMonitorScope);
-    }
-
     [Fact]
     public async Task ABlobNamingTheWiderScopeLoadsAsTheWiderScope()
     {

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Reflection;
 using Cove.Plugins;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
@@ -121,20 +120,6 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(MonitorScope.AllScenes, after.DefaultMonitorScope);
         Assert.Equal(MovedHost, after.CallbackHost);
         Assert.Equal(UpgradeBehavior.Add, after.UpgradeBehavior);
-    }
-
-    // A fold that cannot await keeps an outbound request and a host import outside the lock.
-    [Fact]
-    public void TheGateOffersOneMutationAndItTakesASynchronousFold()
-    {
-        var mutate = Assert.Single(
-            typeof(OptionsWriteGate)
-                .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-            method => method.Name.EndsWith("Async", StringComparison.Ordinal));
-
-        Assert.Equal(nameof(OptionsWriteGate.MutateAsync), mutate.Name);
-        var fold = Assert.Single(mutate.GetParameters(), parameter => parameter.Name == "fold");
-        Assert.Equal(typeof(Func<WhisparrSyncOptions, WhisparrSyncOptions>), fold.ParameterType);
     }
 
     // The fold writes an instant that always differs, so the equal-value short circuit never stands

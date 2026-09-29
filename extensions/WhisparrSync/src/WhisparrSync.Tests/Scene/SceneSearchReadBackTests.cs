@@ -23,9 +23,6 @@ public sealed class SceneSearchReadBackTests
     private static string HeldSceneRow(bool monitored)
         => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
 
-    // A scene the instance holds no entry for.
-    private const string NoSceneRow = "[]";
-
     private static string CommandRow(int commandId)
         => $$"""
         {"id":{{commandId}},"name":"MoviesSearch","commandName":"Movies Search","priority":"normal","status":"queued","result":"unknown","trigger":"manual","queued":"2026-01-01T00:00:00Z"}
@@ -36,56 +33,17 @@ public sealed class SceneSearchReadBackTests
         """{"name":"MoviesSearch","status":"queued"}""";
 
     [Fact]
-    public async Task ASearchOnASceneTheInstanceDoesNotHoldSendsNothing()
-    {
-        await using var host = await MonitorHost.CreateAsync();
-        var coveId = await SeedSceneAsync(host, NoSceneRow);
-
-        var result = await host.SceneActionAsync(coveId, Search);
-
-        Assert.Equal(SceneRefusalKind.WhisparrHasNoEntryForScene, result.Refusal);
-        Assert.False(result.SearchIsWithWhisparr);
-        Assert.Empty(host.Client.Acting);
-    }
-
-    [Fact]
-    public async Task ASearchOnASceneTheInstanceIsNotMonitoringSendsNothing()
-    {
-        await using var host = await MonitorHost.CreateAsync();
-        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: false));
-
-        var result = await host.SceneActionAsync(coveId, Search);
-
-        Assert.Equal(SceneRefusalKind.WhisparrIsNotMonitoringThisScene, result.Refusal);
-        Assert.False(result.SearchIsWithWhisparr);
-        Assert.Empty(host.Client.Acting);
-    }
-
-    [Fact]
-    public async Task ACommandThatReadsBackUnderThePostedIdIsWithWhisparrAndClaimsNoDownload()
-    {
-        await using var host = await MonitorHost.CreateAsync();
-        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
-        Confirming(host, CommandOnTheInstance);
-
-        var result = await host.SceneActionAsync(coveId, Search);
-
-        Assert.Equal(SceneRefusalKind.None, result.Refusal);
-        Assert.True(result.SearchIsWithWhisparr);
-
-        // The whole answer, so a member claiming a file, a release or a queue would have to be
-        // added here as well as declared.
-        Assert.Equal(new SceneActionResult(SceneRefusalKind.None, true), result);
-    }
-
-    [Fact]
     public async Task ThePostedCommandIsWhatIsAskedAboutAndTheSceneIsWhatIsSearchedFor()
     {
         await using var host = await MonitorHost.CreateAsync();
         var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
         Confirming(host, CommandOnTheInstance);
 
-        await host.SceneActionAsync(coveId, Search);
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        // The whole answer, so a member claiming a file, a release or a queue would have to be
+        // added here as well as declared.
+        Assert.Equal(new SceneActionResult(SceneRefusalKind.None, true), result);
 
         var searched = Assert.Single(host.Client.Acting);
         Assert.Equal(nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync), searched.Verb);

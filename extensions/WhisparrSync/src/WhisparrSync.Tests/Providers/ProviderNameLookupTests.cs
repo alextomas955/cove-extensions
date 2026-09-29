@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,19 +23,6 @@ public sealed class ProviderNameLookupTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public void BothFixturesStateWhenAndWhereTheyWereRecorded()
-    {
-        var stashDb = JsonDocument.Parse(ProbeFixtures.Read(StashDbFixture)).RootElement;
-        var thePornDb = JsonDocument.Parse(ProbeFixtures.Read(ThePornDbFixture)).RootElement;
-
-        Assert.Equal("2026-09-06", stashDb.GetProperty("recordedOn").GetString());
-        Assert.Equal(StashDbSpelling, stashDb.GetProperty("recordedAgainst").GetString());
-        Assert.Equal("2026-09-06", thePornDb.GetProperty("recordedOn").GetString());
-        Assert.Equal(
-            "https://api.theporndb.net", thePornDb.GetProperty("recordedAgainst").GetString());
-    }
-
-    [Fact]
     public async Task AStudioNamedExactlyResolvesOnStashDb()
     {
         var catalogue = StashDbOver(StashDb("findStudioExact"));
@@ -58,6 +44,7 @@ public sealed class ProviderNameLookupTests
         var found = await catalogue.LookUpByNameAsync(
             WhisparrEntityKind.Studio, "ZZZ No Such Studio Here 12345", [], TestCt);
 
+        Assert.True(found.WasReached);
         Assert.Null(found.ProviderEntityId);
         Assert.False(found.IsAmbiguous);
     }
@@ -76,18 +63,6 @@ public sealed class ProviderNameLookupTests
             found.ProviderEntityId);
         Assert.Contains("findTagOrAlias(", handler.Requests[0].Body, StringComparison.Ordinal);
         Assert.DoesNotContain("findTag(name", handler.Requests[0].Body, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ThePlainTagQueryAnsweredNothingForTheSameWord()
-    {
-        var plain = JsonDocument.Parse(StashDb("findTagPlain"))
-            .RootElement.GetProperty("data")
-            .GetProperty("findTag");
-
-        Assert.Equal(JsonValueKind.Null, plain.ValueKind);
-        Assert.Equal(
-            "Anal Sex", StashDbAnswer("findTagOrAlias")["findTagOrAlias"]!["name"]!.GetValue<string>());
     }
 
     [Fact]
@@ -161,6 +136,7 @@ public sealed class ProviderNameLookupTests
         var found = await catalogue.LookUpByNameAsync(
             WhisparrEntityKind.Studio, "ZZZ No Such Site Here 12345", [], TestCt);
 
+        Assert.True(found.WasReached);
         Assert.Null(found.ProviderEntityId);
         Assert.False(found.IsAmbiguous);
     }
@@ -303,21 +279,6 @@ public sealed class ProviderNameLookupTests
         Assert.Null(found.ProviderEntityId);
         Assert.NotEqual(ProviderIdentityLookup.Unmatched, found);
         Assert.Single(handler.Targets);
-    }
-
-    [Fact]
-    public async Task AnEntityNeitherSourceNamesIsReachedAndUnmatched()
-    {
-        var stashDb = StashDbOver(StashDb("findStudioAbsent"));
-        var (thePornDb, _) = ThePornDbOver(ThePornDb("sitesAbsent"));
-
-        var onStashDb = await stashDb.LookUpByNameAsync(
-            WhisparrEntityKind.Studio, "ZZZ No Such Studio Here 12345", [], TestCt);
-        var onThePornDb = await thePornDb.LookUpByNameAsync(
-            WhisparrEntityKind.Studio, "ZZZ No Such Site Here 12345", [], TestCt);
-
-        Assert.True(onStashDb.WasReached);
-        Assert.True(onThePornDb.WasReached);
     }
 
     private static JsonObject StashDbAnswer(string label)

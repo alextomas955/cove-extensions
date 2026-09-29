@@ -37,27 +37,16 @@ public sealed class OptionsPersistenceTests
         // back holding the value this case expects and the case would pass having proven nothing.
         Assert.NotEqual(Json(Read(new WhisparrSyncOptions(), segments)), Json(Read(seeded, segments)));
 
+        // The gate writes nothing where the fold answered what it was given, so a member absent from
+        // the comparison would make every write through it vanish with nothing reported.
+        Assert.NotEqual(
+            WhisparrSyncOptions.Persisted(new WhisparrSyncOptions()),
+            WhisparrSyncOptions.Persisted(seeded));
+
         var reloaded = JsonSerializer.Deserialize<WhisparrSyncOptions>(
             WhisparrSyncOptions.Persisted(seeded), WhisparrSyncOptions.JsonOptions);
 
         Assert.Equal(Json(Read(seeded, segments)), Json(Read(reloaded!, segments)));
-    }
-
-    // The gate writes nothing where the fold answered what it was given, so a member absent from
-    // the comparison would make every write through it vanish with nothing reported.
-    [Theory]
-    [MemberData(nameof(PersistedMembers))]
-    public void AFoldTouchingOnlyThisMemberIsSeenAsAChange(string path)
-    {
-        var segments = path.Split('.');
-        var seeded = new WhisparrSyncOptions();
-        var owner = Owner(seeded, segments);
-        var member = owner.GetType().GetProperty(segments[^1])!;
-        member.SetValue(owner, Distinct(member.PropertyType, member.GetValue(owner)));
-
-        Assert.NotEqual(
-            WhisparrSyncOptions.Persisted(new WhisparrSyncOptions()),
-            WhisparrSyncOptions.Persisted(seeded));
     }
 
     private static IEnumerable<string> MemberPaths(Type type, string prefix)

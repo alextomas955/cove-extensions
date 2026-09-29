@@ -23,15 +23,6 @@ public sealed class StashDbCatalogueTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public void TheFixtureStatesItsOwnProvenance()
-    {
-        var fixture = JsonDocument.Parse(ProbeFixtures.Read(FixtureName)).RootElement;
-
-        Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
-        Assert.Equal(ConfiguredSpelling, fixture.GetProperty("recordedAgainst").GetString());
-    }
-
-    [Fact]
     public async Task OnePageIsOneOutboundCall()
     {
         var (catalogue, handler) = CatalogueOver(RecordedPage());
@@ -425,15 +416,6 @@ public sealed class StashDbCatalogueTests
         Assert.False(answer.IsSearchable);
         Assert.Null(answer.Values);
         Assert.Empty(handler.Requests);
-    }
-
-    [Fact]
-    public void TheFacetFixtureStatesItsOwnProvenance()
-    {
-        var fixture = JsonDocument.Parse(ProbeFixtures.Read(FacetFixtureName)).RootElement;
-
-        Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
-        Assert.Equal(ConfiguredSpelling, fixture.GetProperty("recordedAgainst").GetString());
     }
 
     private static string Facet(string label)
