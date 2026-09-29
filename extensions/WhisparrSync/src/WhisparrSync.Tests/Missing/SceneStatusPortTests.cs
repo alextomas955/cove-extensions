@@ -9,7 +9,6 @@ namespace WhisparrSync.Tests.Missing;
 public sealed class SceneStatusPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-movie-by-stashid.json";
-    private const string EntityForeignId = "5ee16943-0da6-4ee4-94c1-54172e3d0b7e";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -20,34 +19,6 @@ public sealed class SceneStatusPortTests
 
         Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
         Assert.Equal("Whisparr 3.4.0.1387", fixture.GetProperty("recordedAgainst").GetString());
-    }
-
-    [Fact]
-    public async Task AnAbsentEntityIsFortyNotAddedCardsAndZeroPerCardRequests()
-    {
-        var reading = new RecordingSceneStatusReading(presence: 404);
-        var ids = PageOfForty();
-
-        var states = await SceneStatusPort.ReadStatesAsync(
-            reading, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
-
-        Assert.Equal(40, states.Count);
-        Assert.All(states.Values, state => Assert.Equal(MissingSceneState.NotAdded, state));
-        Assert.Equal(1, reading.PresenceCalls);
-        Assert.Equal(0, reading.SceneCalls);
-    }
-
-    [Fact]
-    public async Task APresentEntityCostsAtMostOneRequestPerCard()
-    {
-        var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: RecordedRow());
-        var ids = PageOfForty();
-
-        await SceneStatusPort.ReadStatesAsync(
-            reading, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
-
-        Assert.Equal(1, reading.PresenceCalls);
-        Assert.Equal(40, reading.SceneCalls);
     }
 
     // stashId is the one key that narrows. The instance accepts stashIds and foreignId and ignores
@@ -71,45 +42,29 @@ public sealed class SceneStatusPortTests
     [Theory]
     [InlineData(true, MissingSceneState.Monitored)]
     [InlineData(false, MissingSceneState.Unmonitored)]
-    public async Task AHeldRowReadsAsMonitoredOrUnmonitoredFromItsOwnField(
+    public void AHeldRowReadsAsMonitoredOrUnmonitoredFromItsOwnField(
         bool monitored, MissingSceneState expected)
     {
         var row = JsonDocument.Parse(RecordedRow()).RootElement[0];
-        var rewritten = RowWithMonitored(row, monitored);
-        var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: rewritten);
 
-        var states = await SceneStatusPort.ReadStatesAsync(
-            reading, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
+        var read = SceneStatusPort.ReadRow(
+            new WhisparrResponse(200, "application/json", RowWithMonitored(row, monitored)));
 
-        Assert.Equal(expected, states["a-scene"]);
+        Assert.Equal(expected, read.State);
     }
 
     // The instance answers a scene it does not hold with a success and an empty list, not a
     // not-found, so the absence is read out of the body.
     [Fact]
-    public async Task AnEmptyListForAHeldEntityIsNotAddedRatherThanUnknown()
+    public void AnEmptyListIsNotAddedRatherThanUnknown()
     {
         var absent = JsonDocument.Parse(ProbeFixtures.Read(FixtureName))
             .RootElement.GetProperty("absentResponse")
             .GetRawText();
-        var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: absent);
 
-        var states = await SceneStatusPort.ReadStatesAsync(
-            reading, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
+        var read = SceneStatusPort.ReadRow(new WhisparrResponse(200, "application/json", absent));
 
-        Assert.Equal(MissingSceneState.NotAdded, states["a-scene"]);
-    }
-
-    [Fact]
-    public async Task AnUnreadProbeIsUnknownForTheWholePageAndCostsNoPerCardRequest()
-    {
-        var reading = new RecordingSceneStatusReading(presence: 500);
-
-        var states = await SceneStatusPort.ReadStatesAsync(
-            reading, WhisparrEntityKind.Studio, EntityForeignId, PageOfForty(), TestCt);
-
-        Assert.All(states.Values, state => Assert.Equal(MissingSceneState.StatusUnknown, state));
-        Assert.Equal(0, reading.SceneCalls);
+        Assert.Equal(MissingSceneState.NotAdded, read.State);
     }
 
     private static string RowWithMonitored(JsonElement row, bool monitored)
@@ -130,9 +85,6 @@ public sealed class SceneStatusPortTests
             .RootElement.GetProperty("response")
             .GetRawText();
 
-    private static string[] PageOfForty()
-        => [.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")];
-
     private static int CountOf(string text, string term)
     {
         var found = 0;
@@ -144,35 +96,5 @@ public sealed class SceneStatusPortTests
         }
 
         return found;
-    }
-
-    private sealed class RecordingSceneStatusReading(int presence, string sceneAnswer = "[]")
-        : IWhisparrSceneStatusReading
-    {
-        public int PresenceCalls { get; private set; }
-
-        public int SceneCalls { get; private set; }
-
-        public Task<WhisparrResponse> ReadEntityPresenceAsync(
-            WhisparrEntityKind kind,
-            string foreignId,
-            CancellationToken ct)
-        {
-            PresenceCalls++;
-            return Task.FromResult(new WhisparrResponse(presence, "application/json", "{}"));
-        }
-
-        public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-            string remoteId, CancellationToken ct)
-        {
-            SceneCalls++;
-            return Task.FromResult(new WhisparrResponse(200, "application/json", sceneAnswer));
-        }
-
-        public Task<ScenesHeld> ReduceHeldScenesAsync(
-            IReadOnlyCollection<string> foreignIds,
-            CancellationToken ct)
-            => throw new InvalidOperationException(
-                "This surface asks about one scene at a time and never about a batch of them.");
     }
 }

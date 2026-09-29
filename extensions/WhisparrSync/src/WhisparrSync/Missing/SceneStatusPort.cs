@@ -13,77 +13,8 @@ namespace WhisparrSync.Missing;
 /// </remarks>
 public sealed record SceneOnInstance(MissingSceneState State, int? InstanceId, string? Path = null);
 
-// One entity probe decides the page before any per-scene read is issued: an instance holding no
-// entry for the entity holds none for a scene under it. A kind the instance publishes no entity for
-// has no probe to short-circuit with, and the per-scene reads are issued directly.
-//
-// The reading role is a parameter rather than held state. Which generation is connected is a stored
-// setting, so a role captured ahead of the call would be one obtained before the connection it
-// describes was known.
 internal static class SceneStatusPort
 {
-    // Costs one entity read plus at most one read per scene, so it is bounded by the page and never
-    // by what the instance holds.
-    public static async Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
-        IWhisparrSceneStatusReading reading,
-        WhisparrEntityKind kind,
-        string entityForeignId,
-        IReadOnlyList<string> providerSceneIds,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(reading);
-        ArgumentNullException.ThrowIfNull(providerSceneIds);
-
-        // The instance publishes no tag entity, so a tag page has nothing to probe. Widening the
-        // probe into a catalogue read would cost an answer that grows with what the instance holds.
-        if (HasAnEntityToProbe(kind))
-        {
-            var presence = await reading
-                .ReadEntityPresenceAsync(kind, entityForeignId, ct)
-                .ConfigureAwait(false);
-
-            if (StateForWholePage(presence) is { } settled)
-            {
-                return providerSceneIds.ToDictionary(
-                    id => id, _ => settled, StringComparer.Ordinal);
-            }
-        }
-
-        var states = new Dictionary<string, MissingSceneState>(StringComparer.Ordinal);
-        foreach (var id in providerSceneIds)
-        {
-            if (states.ContainsKey(id))
-            {
-                continue;
-            }
-
-            var answered = await reading.ReadSceneByRemoteIdAsync(id, ct).ConfigureAwait(false);
-            states[id] = StateOf(answered);
-        }
-
-        return states;
-    }
-
-    private static bool HasAnEntityToProbe(WhisparrEntityKind kind)
-        => kind is WhisparrEntityKind.Studio or WhisparrEntityKind.Performer;
-
-    // A not-found means the instance holds no entry for the entity, which settles the page as added
-    // nowhere. Any other unsuccessful answer claims nothing about the instance. Null means each
-    // scene must be read.
-    private static MissingSceneState? StateForWholePage(WhisparrResponse presence)
-    {
-        if (presence.StatusCode == 404)
-        {
-            return MissingSceneState.NotAdded;
-        }
-
-        return presence.StatusCode is >= 200 and < 300
-            ? null
-            : MissingSceneState.StatusUnknown;
-    }
-
-    private static MissingSceneState StateOf(WhisparrResponse answered) => ReadRow(answered).State;
-
     // No row is an absence rather than a failure, which is the one distinction a reader acts on
     // differently.
     internal static SceneOnInstance ReadRow(WhisparrResponse answered)
