@@ -164,6 +164,21 @@ Libraries reach millions of files. Nothing may grow with the library.
   Where a type cannot be generated, record the values in a test whose expected value you copied
   from the server, not computed from the module under test.
 
+## Host runtime types
+
+- Cove publishes no types for `@cove/runtime/components` and `@cove/runtime/api`.
+  `npm run generate:host-types` emits them from a Cove checkout into the gitignored `.host-types/`,
+  and each UI tsconfig maps the two specifiers there. `typecheck` runs it first.
+- The generator resolves Cove through `COVE_REPO`, then the `../cove` sibling, and fails when it
+  finds neither. No checkout means no UI typecheck, the same way the C# suite refuses to build
+  without one rather than checking a smaller set.
+- Declarations are emitted rather than read from Cove's source directly. A tsconfig pointed at
+  `extension-shared.ts` pulls Cove's `.ts` into this program, where this repo's `noUnusedLocals` and
+  `verbatimModuleSyntax` then report inside Cove's own files. `skipLibCheck` covers a `.d.ts`.
+- Nothing generated is committed, so no checkout path reaches the repo.
+- The `build` CI job runs no frontend verify: it proves the shipped artifact needs no Cove source.
+  `ui-verify` owns the typecheck and the UI suites, with a Cove checkout.
+
 ## Tests
 
 - A test mirrors its source folder. A group that tests no single source unit gets a folder of its

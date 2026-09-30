@@ -1,0 +1,2125 @@
+{
+  "instance": {
+    "build": "2.2.0.231",
+    "image": "ghcr.io/hotio/whisparr:v2-2.2.0-release.231",
+    "container": "whisparr-exp-v2",
+    "generation": "v2",
+    "baseAddress": "http://localhost:16971",
+    "capturedAt": "2026-09-17T01:32:39.488Z"
+  },
+  "question": "Which of rootFolderPath, path, or both, changed through PUT /api/v3/series/{id} with moveFiles left at its default, relocates a held site?",
+  "arrangement": {
+    "rootFolders": [
+      {
+        "path": "/library",
+        "accessible": true,
+        "freeSpace": 14887622262784,
+        "unmappedFolders": [
+          {
+            "name": "rootA",
+            "path": "/library/rootA",
+            "relativePath": "rootA"
+          },
+          {
+            "name": "rootB",
+            "path": "/library/rootB",
+            "relativePath": "rootB"
+          }
+        ],
+        "id": 1
+      },
+      {
+        "path": "/library/rootA",
+        "accessible": true,
+        "freeSpace": 14887622262784,
+        "unmappedFolders": [],
+        "id": 2
+      },
+      {
+        "path": "/library/rootB",
+        "accessible": true,
+        "freeSpace": 14887622262784,
+        "unmappedFolders": [],
+        "id": 3
+      }
+    ],
+    "note": "Three root folders are declared. Every series in the three attempts below was added under /library/rootA and held two linked files before the attempt."
+  },
+  "answers": {
+    "memberTheInstanceActsOn": "path",
+    "rootFolderPathAloneRelocates": false,
+    "rootFolderPathIsDerivedFromPath": "Sending path alone read back a changed rootFolderPath as well, so the instance derives it.",
+    "pathMustBeRecomputed": "<the new instance root>/<the existing last segment>",
+    "moveFilesDefault": "No transfer. The bytes stayed under the old root both with the parameter absent and with moveFiles=false stated.",
+    "updateLinksNothingByItself": "A site holding no file rows still reads zero after the path change. RefreshSeries is what links the media under the new path."
+  },
+  "attempts": [
+    {
+      "name": "rootFolderPath alone",
+      "seriesId": 2,
+      "before": {
+        "id": 2,
+        "title": "Tushy",
+        "path": "/library/rootA/Tushy",
+        "rootFolderPath": "/library/rootA",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "request": {
+        "method": "PUT",
+        "path": "/api/v3/series/2",
+        "query": {
+          "moveFiles": "absent (generated client default is false)"
+        },
+        "body": {
+          "title": "Tushy",
+          "sortTitle": "tushy",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Tushy is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/2/poster.jpg?lastWrite=639252054296458305",
+              "remoteUrl": "https://cdn.theporndb.net/sites/ce/6b/fd/6970d531c4f80526abba7e3112a0b6a/poster/tushy-poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/2/logo.jpg?lastWrite=639252054297040199",
+              "remoteUrl": "https://cdn.theporndb.net/sites/1c/13/81/1e479b4c52c0d8586b6e8c1ed34c805/logo/01HVSPZ7VFW64HANHDNHMNWE8X.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2015,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 38,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2016,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 71,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 57,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 41,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2015,
+          "path": "/library/rootA/Tushy",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 40,
+          "tvdbId": 3417,
+          "cleanTitle": "tushy",
+          "titleSlug": "tushy",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:28Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 12,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 687,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 2
+        }
+      },
+      "response": {
+        "status": 202,
+        "body": {
+          "title": "Tushy",
+          "sortTitle": "tushy",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Tushy is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/2/poster.jpg?lastWrite=639252054296458305",
+              "remoteUrl": "https://cdn.theporndb.net/sites/ce/6b/fd/6970d531c4f80526abba7e3112a0b6a/poster/tushy-poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/2/logo.jpg?lastWrite=639252054297040199",
+              "remoteUrl": "https://cdn.theporndb.net/sites/1c/13/81/1e479b4c52c0d8586b6e8c1ed34c805/logo/01HVSPZ7VFW64HANHDNHMNWE8X.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2015,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 38,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2016,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 71,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 57,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 41,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2015,
+          "path": "/library/rootA/Tushy",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 40,
+          "tvdbId": 3417,
+          "cleanTitle": "tushy",
+          "titleSlug": "tushy",
+          "rootFolderPath": "/library/rootA",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:28Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 12,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 687,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 2
+        }
+      },
+      "readBack": {
+        "id": 2,
+        "title": "Tushy",
+        "path": "/library/rootA/Tushy",
+        "rootFolderPath": "/library/rootA",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "diskAfterUpdate": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Tushy - 2015-04-20 - My Sugar Daddy Loves Anal Sex 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Tushy - 2015-04-27 - Big Tit Babe Assfucked By Huge Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "refresh": {
+        "command": {
+          "name": "RefreshSeries",
+          "seriesId": 2
+        },
+        "status": 201,
+        "result": "completed",
+        "episodeFileCountBefore": 2,
+        "episodeFileCountAfter": 2
+      },
+      "diskAfterRefresh": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Tushy - 2015-04-20 - My Sugar Daddy Loves Anal Sex 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Tushy - 2015-04-27 - Big Tit Babe Assfucked By Huge Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "relocated": false
+    },
+    {
+      "name": "path alone",
+      "seriesId": 3,
+      "before": {
+        "id": 3,
+        "title": "Blacked",
+        "path": "/library/rootA/Blacked",
+        "rootFolderPath": "/library/rootA",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "request": {
+        "method": "PUT",
+        "path": "/api/v3/series/3",
+        "query": {
+          "moveFiles": "absent (generated client default is false)"
+        },
+        "body": {
+          "title": "Blacked",
+          "sortTitle": "blacked",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Blacked is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/3/poster.jpg?lastWrite=639252054319303622",
+              "remoteUrl": "https://cdn.theporndb.net/sites/39/ba/42/4c362d9c57a2129d675f5157877e352/poster/poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/3/logo.jpg?lastWrite=639252054319890606",
+              "remoteUrl": "https://cdn.theporndb.net/sites/24/c9/fa/2b5dd3258662ed1d065fa3b77768d8f/logo/blacked-logo.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2014,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 47,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2015,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 69,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2016,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 74,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 56,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 69,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2014,
+          "path": "/library/rootB/Blacked",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 38,
+          "tvdbId": 200,
+          "cleanTitle": "blacked",
+          "titleSlug": "blacked",
+          "rootFolderPath": "/library/rootA",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:29Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 13,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 816,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 3
+        }
+      },
+      "response": {
+        "status": 202,
+        "body": {
+          "title": "Blacked",
+          "sortTitle": "blacked",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Blacked is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/3/poster.jpg?lastWrite=639252054319303622",
+              "remoteUrl": "https://cdn.theporndb.net/sites/39/ba/42/4c362d9c57a2129d675f5157877e352/poster/poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/3/logo.jpg?lastWrite=639252054319890606",
+              "remoteUrl": "https://cdn.theporndb.net/sites/24/c9/fa/2b5dd3258662ed1d065fa3b77768d8f/logo/blacked-logo.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2014,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 47,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2015,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 69,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2016,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 74,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 56,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 69,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2014,
+          "path": "/library/rootB/Blacked",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 38,
+          "tvdbId": 200,
+          "cleanTitle": "blacked",
+          "titleSlug": "blacked",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:29Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 13,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 816,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 3
+        }
+      },
+      "readBack": {
+        "id": 3,
+        "title": "Blacked",
+        "path": "/library/rootB/Blacked",
+        "rootFolderPath": "/library/rootB",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "diskAfterUpdate": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Blacked - 2014-03-03 - Hot Southern Blonde Takes Big Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Blacked - 2014-03-10 - 18 Years Old Addicted to Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "refresh": {
+        "command": {
+          "name": "RefreshSeries",
+          "seriesId": 3
+        },
+        "status": 201,
+        "result": "completed",
+        "episodeFileCountBefore": 2,
+        "episodeFileCountAfter": 2
+      },
+      "diskAfterRefresh": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Blacked - 2014-03-03 - Hot Southern Blonde Takes Big Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Blacked - 2014-03-10 - 18 Years Old Addicted to Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "relocated": true
+    },
+    {
+      "name": "both together",
+      "seriesId": 4,
+      "before": {
+        "id": 4,
+        "title": "Deeper",
+        "path": "/library/rootA/Deeper",
+        "rootFolderPath": "/library/rootA",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "request": {
+        "method": "PUT",
+        "path": "/api/v3/series/4",
+        "query": {
+          "moveFiles": "absent (generated client default is false)"
+        },
+        "body": {
+          "title": "Deeper",
+          "sortTitle": "deeper",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Deeper is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/4/poster.jpg?lastWrite=639252054319637360",
+              "remoteUrl": "https://cdn.theporndb.net/sites/fb/64/6f/911ad7006dc6cd3420a143ebbe68106/poster/deeper-poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/4/logo.jpg?lastWrite=639252054320218899",
+              "remoteUrl": "https://cdn.theporndb.net/sites/a7/5c/c7/ff4c2bb90129ca7fb433d1545d26932/logo/01HVSPXSZABKB1VX301W3NGV26.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 3,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 46,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 70,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 57,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 37,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2017,
+          "path": "/library/rootB/Deeper",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 36,
+          "tvdbId": 3373,
+          "cleanTitle": "deeper",
+          "titleSlug": "deeper",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:29Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 10,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 473,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 4
+        }
+      },
+      "response": {
+        "status": 202,
+        "body": {
+          "title": "Deeper",
+          "sortTitle": "deeper",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Deeper is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/4/poster.jpg?lastWrite=639252054319637360",
+              "remoteUrl": "https://cdn.theporndb.net/sites/fb/64/6f/911ad7006dc6cd3420a143ebbe68106/poster/deeper-poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/4/logo.jpg?lastWrite=639252054320218899",
+              "remoteUrl": "https://cdn.theporndb.net/sites/a7/5c/c7/ff4c2bb90129ca7fb433d1545d26932/logo/01HVSPXSZABKB1VX301W3NGV26.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 3,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 46,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 70,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 57,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 37,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2017,
+          "path": "/library/rootB/Deeper",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 36,
+          "tvdbId": 3373,
+          "cleanTitle": "deeper",
+          "titleSlug": "deeper",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:30:29Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 10,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 473,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 4
+        }
+      },
+      "readBack": {
+        "id": 4,
+        "title": "Deeper",
+        "path": "/library/rootB/Deeper",
+        "rootFolderPath": "/library/rootB",
+        "episodeFileCount": 2,
+        "sizeOnDisk": 144492
+      },
+      "diskAfterUpdate": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Deeper - 2017-11-13 - Valentina Nappi and Jay Savage 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Deeper - 2017-12-04 - Elsa and Ana 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "refresh": {
+        "command": {
+          "name": "RefreshSeries",
+          "seriesId": 4
+        },
+        "status": 201,
+        "result": "completed",
+        "episodeFileCountBefore": 2,
+        "episodeFileCountAfter": 2
+      },
+      "diskAfterRefresh": {
+        "oldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Deeper - 2017-11-13 - Valentina Nappi and Jay Savage 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Deeper - 2017-12-04 - Elsa and Ana 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "newRoot": {
+          "present": false,
+          "entries": []
+        }
+      },
+      "relocated": true
+    }
+  ],
+  "whichAttemptRelocated": {
+    "relocated": ["path alone", "both together"],
+    "didNotRelocate": ["rootFolderPath alone"],
+    "minimal": "path alone",
+    "note": "Two of the three relocated the series, and both are the same change: they set path. \"both together\" adds rootFolderPath, which the instance derives from path anyway. The attempt that set rootFolderPath alone read back unchanged."
+  },
+  "moveFiles": {
+    "absent": {
+      "observedIn": "attempts \"path alone\" and \"both together\"",
+      "bytesUnderOldRootAfterwards": true,
+      "newRootFolderCreated": false
+    },
+    "explicitlyFalse": {
+      "question": "With moveFiles=false stated, are the bytes under the old root still there afterwards?",
+      "seriesId": 5,
+      "before": {
+        "id": 5,
+        "title": "Vixen",
+        "path": "/library/rootA/Vixen",
+        "rootFolderPath": "/library/rootA",
+        "episodeFileCount": 2
+      },
+      "request": {
+        "method": "PUT",
+        "path": "/api/v3/series/5",
+        "query": {
+          "moveFiles": false
+        },
+        "body": {
+          "title": "Vixen",
+          "sortTitle": "vixen",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Vixen is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/5/poster.jpg?lastWrite=639252055113851293",
+              "remoteUrl": "https://cdn.theporndb.net/sites/7b/46/51/38b286d58db5f1b6d6b2a7bccc10e41/poster/01J4FSKP3KZTWQ0H099P5TJXPN.png"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/5/logo.jpg?lastWrite=639252055114272815",
+              "remoteUrl": "https://cdn.theporndb.net/sites/55/a1/94/f64f52a2a701e66e9ddf1c71500829d/logo/Vixen---Logo.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2016,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 2,
+                "episodeCount": 2,
+                "totalEpisodeCount": 41,
+                "sizeOnDisk": 144492,
+                "releaseGroups": [],
+                "percentOfEpisodes": 100
+              }
+            },
+            {
+              "seasonNumber": 2017,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 73,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 56,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 54,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 62,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2016,
+          "path": "/library/rootB/Vixen",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "jav",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 41,
+          "tvdbId": 3372,
+          "cleanTitle": "vixen",
+          "titleSlug": "vixen",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:31:50Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 11,
+            "episodeFileCount": 2,
+            "episodeCount": 2,
+            "totalEpisodeCount": 641,
+            "sizeOnDisk": 144492,
+            "releaseGroups": [],
+            "percentOfEpisodes": 100
+          },
+          "id": 5
+        }
+      },
+      "response": {
+        "status": 202
+      },
+      "readBack": {
+        "id": 5,
+        "title": "Vixen",
+        "path": "/library/rootB/Vixen",
+        "rootFolderPath": "/library/rootB",
+        "episodeFileCount": 2
+      },
+      "diskOldRoot": {
+        "present": true,
+        "entries": [
+          {
+            "name": "Vixen - 2016-06-13 - Payment Extension 1080p WEBDL.mp4",
+            "directory": false,
+            "bytes": 72246
+          },
+          {
+            "name": "Vixen - 2016-06-18 - Getting Even 1080p WEBDL.mp4",
+            "directory": false,
+            "bytes": 72246
+          }
+        ]
+      },
+      "diskNewRoot": {
+        "present": false,
+        "entries": []
+      }
+    }
+  },
+  "afterTheMove": {
+    "fileRowsAreRewrittenNotRelinked": {
+      "question": "RefreshSeries left the file count unchanged and rewrote the stored file paths under the new root, where no bytes are. Does the instance's own disk rescan keep them?",
+      "seriesId": 3,
+      "beforeRescan": {
+        "series": {
+          "id": 3,
+          "title": "Blacked",
+          "path": "/library/rootB/Blacked",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Blacked/Blacked - 2014-03-03 - Hot Southern Blonde Takes Big Black Cock 1080p WEBDL.mp4",
+          "/library/rootB/Blacked/Blacked - 2014-03-10 - 18 Years Old Addicted to Black Cock 1080p WEBDL.mp4"
+        ]
+      },
+      "command": {
+        "name": "RescanSeries",
+        "seriesId": 3,
+        "accepted": 201,
+        "result": "completed"
+      },
+      "afterRescan": {
+        "series": {
+          "id": 3,
+          "title": "Blacked",
+          "path": "/library/rootB/Blacked",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Blacked/Blacked - 2014-03-03 - Hot Southern Blonde Takes Big Black Cock 1080p WEBDL.mp4",
+          "/library/rootB/Blacked/Blacked - 2014-03-10 - 18 Years Old Addicted to Black Cock 1080p WEBDL.mp4"
+        ],
+        "diskOldRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Blacked - 2014-03-03 - Hot Southern Blonde Takes Big Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Blacked - 2014-03-10 - 18 Years Old Addicted to Black Cock 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        },
+        "diskNewRoot": {
+          "present": false,
+          "entries": []
+        }
+      }
+    },
+    "bytesAlreadyAtTheNewRoot": {
+      "question": "The site now names rootB and its bytes sit under rootB, which is the case this phase creates. Which command links them?",
+      "seriesId": 5,
+      "beforeAnyCommand": {
+        "series": {
+          "id": 5,
+          "title": "Vixen",
+          "path": "/library/rootB/Vixen",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Vixen/Vixen - 2016-06-13 - Payment Extension 1080p WEBDL.mp4",
+          "/library/rootB/Vixen/Vixen - 2016-06-18 - Getting Even 1080p WEBDL.mp4"
+        ]
+      },
+      "refresh": {
+        "name": "RefreshSeries",
+        "seriesId": 5,
+        "accepted": 201,
+        "result": "completed"
+      },
+      "afterRefresh": {
+        "series": {
+          "id": 5,
+          "title": "Vixen",
+          "path": "/library/rootB/Vixen",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Vixen/Vixen - 2016-06-13 - Payment Extension 1080p WEBDL.mp4",
+          "/library/rootB/Vixen/Vixen - 2016-06-18 - Getting Even 1080p WEBDL.mp4"
+        ]
+      },
+      "rescan": {
+        "name": "RescanSeries",
+        "seriesId": 5,
+        "accepted": 201,
+        "result": "completed"
+      },
+      "afterRescan": {
+        "series": {
+          "id": 5,
+          "title": "Vixen",
+          "path": "/library/rootB/Vixen",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Vixen/Vixen - 2016-06-13 - Payment Extension 1080p WEBDL.mp4",
+          "/library/rootB/Vixen/Vixen - 2016-06-18 - Getting Even 1080p WEBDL.mp4"
+        ],
+        "diskOldRoot": {
+          "present": false,
+          "entries": []
+        },
+        "diskNewRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Vixen - 2016-06-13 - Payment Extension 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            },
+            {
+              "name": "Vixen - 2016-06-18 - Getting Even 1080p WEBDL.mp4",
+              "directory": false,
+              "bytes": 72246
+            }
+          ]
+        }
+      }
+    },
+    "siteHoldingNoFileRows": {
+      "question": "A held site registered at the wrong root, holding no file rows, whose media sits under the other root. This is the shape the owner's library is in. After the path change, does the instance link the files without a further command from this product?",
+      "seriesId": 6,
+      "arrangedAs": {
+        "siteReturnedToWrongRoot": 202,
+        "series": {
+          "id": 6,
+          "title": "Tushy Raw",
+          "path": "/library/rootA/Tushy Raw",
+          "rootFolderPath": "/library/rootA",
+          "episodeFileCount": 0
+        },
+        "mediaOnDiskUnder": "/library/rootB/Tushy Raw",
+        "diskWrongRoot": {
+          "present": false,
+          "entries": []
+        },
+        "diskRightRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Tushy Raw - 2018-10-15 - Anal After Hours 1080p WEBDL.mp4",
+              "bytes": 72246
+            },
+            {
+              "name": "Tushy Raw - 2018-10-22 - Bite the Pillow 1080p WEBDL.mp4",
+              "bytes": 72246
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "path": "/api/v3/series/6",
+        "query": {
+          "moveFiles": "absent"
+        },
+        "body": {
+          "title": "Tushy Raw",
+          "sortTitle": "tushy raw",
+          "status": "continuing",
+          "ended": false,
+          "overview": "Tushy Raw is a part of the Vixen Media Group network.",
+          "network": "Vixen Media Group",
+          "images": [
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/6/poster.jpg?lastWrite=639252057291271132",
+              "remoteUrl": "https://cdn.theporndb.net/sites/82/6e/15/8d3dede7c7ac84962ac5d987e755e09/poster/poster.jpg"
+            },
+            {
+              "coverType": "logo",
+              "url": "/MediaCover/6/logo.jpg?lastWrite=639252057291854811",
+              "remoteUrl": "https://cdn.theporndb.net/sites/2a/73/7c/fc1a381251a4d14daf2ebd60cc953fc/logo/tushyraw-logo.png"
+            }
+          ],
+          "originalLanguage": {
+            "id": 1,
+            "name": "English"
+          },
+          "seasons": [
+            {
+              "seasonNumber": 2018,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 12,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2019,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 66,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2020,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 57,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2021,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 52,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2022,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2023,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2024,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 53,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2025,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 31,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            },
+            {
+              "seasonNumber": 2026,
+              "monitored": false,
+              "statistics": {
+                "episodeFileCount": 0,
+                "episodeCount": 0,
+                "totalEpisodeCount": 19,
+                "sizeOnDisk": 0,
+                "releaseGroups": [],
+                "percentOfEpisodes": 0
+              }
+            }
+          ],
+          "year": 2018,
+          "path": "/library/rootB/Tushy Raw",
+          "qualityProfileId": 4,
+          "monitored": false,
+          "seriesType": "standard",
+          "monitorNewItems": "all",
+          "useSceneNumbering": false,
+          "runtime": 37,
+          "tvdbId": 247,
+          "cleanTitle": "tushyraw",
+          "titleSlug": "tushyraw",
+          "rootFolderPath": "/library/rootB",
+          "genres": [],
+          "tags": [],
+          "added": "2026-09-17T01:35:28Z",
+          "ratings": {
+            "votes": 0,
+            "value": 0
+          },
+          "statistics": {
+            "seasonCount": 9,
+            "episodeFileCount": 0,
+            "episodeCount": 0,
+            "totalEpisodeCount": 396,
+            "sizeOnDisk": 0,
+            "releaseGroups": [],
+            "percentOfEpisodes": 0
+          },
+          "id": 6
+        }
+      },
+      "response": {
+        "status": 202
+      },
+      "afterUpdateNoCommand": {
+        "series": {
+          "id": 6,
+          "title": "Tushy Raw",
+          "path": "/library/rootB/Tushy Raw",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 0
+        },
+        "episodeFilePaths": []
+      },
+      "refresh": {
+        "name": "RefreshSeries",
+        "seriesId": 6,
+        "accepted": 201,
+        "result": "completed"
+      },
+      "afterRefresh": {
+        "series": {
+          "id": 6,
+          "title": "Tushy Raw",
+          "path": "/library/rootB/Tushy Raw",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Tushy Raw/Tushy Raw - 2018-10-15 - Anal After Hours 1080p WEBDL.mp4",
+          "/library/rootB/Tushy Raw/Tushy Raw - 2018-10-22 - Bite the Pillow 1080p WEBDL.mp4"
+        ]
+      },
+      "rescan": {
+        "name": "RescanSeries",
+        "seriesId": 6,
+        "accepted": 201,
+        "result": "completed"
+      },
+      "afterRescan": {
+        "series": {
+          "id": 6,
+          "title": "Tushy Raw",
+          "path": "/library/rootB/Tushy Raw",
+          "rootFolderPath": "/library/rootB",
+          "episodeFileCount": 2
+        },
+        "episodeFilePaths": [
+          "/library/rootB/Tushy Raw/Tushy Raw - 2018-10-15 - Anal After Hours 1080p WEBDL.mp4",
+          "/library/rootB/Tushy Raw/Tushy Raw - 2018-10-22 - Bite the Pillow 1080p WEBDL.mp4"
+        ],
+        "diskWrongRoot": {
+          "present": false,
+          "entries": []
+        },
+        "diskRightRoot": {
+          "present": true,
+          "entries": [
+            {
+              "name": "Tushy Raw - 2018-10-15 - Anal After Hours 1080p WEBDL.mp4",
+              "bytes": 72246
+            },
+            {
+              "name": "Tushy Raw - 2018-10-22 - Bite the Pillow 1080p WEBDL.mp4",
+              "bytes": 72246
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,547 @@
+using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
+using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Contracts;
+using WhisparrSync.Import;
+using WhisparrSync.Library;
+using WhisparrSync.Linking;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Jobs;
+
+/// <summary>What one enqueued library run was asked for.</summary>
+/// <remarks>Which instance the run offers to is resolved when the run starts, not from here.</remarks>
+public sealed record SyncLibraryBatch(bool AlsoMonitor);
+
+// Resolved when the run starts, not when it was enqueued: the instance can change the profile and
+// the root at any time.
+// Registers decides which pass runs. A pass named with no delegate for it is a construction fault,
+// not a generation gap, so the run throws rather than reporting an empty library.
+// Link carries the same aim an entity's own reflect-owned run is given, or the reason the instance
+// refused one. A null Link means no reflect-owned role was obtained at all, which is a generation
+// gap rather than a refusal and states nothing to a reader.
+// The scene pass's tree: the step that builds one entity's folder, the library roots a tree can sit
+// at the top of, and the entity's own files under one of them. Null where the pass builds no tree,
+// which leaves every scene registered the way it was before this product built folders.
+internal sealed record TreeAiming(
+    IReadOnlyList<string> CoveRoots,
+    TreeReconcileStep Build,
+    ITreeLinkPort Links,
+    Func<string, string, CancellationToken, IAsyncEnumerable<string>> FilesOfScene);
+
+/// <summary>One entity's folder in the tree, as both systems spell it.</summary>
+internal sealed record AddressedTree(string CoveRoot, string EntityFolder, string OnInstance);
+
+// A null Addressed is a scene registered the way it was before this product built folders. The
+// placement still carries a root, so nothing about that path changes.
+internal sealed record SceneInTree(EntityPlacement Placement, AddressedTree? Addressed)
+{
+    internal static SceneInTree Nowhere { get; } = new(EntityPlacement.Nowhere, null);
+}
+
+internal sealed record SyncLibraryAiming(
+    WhisparrGeneration Generation,
+    SyncRegisters Registers,
+    Func<string, EntityPlacement, CancellationToken, Task<SyncRegistration>>? RegisterScene,
+    Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>? RegisterSite,
+    Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? Monitor,
+    Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
+        MonitorSiteScenes = null,
+    ReflectOwnedAim? Link = null,
+    IReadOnlyList<string>? RootOrder = null,
+    IReadOnlyList<string>? OutOfReach = null,
+    TreeAiming? Tree = null,
+    TreeSweepStep? Sweep = null,
+    LinkTally? Tally = null,
+    // Where the instance records one entity, moved to the folder this run built for it. Null where
+    // the pass settles that inside its own registration, or where no role could move one.
+    Func<string, EntityPlacement, CancellationToken, Task<TreeRelocation>>? Relocate = null);
+
+/// <summary>The figures a run's linking half gathers, carried across the whole walk.</summary>
+/// <remarks>
+/// One holder per run, written by whichever pass the run makes. Both passes give entities a folder
+/// in the tree and take names back from it, and only one of them also has files recorded by the
+/// instance, so neither pass owns the figures and neither can compose the line alone.
+/// </remarks>
+internal sealed class LinkTally
+{
+    internal ReflectOwnedRun Total { get; private set; } = ReflectOwnedJob.Untaken;
+
+    internal void Add(ReflectOwnedRun part) => Total = Total.Plus(part);
+}
+
+/// <summary>
+/// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
+/// elevation the streamed scene loop runs inside.
+/// </summary>
+public static class SyncLibraryJob
+{
+    // Read from the one declaration beside the routes, never restated: the count route derives
+    // whether a run is in flight from the same constant, so a second literal could let it answer
+    // about a job type nothing enqueues.
+    public const string JobId = global::WhisparrSync.WhisparrSync.SyncLibraryJobId;
+
+    private const string AlsoMonitorKey = "alsoMonitor";
+
+    // Its own sentence, not the planner's: a run that reached no instance is a different fact from
+    // a library carrying no identifier.
+    internal const string NoInstanceLine = "No Whisparr is connected, so no scene was offered.";
+
+    public static Dictionary<string, string> Encode(bool alsoMonitor)
+        => new(StringComparer.Ordinal)
+        {
+            [AlsoMonitorKey] = alsoMonitor ? "true" : "false",
+        };
+
+    /// <summary>Reads one library run back off the host's parameter map.</summary>
+    /// <remarks>
+    /// Never throws; it runs inside the host's job runner, where a throw faults the job. Anything
+    /// unreadable answers that monitoring was not asked for, the reading that acts less.
+    /// </remarks>
+    public static SyncLibraryBatch Decode(IReadOnlyDictionary<string, string>? parameters)
+        => new(
+            parameters is not null
+            && parameters.TryGetValue(AlsoMonitorKey, out var value)
+            && bool.TryParse(value, out var asked)
+            && asked);
+
+    // Runs as System: the job carries no principal, and Cove's filters answer an anonymous reader
+    // zero rows and no error, so the library would read as empty. The identifier stream is a
+    // factory, never a collection: the planner walks it twice and libraries reach millions of
+    // files. The host's batching helper materializes its unit sequence before the first request, so
+    // it is not used.
+    internal static Task<SyncLibraryRun> RunAsync(
+        SyncLibraryBatch batch,
+        IServiceScopeFactory scopes,
+        Func<IServiceProvider, SyncLibraryBatch, CancellationToken, Task<SyncLibraryAiming?>> aiming,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(aiming);
+        ArgumentNullException.ThrowIfNull(progress);
+
+        return RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        {
+            if (await aiming(services, batch, ct).ConfigureAwait(false) is not { } aimed)
+            {
+                progress.SetSummary(NoInstanceLine);
+                return SyncLibraryPlanner.Nothing;
+            }
+
+            var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+
+            // A folder is linked as the walk leaves it, so files attach from the first folder
+            // rather than after the whole library is offered, and a stop keeps what it linked. Null
+            // where the pass links nothing, leaving the walk registering only.
+            var linking = await LinkingThrough(services, aimed, ct).ConfigureAwait(false);
+
+            // Reachable roots are walked first, so a library whose other half is out of reach still
+            // links something within the first folder rather than the last. Empty where nothing
+            // links and no root needed probing: the walk then takes every folder in path order.
+            var rootOrder = aimed.RootOrder ?? [];
+
+            var registered = await RegisterAsync(aimed, identities, linking, rootOrder, progress, ct)
+                .ConfigureAwait(false);
+
+            // Last, and apart from the pass that registers: a name is taken back on the strength
+            // of no library file answering to it, which only a walk that reached the end of the
+            // library establishes.
+            if (aimed.Sweep?.Over(
+                    services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+                    aimed.Generation,
+                    registered.Outcome is not SyncLibraryRunOutcome.Cancelled,
+                    ct) is { } swept)
+            {
+                aimed.Tally?.Add(ReportedSweep(swept));
+            }
+
+            if (aimed.Tally is not { } tally)
+            {
+                return registered;
+            }
+
+            progress.SetSummary(string.Join(
+                ' ',
+                SyncLibraryPlanner.SummaryOf(registered, Monitors(aimed), aimed.Registers),
+                ReflectOwnedJob.SummaryOf(
+                    aimed.Link?.Skipped is { } skipped
+                        ? tally.Total with { Skipped = skipped }
+                        : tally.Total)));
+
+            return registered;
+        });
+    }
+
+    // Null where nothing links through the folder walk: a pass registering studios, whose folders
+    // are reached one per entity rather than one per library folder and which attaches inside its
+    // own offer; an instance holding no reflect-owned role; or a hard-link setting that refused. A declared-root list that could not be read gives
+    // one carrying that fact and attaching nothing, an import made without the comparison copying
+    // the bytes rather than linking. The roots are read once here, not per folder.
+    private static async Task<FolderLinking?> LinkingThrough(
+        IServiceProvider services, SyncLibraryAiming aimed, CancellationToken ct)
+    {
+        if (aimed.RegisterScene is null
+            || aimed.Link?.Through is not { } aim
+            || aimed.Tally is not { } tally)
+        {
+            return null;
+        }
+
+        var instanceRoots = await services.GetRequiredService<IReportedRootPort>()
+            .ReadAsync(aimed.Generation, ct).ConfigureAwait(false);
+
+        var outOfReach = aimed.OutOfReach ?? [];
+        if (instanceRoots is null)
+        {
+            tally.Add(
+                new ReflectOwnedRun(
+                    ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true));
+
+            return new FolderLinking(aim, [], outOfReach, acts: false, aimed.Tree, tally);
+        }
+
+        return new FolderLinking(aim, instanceRoots, outOfReach, acts: true, aimed.Tree, tally);
+    }
+
+    // Carries the total across a walk rather than one per folder, so the run states one line
+    // however many folders it passed. What the walk registered in the folder it is inside is held
+    // by the identity Cove knows each scene by and dropped as the walk leaves, so it holds one
+    // entry per scene in one directory and nothing more.
+    private sealed class FolderLinking(
+        ReflectOwnedAiming aim,
+        IReadOnlyList<string> instanceRoots,
+        IReadOnlyList<string> outOfReach,
+        bool acts,
+        TreeAiming? tree,
+        LinkTally tally)
+    {
+        private readonly Dictionary<string, RegisteredScene> _registeredHere =
+            new(StringComparer.Ordinal);
+
+        // The id the instance answered with, against the identity the offer named. A refusal carries
+        // no id and is not held, so a file of that scene is left to the instance's own reading.
+        internal void Registered(string remoteId, SyncRegistration answered)
+        {
+            ArgumentNullException.ThrowIfNull(answered);
+
+            if (MonitoringProjector.EntityIdIn(answered.Answer?.Body) is { } entityId)
+            {
+                _registeredHere[remoteId] = new RegisteredScene(
+                    entityId, MonitoringProjector.PathIn(answered.Answer?.Body));
+            }
+        }
+
+        // Where one scene is to be registered: its own folder in the tree, or the declared root
+        // reaching its library folder where no folder could be built. The instance refuses a second
+        // entity at a folder another already holds, so a scene sharing its library folder registers
+        // only through the first of these.
+        //
+        // The folder is built before the scene is registered at it, because an entry written to a
+        // path nothing holds is an entry the instance reports a file for that is not there.
+        internal async Task<SceneInTree> PlaceAsync(
+            string? folder, string remoteId, CancellationToken ct)
+        {
+            if (!acts || folder is null)
+            {
+                return SceneInTree.Nowhere;
+            }
+
+            if (await InTreeAsync(folder, remoteId, ct).ConfigureAwait(false) is { } placed)
+            {
+                return placed;
+            }
+
+            return new SceneInTree(
+                new EntityPlacement(await RootReachingAsync(folder, ct).ConfigureAwait(false), null),
+                null);
+        }
+
+        // Null where the pass builds no tree, where the folder sits under no library root, where
+        // the build produced no folder, or where the instance cannot be told which path that folder
+        // is. Each leaves the caller registering the way it did before, rather than at a path one
+        // of the two systems does not hold.
+        private async Task<SceneInTree?> InTreeAsync(
+            string folder, string remoteId, CancellationToken ct)
+        {
+            if (tree is null || RootHolding(folder, tree.CoveRoots) is not { } coveRoot)
+            {
+                return null;
+            }
+
+            var built = await tree.Build.BuildAsync(
+                coveRoot,
+                aim.Generation,
+                remoteId,
+                tree.FilesOfScene(remoteId, coveRoot, ct),
+                ct).ConfigureAwait(false);
+
+            // Folded in as the walk leaves this entity, so a run stopped part way still reports
+            // what it did for the entities it reached.
+            tally.Add(ReportedBuild(built, coveRoot));
+
+            if (built.EntityFolder is not { } entityFolder)
+            {
+                return null;
+            }
+
+            var addressed = await aim.Address(entityFolder, ct).ConfigureAwait(false);
+
+            return addressed.InstancePath is { } onInstance
+                && AddDefaultsProjector.RootReachingFrom(onInstance, instanceRoots) is { } root
+                    ? new SceneInTree(
+                        new EntityPlacement(root, onInstance),
+                        new AddressedTree(addressed.CoveRoot, entityFolder, onInstance))
+                    : null;
+        }
+
+        // The declared root on the same filesystem as this folder, or null where none is. Addressed
+        // through the same held reading every folder under that root uses, so it costs no request
+        // beyond the first folder under each.
+        private async Task<string?> RootReachingAsync(string folder, CancellationToken ct)
+        {
+            var addressed = await aim.Address(folder, ct).ConfigureAwait(false);
+            return addressed.InstancePath is { } onInstance
+                ? AddDefaultsProjector.RootReachingFrom(onInstance, instanceRoots)
+                : null;
+        }
+
+        // The entity's own folder holds links to that entity's files and to nothing else, so every
+        // name in it attaches to the one entry the instance just answered with. The names are read
+        // from the folder rather than carried out of the build: the build holds nothing per file,
+        // and this folder's contents are one entity's, not the library's.
+        internal async Task AttachInTreeAsync(
+            AddressedTree addressed, SyncRegistration answered, CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(addressed);
+            ArgumentNullException.ThrowIfNull(answered);
+
+            if (aim.ReadFile is null
+                || MonitoringProjector.EntityIdIn(answered.Answer?.Body) is not { } entityId)
+            {
+                return;
+            }
+
+            var scene = new RegisteredScene(entityId, addressed.OnInstance);
+            var identified = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+            foreach (var name in TreeLinks().NamesIn(addressed.EntityFolder))
+            {
+                identified[name] = scene;
+            }
+
+            tally.Add(
+                await ReflectOwnedJob.AttachAsync(
+                    aim, instanceRoots, addressed.CoveRoot, addressed.OnInstance, identified, ct)
+                    .ConfigureAwait(false));
+        }
+
+        private ITreeLinkPort TreeLinks()
+            => tree?.Links
+                ?? throw new InvalidOperationException(
+                    "A folder in the tree was attached on a run that builds no tree.");
+
+        // The most specific containing root. Roots nest, and a shallower one would answer for a
+        // folder its own child root holds, putting the entity's tree on a drive its files are not
+        // on, where no link can reach them.
+        private static string? RootHolding(string folder, IReadOnlyList<string> coveRoots)
+            => coveRoots
+                .Where(root => PathCandidateGuard.IsAtOrBelow(folder, root))
+                .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
+                .FirstOrDefault();
+
+        internal async Task LinkAsync(string folder, CancellationToken ct)
+        {
+            var registered =
+                new Dictionary<string, RegisteredScene>(_registeredHere, StringComparer.Ordinal);
+            _registeredHere.Clear();
+
+            if (!acts || UnderAnUnreachableRoot(folder))
+            {
+                return;
+            }
+
+            tally.Add(
+                await ReflectOwnedJob
+                    .LinkOneFolderAsync(aim, instanceRoots, folder, registered, ct)
+                    .ConfigureAwait(false));
+        }
+
+        private bool UnderAnUnreachableRoot(string folder)
+            => outOfReach.Any(root => PathCandidateGuard.TailBelow(folder, root) is not null);
+    }
+
+    // Which slot carries the monitoring depends on the pass: one marks a scene the run registered
+    // and the other marks the scenes of a site. A run whose monitoring was asked for and not stated
+    // reads as one that set no flag.
+    private static bool Monitors(SyncLibraryAiming aimed)
+        => aimed.Monitor is not null || aimed.MonitorSiteScenes is not null;
+
+    /// <summary>What one entity's build did, as the run's own tally carries it.</summary>
+    /// <remarks>
+    /// A build that made no folder names its root once: every entity under a root nothing can be
+    /// written inside meets the same refusal, so a line per entity would say the same thing as many
+    /// times as the library has entities.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="built"/> is null.</exception>
+    internal static ReflectOwnedRun ReportedBuild(TreeBuild built, string coveRoot)
+    {
+        ArgumentNullException.ThrowIfNull(built);
+
+        return ReflectOwnedJob.Untaken with
+        {
+            EntitiesGivenAFolder = built.EntityFolder is null ? 0 : 1,
+            LinksMade = built.Linked,
+            LinksAlreadyThere = built.AlreadyThere,
+            LinksOnAnotherDevice = built.OnAnotherDevice,
+            LinksRefused = built.Refused,
+            RootsWithNoTree = built.EntityFolder is null ? [coveRoot] : null,
+        };
+    }
+
+    // A relocation nothing was sent for leaves the registration as the offer classified it. A
+    // declined one is a failure a reader acts on: that entity is recorded where none of its files
+    // sit until a later run moves it.
+    private static SyncRegistration Reported(SyncRegistration answered, TreeRelocation relocated)
+        => relocated.Act switch
+        {
+            RelocationAct.Moved => answered with
+            {
+                Registration = SceneRegistration.Moved,
+                Answer = relocated.Answer,
+            },
+            RelocationAct.Declined => answered with
+            {
+                Registration = SceneRegistration.Refused,
+                Answer = relocated.Answer,
+            },
+            _ => answered,
+        };
+
+    // The figures of the pass a reader can act on. What was left still named elsewhere is every
+    // healthy link in the tree, and what the pass could settle nothing about is retried by the next
+    // run, so neither is a line.
+    private static ReflectOwnedRun ReportedSweep(TreeSweep swept)
+        => ReflectOwnedJob.Untaken with
+        {
+            NamesNotComposedHere = swept.NotComposedHere,
+            LinksRemoved = swept.Removed,
+            LinksWaiting = swept.WaitingToSettle,
+        };
+
+    private static async Task<SyncLibraryRun> RegisterAsync(
+        SyncLibraryAiming aimed,
+        ILibrarySceneIdentityPort identities,
+        FolderLinking? linking,
+        IReadOnlyList<string> rootOrder,
+        IJobProgress progress,
+        CancellationToken ct)
+        => aimed.Registers switch
+        {
+            SyncRegisters.Scenes => await SyncLibraryPlanner.RunAsync(
+                aimed.Registers,
+                new SyncLibrarySource<LibrarySceneInFolder>(
+                    runCt => identities.SceneIdentitiesByFolder(aimed.Generation, rootOrder, runCt),
+                    row => row.RemoteId ?? string.Empty,
+                    Registering(aimed, linking),
+                    Monitoring(aimed)),
+                progress,
+                ct,
+                new SyncLibraryWalk<LibrarySceneInFolder>(
+                    Offers: row => row.RemoteId is not null,
+                    FolderOf: row => row.Folder,
+                    LinkFolder: linking is null ? null : linking.LinkAsync)).ConfigureAwait(false),
+
+            // Nothing monitors the site itself. What the reader owns on a site is its scenes, so
+            // this slot marks those, and it is null unless the reader asked and every role the pass
+            // needs was obtained.
+            SyncRegisters.Sites => await SyncLibraryPlanner.RunAsync(
+                aimed.Registers,
+                new SyncLibrarySource<LibrarySiteIdentity>(
+                    runCt => identities.SiteIdentities(aimed.Generation, runCt),
+                    site => site.RemoteId,
+                    Supplied(aimed.RegisterSite, aimed.Registers),
+                    aimed.MonitorSiteScenes),
+                progress,
+                ct).ConfigureAwait(false),
+
+            _ => throw new InvalidOperationException(
+                $"{aimed.Registers} is not a pass this run makes."),
+        };
+
+    // The scene pass acts on the identifier inside the row the folder walk yields; a row carrying
+    // none is skipped as a folder rather than a scene. The instance's own id for what it just
+    // registered is kept against the identity the offer named, so a folder's files attach to the
+    // entries Cove identified rather than to whatever the instance parsed out of their names.
+    private static Func<LibrarySceneInFolder, CancellationToken, Task<SyncRegistration>> Registering(
+        SyncLibraryAiming aimed, FolderLinking? linking)
+    {
+        var offer = aimed.RegisterScene
+            ?? throw new InvalidOperationException(
+                $"A run naming {aimed.Registers} was aimed with no way to register one.");
+
+        return async (row, ct) =>
+        {
+            var remoteId = Identifier(row);
+
+            // The entry is registered on the root that reaches this scene's own files, at a folder
+            // holding links to them where one could be built. A library spread over several volumes
+            // cannot be registered on one root: a hard link cannot cross a filesystem, so the
+            // import would copy the bytes instead.
+            var placed = linking is null
+                ? SceneInTree.Nowhere
+                : await linking.PlaceAsync(row.Folder, remoteId, ct).ConfigureAwait(false);
+
+            var answered = await offer(remoteId, placed.Placement, ct).ConfigureAwait(false);
+
+            // Where the instance records a scene it already holds follows that scene's files, and
+            // only once the folder and its links exist: both generations rewrite their own file
+            // records to the new folder without reading it. A scene this run built no folder for is
+            // left registered where it is.
+            //
+            // A scene that moved is reported as moved rather than as already held, in the words the
+            // other pass already uses: the two passes report one act one way.
+            if (aimed.Relocate is { } relocate
+                && placed.Addressed is not null
+                && answered.Registration is SceneRegistration.AlreadyHeld)
+            {
+                answered = Reported(
+                    answered,
+                    await relocate(remoteId, placed.Placement, ct).ConfigureAwait(false));
+            }
+
+            // A scene in the tree attaches from its own folder in this run. One left outside it is
+            // held for the library folder's own pass, which attaches as the walk leaves the folder.
+            if (linking is not null && placed.Addressed is { } addressed)
+            {
+                await linking.AttachInTreeAsync(addressed, answered, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                linking?.Registered(remoteId, answered);
+            }
+
+            return answered;
+        };
+    }
+
+    private static Func<LibrarySceneInFolder, SyncRegistration, CancellationToken,
+        Task<SceneMonitorTally>>? Monitoring(SyncLibraryAiming aimed)
+        => aimed.Monitor is { } monitor
+            ? (row, answered, ct) => monitor(Identifier(row), answered, ct)
+            : null;
+
+    private static string Identifier(LibrarySceneInFolder row)
+        => row.RemoteId
+            ?? throw new InvalidOperationException(
+                "A row naming a folder and no scene reached the offer.");
+
+    // A null offer says nothing about a generation, so it is not expressible as an empty library or
+    // as a refusal.
+    private static Func<TIdentity, CancellationToken, Task<SyncRegistration>> Supplied<TIdentity>(
+        Func<TIdentity, CancellationToken, Task<SyncRegistration>>? offer, SyncRegisters registers)
+        => offer
+            ?? throw new InvalidOperationException(
+                $"A run naming {registers} was aimed with no way to register one.");
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "propertyName": "QualityProfileId",
+    "errorMessage": "\u0027Quality Profile Id\u0027 must be greater than \u00270\u0027.",
+    "attemptedValue": 0,
+    "severity": "error",
+    "errorCode": "GreaterThanValidator",
+    "formattedMessageArguments": [],
+    "formattedMessagePlaceholderValues": {
+      "comparisonValue": 0,
+      "comparisonProperty": "",
+      "propertyName": "Quality Profile Id",
+      "propertyValue": 0
+    }
+  },
+  {
+    "propertyName": "RootFolderPath",
+    "errorMessage": "Root folder \u0027/config/library\u0027 does not exist",
+    "attemptedValue": "/config/library",
+    "severity": "error",
+    "errorCode": "RootFolderExistsValidator",
+    "formattedMessageArguments": [],
+    "formattedMessagePlaceholderValues": {
+      "path": "/config/library",
+      "propertyName": "Root Folder Path",
+      "propertyValue": "/config/library"
+    }
+  }
+]
