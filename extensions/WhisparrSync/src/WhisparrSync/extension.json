@@ -1,0 +1,19 @@
+{
+  "id": "com.alextomas955.whisparrsync",
+  "name": "Whisparr Sync",
+  "version": "1.4.0",
+  "description": "Connects Cove to the Whisparr instance you configure, calling outward to it over the network and authenticating with the API key you supply. Its settings tab tests a connection, reports which Whisparr generation answered, keeps each generation's connection separately, and registers Cove's import callback in the instance. A delivery through that callback is matched against your Cove library folders and brought into your library. A Whisparr control on studio and performer pages, and in those lists' selection bars, monitors and unmonitors an entity on the connected instance. From that same control it also registers the scenes Cove holds that the instance's catalogue does not, and asks the instance to link files Cove already holds into place; neither downloads anything. One separately named action, Search all monitored, does ask the instance to search for what a monitored entity wants and to download what it finds. It acts on one studio or one performer at a time and is not offered for a selection. A Missing tab on studio pages, and on performer pages where a Whisparr v3 (Eros) connection is configured, lists the scenes the connected Whisparr's catalogue holds that your library does not. To fill it, this extension calls outward to the metadata source Cove is configured with, using the key Cove already holds for that source rather than one you supply here, and your browser fetches each cover image straight from that source. From that tab you can mark one scene or a page of scenes wanted, which downloads nothing, and one separately named action, Search, asks the instance to look for a single scene and download what it finds. A button in the videos, studios and performers list toolbars puts a read-only badge on each card of the page saying what the connected instance holds for that scene, studio or performer. It asks the instance once per card, over one page of cards at most, and writes nothing. A Whisparr tab on a scene's page in Cove states what the connected instance holds for that scene: its state, the quality of any file the instance holds, the quality profile it applies and that profile's cutoff. From that tab you add the scene, monitor or unmonitor it, or put it on the instance's exclusion list and take it back off; none of those downloads anything. One separately named control there, Search now, asks the instance to search for that scene and download what it finds. A Whisparr button in the videos selection bar applies one of those five actions to every scene you selected, as one background job reporting counts, bounded at 1000 scenes in one run and at 100 for the searching row. Both surfaces need a Whisparr v3 (Eros) connection and are absent on Whisparr v2. It exposes inbound API endpoints under /api/extensions/com.alextomas955.whisparrsync. All but one are gated on a Cove permission. The single exception is the import callback at /api/extensions/com.alextomas955.whisparrsync/callback, which answers anonymously because the caller is Whisparr rather than a Cove user; it is authenticated instead by a secret this extension mints and stores server-side, and a request that does not present it is refused. Only actions you start can cause Whisparr to download anything. Your Whisparr API key is held server-side in Cove and is never sent to the browser. Runs no scraper and no downloader code of its own.",
+  "author": "alextomas955",
+  "url": "https://github.com/alextomas955/cove-extensions",
+  "iconUrl": "https://alextomas955.github.io/cove-extensions/img/whisparr-sync.svg",
+  "categories": ["automation", "tools"],
+  "minCoveVersion": "1.5.0",
+  "entryDll": "WhisparrSync.dll",
+  "jsBundle": "index.mjs",
+  "permissions": {
+    "network": ["*"],
+    "scraperRuntime": [],
+    "downloaderRuntime": []
+  },
+  "dependencies": {}
+}

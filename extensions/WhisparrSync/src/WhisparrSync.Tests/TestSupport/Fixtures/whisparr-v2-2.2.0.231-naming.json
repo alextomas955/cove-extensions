@@ -1,0 +1,15 @@
+{
+  "renameEpisodes": false,
+  "replaceIllegalCharacters": true,
+  "colonReplacementFormat": 4,
+  "customColonReplacementFormat": "",
+  "multiEpisodeStyle": 5,
+  "standardEpisodeFormat": "{Site Title} - {Release-Date} - {Episode Title} [{Quality Full}]",
+  "javEpisodeFormat": "{External Id}",
+  "seriesFolderFormat": "{Site Title}",
+  "includeSeriesTitle": false,
+  "includeEpisodeTitle": false,
+  "includeQuality": false,
+  "replaceSpaces": false,
+  "id": 1
+}

@@ -49,6 +49,18 @@ tests/e2e/docker/shared-media/
 # Local scratch/audit directories - never part of a release.
 .bg-shell/
 .gsd/
+# Probe records: `tests/e2e/probes/run.mjs --out` writes one file per row here. A record is evidence
+# transcribed into the ledger, not an artefact the repository keeps.
+.probe-out/
 
 # Host runtime declarations, emitted from a Cove checkout by scripts/generate-host-types.mjs.
 .host-types/
+# Whisparr API tree/doc dumps from fixture probing - regenerable, never committed.
+/erostree.json
+/v2tree.json
+/wgtree.json
+/wgdocs.json
+
+# Python bytecode from the e2e seeders that run inside the instance containers.
+__pycache__/
+*.pyc
