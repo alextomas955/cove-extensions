@@ -39,11 +39,29 @@ says so and names the setting to fill in.
 ## An entity Whisparr does not have yet
 
 Whisparr lists scenes only for an entity it holds, so a studio or performer it has never been told
-about has no list to compare against. The tab says so and offers **Add to Whisparr**.
+about has no list to compare against. The tab says so and offers **Add to Whisparr...**.
 
-That add asks Whisparr to track the entity's catalogue and **wants none of it**: every scene it
-pulls in arrives unmonitored and nothing is searched or downloaded. You then monitor what you choose,
-one scene at a time or as a selection.
+Select it and a panel opens with one row per way your Whisparr can take the entity. Nothing is sent
+until you select a row, and leaving the panel sends nothing.
+
+| Row                   | What Whisparr does with the entity                                          |
+| --------------------- | --------------------------------------------------------------------------- |
+| **Track only**        | Lists its scenes and wants none of them. Nothing is searched or downloaded. |
+| **New releases only** | Monitors it. The date gate covers what a later catalogue read adds.         |
+| **All scenes**        | Monitors it and marks every scene Whisparr already lists as wanted.         |
+
+A row your Whisparr cannot carry out for this entity is left out of the panel. A studio gets all
+three. A performer gets **Track only** and **All scenes**, because Whisparr expresses no
+future-only option for a performer. On Whisparr v2 a performer gets **Track only** alone, since v2
+addresses no performer.
+
+**All scenes asks you to confirm.** The confirmation says that it marks every scene Whisparr
+already lists as wanted, which spends indexer traffic and disk, and on Whisparr v3 (Eros) that
+narrowing the scope back later does not undo it. Cancel and nothing is sent.
+
+After **Track only** you monitor what you choose, one scene at a time or as a selection. The two
+monitor rows do the same thing as the Whisparr button beside the entity's name; see
+[Monitor a studio or a performer](./monitoring.md).
 
 If Cove holds no StashDB id for the entity on v3, or no ThePornDB id on v2, the tab says that
 instead: Whisparr cannot be told which entity it is, so there is nothing to add.

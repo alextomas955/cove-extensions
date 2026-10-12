@@ -35,13 +35,9 @@ const MARKS_THE_BACK_CATALOGUE: Record<MissingEntryMode, boolean> = {
   monitorAllScenes: true,
 };
 
-/**
- * The modes, in the order they render.
- *
- * The order is the label table's own rather than the offer's, so the cheap option does not move
- * under the cursor when the server answers the same modes in another order.
- */
-export const ENTRY_MODE_ORDER: readonly MissingEntryMode[] = membersOf(ENTRY_LABEL);
+// The order the rows render in, which is the label table's own rather than the offer's, so the
+// cheap option does not move under the cursor when the server names the modes in another order.
+const ENTRY_MODE_ORDER: readonly MissingEntryMode[] = membersOf(ENTRY_LABEL);
 
 /** One row the panel offers. */
 export interface MissingEntryRow {

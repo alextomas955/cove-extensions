@@ -8,7 +8,6 @@ import { useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
-import { selectionMenuHeader } from "./copy";
 import { WhisparrLogo } from "./WhisparrLogo";
 
 export type RowIcon = (props: Readonly<{ className?: string }>) => ReactNode;
@@ -17,6 +16,8 @@ export interface ChoiceRow {
   readonly key: string;
   readonly label: string;
   readonly icon: RowIcon;
+  /** What the row does that its name does not say, or null where the name says it all. */
+  readonly detail?: string | null;
 }
 
 /**
@@ -29,14 +30,15 @@ const ROW_CLASS =
   "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-card focus:bg-card focus:outline-none";
 
 export function ChoiceOverlay<TRow extends ChoiceRow>({
-  count,
+  header,
   reason,
   rows,
   cancelLabel,
   closeLabel,
   onChoose,
 }: Readonly<{
-  count: number;
+  /** What heads the panel, and the name it announces. */
+  header: string;
   /** Why nothing is offered, or null when something is. */
   reason: string | null;
   rows: readonly TRow[];
@@ -47,7 +49,6 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
   onChoose: (row: TRow | null) => void;
 }>) {
   const panel = useRef<HTMLDivElement>(null);
-  const header = selectionMenuHeader(count);
 
   useOverlayKeys(panel, {
     onClose: () => {
@@ -93,7 +94,12 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
           className={ROW_CLASS}
         >
           <row.icon className="h-4 w-4 text-secondary" />
-          <span className="flex-1">{row.label}</span>
+          <span className="flex flex-1 flex-col">
+            <span>{row.label}</span>
+            {row.detail === null || row.detail === undefined ? null : (
+              <span className="text-xs text-secondary">{row.detail}</span>
+            )}
+          </span>
         </button>
       ))}
 

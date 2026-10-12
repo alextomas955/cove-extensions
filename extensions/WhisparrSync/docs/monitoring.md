@@ -67,6 +67,11 @@ confirm, and cancelling changes nothing.
 Neither scope starts a search. Whisparr acquires what it wants on its own schedule, which is why
 what you mark wanted is the cost to think about.
 
+**The same two scopes are reachable from the Missing tab.** On a studio your Whisparr does not hold
+yet, the tab's **Add to Whisparr...** panel offers them beside a row that only lists the catalogue.
+They carry out the same gesture as the rows here, confirmation included. See
+[Browse what you do not own](./missing.md).
+
 ### A performer
 
 The menu offers one item, **Monitor**, and no scope. Whisparr expresses no future-only

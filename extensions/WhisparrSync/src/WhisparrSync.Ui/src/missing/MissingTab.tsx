@@ -9,7 +9,13 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { NO_PROVIDER_ID_FOR_ENTITY, THE_METADATA_SOURCE } from "../common/ui/copy";
+import {
+  MONITORING_COULD_NOT_BE_READ,
+  NO_PROVIDER_ID_FOR_ENTITY,
+  THE_METADATA_SOURCE,
+} from "../common/ui/copy";
+import { MissingEntryDialog } from "./MissingEntryDialog";
+import { missingEntryChoice, type MissingEntryChoice } from "./missingEntryLogic";
 import { trackRefusal } from "./missingTrackLogic";
 import { fillNames } from "./missingStatesLogic";
 import type { WhisparrEntityKind } from "../wire/api";
@@ -28,6 +34,13 @@ const INCLUDE_SUB_STUDIOS_KEY = "includeSubStudios";
 
 // The host event fired when its own router changes the address.
 const HOST_LOCATION_CHANGE = "cove-locationchange";
+
+// What the panel offers when the read of the offer did not arrive: nothing, and why.
+const OFFER_NOT_READ: MissingEntryChoice = {
+  rows: [],
+  reason: MONITORING_COULD_NOT_BE_READ,
+  oneWayDoor: false,
+};
 
 // The toggle is not one of the keys the host deletes on a tab change, and it renders above this
 // tab while it is open, so its value is followed rather than read once at mount.
@@ -90,9 +103,12 @@ function MissingTabFor({
     monitorSelection,
     unmonitorSelection,
     monitorAll,
+    readEntryOffer,
+    entryOffer,
     trackEntity,
     track,
   } = useMissing(kind, coveId, { ...view, filters });
+  const [choosing, setChoosing] = useState(false);
   const entityName = `this ${kind}`;
   const page = state.view;
 
@@ -154,7 +170,8 @@ function MissingTabFor({
           onRefresh: refresh,
           add: {
             onAdd: () => {
-              trackEntity("trackOnly");
+              setChoosing(true);
+              readEntryOffer();
             },
             inFlight: track.kind === "inFlight",
             refusal:
@@ -179,6 +196,19 @@ function MissingTabFor({
           onSearch: searchScene,
         }}
       />
+      {/* The panel opens once the offer has answered, so its rows are never a guess. A read that
+          did not arrive opens it on the reason instead of leaving the press with no result. */}
+      {!choosing || entryOffer.kind === "unread" || entryOffer.kind === "reading" ? null : (
+        <MissingEntryDialog
+          choice={
+            entryOffer.kind === "read" ? missingEntryChoice(entryOffer.offer) : OFFER_NOT_READ
+          }
+          onChoose={(mode) => {
+            setChoosing(false);
+            if (mode !== null) trackEntity(mode);
+          }}
+        />
+      )}
       {page === null ? null : (
         <div className="mt-4">
           <MissingPager

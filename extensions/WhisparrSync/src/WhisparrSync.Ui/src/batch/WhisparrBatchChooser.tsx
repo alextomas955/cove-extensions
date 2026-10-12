@@ -1,5 +1,5 @@
 /** The choice the videos selection bar opens: the five scene rows, plus cancel. */
-import { BULK_CANCEL, BULK_CLOSE } from "../common/ui/copy";
+import { BULK_CANCEL, BULK_CLOSE, selectionMenuHeader } from "../common/ui/copy";
 import { ChoiceOverlay, type RowIcon } from "../common/ui/ChoiceOverlay";
 import { VERB_GLYPH, type WhisparrVerb } from "../common/ui/verbGlyphs";
 import type { BatchMenuRow } from "./batchMenuLogic";
@@ -31,7 +31,7 @@ export function WhisparrBatchChooser({
 }>) {
   return (
     <ChoiceOverlay<BatchMenuRow & { icon: RowIcon }>
-      count={count}
+      header={selectionMenuHeader(count)}
       reason={reason}
       rows={rows.map((row) => ({ ...row, icon: VERB_GLYPH[ROW_VERB[row.verb]] }))}
       cancelLabel={BULK_CANCEL}

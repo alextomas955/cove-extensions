@@ -21,7 +21,7 @@ async function draw(
 ) {
   await render(
     createElement(ChoiceOverlay<ChoiceRow>, {
-      count,
+      header: selectionMenuHeader(count),
       reason: rows.length === 0 ? "Nothing was sent." : null,
       rows,
       cancelLabel: "Cancel",

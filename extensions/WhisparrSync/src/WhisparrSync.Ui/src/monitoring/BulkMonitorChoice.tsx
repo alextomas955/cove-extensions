@@ -2,7 +2,7 @@
  * The choice the entity selection bars open: one row per monitoring action the connected instance
  * can carry out over the whole selection, and a way out that sends nothing.
  */
-import { BULK_CANCEL, BULK_CLOSE } from "../common/ui/copy";
+import { BULK_CANCEL, BULK_CLOSE, selectionMenuHeader } from "../common/ui/copy";
 import { ChoiceOverlay, type RowIcon } from "../common/ui/ChoiceOverlay";
 import { MONITOR_ITEM_ICON } from "./EntityMonitorMenu";
 import type { BulkMonitorAction } from "./monitorMenuLogic";
@@ -22,7 +22,7 @@ export function BulkMonitorChoice({
 }>) {
   return (
     <ChoiceOverlay<BulkMonitorAction & { icon: RowIcon }>
-      count={count}
+      header={selectionMenuHeader(count)}
       reason={reason}
       rows={actions.map((action) => ({ ...action, icon: MONITOR_ITEM_ICON[action.key] }))}
       cancelLabel={BULK_CANCEL}

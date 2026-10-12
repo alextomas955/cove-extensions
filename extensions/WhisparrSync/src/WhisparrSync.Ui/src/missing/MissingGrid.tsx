@@ -20,7 +20,7 @@ import {
 } from "./missingStatesLogic";
 
 interface MissingGridAdd {
-  /** Adds the entity so Whisparr lists its scenes, or null where no add is offered. */
+  /** Opens the panel of ways to add the entity, or null where no add is offered. */
   readonly onAdd: (() => void) | null;
   readonly inFlight: boolean;
   /** What the last add answered, or null while it has answered nothing. */

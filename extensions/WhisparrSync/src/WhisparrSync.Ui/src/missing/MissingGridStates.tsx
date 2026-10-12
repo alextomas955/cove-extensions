@@ -7,8 +7,7 @@
 import {
   ACTION_REFRESH,
   ADDING_TO_WHISPARR,
-  ADD_TO_WHISPARR,
-  ADD_TO_WHISPARR_TRACKS_ONLY,
+  ADD_TO_WHISPARR_CHOOSE,
   MISSING_CLEAR_FILTERS,
   MISSING_CLEAR_SEARCH,
 } from "../common/ui/copy";
@@ -19,7 +18,7 @@ export interface MissingGridStateActions {
   readonly onRefresh: (() => void) | null;
   readonly onClearFilters: (() => void) | null;
   readonly onClearSearch: (() => void) | null;
-  /** Adds the entity so Whisparr lists its scenes. Null where the caller offers no add. */
+  /** Opens the panel of ways to add the entity. Null where the caller offers no add. */
   readonly onAdd: (() => void) | null;
   /** The add is in flight, so the control says so and is not pressed twice. */
   readonly addInFlight: boolean;
@@ -52,9 +51,6 @@ export function MissingGridStates({
   return (
     <div className="mt-8 flex flex-col items-center justify-center gap-3 p-8 text-center">
       <p className="text-sm text-muted">{sentence}</p>
-      {state.addIsOffered ? (
-        <p className="max-w-prose text-xs text-muted">{ADD_TO_WHISPARR_TRACKS_ONLY}</p>
-      ) : null}
       {actions.addRefusal === null ? null : (
         <p role="status" aria-live="polite" className="text-xs text-red-400">
           {actions.addRefusal}
@@ -78,7 +74,7 @@ export function MissingGridStates({
             disabled={actions.addInFlight}
             className={`${CONTROL_CLASS} disabled:opacity-60`}
           >
-            {actions.addInFlight ? ADDING_TO_WHISPARR : ADD_TO_WHISPARR}
+            {actions.addInFlight ? ADDING_TO_WHISPARR : ADD_TO_WHISPARR_CHOOSE}
           </button>
         ) : null}
         {state.refreshIsOffered && actions.onRefresh !== null ? (
