@@ -474,6 +474,37 @@ export function countLine(from: number, to: number, total: number, atCeiling: bo
   return `${String(from)}–${String(to)} of ${String(total)}${atCeiling ? "+" : ""}`;
 }
 
+/**
+ * `n` with a separator every three digits.
+ *
+ * Hand-written rather than `Intl.NumberFormat` or `toLocaleString`: a locale-dependent rendering
+ * makes the same value read differently in two places. The server's own side of these sentences
+ * uses the invariant culture, which produces this same grouping.
+ */
+export function groupThousands(n: number): string {
+  const whole = Math.trunc(Math.abs(n));
+  const digits = String(whole);
+  let grouped = "";
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) grouped += ",";
+    grouped += digits[i];
+  }
+  return n < 0 ? `-${grouped}` : grouped;
+}
+
+/**
+ * What the tab states while Whisparr is still building the entity's catalogue.
+ *
+ * "about" is load-bearing: the second figure is the metadata source's own count of the catalogue,
+ * not a promise about how many scenes Whisparr will end with.
+ *
+ * @param listed how many scenes Whisparr lists for the entity
+ * @param counted how many the metadata source counts in the same catalogue
+ */
+export function catalogueStillArriving(listed: number, counted: number): string {
+  return `Whisparr has ${groupThousands(listed)} of about ${groupThousands(counted)} so far.`;
+}
+
 /** The placeholder in a facet menu's search box. */
 export const FACET_MENU_SEARCH = "Search values";
 

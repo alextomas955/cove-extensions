@@ -44,6 +44,8 @@ function pageOf(cards: MissingCard[], refusal: MissingRefusalKind): MissingPageV
     cards,
     catalogueSize: cards.length,
     sizeIsLowerBound: false,
+    instanceCatalogueCount: 0,
+    providerCatalogueCount: null,
     page: 1,
     perPage: 40,
     lastPage: 1,

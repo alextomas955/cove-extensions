@@ -26,6 +26,7 @@ import {
   SYNC_RUNS_IN_THE_JOB_DRAWER,
   SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
   SYNC_TITLE,
+  groupThousands,
   syncCountedSentence,
 } from "../common/ui/copy";
 import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
@@ -33,7 +34,6 @@ import { ConfirmDialog } from "./hostComponents";
 import { describeInstant } from "./relativeTimeLogic";
 import {
   countControl,
-  groupThousands,
   monitorToggleReason,
   syncConfirmation,
   syncDisabledReason,

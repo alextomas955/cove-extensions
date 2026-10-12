@@ -21,7 +21,6 @@ import {
 } from "../common/ui/copy";
 import {
   countControl,
-  groupThousands,
   monitorToggleReason,
   syncConfirmation,
   syncDisabledReason,
@@ -32,22 +31,6 @@ import {
 
 const SCENES = syncSentences("scenes");
 const SITES = syncSentences("sites");
-
-describe("a count reads the same wherever it is rendered", () => {
-  // Hand-transcribed. An expectation computed from the module would always agree with it.
-  it("groups every three digits and leaves shorter numbers alone", () => {
-    expect(groupThousands(0)).toBe("0");
-    expect(groupThousands(1)).toBe("1");
-    expect(groupThousands(999)).toBe("999");
-    expect(groupThousands(1000)).toBe("1,000");
-    expect(groupThousands(1648)).toBe("1,648");
-  });
-
-  it("groups a library-scale figure", () => {
-    expect(groupThousands(5898)).toBe("5,898");
-    expect(groupThousands(1234567)).toBe("1,234,567");
-  });
-});
 
 describe("the count control's name and its one reason", () => {
   // A failed count is not a reason to dim the control, or the reader has nothing to retry with, so

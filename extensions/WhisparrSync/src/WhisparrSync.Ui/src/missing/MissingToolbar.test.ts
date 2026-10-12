@@ -56,6 +56,8 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
     cards: [],
     catalogueSize: 0,
     sizeIsLowerBound: false,
+    instanceCatalogueCount: 0,
+    providerCatalogueCount: null,
     page: 1,
     perPage: 40,
     lastPage: 1,

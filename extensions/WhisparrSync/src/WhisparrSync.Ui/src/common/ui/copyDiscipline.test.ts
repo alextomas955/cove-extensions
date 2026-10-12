@@ -132,6 +132,28 @@ describe("the count line says whether its total is a count or a floor", () => {
   });
 });
 
+describe("a count reads the same wherever it is rendered", () => {
+  // Hand-transcribed. An expectation computed from the module would always agree with it.
+  it("groups every three digits and leaves shorter numbers alone", () => {
+    expect(copy.groupThousands(0)).toBe("0");
+    expect(copy.groupThousands(1)).toBe("1");
+    expect(copy.groupThousands(999)).toBe("999");
+    expect(copy.groupThousands(1000)).toBe("1,000");
+    expect(copy.groupThousands(1648)).toBe("1,648");
+  });
+
+  it("groups a library-scale figure", () => {
+    expect(copy.groupThousands(5898)).toBe("5,898");
+    expect(copy.groupThousands(1234567)).toBe("1,234,567");
+  });
+});
+
+describe("the sentence for a catalogue still arriving names both figures", () => {
+  it("names what Whisparr holds so far and what the source counts", () => {
+    expect(copy.catalogueStillArriving(340, 1205)).toBe("Whisparr has 340 of about 1,205 so far.");
+  });
+});
+
 describe("the whole-catalogue confirmation names the figure and what it is not", () => {
   it("names the catalogue's size, the source, and that the held scenes are not in the run", () => {
     expect(copy.monitorAllConfirmation(665, "a source")).toBe(

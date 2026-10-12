@@ -76,6 +76,16 @@ same set, so the cards on screen and the figure beside them always agree.
 
 A page holds at most forty scenes.
 
+## An entity you have just added
+
+Whisparr reads a studio's or a performer's scenes in over the minutes after you add it, so the list
+is short to begin with. While that runs, a line under the bar says how far it has got, such as
+**Whisparr has 340 of about 1,205 so far.** The second figure is your metadata source's own count
+of the same catalogue.
+
+Select **Refresh** to see the list grow. The line goes once Whisparr lists as many scenes as your
+source counts, and the tab is then listing the whole catalogue.
+
 ## What each card says
 
 Each card carries the scene's cover, title, release date, studio, performers, description and its

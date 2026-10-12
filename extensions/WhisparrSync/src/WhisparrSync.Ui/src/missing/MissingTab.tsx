@@ -10,10 +10,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  catalogueStillArriving,
   MONITORING_COULD_NOT_BE_READ,
   NO_PROVIDER_ID_FOR_ENTITY,
   THE_METADATA_SOURCE,
 } from "../common/ui/copy";
+import { scenesStillArriving } from "./missingIngestLogic";
 import { MissingEntryDialog } from "./MissingEntryDialog";
 import { missingEntryChoice, type MissingEntryChoice } from "./missingEntryLogic";
 import { trackRefusal } from "./missingTrackLogic";
@@ -132,6 +134,8 @@ function MissingTabFor({
   // The ticks are dropped once the run has finished, not when it starts: while it is under way the
   // cards it covers say so, and a reader who could not see which ones were picked would have no
   // idea what the run was working through.
+  const stillArriving = page === null ? null : scenesStillArriving(page);
+
   const runUnderWay = runIsUnderWay(state.running);
   const runFinished = !runUnderWay && state.bulk.kind === "atRest";
   useEffect(() => {
@@ -145,6 +149,13 @@ function MissingTabFor({
         onMonitorAll={monitorAll}
         catalogue={page === null ? undefined : { kind, view: page }}
       />
+      {/* Under the bar carrying the range, because it qualifies that figure: the list is short
+          while Whisparr is still reading the entity's catalogue in. */}
+      {stillArriving === null ? null : (
+        <p role="status" aria-live="polite" className="mb-3 text-xs text-muted">
+          {catalogueStillArriving(stillArriving.listed, stillArriving.counted)}
+        </p>
+      )}
       <MissingSelectionBar
         loadedPageIds={loadedPageIds}
         selected={selectedIds}

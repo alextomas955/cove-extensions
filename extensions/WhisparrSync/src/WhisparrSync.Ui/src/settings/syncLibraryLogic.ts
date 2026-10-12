@@ -28,29 +28,12 @@ import {
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPS_ONE,
+  groupThousands,
   syncOffersScenes,
   syncOffersSites,
   syncSkipsMany,
   syncStillToHandOver,
 } from "../common/ui/copy";
-
-/**
- * `n` with a separator every three digits.
- *
- * Hand-written rather than `Intl.NumberFormat` or `toLocaleString`: a locale-dependent rendering
- * makes the same value read differently in two places. The server's own side of these sentences
- * uses the invariant culture, which produces this same grouping.
- */
-export function groupThousands(n: number): string {
-  const whole = Math.trunc(Math.abs(n));
-  const digits = String(whole);
-  let grouped = "";
-  for (let i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 === 0) grouped += ",";
-    grouped += digits[i];
-  }
-  return n < 0 ? `-${grouped}` : grouped;
-}
 
 /**
  * Every sentence the sync section states in the noun of whatever the run registers.
