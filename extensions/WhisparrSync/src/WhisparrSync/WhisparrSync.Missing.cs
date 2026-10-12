@@ -289,6 +289,8 @@ public sealed partial class WhisparrSync
             Cards: [],
             CatalogueSize: 0,
             SizeIsLowerBound: false,
+            InstanceCatalogueCount: 0,
+            ProviderCatalogueCount: null,
             page,
             perPage,
             LastPage: 1,

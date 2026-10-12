@@ -59,6 +59,72 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(35, view.RangeTo);
     }
 
+    // The instance builds its catalogue over the minutes after an entity is added, so the two
+    // figures differ while that runs. Neither is the missing set the cards came from.
+    [Fact]
+    public async Task ThePageCarriesWhatTheInstanceListsBesideWhatTheSourceCounts()
+    {
+        var catalogue = new RecordingCatalogue([]) { Counted = 1205 };
+        var instance = new RecordingInstance(
+            ScenesNamed([.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")]));
+        var owned = new StubOwned("scene-0", "scene-1", "scene-2", "scene-3", "scene-4");
+
+        var view = await PlannerOver(catalogue, owned)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(40, view.InstanceCatalogueCount);
+        Assert.Equal(1205, view.ProviderCatalogueCount);
+        Assert.Equal(35, view.CatalogueSize);
+    }
+
+    // The figures state how large the entity's catalogue is on each side, so a source narrowed to
+    // what one page shows would answer a number no reader could act on.
+    [Fact]
+    public async Task TheSourceIsCountedOverTheWholeCatalogueAndNotTheNarrowedView()
+    {
+        var catalogue = new RecordingCatalogue([]) { Counted = 12 };
+        var instance = new RecordingInstance(ScenesNamed("alpha", "beta"));
+
+        await PlannerOver(catalogue).PlanAsync(
+            Request() with
+            {
+                Page = 2,
+                PerPage = 10,
+                Sort = InstanceCatalogueLogic.TitleAscending,
+                TitleSearch = "a",
+                Filters = new Dictionary<string, string> { ["tag"] = "t-1" },
+            },
+            Context(instance),
+            NullLogger.Instance,
+            TestCt);
+
+        var asked = Assert.IsType<ProviderCatalogueRequest>(catalogue.SizeRequest);
+        Assert.Equal("a-studio", asked.ProviderEntityId);
+        Assert.Equal(1, asked.Page);
+        Assert.Null(asked.Sort);
+        Assert.Null(asked.TitleSearch);
+        Assert.Empty(asked.Filters);
+    }
+
+    // A source that answered no figure and one that lists nothing are different answers, and the
+    // page is served either way.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    public async Task ASourceThatCountedNothingIsHeldApartFromOneThatAnsweredNoFigure(int? counted)
+    {
+        var catalogue = new RecordingCatalogue([]) { Counted = counted };
+        var instance = new RecordingInstance(ScenesNamed("a", "b"));
+
+        var view = await PlannerOver(catalogue)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(counted, view.ProviderCatalogueCount);
+        Assert.Equal(2, view.InstanceCatalogueCount);
+        Assert.Equal(2, view.Cards.Count);
+        Assert.Equal(MissingRefusalKind.None, view.Refusal);
+    }
+
     // An entity the instance has never been told about is a different answer from one it holds and
     // lists nothing under.
     [Fact]
@@ -662,6 +728,12 @@ public sealed class MissingPagePlannerTests
 
         public int SizeReads { get; private set; }
 
+        // Null is the default because it is what a source states nothing with, so a case wanting a
+        // figure has to supply one.
+        public int? Counted { get; init; }
+
+        public ProviderCatalogueRequest? SizeRequest { get; private set; }
+
         public int MenuReads { get; private set; }
 
 
@@ -709,7 +781,8 @@ public sealed class MissingPagePlannerTests
             ProviderCatalogueRequest request, CancellationToken ct)
         {
             SizeReads++;
-            return Task.FromResult<int?>(catalogueSize);
+            SizeRequest = request;
+            return Task.FromResult(Counted);
         }
 
         public Task<ProviderIdentityLookup> LookUpByNameAsync(

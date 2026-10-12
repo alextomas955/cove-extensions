@@ -85,6 +85,12 @@ internal sealed class MissingPagePlanner(
             return Refused(request, derived.Refusal, catalogue);
         }
 
+        // Asked for beside the page and not beside the count under the tab: the figure qualifies a
+        // list a reader is looking at, and the badge carries no sentence to qualify.
+        var counted = await catalogue
+            .ReadCatalogueSizeAsync(WholeCatalogue(request.Kind, providerEntityId), ct)
+            .ConfigureAwait(false);
+
         var page = InstanceCatalogueLogic.PageOf(
             remaining,
             request.Page,
@@ -106,6 +112,8 @@ internal sealed class MissingPagePlanner(
             // The instance listed its whole catalogue for the entity, so the figure is a count and
             // never a floor the source would not serve past.
             false,
+            derived.Listed,
+            counted,
             request.Page,
             request.PerPage,
             page.LastPage,
@@ -263,7 +271,8 @@ internal sealed class MissingPagePlanner(
     // Null names a refusal that left no set at all, which is distinct from an empty one: an empty
     // set is the instance listing a catalogue this reader is missing none of. A set answered beside
     // a refusal is one the refusal says something about rather than one it withheld.
-    private async Task<(List<WhisparrCatalogueScene>? Remaining, MissingRefusalKind Refusal)>
+    private async Task<(
+        List<WhisparrCatalogueScene>? Remaining, MissingRefusalKind Refusal, int Listed)>
         RemainingAsync(
             WhisparrEntityKind kind,
             string providerEntityId,
@@ -276,7 +285,7 @@ internal sealed class MissingPagePlanner(
             .ConfigureAwait(false);
         if (listed.Scenes is not { } scenes)
         {
-            return (null, RefusalFor(listed.Refusal));
+            return (null, RefusalFor(listed.Refusal), 0);
         }
 
         var missing = await MissingAmongAsync(provider.IdentityEndpoint, scenes, ct)
@@ -288,15 +297,30 @@ internal sealed class MissingPagePlanner(
         // so the surface says so rather than presenting the list as the missing set.
         if (!excluded.ReadCompleted)
         {
-            return (missing, MissingRefusalKind.WhisparrExclusionsNotRead);
+            return (missing, MissingRefusalKind.WhisparrExclusionsNotRead, scenes.Count);
         }
 
         return (
             excluded.Excluded.Count == 0
                 ? missing
                 : [.. missing.Where(scene => !excluded.Excluded.Contains(scene.ProviderSceneId))],
-            MissingRefusalKind.None);
+            MissingRefusalKind.None,
+            scenes.Count);
     }
+
+    // No narrowing of any kind, so the provider counts the entity's whole catalogue rather than
+    // the set a search, a facet or a page turn leaves. One row is asked for because the answer is
+    // the count beside the rows and never the rows themselves.
+    private static ProviderCatalogueRequest WholeCatalogue(
+        WhisparrEntityKind kind, string providerEntityId)
+        => new(
+            kind,
+            providerEntityId,
+            Page: 1,
+            PerPage: 1,
+            Sort: null,
+            TitleSearch: null,
+            Filters: new Dictionary<string, string>());
 
     internal async Task<MissingFacetSearchView> SearchFacetValuesAsync(
         MissingFacetSearchRequest request, WhisparrGeneration generation, CancellationToken ct)
@@ -388,6 +412,8 @@ internal sealed class MissingPagePlanner(
             [],
             0,
             SizeIsLowerBound: false,
+            InstanceCatalogueCount: 0,
+            ProviderCatalogueCount: null,
             request.Page,
             request.PerPage,
             LastPage: 1,

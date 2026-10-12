@@ -2936,6 +2936,8 @@
           "cards",
           "catalogueSize",
           "sizeIsLowerBound",
+          "instanceCatalogueCount",
+          "providerCatalogueCount",
           "page",
           "perPage",
           "lastPage",
@@ -2961,6 +2963,17 @@
           },
           "sizeIsLowerBound": {
             "type": "boolean"
+          },
+          "instanceCatalogueCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "providerCatalogueCount": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "page": {
             "type": "integer",

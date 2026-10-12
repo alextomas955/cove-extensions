@@ -339,6 +339,14 @@ public sealed record MissingSortOption(string Value, string Label);
 /// number past its own and re-serves the last page rather than answering an error.
 /// </para>
 /// <para>
+/// <c>InstanceCatalogueCount</c> and <c>ProviderCatalogueCount</c> are the entity's whole
+/// catalogue as each side counts it, before any subtraction, search or paging. The instance builds
+/// its catalogue over the minutes after an entity is added, so while that runs it lists fewer
+/// scenes than the provider counts. <c>ProviderCatalogueCount</c> is null where the provider
+/// answered no figure, which is a different answer from a provider that lists nothing and counts
+/// zero.
+/// </para>
+/// <para>
 /// <c>SortInForce</c> is the ordering this page was read under, which is the provider's own where
 /// the caller named none, and is null only on a refused page.
 /// <c>ProviderName</c> is carried on the page rather than held by the surface, because which source
@@ -349,6 +357,8 @@ public sealed record MissingPageView(
     IReadOnlyList<MissingCard> Cards,
     int CatalogueSize,
     bool SizeIsLowerBound,
+    int InstanceCatalogueCount,
+    int? ProviderCatalogueCount,
     int Page,
     int PerPage,
     int LastPage,
