@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@cove-extensions/e2e": "*",
-    "testcontainers": "^12.0.4"
+    "testcontainers": "^12.2.0"
   }
 }
