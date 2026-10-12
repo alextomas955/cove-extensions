@@ -298,8 +298,14 @@ export const ENTITY_NOT_IN_WHISPARR =
 export const ADD_TO_WHISPARR_TRACKS_ONLY =
   "Whisparr will then list every scene it knows of. Nothing is monitored or downloaded until you say so.";
 
-/** The control that adds the entity for its catalogue alone. */
+/** What heads the panel of ways the entity can be added. */
 export const ADD_TO_WHISPARR = "Add to Whisparr";
+
+/** The control that opens that panel. The trailing dots say nothing is sent on the press. */
+export const ADD_TO_WHISPARR_CHOOSE = "Add to Whisparr...";
+
+/** The row that adds the entity for its catalogue alone, named beside the two monitor scopes. */
+export const ADD_TO_WHISPARR_TRACK_ONLY = "Track only";
 
 /** The same control while the add is in flight. */
 export const ADDING_TO_WHISPARR = "Adding...";

@@ -6,6 +6,8 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 import type {
   MissingBulkEnqueued,
   MissingBulkVerb,
+  MissingEntryMode,
+  MissingEntryOffer,
   MissingPageView,
   MissingSceneActionResult,
   MissingTrackOutcome,
@@ -42,6 +44,13 @@ type TrackState =
   | { readonly kind: "added" }
   | { readonly kind: "refused"; readonly outcome: MissingTrackOutcome };
 
+/** What the read of how the entity can be added is doing. */
+type EntryOfferState =
+  | { readonly kind: "unread" }
+  | { readonly kind: "reading" }
+  | { readonly kind: "read"; readonly offer: MissingEntryOffer }
+  | { readonly kind: "failed" };
+
 export interface Missing {
   readonly state: MissingState;
   /** Reads the current view again, keeping whatever is on screen while it runs. */
@@ -65,10 +74,21 @@ export interface Missing {
   readonly monitorAll: () => void;
 
   /**
-   * Adds the entity so the instance lists its scenes, wanting none of them. Answers through
-   * <see cref="MissingReads.track" />: nothing is claimed about the add until it has answered.
+   * Reads which ways the connected instance can be asked to add the entity.
+   *
+   * Called when the panel opens rather than on mount, so a reader who never opens it costs no
+   * request.
    */
-  readonly trackEntity: () => void;
+  readonly readEntryOffer: () => void;
+
+  /** What that read answered, which the panel draws its rows from. */
+  readonly entryOffer: EntryOfferState;
+
+  /**
+   * Adds the entity the way `mode` names, so the instance lists its scenes. Nothing is claimed
+   * about the add until it has answered.
+   */
+  readonly trackEntity: (mode: MissingEntryMode) => void;
 
   /** What the add is doing, which the surface states beside the reason it clears. */
   readonly track: TrackState;
@@ -260,27 +280,45 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
   );
 
   const [track, setTrack] = useState<TrackState>({ kind: "atRest" });
+  const [entryOffer, setEntryOffer] = useState<EntryOfferState>({ kind: "unread" });
 
-  const trackEntity = useCallback(() => {
-    setTrack({ kind: "inFlight" });
+  const readEntryOffer = useCallback(() => {
+    setEntryOffer({ kind: "reading" });
 
-    postAction<MissingTrackResult>(api(`entity/${kind}/${String(coveId)}/missing/track`))
-      .then((answered) => {
-        const outcome = answered.outcome;
-        setTrack(outcome === "added" ? { kind: "added" } : { kind: "refused", outcome });
-
-        // The instance now holds the entity, so the page is read again rather than left on the
-        // reason the add cleared, and the control beside this grid is told: it was drawing the
-        // entity as one the instance has no entry for.
-        if (outcome === "added") {
-          refresh();
-          announceEntityChanged({ kind, coveId });
-        }
+    requestJson<MissingEntryOffer>(api(`entity/${kind}/${String(coveId)}/missing/entry`))
+      .then((offer) => {
+        setEntryOffer({ kind: "read", offer });
       })
       .catch(() => {
-        setTrack({ kind: "refused", outcome: "notStarted" });
+        setEntryOffer({ kind: "failed" });
       });
-  }, [kind, coveId, refresh]);
+  }, [kind, coveId]);
+
+  const trackEntity = useCallback(
+    (mode: MissingEntryMode) => {
+      setTrack({ kind: "inFlight" });
+
+      postAction<MissingTrackResult>(api(`entity/${kind}/${String(coveId)}/missing/track`), {
+        mode,
+      })
+        .then((answered) => {
+          const outcome = answered.outcome;
+          setTrack(outcome === "added" ? { kind: "added" } : { kind: "refused", outcome });
+
+          // The instance now holds the entity, so the page is read again rather than left on the
+          // reason the add cleared, and the control beside this grid is told: it was drawing the
+          // entity as one the instance has no entry for.
+          if (outcome === "added") {
+            refresh();
+            announceEntityChanged({ kind, coveId });
+          }
+        })
+        .catch(() => {
+          setTrack({ kind: "refused", outcome: "notStarted" });
+        });
+    },
+    [kind, coveId, refresh],
+  );
 
   const monitorAll = useCallback(() => {
     const entity: MissingEntity = { kind, coveId };
@@ -311,6 +349,8 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     monitorSelection,
     unmonitorSelection,
     monitorAll,
+    readEntryOffer,
+    entryOffer,
     trackEntity,
     track,
   };

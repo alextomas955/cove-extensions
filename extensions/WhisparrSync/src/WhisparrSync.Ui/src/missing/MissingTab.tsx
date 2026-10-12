@@ -153,7 +153,9 @@ function MissingTabFor({
           subStudioContentIsExcluded: kind === "studio" && !includeSubStudios,
           onRefresh: refresh,
           add: {
-            onAdd: trackEntity,
+            onAdd: () => {
+              trackEntity("trackOnly");
+            },
             inFlight: track.kind === "inFlight",
             refusal:
               track.kind === "refused"
