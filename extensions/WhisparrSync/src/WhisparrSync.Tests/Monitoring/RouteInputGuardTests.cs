@@ -61,6 +61,7 @@ public sealed class RouteInputGuardTests
                 "add-all-missing",
                 "bulk-monitor",
                 "count",
+                "entry",
                 "missing",
 
                 // Twice: the entity's own monitor route and the catalogue's per-scene one, which are

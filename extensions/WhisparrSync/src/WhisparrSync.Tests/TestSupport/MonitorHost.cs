@@ -304,6 +304,11 @@ internal sealed class MonitorHost : IAsyncDisposable
             services => new BackgroundWork(
                 services.GetRequiredService<IJobService>(),
                 services.GetRequiredService<IServiceScopeFactory>()));
+        builder.Services.AddSingleton(
+            services => new MissingEntryAccess(
+                services.GetRequiredService<IEntityIdentityPort>(),
+                services.GetRequiredService<InstanceCatalogueCache>(),
+                services.GetRequiredService<BackgroundWork>()));
         builder.Services.AddSingleton(new OptionsWriting(options, host._writeGate));
         builder.Services.AddSingleton(
             services => new CallbackAddressing(

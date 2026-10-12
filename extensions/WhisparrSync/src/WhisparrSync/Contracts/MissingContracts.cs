@@ -48,6 +48,18 @@ public enum MissingTrackOutcome
     /// </summary>
     NoAddDefaults,
 
+    /// <summary>
+    /// The library root this entity's own files sit under is one the instance has agreed no
+    /// spelling for, so no add could be composed for it.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NoAddDefaults"/>, which is the instance declaring no profile or no
+    /// root at all. Here what is unsettled is which of those roots holds this entity's files, which
+    /// is a folder mapping rather than a Whisparr setting. Only a monitoring add reaches it: the
+    /// add that tracks a catalogue alone registers the entity on the instance's own root.
+    /// </remarks>
+    NoAgreedRootForThisEntity,
+
     /// <summary>The add was sent and the instance refused it.</summary>
     Refused,
 
@@ -57,6 +69,55 @@ public enum MissingTrackOutcome
 
 /// <summary>What the add answered.</summary>
 public sealed record MissingTrackResult(MissingTrackOutcome Outcome);
+
+/// <summary>What adding an entity is being asked to do with the catalogue it brings in.</summary>
+/// <remarks>
+/// The catalogue surface lists what the connected instance itself holds, so seeing an entity's
+/// scenes and tracking them are one outcome rather than two. The two monitor members name
+/// <see cref="MonitorScope"/>'s two scopes in this surface's own terms.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MissingEntryMode
+{
+    /// <summary>Add it for its catalogue alone, leaving every scene it brings in unmonitored.</summary>
+    TrackOnly,
+
+    /// <summary>Monitor it, covering what a later catalogue read adds.</summary>
+    MonitorNewReleases,
+
+    /// <summary>Monitor it, covering every scene the instance already lists.</summary>
+    MonitorAllScenes,
+}
+
+/// <summary>What a caller may say when it asks for an entity to be added.</summary>
+/// <remarks>
+/// A mode and nothing else. There is no identifier member of any kind: the route names the Cove
+/// entity, and the identifier the instance is given is read from the stored identity row on the
+/// server.
+/// <para>
+/// The mode defaults to tracking alone, so a body naming none still reads as the gesture this route
+/// has always carried out.
+/// </para>
+/// </remarks>
+public sealed record MissingEntryRequest(MissingEntryMode Mode = MissingEntryMode.TrackOnly);
+
+/// <summary>Which ways the connected instance can be asked to add one entity.</summary>
+/// <remarks>
+/// A mode the connection cannot carry out for this entity's kind is absent from <c>Modes</c> rather
+/// than present and refused on press. An empty list is nothing connected, or an instance declaring
+/// no role that reaches the kind.
+/// <para>
+/// <c>ScopeChangeIsRetroactive</c> carries the meaning it has on
+/// <see cref="EntityMonitoringView"/>: false is a wider scope that cannot be taken back, and null is
+/// an answer that named no instance and so settles the question neither way.
+/// </para>
+/// </remarks>
+public sealed record MissingEntryOffer(
+    IReadOnlyList<MissingEntryMode> Modes, bool? ScopeChangeIsRetroactive)
+{
+    /// <summary>No address and key are stored, so the entity can be added no way at all.</summary>
+    public static MissingEntryOffer NotConfigured { get; } = new([], null);
+}
 
 /// <summary>Why the whole catalogue surface cannot answer, or that it can.</summary>
 /// <remarks>

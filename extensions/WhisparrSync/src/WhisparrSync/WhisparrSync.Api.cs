@@ -29,6 +29,7 @@ public sealed partial class WhisparrSync
     private string MissingCountRoute => RouteBase + "/entity/{kind}/{coveId}/missing/count";
     private string MissingFacetValuesRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/facet/{facetKey}";
+    private string MissingEntryOfferRoute => RouteBase + "/entity/{kind}/{coveId}/missing/entry";
     private string MissingTrackRoute => RouteBase + "/entity/{kind}/{coveId}/missing/track";
     private string MissingBulkMonitorRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/bulk-monitor";

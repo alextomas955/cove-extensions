@@ -73,11 +73,15 @@ public sealed class MissingRouteRegistrationTests
                 .Contains("/missing", StringComparison.Ordinal))
             .ToList();
 
-        Assert.Equal(8, routes.Count);
-        Assert.Equal(8, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(9, routes.Count);
+        Assert.Equal(9, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
 
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing"));
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing/count"));
+
+        // What the add can be asked to do is a read of the connection's own roles, and it reaches
+        // the instance not at all.
+        Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing/entry"));
 
         // A read of what the source publishes, at the tier the page and the count beside it declare.
         Assert.Equal(

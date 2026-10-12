@@ -1038,6 +1038,57 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/entry": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingEntryOffer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/track": {
       "post": {
         "tags": [
@@ -1066,11 +1117,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InstanceCatalogueCache"
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MissingEntryRequest"
+                  }
+                ]
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2765,6 +2822,42 @@
           }
         }
       },
+      "MissingEntryMode": {
+        "enum": [
+          "trackOnly",
+          "monitorNewReleases",
+          "monitorAllScenes"
+        ]
+      },
+      "MissingEntryOffer": {
+        "required": [
+          "modes",
+          "scopeChangeIsRetroactive"
+        ],
+        "type": "object",
+        "properties": {
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingEntryMode"
+            }
+          },
+          "scopeChangeIsRetroactive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "MissingEntryRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/MissingEntryMode"
+          }
+        }
+      },
       "MissingFacetMenu": {
         "required": [
           "key",
@@ -3007,6 +3100,7 @@
           "generationCannotTrackThisKind",
           "noIdentifier",
           "noAddDefaults",
+          "noAgreedRootForThisEntity",
           "refused",
           "notStarted"
         ]

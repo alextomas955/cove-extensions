@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Jobs;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Missing;
 
@@ -15,6 +17,10 @@ internal static class MissingServiceRegistration
         services.AddSingleton(
             provider => new InstanceCatalogueCache(
                 provider.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddScoped(provider => new MissingEntryAccess(
+            provider.GetRequiredService<IEntityIdentityPort>(),
+            provider.GetRequiredService<InstanceCatalogueCache>(),
+            provider.GetRequiredService<BackgroundWork>()));
         services.AddScoped<IOwnedScenePort, OwnedScenePort>();
         services.AddScoped<IEntityNamePort, EntityNamePort>();
         services.AddScoped<MissingIdentityResolver>();

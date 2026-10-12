@@ -45,6 +45,7 @@ internal static class BindingServices
         // service rather than as a body.
         services.AddSingleton<WhisparrAccess>(_ => null!);
         services.AddSingleton<BackgroundWork>(_ => null!);
+        services.AddSingleton<MissingEntryAccess>(_ => null!);
         services.AddSingleton<OptionsWriting>(_ => null!);
         services.AddSingleton<CallbackAddressing>(_ => null!);
         services.AddSingleton<CallbackRegistering>(_ => null!);
