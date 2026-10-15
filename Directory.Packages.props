@@ -27,7 +27,7 @@
       tool, so the version travels with the repo. It emits the Visual Studio coverage XML that Sonar's
       C# analyzer reads; Cobertura is not one of the formats that analyzer accepts.
     -->
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
 
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
