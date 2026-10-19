@@ -29,13 +29,13 @@
     -->
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
 
-    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
          that library references the analyzers directly. Hold this at the version xunit.v3 resolves:
          transitive pinning is off repo-wide, so nothing fails when the two projects drift apart. -->
-    <PackageVersion Include="xunit.analyzers" Version="2.1.0" />
-    <PackageVersion Include="xunit.v3.assert" Version="4.0.1" />
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.1" />
+    <PackageVersion Include="xunit.analyzers" Version="2.2.0" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <!--
