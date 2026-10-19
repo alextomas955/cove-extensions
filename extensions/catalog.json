@@ -24,6 +24,31 @@
       ],
       "e2ePath": "extensions/Renamer/e2e",
       "e2eProject": "renamer"
+    },
+    {
+      "name": "WhisparrSync",
+      "id": "com.alextomas955.whisparrsync",
+      "path": "extensions/WhisparrSync",
+      "tagPrefix": "whisparr-sync/",
+      "projectPath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.csproj",
+      "testProjectPath": "extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj",
+      "manifestPath": "extensions/WhisparrSync/src/WhisparrSync/extension.json",
+      "uiPath": "extensions/WhisparrSync/src/WhisparrSync.Ui",
+      "registryManifestPath": "extensions/WhisparrSync/registry/com.alextomas955.whisparrsync.json",
+      "artifacts": [
+        "extension.json",
+        "index.mjs",
+        "WhisparrSync.dll",
+        "WhisparrSync.deps.json",
+        "WhisparrSync.runtimeconfig.json",
+        "Cove.Extensions.Shared.dll",
+        "Whisparr2.Net.dll",
+        "Whisparr3.Net.dll",
+        "README.md",
+        "LICENSE"
+      ],
+      "e2ePath": "extensions/WhisparrSync/e2e",
+      "e2eProject": "whisparr-sync"
     }
   ]
 }

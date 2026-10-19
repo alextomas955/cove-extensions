@@ -1,0 +1,1073 @@
+using System.Text.Json.Nodes;
+using WhisparrSync.Addressing;
+using WhisparrSync.Contracts;
+using WhisparrSync.Jobs;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.Monitoring;
+
+public sealed class ReflectOwnedPlannerTests
+{
+    // The linking import mode copies the whole file whenever the file and the entry it is written to
+    // are not on one filesystem, and reports it as a successful import. The composed path guards that
+    // the same way the folder-listing path does.
+    [Fact]
+    public async Task AFileUnderADifferentRootFromItsEntryIsLeftRatherThanCopied()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/two/scenes/a"),
+            },
+            ["/one", "/two"],
+            (_, _) => throw new InvalidOperationException("A file it does not send is never read."),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(1, planned.LeftUnderAnotherRoot);
+    }
+
+    // Under one root the link is a link, so the file is composed and sent.
+    [Fact]
+    public async Task AFileUnderTheSameRootAsItsEntryIsSent()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/one/scenes/a"),
+            },
+            ["/one", "/two"],
+            (file, _) => Task.FromResult<WhisparrResponse?>(
+                new WhisparrResponse(200, null, Read(file, 7))),
+            TestContext.Current.CancellationToken);
+
+        var entry = Assert.IsType<JsonObject>(Assert.Single(planned.Entries!));
+        Assert.Equal(7, entry["movieId"]!.GetValue<int>());
+        Assert.Equal("/one/videos/a.mp4", entry["path"]!.GetValue<string>());
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // A file the instance read no quality for comes back carrying the unknown quality it was asked
+    // with. Sending that back would store a file the instance then treats as below every profile and
+    // replaces, so the file is left rather than sent.
+    [Fact]
+    public async Task AFileTheInstanceReadNoQualityForIsLeftRatherThanSentUnknown()
+    {
+        var planned = await Composed(
+            "/one/videos",
+            new Dictionary<string, RegisteredScene>(StringComparer.Ordinal)
+            {
+                ["a.mp4"] = new RegisteredScene(7, "/one/scenes/a"),
+            },
+            ["/one"],
+            (file, _) => Task.FromResult<WhisparrResponse?>(
+                new WhisparrResponse(200, null, Read(file, 0))),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // The instance reads a studio and a date out of a file name to decide which scene a file is. A
+    // library whose names it cannot parse is answered "Unknown Movie" for every one of them, and the
+    // reader owns those scenes all the same.
+    [Fact]
+    public void AFileTheInstanceCouldNotIdentifyIsAttachedToTheSceneTheLibraryNames()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/a name it cannot parse.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = Assert.Single(ReflectOwnedPlanner.AddressedFiles(
+            WhisparrGeneration.V3,
+            (JsonArray)JsonNode.Parse(unmatched)!,
+            ["/data"],
+            new Dictionary<string, EntryAddress>(StringComparer.Ordinal)
+            {
+                ["a name it cannot parse.mp4"] = new(4242),
+            }));
+
+        var entry = Assert.IsType<JsonObject>(Assert.Single(planned.Entries!));
+        Assert.Equal(4242, entry["movieId"]!.GetValue<int>());
+    }
+
+    // A folder of links carries names the instance parses nothing out of, so a run that supplied no
+    // address for them attaches none of them. Reported as nothing found, that reads as a folder
+    // holding nothing importable rather than as files nobody could address.
+    [Fact]
+    public void ARowNoEntryCouldBeAddressedToIsCountedRatherThanDropped()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/deadbeef-1234.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]},
+             {"path":"/data/one/deadbeef-5678.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, unmatched, ["/data"]);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(2, planned.WithoutAnEntry);
+    }
+
+    // The identity is the library's, so a row the chunk holds no name for is left where it is
+    // rather than attached to whatever happened to be registered nearby.
+    [Fact]
+    public void AFileTheLibraryNamesNoSceneForIsLeftWhereItIs()
+    {
+        const string unmatched = """
+            [{"path":"/data/one/a name it cannot parse.mp4","folderName":"one",
+              "quality":{"quality":{"id":7}},"languages":[{"id":1}],
+              "rejections":[{"reason":"Unknown Movie"}]}]
+            """;
+
+        var planned = ReflectOwnedPlanner.AddressedFiles(
+            WhisparrGeneration.V3,
+            (JsonArray)JsonNode.Parse(unmatched)!,
+            ["/data"],
+            new Dictionary<string, EntryAddress>(StringComparer.Ordinal)
+            {
+                ["another file.mp4"] = new(4242),
+            }).ToList();
+
+        Assert.Empty(planned);
+    }
+
+    private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
+    private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
+
+    private const string V3NamingFixture = "whisparr-v3-3.6.2.1727-naming.json";
+    private const string V2NamingFixture = "whisparr-v2-2.2.0.231-naming.json";
+
+    private const string V3MatchedRow = """
+        {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
+         "folderName":"Vixen","name":"scene","size":10,
+         "movie":{"id":7,"title":"A scene","foreignId":"3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9"},
+         "movieFileId":0,"releaseGroup":"","quality":{"quality":{"id":6,"name":"Bluray-1080p"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":1,"name":"English"}],"qualityWeight":0,"downloadId":null,
+         "customFormats":[],"customFormatScore":0,"indexerFlags":0,"rejections":[]}
+        """;
+
+    // A row the parse could not match, as measured: a permanent rejection, and no matched member
+    // at all rather than a null one.
+    private const string V3UnmatchedRow = """
+        {"id":2,"path":"/config/library/Vixen/unknown.mp4","relativePath":"Vixen/unknown.mp4",
+         "folderName":"Vixen","name":"unknown","size":10,"movieFileId":0,"releaseGroup":"",
+         "quality":{"quality":{"id":1,"name":"Unknown"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":0,"name":"Unknown"}],"qualityWeight":0,"downloadId":null,
+         "customFormats":[],"customFormatScore":0,"indexerFlags":0,
+         "rejections":[{"reason":"Unknown Movie","type":"permanent"}]}
+        """;
+
+    private const string V2MatchedRow = """
+        {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
+         "folderName":"Vixen","name":"scene","size":10,
+         "series":{"id":3,"title":"Vixen"},"episodes":[{"id":41,"title":"A scene"}],
+         "episodeFileId":0,"releaseGroup":"","quality":{"quality":{"id":6,"name":"Bluray-1080p"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":1,"name":"English"}],"qualityWeight":0,"downloadId":null,
+         "customFormats":[],"customFormatScore":0,"indexerFlags":0,"rejections":[]}
+        """;
+
+    private const string V2UnmatchedRow = """
+        {"id":2,"path":"/config/library/Vixen/unknown.mp4","relativePath":"Vixen/unknown.mp4",
+         "folderName":"Vixen","name":"unknown","size":10,"episodeFileId":0,"releaseGroup":"",
+         "quality":{"quality":{"id":1,"name":"Unknown"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":0,"name":"Unknown"}],"qualityWeight":0,"downloadId":null,
+         "customFormats":[],"customFormatScore":0,"indexerFlags":0,
+         "rejections":[{"reason":"Unknown Series","type":"permanent"}]}
+        """;
+
+    // A file in the inbox matched to a site registered under another declared root. This is the
+    // arrangement measured to copy the bytes in full.
+    private const string InboxRowMatchedToRootA = """
+        {"path":"/library/inbox/Tushy - 2015-05-04 - Big Butt 1080p WEBDL.mp4",
+         "relativePath":"Tushy - 2015-05-04 - Big Butt 1080p WEBDL.mp4","folderName":"inbox","size":72246,
+         "series":{"id":2,"title":"Tushy","path":"/library/rootA/Tushy"},
+         "episodes":[{"id":211,"title":"Big Butt"}],"episodeFileId":0,"releaseGroup":"",
+         "quality":{"quality":{"id":6,"name":"Bluray-1080p"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
+        """;
+
+    private const string SecondInboxRowMatchedToRootA = """
+        {"path":"/library/inbox/Tushy - 2015-05-11 - Second 1080p WEBDL.mp4",
+         "relativePath":"Tushy - 2015-05-11 - Second 1080p WEBDL.mp4","folderName":"inbox","size":72246,
+         "series":{"id":2,"title":"Tushy","path":"/library/rootA/Tushy"},
+         "episodes":[{"id":212,"title":"Second"}],"episodeFileId":0,"releaseGroup":"",
+         "quality":{"quality":{"id":6,"name":"Bluray-1080p"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
+        """;
+
+    private const string RootARowMatchedToRootA = """
+        {"path":"/library/rootA/Tushy/scene.mp4","relativePath":"scene.mp4","folderName":"Tushy","size":72246,
+         "series":{"id":2,"title":"Tushy","path":"/library/rootA/Tushy"},
+         "episodes":[{"id":213,"title":"A scene"}],"episodeFileId":0,"releaseGroup":"",
+         "quality":{"quality":{"id":6,"name":"Bluray-1080p"},"revision":{"version":1,"real":0}},
+         "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
+        """;
+
+    // The roots the measured instance declares. They nest, so the most specific one has to answer
+    // for a path; taking the first would see one root where there are three.
+    private static readonly string[] DeclaredRoots = ["/library", "/library/rootA", "/library/rootB"];
+
+    private static readonly WhisparrGeneration[] Generations =
+        [WhisparrGeneration.V3, WhisparrGeneration.V2];
+
+    // One instance per generation: the two settings bodies this decision reads, and the members
+    // that generation states its renaming under. The member names are transcribed from a running
+    // instance of each build rather than read off the reader under test, which would agree with the
+    // reader whatever it named.
+    private static readonly (
+        WhisparrGeneration Generation,
+        string MediaManagement,
+        string Naming,
+        string[] RenameMembers)[] Instances =
+    [
+        (WhisparrGeneration.V3,
+            V3MediaManagementFixture,
+            V3NamingFixture,
+            ["renameMovies", "renameScenes"]),
+        (WhisparrGeneration.V2,
+            V2MediaManagementFixture,
+            V2NamingFixture,
+            ["renameEpisodes"]),
+    ];
+
+    // The instance's own naming body with every renaming member set as asked, so a case states the
+    // one fact it is about and carries the rest of the resource as the build sent it.
+    private static string NamingWith(string fixture, string[] members, params bool[] on)
+    {
+        var settings = (JsonObject)JsonNode.Parse(ProbeFixtures.Read(fixture))!;
+        for (var index = 0; index < members.Length; index++)
+        {
+            Assert.True(settings.ContainsKey(members[index]));
+            settings[members[index]] = on[index % on.Length];
+        }
+
+        return settings.ToJsonString();
+    }
+
+    [Fact]
+    public void HardLinksOnAndRenamingOffAnswersActOnBothGenerations()
+    {
+        foreach (var (generation, media, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                ProbeFixtures.Read(media),
+                NamingWith(naming, members, false));
+
+            Assert.True(decision.Act);
+            Assert.Null(decision.Reason);
+        }
+    }
+
+    [Fact]
+    public void HardLinksOffAnswersSkippedWithTheSameReasonOnBothGenerations()
+    {
+        var reasons = Instances
+            .Select(instance =>
+            {
+                var settings = (JsonObject)JsonNode.Parse(
+                    ProbeFixtures.Read(instance.MediaManagement))!;
+                Assert.True(settings[ReflectOwnedPlanner.HardLinkSetting]!.GetValue<bool>());
+                settings[ReflectOwnedPlanner.HardLinkSetting] = false;
+                return ReflectOwnedPlanner.Decide(
+                    instance.Generation,
+                    settings.ToJsonString(),
+                    NamingWith(instance.Naming, instance.RenameMembers, false));
+            })
+            .ToList();
+
+        Assert.All(reasons, decision => Assert.False(decision.Act));
+        Assert.Equal(
+            [ReflectOwnedSkipReason.HardLinksOff, ReflectOwnedSkipReason.HardLinksOff],
+            reasons.Select(decision => decision.Reason));
+    }
+
+    // Stricter than the measured default. Acting on a setting nobody read copies every matched file
+    // in full with no error.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    [InlineData("not json")]
+    [InlineData("""{"copyUsingHardlinks":null}""")]
+    [InlineData("""{"copyUsingHardlinks":"true"}""")]
+    [InlineData("""{"copyUsingHardlinks":1}""")]
+    [InlineData("""{"copyUsingHardLinks":true}""")]
+    public void AnAbsentOrUnreadableSettingAnswersSkippedAndNotAct(string? body)
+    {
+        foreach (var (generation, _, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation, body, NamingWith(naming, members, false));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.HardLinkSettingUnreadable, decision.Reason);
+        }
+    }
+
+    // Measured on both builds. With renaming on, one generation's rename command moves every file
+    // out of the folder this product named, and the other fails the attach outright.
+    [Fact]
+    public void RenamingOnSkipsOnBothGenerations()
+    {
+        foreach (var (generation, media, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                ProbeFixtures.Read(media),
+                NamingWith(naming, members, true));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.RenamingOn, decision.Reason);
+        }
+    }
+
+    // One generation states its renaming under two members, one per kind of entry it holds. Either
+    // of them renames the file this product linked, so either of them refuses.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void EitherMemberOnSkipsOnTheGenerationStatingTwo(bool movies, bool scenes)
+    {
+        var settings = (JsonObject)JsonNode.Parse(ProbeFixtures.Read(V3NamingFixture))!;
+        settings["renameMovies"] = movies;
+        settings["renameScenes"] = scenes;
+
+        var decision = ReflectOwnedPlanner.Decide(
+            WhisparrGeneration.V3,
+            ProbeFixtures.Read(V3MediaManagementFixture),
+            settings.ToJsonString());
+
+        Assert.False(decision.Act);
+        Assert.Equal(ReflectOwnedSkipReason.RenamingOn, decision.Reason);
+    }
+
+    // A naming body nobody could read is its own outcome and is never folded into the off case.
+    // Acting on a setting nobody read is how a silent reorganisation happens.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    [InlineData("not json")]
+    [InlineData("""{"renameMovies":false,"renameScenes":null,"renameEpisodes":null}""")]
+    [InlineData("""{"renameMovies":"false","renameScenes":"false","renameEpisodes":"false"}""")]
+    [InlineData("""{"renameMovies":0,"renameScenes":0,"renameEpisodes":0}""")]
+    [InlineData("""{"RenameMovies":false,"RenameScenes":false,"RenameEpisodes":false}""")]
+    public void AnUnreadableNamingBodyAnswersItsOwnReason(string? body)
+    {
+        foreach (var (generation, media, _, _) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation, ProbeFixtures.Read(media), body);
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.RenameSettingUnreadable, decision.Reason);
+        }
+    }
+
+    // Two refusals must not read as one. The hard-link reading answers first, so an instance failing
+    // both reports what it reported before the naming reading existed.
+    [Fact]
+    public void AnInstanceFailingBothReadingsReportsTheHardLinkReason()
+    {
+        foreach (var (generation, _, naming, members) in Instances)
+        {
+            var decision = ReflectOwnedPlanner.Decide(
+                generation,
+                """{"copyUsingHardlinks":false}""",
+                NamingWith(naming, members, true));
+
+            Assert.False(decision.Act);
+            Assert.Equal(ReflectOwnedSkipReason.HardLinksOff, decision.Reason);
+        }
+    }
+
+    // The exclusion keys on member absence. The unmatched rows are asserted to carry no matched
+    // member at all, because a null check would read a row with a null member the same way and that
+    // is not the shape the parse route answers.
+    [Fact]
+    public void ARowWithAPermanentRejectionAndNoMatchedMemberIsExcluded()
+    {
+        Assert.False(((JsonObject)JsonNode.Parse(V3UnmatchedRow)!).ContainsKey("movie"));
+        Assert.False(((JsonObject)JsonNode.Parse(V2UnmatchedRow)!).ContainsKey("series"));
+
+        var v3 = Entries(
+            WhisparrGeneration.V3, $"[{V3MatchedRow},{V3UnmatchedRow}]");
+        var v2 = Entries(
+            WhisparrGeneration.V2, $"[{V2UnmatchedRow},{V2MatchedRow}]");
+
+        Assert.NotNull(v3);
+        Assert.NotNull(v2);
+        Assert.Equal(7, Assert.IsType<JsonObject>(Assert.Single(v3))["movieId"]!.GetValue<int>());
+        Assert.Equal(3, Assert.IsType<JsonObject>(Assert.Single(v2))["seriesId"]!.GetValue<int>());
+        Assert.DoesNotContain("unknown.mp4", v3.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("unknown.mp4", v2.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData(null)]
+    [InlineData("{}")]
+    [InlineData("not json")]
+    public void AFolderAnsweringNoRowsComposesNoCommand(string? rows)
+    {
+        Assert.All(Generations, generation => Assert.Null(Entries(generation, rows)));
+    }
+
+    [Fact]
+    public void AFolderWhoseEveryRowIsUnmatchedComposesNoCommand()
+    {
+        Assert.Null(Entries(WhisparrGeneration.V3, $"[{V3UnmatchedRow}]"));
+        Assert.Null(Entries(WhisparrGeneration.V2, $"[{V2UnmatchedRow}]"));
+    }
+
+    [Fact]
+    public void QualityAndLanguagesComeFromTheRowsAndAreNeverFabricated()
+    {
+        var row = (JsonObject)JsonNode.Parse(V3MatchedRow)!;
+        var entry = Assert.IsType<JsonObject>(Assert.Single(
+            Entries(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!));
+
+        Assert.Equal(row["quality"]!.ToJsonString(), entry["quality"]!.ToJsonString());
+        Assert.Equal(row["languages"]!.ToJsonString(), entry["languages"]!.ToJsonString());
+
+        var withoutQuality = (JsonObject)row.DeepClone();
+        withoutQuality.Remove("quality");
+        var withoutLanguages = (JsonObject)row.DeepClone();
+        withoutLanguages.Remove("languages");
+
+        Assert.Null(Entries(WhisparrGeneration.V3, $"[{withoutQuality.ToJsonString()}]"));
+        Assert.Null(Entries(WhisparrGeneration.V3, $"[{withoutLanguages.ToJsonString()}]"));
+    }
+
+    [Fact]
+    public void TheFileEntryIsSpelledPerGenerationAsEachInterfaceSpellsIt()
+    {
+        var v3 = Assert.IsType<JsonObject>(Assert.Single(
+            Entries(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!));
+        var v2 = Assert.IsType<JsonObject>(Assert.Single(
+            Entries(WhisparrGeneration.V2, $"[{V2MatchedRow}]")!));
+
+        Assert.Equal(
+            [
+                "downloadId", "folderName", "indexerFlags", "languages", "movieFileId", "movieId",
+                "path", "quality", "releaseGroup",
+            ],
+            v3.Select(member => member.Key).Order());
+        Assert.Equal(
+            [
+                "downloadId", "episodeFileId", "episodeIds", "folderName", "indexerFlags", "languages",
+                "path", "quality", "releaseGroup", "seriesId",
+            ],
+            v2.Select(member => member.Key).Order());
+
+        Assert.Equal("/config/library/Vixen/scene.mp4", v3["path"]!.GetValue<string>());
+        Assert.Equal("Vixen", v3["folderName"]!.GetValue<string>());
+        Assert.Equal([41], Assert.IsType<JsonArray>(v2["episodeIds"]).Select(id => id!.GetValue<int>()));
+        Assert.DoesNotContain("seriesId", v3.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("movieId", v2.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AV2RowNamingNoEpisodeIsExcluded()
+    {
+        var row = (JsonObject)JsonNode.Parse(V2MatchedRow)!;
+        row["episodes"] = new JsonArray();
+
+        Assert.Null(Entries(WhisparrGeneration.V2, $"[{row.ToJsonString()}]"));
+    }
+
+    [Fact]
+    public void TheCommandIsAManualImportInCopyModeAndNeverInMoveMode()
+    {
+        var files = Entries(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!;
+        var command = ReflectOwnedPlanner.Command(files);
+
+        Assert.Equal("ManualImport", command["name"]!.GetValue<string>());
+        Assert.Equal("copy", command["importMode"]!.GetValue<string>());
+        Assert.Equal(["files", "importMode", "name"], command.Select(member => member.Key).Order());
+        Assert.Same(files, command["files"]);
+        Assert.DoesNotContain("\"move\"", command.ToJsonString(), StringComparison.Ordinal);
+        Assert.Equal("copy", ReflectOwnedPlanner.ImportMode);
+    }
+
+    // The import mode that links copies the whole file when the two are not on one filesystem, with
+    // no error and no distinct outcome.
+    [Fact]
+    public void AFileWhoseSiteSitsUnderAnotherDeclaredRootReachesNoCommand()
+    {
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", DeclaredRoots);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(1, planned.LeftUnderAnotherRoot);
+    }
+
+    [Fact]
+    public void AFolderMixingBothKindsSendsOnlyTheEntriesWhoseSiteSharesTheirRoot()
+    {
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2,
+            $"[{InboxRowMatchedToRootA},{RootARowMatchedToRootA}]",
+            DeclaredRoots);
+
+        var command = ReflectOwnedPlanner.Command(planned.Entries!).ToJsonString();
+
+        Assert.Equal(1, planned.LeftUnderAnotherRoot);
+        Assert.Contains("/library/rootA/Tushy/scene.mp4", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("/library/inbox", command, StringComparison.Ordinal);
+    }
+
+    // Refusing on an unknown root would stop every import on an instance whose roots could not be
+    // read.
+    [Fact]
+    public void AnInstanceDeclaringNoRootSendsEveryEntry()
+    {
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, $"[{InboxRowMatchedToRootA}]", []);
+
+        Assert.Single(planned.Entries!);
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // A site with no path of its own leaves the destination unknown, not known to be elsewhere.
+    [Fact]
+    public void ARowWhoseSiteCarriesNoPathIsSent()
+    {
+        var row = (JsonObject)JsonNode.Parse(InboxRowMatchedToRootA)!;
+        ((JsonObject)row["series"]!).Remove("path");
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots);
+
+        Assert.Single(planned.Entries!);
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    [Fact]
+    public void ARowNamingNoFileIsExcludedAndIsNotCountedAsLeftUnderAnotherRoot()
+    {
+        var row = (JsonObject)JsonNode.Parse(InboxRowMatchedToRootA)!;
+        row.Remove("path");
+
+        var planned = ReflectOwnedPlanner.Files(
+            WhisparrGeneration.V2, $"[{row.ToJsonString()}]", DeclaredRoots);
+
+        Assert.Null(planned.Entries);
+        Assert.Equal(0, planned.LeftUnderAnotherRoot);
+    }
+
+    // The instance declined nothing and was never asked, so counting the folder as refused would
+    // say it answered.
+    [Fact]
+    public async Task ARunLeavingEveryRowUnderAnotherRootCountsThemAndAttachesNothing()
+    {
+        var attaches = 0;
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V2,
+            DeclaredRoots,
+            Folders("/library/inbox", "/library/inbox/second"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{InboxRowMatchedToRootA},{SecondInboxRowMatchedToRootA}]")),
+                (_, _) => { attaches++; return Task.FromResult(true); }),
+            TestCt);
+
+        Assert.Equal(0, attaches);
+        Assert.Equal(4, run.EntriesLeftUnderAnotherRoot);
+        Assert.Equal(0, run.FoldersAttached);
+        Assert.Equal(0, run.FoldersRefused);
+    }
+
+    [Fact]
+    public async Task APreCancelledTokenClassifiesTheRunAsCancelledAndNotFailed()
+    {
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        var reads = 0;
+        var attaches = 0;
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("Vixen", "Tushy"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => { reads++; return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => { attaches++; return Task.FromResult(true); }),
+            cancelled.Token);
+
+        Assert.Equal(ReflectOwnedRunOutcome.Cancelled, run.Outcome);
+        Assert.Equal(0, run.FoldersAttached);
+        Assert.Equal(0, reads);
+        Assert.Equal(0, attaches);
+    }
+
+    [Fact]
+    public async Task ARunCancelledPartWayKeepsWhatWasAlreadyAttached()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var attached = new List<JsonArray>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("Vixen", "Tushy", "Blacked"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
+                (files, _) => { attached.Add(files); cancellation.Cancel(); return Task.FromResult(true); }),
+            cancellation.Token);
+
+        Assert.Equal(ReflectOwnedRunOutcome.Cancelled, run.Outcome);
+        Assert.Equal(1, run.FoldersAttached);
+        Assert.Single(attached);
+    }
+
+    [Fact]
+    public async Task EachFolderIsReadOnceAndHandedIntoOneCommandAndNothingCarriesAcross()
+    {
+        var read = new List<string>();
+        var attached = new List<JsonArray>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("/config/library/Vixen", "/config/library/Tushy", "/config/library/Empty"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (folder, _) => Task.FromResult(ImportableListing.Listed(folder.EndsWith("Empty", StringComparison.Ordinal) ? "[]" : $"[{V3MatchedRow.Replace("/config/library/Vixen", folder, StringComparison.Ordinal)}]")),
+                (files, _) => { attached.Add(files); return Task.FromResult(attached.Count == 1); }),
+            TestContext.Current.CancellationToken);
+
+        // The read is per folder, so reads are counted from the attach delegate's inputs.
+        read.AddRange(attached.Select(files => ((JsonObject)files[0]!)["path"]!.GetValue<string>()));
+
+        Assert.Equal(ReflectOwnedRunOutcome.Completed, run.Outcome);
+        Assert.Equal(2, attached.Count);
+        Assert.Equal(1, run.FoldersAttached);
+        Assert.Equal(1, run.FoldersRefused);
+        Assert.Equal(
+            ["/config/library/Tushy/scene.mp4", "/config/library/Vixen/scene.mp4"],
+            read.Order());
+        Assert.All(attached, files => Assert.Single(files));
+    }
+
+    [Fact]
+    public async Task AFolderThatCannotBeAddressedIsNeverReadAndIsCountedOnItsOwn()
+    {
+        var read = new List<string>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
+            new ReflectOwnedSteps(
+                (_, _) => Task.FromResult(Unaddressable),
+                (folder, _) => { read.Add(folder); return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => Task.FromResult(true)),
+            TestCt);
+
+        Assert.Empty(read);
+        Assert.Equal(2, run.FoldersNotAddressed);
+        Assert.Equal(0, run.FoldersRefused);
+        Assert.Equal(0, run.FoldersAttached);
+    }
+
+    [Fact]
+    public async Task ARunReportsOneRefusalPerLibraryRootRatherThanPerFolder()
+    {
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
+            new ReflectOwnedSteps(
+                (_, _) => Task.FromResult(Unaddressable),
+                (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
+                (_, _) => Task.FromResult(true)),
+            TestCt);
+
+        var only = Assert.Single(run.AddressRefusals!);
+        Assert.Equal("G:/Downloads/P", only.CoveRoot);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, only.Refusal);
+        Assert.Equal(["/data/Vixen"], only.Tried);
+    }
+
+    [Fact]
+    public async Task TheListingIsAskedForThePathTheAddressAnswered()
+    {
+        var read = new List<string>();
+
+        await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("G:/Downloads/P/Vixen"),
+            new ReflectOwnedSteps(
+                (folder, _) => Task.FromResult(new AddressedFolder(folder.Replace("G:/Downloads/P", "/data", StringComparison.Ordinal), null, "G:/Downloads/P", [])),
+                (folder, _) => { read.Add(folder); return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")); },
+                (_, _) => Task.FromResult(true)),
+            TestCt);
+
+        Assert.Equal(["/data/Vixen"], read);
+    }
+
+    // A folder of a few thousand files reads for about a second a file. Held back until the last one
+    // was read it would show nothing for half an hour and lose all of it on a stop, so each batch is
+    // handed over while the rest of the folder is still being read.
+    [Fact]
+    public async Task ALargeFolderHandsOverItsFirstBatchBeforeReadingTheRest()
+    {
+        const int held = 250;
+        var identified = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+        for (var index = 0; index < held; index++)
+        {
+            identified[$"scene {index}.mp4"] = new RegisteredScene(index + 1, "/one/scenes");
+        }
+
+        var reads = 0;
+        var readsWhenFirstArrived = -1;
+        var sizes = new List<int>();
+
+        await foreach (var batch in ReflectOwnedPlanner.ComposedFilesAsync(
+            WhisparrGeneration.V3,
+            "/one/videos",
+            identified,
+            ["/one"],
+            (file, _) =>
+            {
+                reads++;
+                return Task.FromResult<WhisparrResponse?>(
+                    new WhisparrResponse(200, null, Read(file, 7)));
+            },
+            TestContext.Current.CancellationToken))
+        {
+            if (readsWhenFirstArrived < 0)
+            {
+                readsWhenFirstArrived = reads;
+            }
+
+            sizes.Add(batch.Entries?.Count ?? 0);
+        }
+
+        Assert.Equal(ReflectOwnedPlanner.FilesAttachedAtOnce, readsWhenFirstArrived);
+        Assert.Equal(held, sizes.Sum());
+        Assert.All(sizes, size => Assert.True(size <= ReflectOwnedPlanner.FilesAttachedAtOnce));
+        Assert.Equal(3, sizes.Count);
+    }
+
+    // An entity's folder holds every file that entity owns, and one entity reaches the size of the
+    // library. The addresses arrive a chunk at a time and each chunk's entries are sent as they are
+    // composed, so what the run holds and what one command carries are both bounded.
+    [Fact]
+    public async Task AnEntityOwningManyFilesIsSentABatchAtATimeAndNeverInOneCommand()
+    {
+        const int owned = 250;
+        var rows = new JsonArray();
+        var addresses = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+        for (var index = 0; index < owned; index++)
+        {
+            var name = $"38-{index}.mp4";
+            rows.Add(TreeRow(name));
+            addresses[name] = new EntryAddress(index + 1, 12);
+        }
+
+        var sent = new List<int>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("/data/.wsync-v3/4628"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed(rows.ToJsonString())),
+                (files, _) => { sent.Add(files.Count); return Task.FromResult(true); },
+                (_, _) => Batches(addresses)),
+            TestCt);
+
+        Assert.All(sent, count => Assert.True(count <= ReflectOwnedPlanner.FilesAttachedAtOnce));
+        Assert.Equal(owned, sent.Sum());
+        Assert.Equal(3, sent.Count);
+        Assert.Equal(owned, run.FilesAttached);
+        Assert.Equal(1, run.FoldersAttached);
+    }
+
+    // A folder is handed over a batch at a time, so one batch landing and another being refused is
+    // the ordinary partial outcome. The refused files reach a figure of their own: counting only
+    // what landed reads as a folder that was recorded whole.
+    [Fact]
+    public async Task AFolderWhoseSecondBatchIsRefusedReportsTheFilesThatWereNotRecorded()
+    {
+        const int owned = 250;
+        var rows = new JsonArray();
+        var addresses = new Dictionary<string, EntryAddress>(StringComparer.Ordinal);
+        for (var index = 0; index < owned; index++)
+        {
+            var name = $"38-{index}.mp4";
+            rows.Add(TreeRow(name));
+            addresses[name] = new EntryAddress(index + 1, 12);
+        }
+
+        var batchesSent = 0;
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("/data/.wsync-v3/4628"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed(rows.ToJsonString())),
+                (_, _) => Task.FromResult(++batchesSent == 1),
+                (_, _) => Batches(addresses)),
+            TestCt);
+
+        Assert.Equal(3, batchesSent);
+        Assert.Equal(ReflectOwnedPlanner.FilesAttachedAtOnce, run.FilesAttached);
+        Assert.Equal(owned - ReflectOwnedPlanner.FilesAttachedAtOnce, run.FilesRefused);
+        Assert.Contains("150 not recorded", ReflectOwnedJob.SummaryOf(run), StringComparison.Ordinal);
+    }
+
+    // A chunk answers for the names it holds and no others. The middle row is one the instance
+    // matched an entity in itself, and it is left where it is: what the instance parsed out of a
+    // link name is a guess about which scene a file is, and the addresses are the library's answer.
+    [Fact]
+    public async Task ARowNoChunkAddressesIsCountedAndNeverAttachedByWhatTheInstanceMatched()
+    {
+        var matched = TreeRow("38-2.mp4");
+        matched["movie"] = new JsonObject { ["id"] = 7 };
+        var rows = new JsonArray(TreeRow("38-1.mp4"), matched, TreeRow("38-3.mp4"));
+        var sent = new List<JsonArray>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            [],
+            Folders("/data/.wsync-v3/4628"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed(rows.ToJsonString())),
+                (files, _) => { sent.Add(files); return Task.FromResult(true); },
+                (_, _) => Batches(
+                    Addressed(("38-1.mp4", 41)),
+                    Addressed(("38-3.mp4", 43)))),
+            TestCt);
+
+        Assert.Equal(
+            ["/data/.wsync-v3/4628/38-1.mp4", "/data/.wsync-v3/4628/38-3.mp4"],
+            sent.SelectMany(files => files)
+                .Select(entry => entry!["path"]!.GetValue<string>()));
+        Assert.Equal(2, run.FilesAttached);
+        Assert.Equal(1, run.FilesWithoutAnEntry);
+    }
+
+    // The site generation attaches by the site's row and the scene's row together. An address
+    // naming only the second is refused, and the refusal leaves the file where it is.
+    [Fact]
+    public async Task AnAddressNamingNoSiteRowAttachesNothingOnTheGenerationNeedingOne()
+    {
+        var matched = TreeRow("38-1.mp4", "/data/.wsync-v2/4628");
+        matched["series"] = new JsonObject { ["id"] = 3 };
+        matched["episodes"] = new JsonArray(new JsonObject { ["id"] = 41 });
+        var sent = new List<JsonArray>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V2,
+            [],
+            Folders("/data/.wsync-v2/4628"),
+            new ReflectOwnedSteps(
+                OnTheInstance,
+                (_, _) => Task.FromResult(ImportableListing.Listed(new JsonArray(matched).ToJsonString())),
+                (files, _) => { sent.Add(files); return Task.FromResult(true); },
+                (_, _) => Batches(
+                    new Dictionary<string, EntryAddress>(StringComparer.Ordinal)
+                    {
+                        ["38-1.mp4"] = new EntryAddress(41),
+                    })),
+            TestCt);
+
+        Assert.Empty(sent);
+        Assert.Equal(0, run.FilesAttached);
+        Assert.Equal(1, run.FilesWithoutAnEntry);
+    }
+
+    // A link is named for the identity of the file it points at, so the row carries nothing the
+    // instance matched an entity in.
+    private static JsonObject TreeRow(string name, string folder = "/data/.wsync-v3/4628") => new()
+    {
+        ["path"] = $"{folder}/{name}",
+        ["folderName"] = "4628",
+        ["quality"] = new JsonObject { ["quality"] = new JsonObject { ["id"] = 6 } },
+        ["languages"] = new JsonArray(new JsonObject { ["id"] = 1 }),
+        ["indexerFlags"] = 0,
+        ["releaseGroup"] = string.Empty,
+    };
+
+    private static Dictionary<string, EntryAddress> Addressed(
+        params (string Name, int Row)[] names)
+        => names.ToDictionary(
+            named => named.Name,
+            named => new EntryAddress(named.Row, 12),
+            StringComparer.Ordinal);
+
+    // The addresses for one entity arrive a chunk at a time. A case about what the run does with
+    // them hands over the chunks it states and holds none of its own.
+    private static async IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>> Batches(
+        params IReadOnlyDictionary<string, EntryAddress>[] batches)
+    {
+        foreach (var batch in batches)
+        {
+            yield return batch;
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+    }
+
+
+    // The composer hands over a batch at a time now. These cases are about what it composes rather
+    // than about how it is delivered, so the batches are folded back into one result here.
+    private static async Task<PlannedFiles> Composed(
+        string instanceFolder,
+        IReadOnlyDictionary<string, RegisteredScene> identified,
+        IReadOnlyList<string> instanceRoots,
+        Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>> readFile,
+        CancellationToken ct)
+    {
+        var entries = new JsonArray();
+        var left = 0;
+        await foreach (var batch in ReflectOwnedPlanner
+            .ComposedFilesAsync(
+                WhisparrGeneration.V3, instanceFolder, identified, instanceRoots, readFile, ct)
+            .ConfigureAwait(false))
+        {
+            left += batch.LeftUnderAnotherRoot;
+            foreach (var entry in batch.Entries ?? [])
+            {
+                entries.Add(entry!.DeepClone());
+            }
+        }
+
+        return new PlannedFiles(entries.Count == 0 ? null : entries, left);
+    }
+
+    // The instance answers a reading with the row it was asked about, carrying the quality it read
+    // off the whole path. Zero is what it answers where it read none.
+    private static string Read(OwnedFilePlacement file, int qualityId)
+        => new JsonArray(new JsonObject
+        {
+            ["path"] = file.Path,
+            ["quality"] = new JsonObject { ["quality"] = new JsonObject { ["id"] = qualityId } },
+            ["languages"] = new JsonArray(new JsonObject { ["id"] = qualityId == 0 ? 0 : 1 }),
+        }).ToJsonString();
+
+    // The walk carries one total over a library of folders, so every figure a part reports has to
+    // survive the fold. A member added and left out of Plus reads as a run that did nothing.
+    [Fact]
+    public void EveryFigureAPartCarriesSurvivesTheFold()
+    {
+        var first = new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed,
+            FoldersAttached: 1,
+            FoldersRefused: 2,
+            FoldersNotAddressed: 3,
+            EntriesLeftUnderAnotherRoot: 4,
+            FilesAttached: 5,
+            FilesWithoutAnEntry: 6,
+            NamesNotComposedHere: 7,
+            LinksRemoved: 8,
+            LinksWaiting: 9,
+            EntitiesGivenAFolder: 10,
+            LinksMade: 11,
+            LinksAlreadyThere: 12,
+            LinksOnAnotherDevice: 13,
+            LinksRefused: 14,
+            FilesRefused: 15);
+
+        var total = first.Plus(first);
+
+        Assert.Equal(
+            [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
+            new[]
+            {
+                total.FoldersAttached,
+                total.FoldersRefused,
+                total.FoldersNotAddressed,
+                total.EntriesLeftUnderAnotherRoot,
+                total.FilesAttached,
+                total.FilesWithoutAnEntry,
+                total.NamesNotComposedHere,
+                total.LinksRemoved,
+                total.LinksWaiting,
+                total.EntitiesGivenAFolder,
+                total.LinksMade,
+                total.LinksAlreadyThere,
+                total.LinksOnAnotherDevice,
+                total.LinksRefused,
+                total.FilesRefused,
+            });
+    }
+
+    // What was registered before the stop stays registered, so the total says so and reads as
+    // stopped rather than as a run that found nothing.
+    [Fact]
+    public void APartThatWasStoppedStopsTheWholeTotal()
+    {
+        var walked = new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, 1, 0, FilesAttached: 4);
+        var stopped = new ReflectOwnedRun(ReflectOwnedRunOutcome.Cancelled, 0, 0);
+
+        var total = walked.Plus(stopped);
+
+        Assert.Equal(ReflectOwnedRunOutcome.Cancelled, total.Outcome);
+        Assert.Equal(4, total.FilesAttached);
+    }
+
+    // A root nothing can be written under refuses every entity beneath it, and a library holds as
+    // many entities as it holds scenes.
+    [Fact]
+    public void TwoEntitiesUnderOneRootThatCouldNotBeBuiltUnderNameItOnce()
+    {
+        var refused = new ReflectOwnedRun(
+            ReflectOwnedRunOutcome.Completed, 0, 0, RootsWithNoTree: ["/data"]);
+
+        var total = refused.Plus(refused).Plus(
+            new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed, 0, 0, RootsWithNoTree: ["/data2"]));
+
+        Assert.Equal(["/data", "/data2"], total.RootsWithNoTree!.Order(StringComparer.Ordinal));
+    }
+
+    // The cases using this are about the loop rather than the addressing, so the instance spells a
+    // folder the way the library does.
+    private static Task<AddressedFolder> OnTheInstance(string folder, CancellationToken _)
+        => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
+
+    private static AddressedFolder Unaddressable { get; } = new(
+        null, FolderAgreementRefusal.NothingResolved, "G:/Downloads/P", ["/data/Vixen"]);
+
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    private static JsonArray? Entries(WhisparrGeneration generation, string? rows)
+        => ReflectOwnedPlanner.Files(generation, rows, []).Entries;
+
+    private static async IAsyncEnumerable<string> Folders(params string[] folders)
+    {
+        foreach (var folder in folders)
+        {
+            yield return folder;
+        }
+
+        await Task.CompletedTask;
+    }
+}

@@ -1,0 +1,58 @@
+{
+  "series": {
+    "id": 1,
+    "title": "Teen",
+    "titleSlug": "teen",
+    "path": "/probe-root/Teen",
+    "tvdbId": 31875,
+    "type": "jav",
+    "year": 2015,
+    "genres": [],
+    "images": [],
+    "tags": []
+  },
+  "episodes": [
+    {
+      "id": 1,
+      "episodeNumber": 0,
+      "seasonNumber": 2015,
+      "title": "FTIK-003: She's a Schoolgirl with a Shaved Pussy and J-Cup Tits! Big, Dynamic Tits with Healthy, Tanned Skin",
+      "overview": "",
+      "airDate": "2015-10-15",
+      "airDateUtc": "2015-10-15T00:00:00Z",
+      "seriesId": 1,
+      "tvdbId": 4149372
+    }
+  ],
+  "episodeFile": {
+    "id": 1,
+    "relativePath": "Cove.Probe.Row15.S01E01.1080p.WEB-DL.mp4",
+    "path": "/probe-root/Teen/Cove.Probe.Row15.S01E01.1080p.WEB-DL.mp4",
+    "quality": "WEBDL-1080p",
+    "qualityVersion": 1,
+    "size": 3102,
+    "dateAdded": "2026-08-31T15:02:20.4326647Z",
+    "mediaInfo": {
+      "audioChannels": 1.0,
+      "audioCodec": "AAC",
+      "audioLanguages": ["und"],
+      "height": 64,
+      "width": 64,
+      "subtitles": [],
+      "videoCodec": "x264",
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": ""
+    }
+  },
+  "isUpgrade": false,
+  "customFormatInfo": {
+    "customFormats": [],
+    "customFormatScore": 0
+  },
+  "release": {
+    "size": 0
+  },
+  "eventType": "Download",
+  "instanceName": "Whisparr",
+  "applicationUrl": ""
+}
