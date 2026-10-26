@@ -244,4 +244,11 @@ public sealed partial class Renamer
         EventId = 1075, Level = LogLevel.Warning,
         Message = "[Renamer] library rename {RunId}: completed, but its counts could not be stored")]
     private partial void LogLibraryRenameSummaryNotStored(Exception ex, string runId);
+
+    // The only trace the user gets that a setting they chose now holds a different value, so it names
+    // the group and what the sort reads as.
+    [LoggerMessage(
+        EventId = 1076, Level = LogLevel.Information,
+        Message = "[Renamer] options conversion: the {Group} sort is no longer offered; it now orders by name")]
+    private partial void LogOptionsSortReset(string group);
 }

@@ -254,9 +254,9 @@ public class FieldRewriterTests
     {
         var records = new[]
         {
-            new RenamerPerformer(1, "Alex", false, "Female"),
-            new RenamerPerformer(2, "Alex", false, "Male"),
-            new RenamerPerformer(3, "Eve", false, "Female"),
+            new RenamerPerformer(1, "Alex", "Female"),
+            new RenamerPerformer(2, "Alex", "Male"),
+            new RenamerPerformer(3, "Eve", "Female"),
         };
         var o = new RenamerOptions { PreventTitlePerformer = true };
 

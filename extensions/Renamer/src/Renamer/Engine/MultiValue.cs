@@ -36,7 +36,7 @@ public static class MultiValue
         return string.Join(m.Separator, Capped(seq, m).Select(t => t.Name));
     }
 
-    // Performer records also carry id, favorite and gender. The order is whitelist, blacklist by id,
+    // Performer records also carry an id and a gender. The order is whitelist, blacklist by id,
     // gender-ignore, sort, gender-order, max count, then join of the names. Gender-ignore and
     // gender-order run before the max count, so they change which performers survive the limit.
     public static string Resolve(IReadOnlyList<RenamerPerformer> performers, MultiValueOptions m)
@@ -55,8 +55,6 @@ public static class MultiValue
         {
             SortOrder.NameAsc => seq.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase),
             SortOrder.IdAsc => seq.OrderBy(p => p.Id),
-            SortOrder.FavoriteFirst => seq.OrderByDescending(p => p.Favorite)
-                                          .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase),
             _ => seq,
         };
 

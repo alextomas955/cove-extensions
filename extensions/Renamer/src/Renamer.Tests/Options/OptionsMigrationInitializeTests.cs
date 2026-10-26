@@ -214,6 +214,28 @@ public sealed class OptionsMigrationInitializeTests
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
+    [Fact]
+    public async Task AStoreStampedAtThePreviousSchema_StillHasItsDroppedSortConverted()
+    {
+        // The stamp short-circuits the whole conversion, so a blob converted under the earlier stamp
+        // is never looked at again unless the stamp moves. The previous value is written as a literal:
+        // a test re-reading CurrentSchema passes whatever that value becomes and cannot see a missing
+        // bump.
+        const string previousSchema = "3";
+        const string blob = """{"FilenameTemplate":"$title","Performers":{"Sort":"FavoriteFirst"}}""";
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, blob);
+        await store.SetAsync(OptionsMigration.SchemaKey, previousSchema);
+
+        await using var library = await LibraryDatabase.CreateAsync();
+        await LoadAsync(library, store, DramaRoot);
+
+        Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
+        Assert.Equal(
+            "NameAsc", (string?)JsonNode.Parse((await store.GetAsync(OptionsStore.Key))!)!["Performers"]!["Sort"]);
+        Assert.Equal("$title", (await new OptionsStore(store).LoadAsync()).FilenameTemplate);
+    }
+
     // The dropped-rule warning, the only trace of a rule the conversion discarded.
     private const int RuleDroppedEvent = 1068;
 

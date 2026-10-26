@@ -110,8 +110,8 @@ public sealed partial class Renamer : FullExtensionBase
     }
 
     // Rewrites the stored options blob into the current model's shape exactly once: name-keyed
-    // entity rules become stable ids, and typed destination roots become a library path plus a
-    // relative template.
+    // entity rules become stable ids, typed destination roots become a library path plus a
+    // relative template, and a sort naming a member the enum no longer declares becomes the default.
     //
     // Defers when a name still needing resolution belongs to an entity table holding no rows: that is
     // a library the extension cannot read yet, and converting against it resolves every name to
@@ -134,6 +134,18 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         bool rewrote = false;
+
+        var sorts = OptionsMigration.ConvertDroppedSorts(stored);
+        if (sorts.Groups.Count > 0)
+        {
+            stored = sorts.Json;
+            rewrote = true;
+            foreach (string group in sorts.Groups)
+            {
+                LogOptionsSortReset(group);
+            }
+        }
+
         var legacy = OptionsMigration.Scan(stored);
         if (legacy.Any)
         {

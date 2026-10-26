@@ -75,7 +75,7 @@ public sealed class GatingTests
         var file = File(1) with { Width = 1920, Height = 1080 };
         port.SeedEntity(Entity("My Film", organized: true, file) with
         {
-            Performers = [new RenamerPerformer(3, "Jane", Favorite: false, Gender: null)],
+            Performers = [new RenamerPerformer(3, "Jane", Gender: null)],
             TagRefs = [(4, "tagA")],
         });
         var planner = new RenamerPlanner(port);
