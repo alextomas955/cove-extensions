@@ -62,6 +62,13 @@ updates:
           - "react-dom"
           - "@types/react*"
           - "@tanstack/*"
+      # A coverage provider declares a peer dependency on the exact vitest version it ships with, so
+      # the two only install together. Split across two pull requests, each one fails to resolve and
+      # neither can merge first.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       # Every other dependency: one pull request per dependency across every directory that declares
       # it. Version updates only; a security update still opens one pull request per directory.
       same-dependency:
@@ -101,6 +108,8 @@ updates:
   # carries version updates only: an image tag has no advisory feed to raise a security update from.
   # The Cove service in the same file names a variable the harness fills from the catalog floor, so
   # there is no version to read there and none to write.
+  # The per-semver cooldown keys are rejected for this ecosystem: an image tag is not required to be
+  # semver, so there is no major, minor or patch for them to apply to. Only default-days is accepted.
   - package-ecosystem: "docker-compose"
     directory: "/tests/e2e/docker"
     schedule:
@@ -108,6 +117,3 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 5
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 7
