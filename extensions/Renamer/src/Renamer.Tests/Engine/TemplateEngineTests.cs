@@ -775,9 +775,9 @@ public class TemplateEngineTests
         };
         var records = new[]
         {
-            new RenamerPerformer(1, "alice", false, "Female"),
-            new RenamerPerformer(2, "Bob", false, "Male"),
-            new RenamerPerformer(3, "Charlie", false, "Male"),
+            new RenamerPerformer(1, "alice", "Female"),
+            new RenamerPerformer(2, "Bob", "Male"),
+            new RenamerPerformer(3, "Charlie", "Male"),
         };
         var o = new RenamerOptions
         {
@@ -808,9 +808,9 @@ public class TemplateEngineTests
         };
         var records = new[]
         {
-            new RenamerPerformer(3, "Charlie", false, "Male"),
-            new RenamerPerformer(1, "alice", true, "Female"),
-            new RenamerPerformer(2, "Bob", false, "Male"),
+            new RenamerPerformer(3, "Charlie", "Male"),
+            new RenamerPerformer(1, "alice", "Female"),
+            new RenamerPerformer(2, "Bob", "Male"),
         };
         var o = new RenamerOptions { FilenameTemplate = "$performers" };
 
@@ -832,9 +832,9 @@ public class TemplateEngineTests
         };
         var records = new[]
         {
-            new RenamerPerformer(1, "Eve", false, "Female"),
-            new RenamerPerformer(3, "Bob", false, "Male"),
-            new RenamerPerformer(2, "Carol", false, "Female"),
+            new RenamerPerformer(1, "Eve", "Female"),
+            new RenamerPerformer(3, "Bob", "Male"),
+            new RenamerPerformer(2, "Carol", "Female"),
         };
         var o = new RenamerOptions
         {

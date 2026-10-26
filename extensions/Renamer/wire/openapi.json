@@ -1614,8 +1614,7 @@
         "enum": [
           "nameAsc",
           "none",
-          "idAsc",
-          "favoriteFirst"
+          "idAsc"
         ]
       },
       "UndoEntryError": {

@@ -239,7 +239,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
         [.. v.VideoPerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Gender?.ToString()))],
         [.. v.VideoTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. v.Files.Select(MapVideoFile)],
         StudioId: v.StudioId,
@@ -250,7 +250,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
         [.. i.ImagePerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Gender?.ToString()))],
         [.. i.ImageTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. i.Files.Select(MapImageFile)],
         StudioId: i.StudioId,
@@ -260,7 +260,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
         [.. a.AudioPerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Gender?.ToString()))],
         [.. a.AudioTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. a.Files.Select(MapAudioFile)],
         StudioId: a.StudioId,
@@ -270,7 +270,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         t.Id, RenamerFileKind.Text, t.Title, t.Code, t.Studio?.Name, t.Date, t.Organized,
         [.. t.TextPerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Gender?.ToString()))],
         [.. t.TextTags.Where(x => x.Tag is not null && x.Tag.Name.Length > 0).Select(x => (x.Tag!.Id, x.Tag.Name))],
         [.. t.Files.Select(MapTextFile)],
         StudioId: t.StudioId,

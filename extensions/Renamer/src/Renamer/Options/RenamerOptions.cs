@@ -13,9 +13,9 @@ public enum OverflowPolicy { DropAll, KeepFirst }
 
 /// <summary>Sort order for a multi-value field's items.</summary>
 /// <remarks>
-/// <see cref="IdAsc"/> and <see cref="FavoriteFirst"/> apply only to performers, which are the only
-/// items carrying id and favorite data; tags fall back to name ordering for them. There is no rating
-/// order: performer rating is per-user data and the detached renamer job runs with no signed-in user.
+/// <see cref="IdAsc"/> applies only to performers, which are the only items carrying an id; tags fall
+/// back to name ordering for it. There is no favorite or rating order: both are per-user data and the
+/// detached renamer job runs with no signed-in user.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SortOrder
@@ -27,9 +27,6 @@ public enum SortOrder
     None,
 
     IdAsc,
-
-    /// <summary>Order performers with favorites first, then by name.</summary>
-    FavoriteFirst,
 }
 
 /// <summary>Per-field controls for a multi-value token (performers, tags).</summary>

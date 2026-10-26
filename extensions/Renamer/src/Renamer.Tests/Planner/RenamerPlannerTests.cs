@@ -15,7 +15,7 @@ public sealed class RenamerPlannerTests
     private static RenamerEntity VideoEntity(string title, params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(1, "hd")], Files: files);
+            Performers: [new RenamerPerformer(1, "Bob", null)], TagRefs: [(1, "hd")], Files: files);
 
     [Fact]
     public async Task SingleFile_Rename_HappyPath_ZeroMutation()

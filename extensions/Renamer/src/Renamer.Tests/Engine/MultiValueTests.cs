@@ -150,13 +150,13 @@ public class MultiValueTests
         Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
     }
 
-    // ---- MultiValue.Resolve (performer records: id/favorite sort + gender order/ignore) ----
+    // ---- MultiValue.Resolve (performer records: id sort + gender order/ignore) ----
 
     private static readonly IReadOnlyList<RenamerPerformer> Performers = new[]
     {
-        new RenamerPerformer(3, "Charlie", Favorite: false, Gender: "Male"),
-        new RenamerPerformer(1, "alice", Favorite: true, Gender: "Female"),
-        new RenamerPerformer(2, "Bob", Favorite: false, Gender: "Male"),
+        new RenamerPerformer(3, "Charlie", Gender: "Male"),
+        new RenamerPerformer(1, "alice", Gender: "Female"),
+        new RenamerPerformer(2, "Bob", Gender: "Male"),
     };
 
     [Fact]
@@ -178,14 +178,6 @@ public class MultiValueTests
     {
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.IdAsc };
         // ids 1,2,3 -> alice,Bob,Charlie
-        Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(Performers, m));
-    }
-
-    [Fact]
-    public void Resolve_Performers_FavoriteFirst_PutsFavoritesFirstThenByName()
-    {
-        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.FavoriteFirst };
-        // alice is the only favorite, then the rest by name: Bob, Charlie
         Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(Performers, m));
     }
 
@@ -215,9 +207,9 @@ public class MultiValueTests
     {
         var people = new[]
         {
-            new RenamerPerformer(1, "alice", false, "Female"),
-            new RenamerPerformer(2, "Bob", false, null),     // no gender set -> always kept
-            new RenamerPerformer(3, "Charlie", false, "male"),
+            new RenamerPerformer(1, "alice", "Female"),
+            new RenamerPerformer(2, "Bob", null),     // no gender set -> always kept
+            new RenamerPerformer(3, "Charlie", "male"),
         };
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.NameAsc, IgnoreGenders = ["MALE"] };
 
@@ -245,9 +237,9 @@ public class MultiValueTests
     {
         var people = new[]
         {
-            new RenamerPerformer(1, "alice", false, "Female"),
-            new RenamerPerformer(2, "Bob", false, null),
-            new RenamerPerformer(3, "Charlie", false, "Other"),
+            new RenamerPerformer(1, "alice", "Female"),
+            new RenamerPerformer(2, "Bob", null),
+            new RenamerPerformer(3, "Charlie", "Other"),
         };
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.NameAsc, GenderOrder = ["Female"] };
 

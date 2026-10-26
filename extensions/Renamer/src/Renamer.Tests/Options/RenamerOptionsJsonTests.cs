@@ -34,14 +34,14 @@ public sealed class RenamerOptionsJsonTests
         var options = new RenamerOptions
         {
             Case = CaseTransform.Title,
-            Performers = new MultiValueOptions { OnOverflow = OverflowPolicy.KeepFirst, Sort = SortOrder.FavoriteFirst },
+            Performers = new MultiValueOptions { OnOverflow = OverflowPolicy.KeepFirst, Sort = SortOrder.IdAsc },
         };
 
         var json = JsonSerializer.Serialize(options, RenamerOptions.JsonOptions);
 
         Assert.Contains(@"""Case"":""Title""", json, StringComparison.Ordinal);
         Assert.Contains(@"""OnOverflow"":""KeepFirst""", json, StringComparison.Ordinal);
-        Assert.Contains(@"""Sort"":""FavoriteFirst""", json, StringComparison.Ordinal);
+        Assert.Contains(@"""Sort"":""IdAsc""", json, StringComparison.Ordinal);
     }
 
     // A changed default changes behavior for every install that never set the member.

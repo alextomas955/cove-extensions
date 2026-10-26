@@ -10,8 +10,9 @@ namespace Renamer.Options;
 /// declares, plus the schema stamp that keeps them one-time.
 /// </summary>
 /// <remarks>
-/// The conversions are name-keyed entity rules to id-keyed ones, and a typed destination root to a Cove
-/// library path plus a relative template. Both work on the raw JSON: a legacy blob does not bind to the
+/// The conversions are name-keyed entity rules to id-keyed ones, a typed destination root to a Cove
+/// library path plus a relative template, and a multi-value sort naming a member the enum no longer
+/// declares to the declared default. All work on the raw JSON: a legacy blob does not bind to the
 /// current model at all - a name-keyed <c>TagDestinations</c> makes <see cref="JsonSerializer"/> throw,
 /// and the options store answers a throw by returning defaults, so a typed conversion would convert
 /// defaults and then persist them over the user's settings. A stored key this class does not model is
@@ -26,21 +27,24 @@ public static class OptionsMigration
     public const string SchemaKey = "options.schema";
 
     /// <summary>
-    /// The stamp value written once the stored blob is id-keyed and its destination rules name a Cove
-    /// library path plus a relative template.
+    /// The stamp value written once the stored blob is id-keyed, its destination rules name a Cove
+    /// library path plus a relative template, and its sorts name members <see cref="SortOrder"/>
+    /// declares.
     /// </summary>
     /// <remarks>
-    /// The two halves ride one stamp because a blob is either current or it is not; the seam runs
-    /// whichever halves the blob still needs, each recognizing its own input. Each half has its own
-    /// retirement condition and they are reached in different releases, so read both before deleting
-    /// either. The name half can go once no installed store can still hold a name-keyed blob; its test
-    /// is that <see cref="Scan"/> can find no name to resolve on any real install. The destination half
+    /// The three conversions ride one stamp because a blob is either current or it is not; the seam runs
+    /// whichever ones the blob still needs, each recognizing its own input. Each has its own retirement
+    /// condition and they are reached in different releases, so read all three before deleting any. The
+    /// name conversion can go once no installed store can still hold a name-keyed blob; its test is that
+    /// <see cref="Scan"/> can find no name to resolve on any real install. The destination conversion
     /// goes later, once no store can still hold a blob whose destinations are bare strings; its test is
-    /// that <see cref="ConvertDestinationsToRoots"/> can find no site to rewrite. Deleting either early
+    /// that <see cref="ConvertDestinationsToRoots"/> can find no site to rewrite. The sort conversion
+    /// goes once no installed store can hold a <c>Sort</c> naming a member the enum does not declare;
+    /// its test is that <see cref="ConvertDroppedSorts"/> finds no group to rewrite. Deleting any early
     /// silently costs a user the configuration it covers, because the unconverted blob fails to bind and
     /// the store answers that with defaults.
     /// </remarks>
-    public const string CurrentSchema = "3";
+    public const string CurrentSchema = "4";
 
     private const string PerformersGroup = "Performers";
     private const string TagsGroup = "Tags";
@@ -56,6 +60,55 @@ public static class OptionsMigration
     private const string UnorganizedDestination = "UnorganizedDestination";
     private const string FolderTemplate = "FolderTemplate";
     private const string PathRuleDest = "Dest";
+    private const string SortMember = "Sort";
+    private const string NameSort = "NameAsc";
+
+    // The stored spelling of the sort the enum no longer declares. RenamerOptions.JsonOptions declares
+    // an options-level JsonStringEnumConverter with no naming policy, which outranks the type attribute,
+    // so a stored blob carries the member name rather than the camelCase wire spelling. The converter's
+    // read side accepts either, so the match is case-insensitive and covers both.
+    private const string DroppedSort = "FavoriteFirst";
+    /// <summary>The converted blob and the groups whose sort it rewrote, for the log.</summary>
+    public sealed record SortConversion(string Json, IReadOnlyList<string> Groups);
+
+    /// <summary>
+    /// Rewrites a stored multi-value sort naming a member <see cref="SortOrder"/> no longer declares
+    /// to <see cref="SortOrder.NameAsc"/>.
+    /// </summary>
+    /// <remarks>
+    /// A stored enum value the type does not declare makes <see cref="JsonSerializer"/> throw, and the
+    /// options store answers a throw by returning defaults, so one such value costs the user every
+    /// configured setting and not just that one. The replacement is the declared default, and the sort
+    /// it replaces ordered by name once favorites stopped loading, so the rendered order is unchanged.
+    /// A blob with no such sort comes back exactly as it was stored.
+    /// </remarks>
+    public static SortConversion ConvertDroppedSorts(string? json)
+    {
+        var root = TryParse(json);
+        if (root is null)
+        {
+            return new SortConversion(json ?? string.Empty, []);
+        }
+
+        var groups = new List<string>();
+        foreach (string group in new[] { PerformersGroup, TagsGroup })
+        {
+            if (Group(root, group) is not { } node
+                || PropertyName(node, SortMember) is not { } sortKey
+                || StringOf(node[sortKey]) is not { } stored
+                || !string.Equals(stored, DroppedSort, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            node[sortKey] = JsonValue.Create(NameSort);
+            groups.Add(group);
+        }
+
+        return groups.Count == 0
+            ? new SortConversion(json ?? string.Empty, [])
+            : new SortConversion(root.ToJsonString(), groups);
+    }
 
     /// <summary>The distinct stored names each half still has to resolve against a live entity table.</summary>
     /// <remarks>
