@@ -104,15 +104,15 @@ with no value is simply omitted.
 
 ### Media info
 
-| Token         | Produces                                                    | Example  |
-| ------------- | ----------------------------------------------------------- | -------- |
-| `$resolution` | A resolution label derived from the frame size (see below). | `1080p`  |
-| `$height`     | The frame height as a label (see below).                    | `1080p`  |
-| `$width`      | Frame width in pixels.                                      | `1920`   |
-| `$videoCodec` | The video codec.                                            | `h264`   |
-| `$audioCodec` | The audio codec.                                            | `aac`    |
-| `$frameRate`  | The frame rate.                                             | `23.976` |
-| `$bitrate`    | The file's bitrate in kbps.                                 | `4500`   |
+| Token         | Produces                                                    | Example |
+| ------------- | ----------------------------------------------------------- | ------- |
+| `$resolution` | A resolution label derived from the frame size (see below). | `1080p` |
+| `$height`     | The frame height as a label (see below).                    | `1080p` |
+| `$width`      | Frame width in pixels.                                      | `1920`  |
+| `$videoCodec` | The video codec.                                            | `h264`  |
+| `$audioCodec` | The audio codec.                                            | `aac`   |
+| `$frameRate`  | The frame rate, to two decimals.                            | `23.98` |
+| `$bitrate`    | The file's bitrate in kbps.                                 | `4500`  |
 
 #### Resolution labels
 
