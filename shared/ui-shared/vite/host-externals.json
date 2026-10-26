@@ -8,6 +8,7 @@
   "@cove/runtime/lucide-react",
   "@cove/runtime/components",
   "@cove/runtime/api",
+  "@cove/runtime/webxr",
   "react",
   "react-dom",
   "react-dom/client",
