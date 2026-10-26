@@ -4,9 +4,19 @@ User-facing changes, newest first.
 
 ## 0.6.0 - Resolution labels that match Cove, and a settings page you can scan
 
-**Do a dry run before your first rename.** Resolution labels have changed, so a file you renamed
-under an older version can work out to a different name if you rename it again. Nothing renames on
-its own, and the dry run shows you every name that would change before anything touches disk.
+**This version needs Cove 1.7.0.** Below that, Cove will not load it, and 0.5.0 keeps working until
+you upgrade. Cove moved favourite performers, tags and studios from one shared flag to each user's
+own, which is what the dropped sort below depended on; Renamer is now built and tested against the
+host that stores them that way.
+
+**Do a dry run before your first rename.** Resolution labels and frame rates have changed, so a file
+you renamed under an older version can work out to a different name if you rename it again. Nothing
+renames on its own, and the dry run shows you every name that would change before anything touches
+disk.
+
+**If you sorted performers by favourites, that setting is gone.** It now reads **Name (A→Z)**, which
+is the order it has produced since Cove made favourites per-user. Your other settings are untouched
+and there is nothing to do.
 
 ### Resolution labels now match the badge Cove shows
 
@@ -39,6 +49,24 @@ used to be `432`. From 2160 pixels high it is `4K`, `5K`, `6K`, `7K` or `8K`, th
 A file with no height stored gets no `$height`, so its bracketed group drops instead of rendering
 `0`. A label already at the end of the title is not repeated. A find-and-replace rule on `$height`
 now sees the label, for example `1080p`. `$width` is unchanged and is still a plain number.
+
+### `$frameRate` is rounded
+
+`$frameRate` renders to two decimals, so a 23.976fps file reads `23.98` where it used to read
+`23.976023976023978`. Cove stores the rate as the exact fraction a camera records at, and Renamer
+was writing every digit of it into the name. Two decimals is what Cove itself shows for the same
+file, so the name and the number beside it in your library now agree. A whole-number rate stays
+whole: 25 and 60 are unchanged.
+
+### Sorting performers by favourites is gone
+
+The **Favorites first, then name** order is no longer offered, and a saved setting that used it now
+reads **Name (A→Z)**. Nothing else in your settings changes, and there is nothing to do.
+
+Cove made a favourite each user's own rather than one flag on the performer. A filename is the same
+for everyone who sees the library, so there is no longer one favourite list it could be ordered by.
+Since that change the order has sorted by name regardless of what the setting said, so names you get
+now are the names you were already getting.
 
 ### A settings page you can scan
 

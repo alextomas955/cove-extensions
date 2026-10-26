@@ -7,6 +7,12 @@
   "categories": ["tools", "automation"],
   "versions": [
     {
+      "version": "0.6.0",
+      "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.6.0/com.alextomas955.renamer-0.6.0.zip",
+      "minCoveVersion": "1.7.0",
+      "changelog": "Do a dry run before your first rename: resolution labels and frame rates have changed, so a file renamed under an older version can work out to a different name. $resolution now reads the same as the resolution badge Cove shows, $height renders as a label such as 432p or 4K, and $frameRate rounds to two decimals instead of writing every digit of the stored fraction. The settings page is one stack of titled cards with a token list that tints what your templates already use, and the dry run states each number once. Sorting performers by favourites is gone, because Cove made favourites per-user and a filename is the same for everyone; a saved setting that used it now reads Name (A to Z). Requires Cove 1.7.0."
+    },
+    {
       "version": "0.5.0",
       "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.5.0/com.alextomas955.renamer-0.5.0.zip",
       "minCoveVersion": "1.5.0",
