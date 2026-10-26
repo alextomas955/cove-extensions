@@ -121,7 +121,7 @@ export function TokenSettingsSection({
           options={options.performers}
           setMulti={setMulti}
           sortOptions={PERFORMER_SORT_OPTIONS}
-          sortHelper="The id and favorite orders apply to performers only."
+          sortHelper="The id order applies to performers only."
           ignoreGenders={
             <FieldGroup
               label="Ignore genders"
