@@ -64,9 +64,12 @@ public static class MetadataProjector
             Put(tokens, Tokens.AudioCodec, ac);
         }
 
+        // Cove stores a broadcast frame rate as the raw rational it was measured from, whose default
+        // formatting prints every digit of it. Two decimals is the spelling Cove's own UI shows, and
+        // the trailing zeros drop so a whole-number rate stays whole.
         if (file.FrameRate is double fr)
         {
-            Put(tokens, Tokens.FrameRate, fr.ToString(CultureInfo.InvariantCulture));
+            Put(tokens, Tokens.FrameRate, fr.ToString("0.##", CultureInfo.InvariantCulture));
         }
 
         if (file.Duration is double dur)

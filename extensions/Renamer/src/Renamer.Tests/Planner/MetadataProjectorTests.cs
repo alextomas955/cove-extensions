@@ -64,6 +64,28 @@ public sealed class MetadataProjectorTests
         Assert.Equal("5025", tokens[Tokens.Duration]);
     }
 
+    // The broadcast rates are the rational Cove stores, not a rounded copy of it. The expected
+    // spellings are the ones Cove's own UI renders for the same file, so a filename and the number
+    // beside it in the library agree.
+    [Theory]
+    [InlineData(24000.0 / 1001, "23.98")]
+    [InlineData(30000.0 / 1001, "29.97")]
+    [InlineData(60000.0 / 1001, "59.94")]
+    [InlineData(25.0, "25")]
+    [InlineData(60.0, "60")]
+    public void FrameRate_RendersTwoDecimals_AndLeavesAWholeRateWhole(double stored, string expected)
+    {
+        var file = VideoFileRow() with { FrameRate = stored };
+        var options = new RenamerOptions { FilenameTemplate = "$title [$frameRate]" };
+        var (tokens, multi) = MetadataProjector.Project(VideoEntity(file), file, options);
+
+        Assert.Equal(expected, tokens[Tokens.FrameRate]);
+
+        // End-to-end through the engine, because the token is not what a user sees: a separator the
+        // sanitizer rewrote on its way into the filename would still be the defect this pins.
+        Assert.Equal($"My Film [{expected}]", TemplateEngine.Render(tokens, multi, options).Filename);
+    }
+
     [Fact]
     public void Video_Projects_AllScalarTokens_And_MultiValues()
     {
