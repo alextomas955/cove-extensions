@@ -4,6 +4,11 @@ User-facing changes, newest first.
 
 ## 0.6.0 - Resolution labels that match Cove, and a settings page you can scan
 
+**This version needs Cove 1.7.0.** Below that, Cove will not load it, and 0.5.0 keeps working until
+you upgrade. Cove moved favourite performers, tags and studios from one shared flag to each user's
+own, which is what the dropped sort below depended on; Renamer is now built and tested against the
+host that stores them that way.
+
 **Do a dry run before your first rename.** Resolution labels and frame rates have changed, so a file
 you renamed under an older version can work out to a different name if you rename it again. Nothing
 renames on its own, and the dry run shows you every name that would change before anything touches
