@@ -96,3 +96,18 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 5
+
+  # The e2e harness's Postgres image. Compose is its own ecosystem, not part of "docker", and it
+  # carries version updates only: an image tag has no advisory feed to raise a security update from.
+  # The Cove service in the same file names a variable the harness fills from the catalog floor, so
+  # there is no version to read there and none to write.
+  - package-ecosystem: "docker-compose"
+    directory: "/tests/e2e/docker"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 7
