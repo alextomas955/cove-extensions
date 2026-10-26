@@ -62,6 +62,11 @@ export default defineConfig(
       ".planning/**",
       ".gsd/**",
       ".claude/**",
+      // The design-system sync tool and its output. Gitignored, but flat config reads no ignore
+      // file, so the entry has to be repeated here.
+      ".ds-sync/**",
+      ".design-sync/**",
+      "design/**",
     ],
   },
 
