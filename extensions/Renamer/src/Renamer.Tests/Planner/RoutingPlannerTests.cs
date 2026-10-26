@@ -26,7 +26,7 @@ public sealed class RoutingPlannerTests
         params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(7, "anime")], Files: files);
+            Performers: [new RenamerPerformer(1, "Bob", null)], TagRefs: [(7, "anime")], Files: files);
 
     // A port whose library paths are libraryPaths - the roots a destination may name.
     private static FakeRenamerDataPort Port(params string[] libraryPaths)

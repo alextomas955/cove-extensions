@@ -158,7 +158,7 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Separator                          | Text inserted between joined items.                                                                                                                   | `" "` (a space) |
 | Max count                          | Maximum items to include. Leave the field empty and it reads _No limit_; the stored value is `0`.                                                     | `0`             |
 | On overflow                        | When over the max: _Drop all when over the max_ or _Keep the first N_.                                                                                | Drop all        |
-| Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id, Favorites first, then name.                            | Name (A→Z)      |
+| Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id.                                                        | Name (A→Z)      |
 | Only include                       | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule.              | _(empty)_       |
 | Never include                      | The performers or tags you pick here are removed. Stored as stable ids, the same way as _Only include_.                                               | _(empty)_       |
 | Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                                            | _(empty)_       |

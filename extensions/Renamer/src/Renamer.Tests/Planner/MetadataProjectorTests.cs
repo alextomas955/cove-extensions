@@ -20,7 +20,7 @@ public sealed class MetadataProjectorTests
     private static RenamerEntity VideoEntity(RenamerFile file) => new(
         EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: "ABC-1",
         StudioName: "Acme", Date: new DateOnly(2024, 3, 2), Organized: true,
-        Performers: [new RenamerPerformer(1, "Bob", false, null), new RenamerPerformer(2, "Ann", false, null)],
+        Performers: [new RenamerPerformer(1, "Bob", null), new RenamerPerformer(2, "Ann", null)],
         TagRefs: [(1, "hd"), (2, "fav")], Files: [file]);
 
     [Fact]
