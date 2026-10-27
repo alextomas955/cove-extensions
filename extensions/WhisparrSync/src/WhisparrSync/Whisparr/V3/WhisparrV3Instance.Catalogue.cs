@@ -17,13 +17,20 @@ internal sealed partial class WhisparrV3Instance
 
     // Adds the entity so the instance tracks its catalogue and wants none of it: the add carries the
     // flag governing whether an arrival is wanted, set so that nothing is.
-    public Task<WhisparrResponse> TrackEntityAsync(
-        WhisparrEntityKind kind, string foreignId, AddDefaults defaults, CancellationToken ct)
+    public Task<WhisparrResponse> TrackStudioCatalogueAsync(
+        string foreignId, AddDefaults defaults, CancellationToken ct)
+        => TrackAtAsync(StudioPath, foreignId, defaults, ct);
+
+    public Task<WhisparrResponse> TrackPerformerCatalogueAsync(
+        string foreignId, AddDefaults defaults, CancellationToken ct)
+        => TrackAtAsync(PerformerPath, foreignId, defaults, ct);
+
+    private Task<WhisparrResponse> TrackAtAsync(
+        string path, string foreignId, AddDefaults defaults, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
         ArgumentNullException.ThrowIfNull(defaults);
 
-        var path = kind == WhisparrEntityKind.Studio ? StudioPath : PerformerPath;
         return transport.SendAsync(
             binding.BaseAddress,
             binding.ApiKey,

@@ -78,11 +78,11 @@ internal sealed partial class WhisparrV2Instance
                 "The answer to the instance's own site list is not a list of rows at all.");
     }
 
-    // Adds the entity so the instance tracks its catalogue and wants none of it. A site is this
+    // Adds the studio so the instance tracks its catalogue and wants none of it. A site is this
     // generation's only unit of presence, and registering one is exactly that request, so both
     // roles reach this member rather than composing one body twice.
-    public Task<WhisparrResponse> TrackEntityAsync(
-        WhisparrEntityKind kind, string foreignId, AddDefaults defaults, CancellationToken ct)
+    public Task<WhisparrResponse> TrackStudioCatalogueAsync(
+        string foreignId, AddDefaults defaults, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
         ArgumentNullException.ThrowIfNull(defaults);

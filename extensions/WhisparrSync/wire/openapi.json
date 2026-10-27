@@ -3547,7 +3547,8 @@
           "readHeldSites",
           "readEntityCardsInBatch",
           "readSceneCardsInBatch",
-          "trackEntityCatalogue",
+          "trackStudioCatalogue",
+          "trackPerformerCatalogue",
           "readEntityCatalogue",
           "readInstanceFilesystem"
         ]

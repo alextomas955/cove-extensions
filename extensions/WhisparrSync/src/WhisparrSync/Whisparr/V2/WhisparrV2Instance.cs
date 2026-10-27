@@ -39,7 +39,7 @@ internal sealed partial class WhisparrV2Instance(
         IWhisparrSearchGrabbing,
         IWhisparrEntityBatchReading,
         IWhisparrEntityCatalogueReading,
-        IWhisparrEntityTrackingActing,
+        IWhisparrStudioCatalogueTracking,
         IWhisparrSceneMonitorActing,
         IWhisparrSiteSceneReading,
         IWhisparrHeldSiteReading,

@@ -99,9 +99,14 @@ public enum WhisparrCapability
     ReadSceneCardsInBatch,
 
     /// <summary>
-    /// An entity can be added so the instance tracks its catalogue and wants none of it.
+    /// A studio can be added so the instance tracks its catalogue and wants none of it.
     /// </summary>
-    TrackEntityCatalogue,
+    TrackStudioCatalogue,
+
+    /// <summary>
+    /// A performer can be added so the instance tracks their catalogue and wants none of it.
+    /// </summary>
+    TrackPerformerCatalogue,
 
     /// <summary>
     /// The scenes the instance lists for one entity can be read, which is the catalogue the missing

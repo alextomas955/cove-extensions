@@ -36,7 +36,8 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ExcludeScene,
                 WhisparrCapability.ReadEntityCardsInBatch,
                 WhisparrCapability.ReadSceneCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.TrackStudioCatalogue,
+                WhisparrCapability.TrackPerformerCatalogue,
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
@@ -52,7 +53,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
                 WhisparrCapability.ReadEntityCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.TrackStudioCatalogue,
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
@@ -136,7 +137,8 @@ public sealed class GenerationCapabilitiesTests
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
                 + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\","
                 + "\"monitorScene\",\"excludeScene\",\"readEntityCardsInBatch\","
-                + "\"readSceneCardsInBatch\",\"trackEntityCatalogue\",\"readEntityCatalogue\","
+                + "\"readSceneCardsInBatch\",\"trackStudioCatalogue\","
+                + "\"trackPerformerCatalogue\",\"readEntityCatalogue\","
                 + "\"readInstanceFilesystem\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3), HostJsonOptions));

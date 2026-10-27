@@ -214,7 +214,8 @@ const ITEM_BEHIND_CAPABILITY = {
   readSceneExclusions: null,
 
   // The catalogue tab offers this add beside the reason it clears, so the menu carries none.
-  trackEntityCatalogue: null,
+  trackStudioCatalogue: null,
+  trackPerformerCatalogue: null,
   // Offered on a catalogue card rather than in this menu.
   searchScene: null,
   // Offered on one scene's own surface rather than in this menu.

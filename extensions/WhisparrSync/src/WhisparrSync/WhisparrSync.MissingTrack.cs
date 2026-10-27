@@ -68,6 +68,20 @@ public sealed partial class WhisparrSync
                 GenerationCapabilities.AScopeChangeIsRetroactiveOn(target.Binding.Generation)));
     }
 
+    // The one place the track-only decision is taken. The offer and the act read it, so the control
+    // cannot go on offering a mode the route refuses. A kind no instance implements a role for is
+    // refused by obtaining nothing here.
+    private static Func<string, AddDefaults, CancellationToken, Task<WhisparrResponse>>?
+        CatalogueTrackingFor(WhisparrEntityKind kind, MonitoringTarget target)
+        => (kind, target.Reads) switch
+        {
+            (WhisparrEntityKind.Studio, IWhisparrStudioCatalogueTracking studios)
+                => studios.TrackStudioCatalogueAsync,
+            (WhisparrEntityKind.Performer, IWhisparrPerformerCatalogueTracking performers)
+                => performers.TrackPerformerCatalogueAsync,
+            _ => null,
+        };
+
     // Read off the roles the resolved instance declares, never off a generation name. The narrower
     // scope is a studio fact: the field it is expressed through exists on the studio resource alone,
     // so every other kind is offered the one monitor mode.
@@ -76,7 +90,7 @@ public sealed partial class WhisparrSync
     {
         var modes = new List<MissingEntryMode>();
 
-        if (target.Reads is IWhisparrEntityTrackingActing)
+        if (CatalogueTrackingFor(kind, target) is not null)
         {
             modes.Add(MissingEntryMode.TrackOnly);
         }
@@ -220,7 +234,7 @@ public sealed partial class WhisparrSync
     {
         var (identities, cache, _) = entry;
 
-        if (target.Reads is not IWhisparrEntityTrackingActing tracking)
+        if (CatalogueTrackingFor(entityKind, target) is not { } tracking)
         {
             return new MissingTrackResult(MissingTrackOutcome.GenerationCannotTrackThisKind);
         }
@@ -256,13 +270,7 @@ public sealed partial class WhisparrSync
         WhisparrResponse answered;
         try
         {
-            answered = await tracking
-                .TrackEntityAsync(
-                    entityKind,
-                    foreignId,
-                    defaults,
-                    ct)
-                .ConfigureAwait(false);
+            answered = await tracking(foreignId, defaults, ct).ConfigureAwait(false);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {

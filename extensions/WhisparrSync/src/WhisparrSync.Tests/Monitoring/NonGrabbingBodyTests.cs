@@ -166,9 +166,9 @@ internal static class ComposedAdds
             (_, WhisparrCapability.ReadEntityCatalogue) => [],
             (_, WhisparrCapability.ReadInstanceFilesystem) => [],
 
-            // One body per kind: the add is the same shape for both, and the route it goes to is
-            // what differs.
-            (WhisparrGeneration.V3, WhisparrCapability.TrackEntityCatalogue) =>
+            // The add is the same shape for both kinds here, and the route it goes to is what
+            // differs.
+            (WhisparrGeneration.V3, WhisparrCapability.TrackStudioCatalogue) =>
             [
                 new ComposedAdd(
                     generation,
@@ -176,6 +176,10 @@ internal static class ComposedAdds
                     Scope: null,
                     V3BodyProjector.TrackEntity(MonitorHost.StudioRemoteIdValue, Defaults),
                     [TopLevelSuppression]),
+            ],
+
+            (WhisparrGeneration.V3, WhisparrCapability.TrackPerformerCatalogue) =>
+            [
                 new ComposedAdd(
                     generation,
                     WhisparrEntityKind.Performer,
@@ -185,7 +189,7 @@ internal static class ComposedAdds
             ],
 
             // This generation tracks a site through the presence-only add it already composes.
-            (WhisparrGeneration.V2, WhisparrCapability.TrackEntityCatalogue) =>
+            (WhisparrGeneration.V2, WhisparrCapability.TrackStudioCatalogue) =>
             [
                 new ComposedAdd(
                     generation,
@@ -357,7 +361,8 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.ExcludeScene,
                 WhisparrCapability.ReadEntityCardsInBatch,
                 WhisparrCapability.ReadSceneCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.TrackStudioCatalogue,
+                WhisparrCapability.TrackPerformerCatalogue,
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
@@ -375,7 +380,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
                 WhisparrCapability.ReadEntityCardsInBatch,
-                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.TrackStudioCatalogue,
                 WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],

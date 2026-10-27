@@ -8,8 +8,8 @@
 // The two differ in both directions. v3 needs neither the site registration nor the site-row read,
 // because there a studio arrives as a side effect of adding a scene; it has no implementation for
 // the held-site read either, because it answers presence per scene rather than through a list of
-// sites. v2 holds no performer entity and no per-scene status, so the capabilities named for those
-// are v3's alone.
+// sites. v2 holds no performer entity and no per-scene status, so the capabilities named for those,
+// the performer catalogue add included, are v3's alone.
 
 export const V2_CAPABILITIES = [
   "outOfBandCallbackSecret",
@@ -21,7 +21,7 @@ export const V2_CAPABILITIES = [
   "readSiteSceneRows",
   "readHeldSites",
   "readEntityCardsInBatch",
-  "trackEntityCatalogue",
+  "trackStudioCatalogue",
   "readEntityCatalogue",
   "readInstanceFilesystem",
 ];
@@ -40,7 +40,8 @@ export const V3_CAPABILITIES = [
   "excludeScene",
   "readEntityCardsInBatch",
   "readSceneCardsInBatch",
-  "trackEntityCatalogue",
+  "trackStudioCatalogue",
+  "trackPerformerCatalogue",
   "readEntityCatalogue",
   "readInstanceFilesystem",
 ];

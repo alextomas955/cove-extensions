@@ -36,7 +36,8 @@ public static class GenerationCapabilities
         (WhisparrCapability.ReadHeldSites, typeof(IWhisparrHeldSiteReading)),
         (WhisparrCapability.ReadEntityCardsInBatch, typeof(IWhisparrEntityBatchReading)),
         (WhisparrCapability.ReadSceneCardsInBatch, typeof(IWhisparrSceneBatchReading)),
-        (WhisparrCapability.TrackEntityCatalogue, typeof(IWhisparrEntityTrackingActing)),
+        (WhisparrCapability.TrackStudioCatalogue, typeof(IWhisparrStudioCatalogueTracking)),
+        (WhisparrCapability.TrackPerformerCatalogue, typeof(IWhisparrPerformerCatalogueTracking)),
         (WhisparrCapability.ReadEntityCatalogue, typeof(IWhisparrEntityCatalogueReading)),
         (WhisparrCapability.ReadInstanceFilesystem, typeof(IWhisparrInstanceFilesystemReading)),
     ];

@@ -571,13 +571,23 @@ internal abstract class RecordingWhisparrCore(WhisparrResponse answer, WhisparrB
             new HashSet<string>(asked.Where(BatchCannotSpeakFor.Contains), StringComparer.Ordinal));
     }
 
-    public Task<WhisparrResponse> TrackEntityAsync(
-        WhisparrEntityKind kind,
-        string foreignId,
-        AddDefaults defaults,
-        CancellationToken ct)
+    public Task<WhisparrResponse> TrackStudioCatalogueAsync(
+        string foreignId, AddDefaults defaults, CancellationToken ct)
+        => TrackCatalogueAsync(
+            nameof(TrackStudioCatalogueAsync), WhisparrEntityKind.Studio, foreignId, defaults);
+
+    public Task<WhisparrResponse> TrackPerformerCatalogueAsync(
+        string foreignId, AddDefaults defaults, CancellationToken ct)
+        => TrackCatalogueAsync(
+            nameof(TrackPerformerCatalogueAsync),
+            WhisparrEntityKind.Performer,
+            foreignId,
+            defaults);
+
+    private Task<WhisparrResponse> TrackCatalogueAsync(
+        string verb, WhisparrEntityKind kind, string foreignId, AddDefaults defaults)
         => RecordActing(
-            new ActingCall(nameof(TrackEntityAsync), Binding.BaseAddress, Binding.ApiKey)
+            new ActingCall(verb, Binding.BaseAddress, Binding.ApiKey)
             {
                 Kind = kind,
                 Generation = Binding.Generation,
@@ -717,7 +727,8 @@ internal sealed class RecordingWhisparrV3Client(
         IWhisparrEntityBatchReading,
         IWhisparrSceneBatchReading,
         IWhisparrEntityCatalogueReading,
-        IWhisparrEntityTrackingActing,
+        IWhisparrStudioCatalogueTracking,
+        IWhisparrPerformerCatalogueTracking,
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
         IWhisparrInstanceFilesystemReading,
@@ -737,7 +748,7 @@ internal sealed class RecordingWhisparrV2Client(
         IWhisparrSearchGrabbing,
         IWhisparrEntityBatchReading,
         IWhisparrEntityCatalogueReading,
-        IWhisparrEntityTrackingActing,
+        IWhisparrStudioCatalogueTracking,
         IWhisparrSceneMonitorActing,
         IWhisparrSiteSceneReading,
         IWhisparrHeldSiteReading,
