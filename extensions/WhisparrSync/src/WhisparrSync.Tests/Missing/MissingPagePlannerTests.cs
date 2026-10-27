@@ -319,12 +319,12 @@ public sealed class MissingPagePlannerTests
         Assert.Null(view.SortInForce);
     }
 
-    private static MissingPageRequest Request()
+    private static MissingPageRequest Request(int perPage = 40)
         => new(
             WhisparrEntityKind.Studio,
             7,
             Page: 1,
-            PerPage: 40,
+            PerPage: perPage,
             Sort: null,
             TitleSearch: null,
             Filters: new Dictionary<string, string>(),
@@ -471,6 +471,51 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(90, view.CatalogueSize);
         Assert.Equal(5, catalogue.CoverReads.Count);
     }
+
+    // The identifiers travel as a query parameter list, so a catalogue-sized one is a query whose
+    // length grows with the library.
+    [Fact]
+    public async Task TheOwnedPortIsNeverHandedMoreIdentifiersThanOneBatch()
+    {
+        var instance = new RecordingInstance(ScenesNamed([.. Many(25)]));
+        var owned = new RecordingOwned();
+
+        await PlannerOver(owned: owned, ownedQueryBatch: 4)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(25, owned.Asked.Sum(batch => batch.Count));
+        Assert.Equal(4, owned.Asked.Max(batch => batch.Count));
+    }
+
+    [Fact]
+    public async Task APageAnswersNoMoreCardsThanAskedForHoweverLargeTheCatalogue()
+    {
+        var instance = new RecordingInstance(ScenesNamed([.. Many(25)]));
+
+        var view = await PlannerOver(owned: new RecordingOwned(), ownedQueryBatch: 4)
+            .PlanAsync(Request(perPage: 6), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(6, view.Cards.Count);
+        Assert.Equal(25, view.CatalogueSize);
+    }
+
+    // The reduction is applied per batch now, so a scene the library holds in the last batch is
+    // removed by that batch's own answer rather than by a set carried across all of them.
+    [Fact]
+    public async Task ASceneTheLibraryHoldsInALaterBatchStillLeavesTheSet()
+    {
+        var instance = new RecordingInstance(ScenesNamed([.. Many(25)]));
+        var owned = new RecordingOwned("scene-00", "scene-24");
+
+        var view = await PlannerOver(owned: owned, ownedQueryBatch: 4)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(23, view.Cards.Count);
+        Assert.DoesNotContain(view.Cards, card => card.ProviderSceneId == "scene-24");
+    }
+
+    private static IEnumerable<string> Many(int count)
+        => Enumerable.Range(0, count).Select(index => $"scene-{index:00}");
 
     private static List<WhisparrCatalogueScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => Scene(id))];
@@ -631,16 +676,19 @@ public sealed class MissingPagePlannerTests
     // The instance's catalogue reaches the planner through the context, so it is not named here.
     private static MissingPagePlanner PlannerOver(
         RecordingCatalogue? catalogue = null,
-        StubOwned? owned = null,
-        string? identity = "a-studio")
+        IOwnedScenePort? owned = null,
+        string? identity = "a-studio",
+        int? ownedQueryBatch = null)
     {
         var source = TestProviderCatalogues.Naming(catalogue ?? new RecordingCatalogue([]));
-        return new MissingPagePlanner(
-            new MissingIdentityResolver(
-                new StubIdentities(identity), source, new StubEntityNames()),
-            source,
-            owned ?? new StubOwned(),
-            new InstanceCatalogueCache(TimeProvider.System));
+        var resolver = new MissingIdentityResolver(
+            new StubIdentities(identity), source, new StubEntityNames());
+        var port = owned ?? new StubOwned();
+        var cache = new InstanceCatalogueCache(TimeProvider.System);
+
+        return ownedQueryBatch is { } batch
+            ? new MissingPagePlanner(resolver, source, port, cache) { OwnedQueryBatch = batch }
+            : new MissingPagePlanner(resolver, source, port, cache);
     }
 
     private static WhisparrCatalogueScene Scene(
@@ -707,6 +755,24 @@ public sealed class MissingPagePlannerTests
             WhisparrEntityKind kind, int coveId, WhisparrGeneration generation, CancellationToken ct)
             => Task.FromResult(
                 foreignId is null ? IdentityResolution.Unmatched : IdentityResolution.At(foreignId));
+    }
+
+    // Keeps the identifier arrays it was handed and answers only about the ones in each, so a case
+    // can read what one query actually carried rather than what the loop was asked to send.
+    private sealed class RecordingOwned(params string[] owned) : IOwnedScenePort
+    {
+        private readonly HashSet<string> _owned = owned.ToHashSet(StringComparer.Ordinal);
+
+        public List<IReadOnlyList<string>> Asked { get; } = [];
+
+        public Task<IReadOnlySet<string>> ReadOwnedAsync(
+            string identityEndpoint, IReadOnlyList<string> providerSceneIds, CancellationToken ct)
+        {
+            Asked.Add([.. providerSceneIds]);
+
+            return Task.FromResult<IReadOnlySet<string>>(
+                providerSceneIds.Where(_owned.Contains).ToHashSet(StringComparer.Ordinal));
+        }
     }
 
     private sealed class StubOwned(params string[] owned) : IOwnedScenePort

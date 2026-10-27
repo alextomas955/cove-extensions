@@ -39,8 +39,9 @@ internal sealed class MissingPagePlanner(
     InstanceCatalogueCache cache)
 {
     // One query's worth of identifiers. The whole catalogue is asked about, so it travels in
-    // batches rather than as one parameter list whose length is the entity's catalogue.
-    private const int OwnedQueryBatch = 500;
+    // batches rather than as one parameter list whose length is the entity's catalogue. Settable so
+    // a test can seed a catalogue several batches deep without seeding the production size.
+    internal int OwnedQueryBatch { get; init; } = 500;
 
     // Named by the catalogue the stored choice points at, so reading the name is the same read as
     // choosing the catalogue.
@@ -205,27 +206,31 @@ internal sealed class MissingPagePlanner(
             ? MissingRefusalKind.EntityNotInWhisparr
             : MissingRefusalKind.WhisparrCatalogueNotRead;
 
-    // Asked in batches, so one query's parameter list is bounded by the batch and not by the
-    // entity's catalogue.
+    // Asked in batches, and each batch's answer is applied before the next is asked, so nothing
+    // crossing a batch boundary is retained. What the derivation holds at once is one batch's
+    // identifiers plus the scenes that remain.
+    //
+    // The entity's whole catalogue is still held while a page is composed: the instance's read of
+    // it carries no paging, and the sort, the facet menus and the page slice are all derived from
+    // the whole set.
     private async Task<List<WhisparrCatalogueScene>> MissingAmongAsync(
         string identityEndpoint,
         IReadOnlyList<WhisparrCatalogueScene> scenes,
         CancellationToken ct)
     {
-        var inLibrary = new HashSet<string>(StringComparer.Ordinal);
+        var missing = new List<WhisparrCatalogueScene>(scenes.Count);
         for (var at = 0; at < scenes.Count; at += OwnedQueryBatch)
         {
-            var batch = scenes.Skip(at).Take(OwnedQueryBatch)
-                .Select(scene => scene.ProviderSceneId)
-                .ToArray();
-            var held = await owned.ReadOwnedAsync(identityEndpoint, batch, ct).ConfigureAwait(false);
-            foreach (var id in held)
-            {
-                inLibrary.Add(id);
-            }
+            var batch = scenes.Skip(at).Take(OwnedQueryBatch).ToArray();
+            var held = await owned
+                .ReadOwnedAsync(
+                    identityEndpoint, [.. batch.Select(scene => scene.ProviderSceneId)], ct)
+                .ConfigureAwait(false);
+
+            missing.AddRange(batch.Where(scene => !held.Contains(scene.ProviderSceneId)));
         }
 
-        return [.. scenes.Where(scene => !inLibrary.Contains(scene.ProviderSceneId))];
+        return missing;
     }
 
     // The catalogue's own size, never the number missing. Null and zero are different answers: zero
