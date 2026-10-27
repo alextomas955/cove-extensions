@@ -22,7 +22,7 @@ const lines = (output) =>
     .filter((line) => line.length > 0);
 
 export const row = {
-  id: "row-10-host-ratelimiting",
+  id: "host-ratelimiting",
   label:
     "Which rate-limiting assemblies the shipped Cove image provides, and under which framework",
   requires: {

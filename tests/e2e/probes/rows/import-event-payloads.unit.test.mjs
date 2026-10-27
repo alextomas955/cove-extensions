@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { headerNames } from "./row-15-import-event-payloads.mjs";
+import { headerNames } from "./import-event-payloads.mjs";
 
 // Transcribed from the names the listener recorded on both generations, by hand from the probe
 // record. A set read back out of the row would agree with the row whatever either said.

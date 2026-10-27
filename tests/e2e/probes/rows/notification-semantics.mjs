@@ -46,7 +46,7 @@ async function readWebhookSchema(api, generation) {
   const webhook = response.json?.find?.((entry) => entry.implementation === "Webhook");
   if (webhook === undefined) {
     throw new Error(
-      `row-04-notification-semantics: GET ${SCHEMA_PATH} on ${generation} answered ${response.status} ${response.contentType} and declared no Webhook entry.`,
+      `notification-semantics: GET ${SCHEMA_PATH} on ${generation} answered ${response.status} ${response.contentType} and declared no Webhook entry.`,
     );
   }
   return { status: response.status, webhook };
@@ -71,7 +71,7 @@ function refusalShape(response) {
 const listLength = async (api) => (await api.get(NOTIFICATION_PATH)).json?.length ?? null;
 
 export const row = {
-  id: "row-04-notification-semantics",
+  id: "notification-semantics",
   label: "How a callback is registered on each generation, and the capability one of them lacks",
   requires: {
     // Whisparr and the listener both join the Cove instance's own network, so a row asking for
@@ -135,7 +135,7 @@ export const row = {
       const created = await api.post(NOTIFICATION_PATH, registration);
       if (created.status !== 201) {
         throw new Error(
-          `row-04-notification-semantics: POST ${NOTIFICATION_PATH} on ${generation} answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}.`,
+          `notification-semantics: POST ${NOTIFICATION_PATH} on ${generation} answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}.`,
         );
       }
       const lengthAfterCreate = await listLength(api);
@@ -157,7 +157,7 @@ export const row = {
       const mine = listed.json?.find?.((entry) => entry.name === name);
       if (mine === undefined) {
         throw new Error(
-          `row-04-notification-semantics: GET ${NOTIFICATION_PATH} on ${generation} answered ${listed.status} and carried no entry named "${name}", so the find-then-PUT half cannot be measured.`,
+          `notification-semantics: GET ${NOTIFICATION_PATH} on ${generation} answered ${listed.status} and carried no entry named "${name}", so the find-then-PUT half cannot be measured.`,
         );
       }
       const updated = await api.put(`${NOTIFICATION_PATH}/${mine.id}`, {
@@ -246,7 +246,7 @@ export const row = {
           ).length,
         },
         gapCandidate: {
-          id: "GAP-1",
+          id: "v2-webhook-declares-no-headers-field",
           observed: {
             date: new Date().toISOString().slice(0, 10),
             builds: {
@@ -257,10 +257,10 @@ export const row = {
           axis: "generation",
           surface: `the Webhook connection's "headers" settings field, as declared by ${SCHEMA_PATH}`,
           expected:
-            "HOOK-3: the callback secret travels in a way an intermediary does not log, on whichever generation an instance runs.",
+            "The callback secret travels in a way an intermediary does not log, on whichever generation an instance runs.",
           observedBehaviour: `v3 declares "headers" (${generations.v3.settings.headers.type}, advanced) and delivers the header on the inbound request; v2 declares no such field, leaving only the URL query string or Basic auth.`,
           blastRadius:
-            "HOOK-3 acceptance on v2, and any later test that would assert one confidentiality property across both generations.",
+            "Carrying the secret unlogged on v2, and any later test that would assert one confidentiality property across both generations.",
           acceptanceAdjustment:
             "On v2, assert that the secret arrives and that the product states the reduced confidentiality; assert the header's delivery only on v3. The bound is that v2's registration carries the secret in the URL or as Basic auth and the extension says so, not that the assertion is dropped.",
           recheckTrigger:

@@ -125,7 +125,7 @@ async function call(api, { verb, path, body }) {
   if (verb === "DELETE") return api.delete(path);
   if (verb === "POST") return api.post(path, body ?? {});
   if (verb === "PUT") return api.put(path, body ?? {});
-  throw new Error(`row-02-capability-surfaces: no client method is wired for the verb "${verb}".`);
+  throw new Error(`capability-surfaces: no client method is wired for the verb "${verb}".`);
 }
 
 /**
@@ -195,7 +195,7 @@ async function readV3Document(api) {
 }
 
 export const row = {
-  id: "row-02-capability-surfaces",
+  id: "capability-surfaces",
   label: "What each Whisparr generation's API surface offers, and by which kind of evidence",
   requires: {
     // Whisparr containers join the Cove instance's own network, so a row asking for one asks for both.
@@ -215,7 +215,7 @@ export const row = {
     const { document, summary } = await readV3Document(v3Api);
     if (document === undefined) {
       throw new Error(
-        `row-02-capability-surfaces: GET ${OPENAPI_PATH} answered ${summary.status} ${summary.contentType}, which did not parse as a document, so v3's surface cannot be derived from the build itself.`,
+        `capability-surfaces: GET ${OPENAPI_PATH} answered ${summary.status} ${summary.contentType}, which did not parse as a document, so v3's surface cannot be derived from the build itself.`,
       );
     }
 
@@ -251,7 +251,7 @@ export const row = {
     ]) {
       if (!Array.isArray(response.json) || response.json.length === 0) {
         throw new Error(
-          `row-02-capability-surfaces: ${generation}'s lookup for "${LOOKUP_TERM}" answered ${response.status} ${response.contentType} with ${bodyShape(response)}. Both generations proxy a lookup through the vendor's metadata service, so this row needs outbound network; an empty result here would be recorded as a missing capability.`,
+          `capability-surfaces: ${generation}'s lookup for "${LOOKUP_TERM}" answered ${response.status} ${response.contentType} with ${bodyShape(response)}. Both generations proxy a lookup through the vendor's metadata service, so this row needs outbound network; an empty result here would be recorded as a missing capability.`,
         );
       }
     }

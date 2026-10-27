@@ -99,7 +99,7 @@ async function probeGeneration(ctx, generation) {
 }
 
 export const row = {
-  id: "row-06-openapi-document",
+  id: "openapi-document",
   label: "Which Whisparr generation publishes an OpenAPI document about itself, and at which path",
   requires: {
     // Whisparr containers join the Cove instance's own network, so a row asking for one asks for both.

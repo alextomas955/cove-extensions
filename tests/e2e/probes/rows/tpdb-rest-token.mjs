@@ -240,7 +240,7 @@ function judge(definitive, control, { storedEndpoint }) {
 }
 
 export const row = {
-  id: "row-07-tpdb-rest-token",
+  id: "tpdb-rest-token",
   label: `Does the ${PROVIDER_NAME} credential Cove stores authenticate on ${REST_ORIGIN}?`,
   requires: {
     cove: false,

@@ -1,7 +1,7 @@
 // Settles whether the pinned v2 build filters GET /api/v3/series by the entity id, or accepts the
 // parameter and answers with its whole catalogue anyway.
 //
-// This generation publishes no contract, so the question cannot be read off a document (GAP-2). It
+// This generation publishes no contract, so the question cannot be read off a document. It
 // also cannot be inferred from v3's: this phase already measured one query-shaped
 // trap on this exact build, where `tpdb:<uuid>` answers 200 with an empty array while a bare uuid
 // resolves, so the more-correct-looking form failed with no error at all. A parameter that is simply
@@ -104,7 +104,7 @@ const addBodyFor = ({ entityId, title, titleSlug, qualityProfileId, rootFolderPa
 });
 
 export const row = {
-  id: "row-v2-series-by-tvdbid",
+  id: "v2-series-by-tvdbid",
   label:
     "Does the pinned v2 build filter GET /api/v3/series by tvdbId, or ignore the parameter and answer with its whole catalogue",
   requires: {
@@ -126,7 +126,7 @@ export const row = {
     const lookup = await resolveEntity(api);
     if (lookup.site === null) {
       throw new Error(
-        `row-v2-series-by-tvdbid: the lookup for ${HELD_ENTITY_UUID} answered ${lookup.observed.length} result(s) at HTTP ${lookup.observed.status}, so no entity was named and there is nothing to hold or to filter for.`,
+        `v2-series-by-tvdbid: the lookup for ${HELD_ENTITY_UUID} answered ${lookup.observed.length} result(s) at HTTP ${lookup.observed.status}, so no entity was named and there is nothing to hold or to filter for.`,
       );
     }
 
@@ -134,7 +134,7 @@ export const row = {
     const qualityProfileId = (Array.isArray(profiles.json) ? profiles.json : [])[0]?.id ?? null;
     if (qualityProfileId === null) {
       throw new Error(
-        `row-v2-series-by-tvdbid: ${QUALITY_PROFILE_PATH} offered no profile at HTTP ${profiles.status}, and this generation refuses an add carrying a zero profile with a validation failure.`,
+        `v2-series-by-tvdbid: ${QUALITY_PROFILE_PATH} offered no profile at HTTP ${profiles.status}, and this generation refuses an add carrying a zero profile with a validation failure.`,
       );
     }
 

@@ -159,12 +159,12 @@ async function firstQualityProfileId(api) {
     {
       timeoutMs: PROFILE_TIMEOUT_MS,
       intervalMs: PROFILE_INTERVAL_MS,
-      label: "open-3 firstQualityProfileId",
+      label: "the catalogue-enumeration row firstQualityProfileId",
     },
   );
   if (!settled) {
     throw new Error(
-      `open-3-catalogue-enumeration: GET ${QUALITY_PROFILE_PATH} last answered ${note}, so no add can name a profile.`,
+      `catalogue-enumeration: GET ${QUALITY_PROFILE_PATH} last answered ${note}, so no add can name a profile.`,
     );
   }
   return value;
@@ -187,12 +187,12 @@ async function lookupResults(api, path, wanted) {
     {
       timeoutMs: LOOKUP_TIMEOUT_MS,
       intervalMs: LOOKUP_INTERVAL_MS,
-      label: "open-3 lookupResults",
+      label: "the catalogue-enumeration row lookupResults",
     },
   );
   if (!settled) {
     throw new Error(
-      `open-3-catalogue-enumeration: GET ${path} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer is an unreachable or refusing service rather than a missing capability.`,
+      `catalogue-enumeration: GET ${path} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer is an unreachable or refusing service rather than a missing capability.`,
     );
   }
   return value;
@@ -233,7 +233,7 @@ async function commandRefresh(api, body) {
     {
       timeoutMs: REFRESH_TIMEOUT_MS,
       intervalMs: REFRESH_INTERVAL_MS,
-      label: "open-3 commandRefresh",
+      label: "the catalogue-enumeration row commandRefresh",
     },
   );
   return {
@@ -445,7 +445,7 @@ async function probeV2(ctx) {
     {
       timeoutMs: LOOKUP_TIMEOUT_MS,
       intervalMs: LOOKUP_INTERVAL_MS,
-      label: "open-3 v2 series lookup",
+      label: "the catalogue-enumeration row v2 series lookup",
     },
   );
 
@@ -471,7 +471,7 @@ async function probeV2(ctx) {
 }
 
 export const row = {
-  id: "open-3-catalogue-enumeration",
+  id: "catalogue-enumeration",
   label:
     "Whether either generation offers a read-only way to list what an UNMONITORED entity offers",
   requires: {

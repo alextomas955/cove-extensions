@@ -13,7 +13,7 @@
 // fetched at all.
 import { liftMetadataServers } from "../../lib/cove-providers.mjs";
 import { writeCompanion } from "../lib/record.mjs";
-import { bounded, liftProvider, pacer } from "./row-07-tpdb-rest-token.mjs";
+import { bounded, liftProvider, pacer } from "./tpdb-rest-token.mjs";
 
 // The provider the spec models over REST. Every other configured provider is a stash-box instance
 // answering GraphQL at the endpoint it is configured with.
@@ -550,7 +550,16 @@ function judgeReportedTotal(reportedTotal, beyondTheEnd) {
  * not the end of what the surface serves, and a sort value accepted without being honoured are all
  * facts a later phase would otherwise design around without knowing.
  */
-function judgeSurface(surface, name, gapNumber) {
+function slug(providerName) {
+  return providerName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function judgeSurface(surface, name) {
+  // Named for what the gap is, not numbered: a record outlives the run that wrote it, and a reader
+  // comparing two runs needs the same subject to carry the same id in both.
   if (surface.verdict !== undefined) return { ...surface, gapCandidates: [] };
 
   const gapCandidates = [];
@@ -567,7 +576,7 @@ function judgeSurface(surface, name, gapNumber) {
   if (ceilingBelowExpected || ceilingAboveExpected) {
     const bound = ceilingBelowExpected ? enforced : lowerBound;
     gapCandidates.push({
-      id: `GAP-${gapNumber + gapCandidates.length}`,
+      id: `${slug(name)}-page-size-ceiling-differs`,
       observed: observation,
       axis: "configuration",
       surface: `${surface.endpoint} scene paging, per_page`,
@@ -588,7 +597,7 @@ function judgeSurface(surface, name, gapNumber) {
 
   if (surface.paging?.itemsBeyondReportedTotal === true) {
     gapCandidates.push({
-      id: `GAP-${gapNumber + gapCandidates.length}`,
+      id: `${slug(name)}-serves-past-its-reported-total`,
       observed: observation,
       axis: "configuration",
       surface: `${surface.endpoint} scene paging, ${surface.paging.totalField}`,
@@ -605,7 +614,7 @@ function judgeSurface(surface, name, gapNumber) {
 
   if (surface.ordering?.unsupportedSort?.behaviour === "accepted and ignored") {
     gapCandidates.push({
-      id: `GAP-${gapNumber + gapCandidates.length}`,
+      id: `${slug(name)}-accepts-an-undeclared-sort`,
       observed: observation,
       axis: "configuration",
       surface: `${surface.endpoint} scene ordering, an undeclared sort value`,
@@ -638,7 +647,7 @@ function judgeSurface(surface, name, gapNumber) {
 }
 
 export const row = {
-  id: "row-08-provider-paging",
+  id: "provider-paging",
   label: "Paging, ceilings, ordering and the configured rate, per configured metadata provider",
   requires: {
     cove: false,
@@ -655,7 +664,6 @@ export const row = {
     const surfaces = {};
     const skipped = [];
     const paces = [];
-    let gapNumber = 4;
 
     for (const declared of configured.servers) {
       const name = typeof declared?.name === "string" ? declared.name : "<unnamed>";
@@ -674,8 +682,7 @@ export const row = {
           ? await probeRest(entry, pace, ctx.outDir)
           : await probeStashBox(entry, pace);
 
-      const judged = judgeSurface(measured, name, gapNumber);
-      gapNumber += judged.gapCandidates.length;
+      const judged = judgeSurface(measured, name);
       surfaces[name] = {
         ...judged,
         configuredRequestsPerMinute: entry.maxRequestsPerMinute ?? null,

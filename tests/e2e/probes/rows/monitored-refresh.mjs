@@ -107,12 +107,12 @@ async function firstQualityProfileId(api) {
     {
       timeoutMs: PROFILE_TIMEOUT_MS,
       intervalMs: PROFILE_INTERVAL_MS,
-      label: "gap-monitored-refresh firstQualityProfileId",
+      label: "monitored-refresh firstQualityProfileId",
     },
   );
   if (!settled) {
     throw new Error(
-      `gap-monitored-refresh: GET ${QUALITY_PROFILE_PATH} last answered ${note}, so no add can name a profile.`,
+      `monitored-refresh: GET ${QUALITY_PROFILE_PATH} last answered ${note}, so no add can name a profile.`,
     );
   }
   return value;
@@ -136,12 +136,12 @@ async function candidates(api, pace) {
     {
       timeoutMs: LOOKUP_TIMEOUT_MS,
       intervalMs: LOOKUP_INTERVAL_MS,
-      label: "gap-monitored-refresh candidates",
+      label: "monitored-refresh candidates",
     },
   );
   if (!settled) {
     throw new Error(
-      `gap-monitored-refresh: ${LOOKUP_PATH} for "${LOOKUP_TERM}" last answered ${note}. The lookup is proxied to the vendor's metadata service, so an empty answer here is an unreachable or refusing service rather than an absent capability.`,
+      `monitored-refresh: ${LOOKUP_PATH} for "${LOOKUP_TERM}" last answered ${note}. The lookup is proxied to the vendor's metadata service, so an empty answer here is an unreachable or refusing service rather than an absent capability.`,
     );
   }
   return value.map((wrapper) => wrapper.studio);
@@ -175,7 +175,7 @@ async function settleRefresh(api, { studioId, foreignId, idsBefore, startedAt })
     {
       timeoutMs: REFRESH_TIMEOUT_MS,
       intervalMs: REFRESH_INTERVAL_MS,
-      label: "gap-monitored-refresh settleRefresh",
+      label: "monitored-refresh settleRefresh",
     },
   );
 
@@ -229,7 +229,7 @@ async function tryCandidate(api, pace, { candidate, qualityProfileId, rootFolder
   });
   if (created.status !== 201) {
     throw new Error(
-      `gap-monitored-refresh: POST ${STUDIO_PATH} answered ${created.status} ${created.contentType}, so there is no subject to refresh.`,
+      `monitored-refresh: POST ${STUDIO_PATH} answered ${created.status} ${created.contentType}, so there is no subject to refresh.`,
     );
   }
   const studioId = created.json.id;
@@ -270,7 +270,7 @@ async function repeatRefresh(api, pace, { studioId, foreignId }) {
 }
 
 export const row = {
-  id: "gap-monitored-refresh",
+  id: "monitored-refresh",
   label: "Whether a monitored catalogue refresh populates in full or stops short",
   requires: {
     cove: true,
@@ -413,7 +413,7 @@ export const row = {
           ? {}
           : {
               gapCandidate: {
-                id: "GAP-3",
+                id: "refresh-leaves-the-count-short",
                 observed: {
                   date: new Date().toISOString().slice(0, 10),
                   builds: { v3: ctx.builds.whisparr.v3.version },
@@ -421,10 +421,10 @@ export const row = {
                 axis: "build",
                 surface: `a monitored studio's catalogue refresh, ${REFRESH_COMMAND}, and the counts the entity reports afterwards`,
                 expected:
-                  "MON-6: a count taken from an entity after a refresh is the count of what that entity offers.",
+                  "A count taken from an entity after a refresh is the count of what that entity offers.",
                 observedBehaviour: `The pass ended because ${first?.refresh.reason ?? "no subject was found"}; the entity then reported ${reportedTotal} and its works listing held ${worksLength}, with ${first?.refresh.cascade.failed ?? 0} of ${first?.refresh.cascade.count ?? 0} commands the refresh started ending in something other than completion, and a repeat pass ${grewOnRepeat === null ? "that did not run" : grewOnRepeat ? "raising the count" : "adding nothing"}.`,
                 blastRadius:
-                  "MON-6's count acceptance, and any later assertion that a monitored entity's reported count equals what the provider offers.",
+                  "Any assertion that a monitored entity's reported count equals what the provider offers.",
                 acceptanceAdjustment:
                   "Assert that the reported count is non-decreasing across refreshes and that it matches the entity's own works listing, rather than that it equals the provider's catalogue. The bound is the agreement between the two numbers the instance reports plus the refresh cascade reporting no failure, since neither count sees an entry the pass never fetched.",
                 recheckTrigger:

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { judgeExposure } from "./row-12-extension-data-exposure.mjs";
+import { judgeExposure } from "./extension-data-exposure.mjs";
 
 const observation = (overrides = {}) => ({
   write: { status: 200 },

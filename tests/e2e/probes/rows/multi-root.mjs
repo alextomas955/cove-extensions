@@ -163,7 +163,7 @@ async function nestedCoveRoots(harness, api, parent) {
     {
       timeoutMs: CONFIG_READ_BACK_TIMEOUT_MS,
       intervalMs: CONFIG_READ_BACK_INTERVAL_MS,
-      label: "open-1 nested root read-back",
+      label: "the multi-root row nested root read-back",
     },
   );
 
@@ -177,12 +177,12 @@ async function nestedCoveRoots(harness, api, parent) {
     {
       timeoutMs: CONFIG_READ_BACK_TIMEOUT_MS,
       intervalMs: CONFIG_READ_BACK_INTERVAL_MS,
-      label: "open-1 nested root restore",
+      label: "the multi-root row nested root restore",
     },
   );
   if (!restored) {
     throw new Error(
-      `open-1-multi-root: Cove kept the nested library root "${nested}" after the configuration was put back, so this run has left the fixture configured differently from how it found it.`,
+      `multi-root: Cove kept the nested library root "${nested}" after the configuration was put back, so this run has left the fixture configured differently from how it found it.`,
     );
   }
 
@@ -204,7 +204,7 @@ function resolve(path, roots, question) {
 }
 
 export const row = {
-  id: "open-1-multi-root",
+  id: "multi-root",
   label:
     "What multiple roots on either side actually look like, and what a reported path resolves to",
   requires: {
@@ -229,7 +229,7 @@ export const row = {
     const cove = await coveSide(coveApi);
     if (cove.roots.length === 0) {
       throw new Error(
-        `open-1-multi-root: ${COVE_CONFIG_PATH} reported no library roots, so nothing below can be resolved against Cove's own configuration.`,
+        `multi-root: ${COVE_CONFIG_PATH} reported no library roots, so nothing below can be resolved against Cove's own configuration.`,
       );
     }
 

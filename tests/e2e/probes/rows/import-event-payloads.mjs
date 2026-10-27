@@ -115,7 +115,7 @@ export function headerNames(headers) {
   const offending = names.filter((name) => !HEADER_NAME.test(name));
   if (offending.length > 0) {
     throw new Error(
-      `row-15-import-event-payloads: refusing to record ${offending.join(", ")} as a header name; a recorded header entry must be a name and never a value.`,
+      `import-event-payloads: refusing to record ${offending.join(", ")} as a header name; a recorded header entry must be a name and never a value.`,
     );
   }
   return names;
@@ -200,7 +200,7 @@ async function acquisitionSurface(api, generation) {
   };
   if (counts.indexers !== 0 || counts.downloadClients !== 0) {
     throw new Error(
-      `row-15-import-event-payloads: ${generation} reported ${JSON.stringify(counts)} for ${INDEXER_PATH} and ${DOWNLOAD_CLIENT_PATH}. This row adds a monitored entity, and it only does so against an instance that can reach nothing.`,
+      `import-event-payloads: ${generation} reported ${JSON.stringify(counts)} for ${INDEXER_PATH} and ${DOWNLOAD_CLIENT_PATH}. This row adds a monitored entity, and it only does so against an instance that can reach nothing.`,
     );
   }
   return counts;
@@ -218,12 +218,12 @@ async function firstQualityProfileId(api, generation) {
     {
       timeoutMs: PROFILE_TIMEOUT_MS,
       intervalMs: PROFILE_INTERVAL_MS,
-      label: "row-15 firstQualityProfileId",
+      label: "import-event-payloads firstQualityProfileId",
     },
   );
   if (!settled) {
     throw new Error(
-      `row-15-import-event-payloads: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note}, so no add can name a profile.`,
+      `import-event-payloads: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note}, so no add can name a profile.`,
     );
   }
   return value;
@@ -241,12 +241,12 @@ async function lookupSubjects(api, path, generation, wanted) {
     {
       timeoutMs: LOOKUP_TIMEOUT_MS,
       intervalMs: LOOKUP_INTERVAL_MS,
-      label: "row-15 lookupSubjects",
+      label: "import-event-payloads lookupSubjects",
     },
   );
   if (!settled) {
     throw new Error(
-      `row-15-import-event-payloads: GET ${path} on ${generation} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer here is an unreachable or refusing service rather than a missing capability.`,
+      `import-event-payloads: GET ${path} on ${generation} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer here is an unreachable or refusing service rather than a missing capability.`,
     );
   }
   return value;
@@ -475,7 +475,7 @@ async function driveV3(ctx, listener) {
         },
       ],
     },
-    "row-15 v3 ManualImport",
+    "import-event-payloads v3 ManualImport",
   );
 
   const capture = await awaitImportDelivery(listener, "v3");
@@ -562,7 +562,7 @@ async function driveV2(ctx, listener) {
               },
             ],
           },
-          "row-15 v2 ManualImport",
+          "import-event-payloads v2 ManualImport",
         );
 
   const capture = episodes.length === 0 ? null : await awaitImportDelivery(listener, "v2");
@@ -606,14 +606,14 @@ async function awaitEpisodes(api, seriesId) {
     {
       timeoutMs: REFRESH_TIMEOUT_MS,
       intervalMs: REFRESH_INTERVAL_MS,
-      label: "row-15 awaitEpisodes",
+      label: "import-event-payloads awaitEpisodes",
     },
   );
   return settled ? value : [];
 }
 
 export const row = {
-  id: "row-15-import-event-payloads",
+  id: "import-event-payloads",
   label: "What each Whisparr generation sends when it imports a file, captured verbatim",
   requires: {
     // Whisparr and the listener both join the Cove instance's own network, so a row asking for

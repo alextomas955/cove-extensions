@@ -79,14 +79,14 @@ async function readWebhookSchema(api, generation) {
   const webhook = response.json?.find?.((entry) => entry.implementation === "Webhook");
   if (webhook === undefined) {
     throw new Error(
-      `row-03-webhook-payloads: GET ${SCHEMA_PATH} on ${generation} answered ${response.status} ${response.contentType} and declared no Webhook entry, so there is nothing to register.`,
+      `webhook-payloads: GET ${SCHEMA_PATH} on ${generation} answered ${response.status} ${response.contentType} and declared no Webhook entry, so there is nothing to register.`,
     );
   }
   return webhook;
 }
 
 export const row = {
-  id: "row-03-webhook-payloads",
+  id: "webhook-payloads",
   label: "What each Whisparr generation sends on a webhook, captured verbatim from a real delivery",
   requires: {
     // Whisparr and the listener both join the Cove instance's own network, so a row asking for
@@ -125,7 +125,7 @@ export const row = {
       });
       if (created.status !== 201) {
         throw new Error(
-          `row-03-webhook-payloads: POST ${NOTIFICATION_PATH} on ${generation} answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}. The save is what fires the delivery this row captures.`,
+          `webhook-payloads: POST ${NOTIFICATION_PATH} on ${generation} answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}. The save is what fires the delivery this row captures.`,
         );
       }
 
@@ -138,7 +138,7 @@ export const row = {
         body = JSON.parse(capture.body);
       } catch (cause) {
         throw new Error(
-          `row-03-webhook-payloads: ${generation} delivered ${capture.body.length} byte(s) that did not parse as JSON.`,
+          `webhook-payloads: ${generation} delivered ${capture.body.length} byte(s) that did not parse as JSON.`,
           { cause },
         );
       }

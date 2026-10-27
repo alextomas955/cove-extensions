@@ -90,7 +90,7 @@ async function acquisitionSurface(api, generation) {
   };
   if (counts.indexers !== 0 || counts.downloadClients !== 0) {
     throw new Error(
-      `row-05-add-options: ${generation} reported ${JSON.stringify(counts)} for ${INDEXER_PATH} and ${DOWNLOAD_CLIENT_PATH}. This row performs adds that may start a search, and it only does so against an instance that can reach nothing.`,
+      `add-options: ${generation} reported ${JSON.stringify(counts)} for ${INDEXER_PATH} and ${DOWNLOAD_CLIENT_PATH}. This row performs adds that may start a search, and it only does so against an instance that can reach nothing.`,
     );
   }
   return {
@@ -111,7 +111,7 @@ async function declaredAddOptions(api) {
   const declaration = schemas?.[DECLARED_SCHEMA];
   if (declaration === undefined) {
     throw new Error(
-      `row-05-add-options: GET ${OPENAPI_PATH} answered ${response.status} ${response.contentType} and declared no ${DECLARED_SCHEMA}, so the property names cannot be read off the build.`,
+      `add-options: GET ${OPENAPI_PATH} answered ${response.status} ${response.contentType} and declared no ${DECLARED_SCHEMA}, so the property names cannot be read off the build.`,
     );
   }
   return {
@@ -156,12 +156,12 @@ async function firstQualityProfileId(api, generation) {
     {
       timeoutMs: PROFILE_TIMEOUT_MS,
       intervalMs: PROFILE_INTERVAL_MS,
-      label: "row-05-add-options firstQualityProfileId",
+      label: "add-options firstQualityProfileId",
     },
   );
   if (!settled) {
     throw new Error(
-      `row-05-add-options: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note}, so no add can name a profile.`,
+      `add-options: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note}, so no add can name a profile.`,
     );
   }
   return value;
@@ -186,12 +186,12 @@ async function lookupSubjects(api, path, generation, wanted) {
     {
       timeoutMs: LOOKUP_TIMEOUT_MS,
       intervalMs: LOOKUP_INTERVAL_MS,
-      label: "row-05-add-options lookupSubjects",
+      label: "add-options lookupSubjects",
     },
   );
   if (!settled) {
     throw new Error(
-      `row-05-add-options: GET ${path} on ${generation} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer here is an unreachable or refusing service rather than a missing capability.`,
+      `add-options: GET ${path} on ${generation} last answered ${note}, and this row needs ${wanted}. Both generations proxy a lookup through the vendor's metadata service, so a short answer here is an unreachable or refusing service rather than a missing capability.`,
     );
   }
   return value;
@@ -224,7 +224,7 @@ async function settleAfterAdd(api, idsBefore) {
     {
       timeoutMs: SETTLE_TIMEOUT_MS,
       intervalMs: SETTLE_INTERVAL_MS,
-      label: "row-05-add-options settleAfterAdd",
+      label: "add-options settleAfterAdd",
     },
   );
   if (settled) return { ...value, boundedByMs: Date.now() - startedAt };
@@ -502,7 +502,7 @@ async function probeV2(ctx) {
 }
 
 export const row = {
-  id: "row-05-add-options",
+  id: "add-options",
   label: "What an omitted search-suppressing field does on each generation, and on each add path",
   requires: {
     // Whisparr containers join the Cove instance's own network, so a row asking for one asks for both.

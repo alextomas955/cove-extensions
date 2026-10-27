@@ -85,7 +85,7 @@ async function readWebhookSchema(api) {
   const webhook = response.json?.find?.((entry) => entry.implementation === "Webhook");
   if (webhook === undefined) {
     throw new Error(
-      `row-14-v2-basic-auth-passthrough: GET ${SCHEMA_PATH} on v2 answered ${response.status} ${response.contentType} and declared no Webhook entry.`,
+      `v2-basic-auth-passthrough: GET ${SCHEMA_PATH} on v2 answered ${response.status} ${response.contentType} and declared no Webhook entry.`,
     );
   }
   return webhook;
@@ -128,7 +128,7 @@ async function measureV2Delivery(api, listener) {
   });
   if (created.status !== 201) {
     throw new Error(
-      `row-14-v2-basic-auth-passthrough: POST ${NOTIFICATION_PATH} on v2 answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}.`,
+      `v2-basic-auth-passthrough: POST ${NOTIFICATION_PATH} on v2 answered ${created.status} ${created.contentType}: ${created.text.slice(0, 400)}.`,
     );
   }
 
@@ -259,7 +259,7 @@ function judgeOutOfBandOnV2({ v2Delivery, passthrough }) {
 }
 
 export const row = {
-  id: "row-14-v2-basic-auth-passthrough",
+  id: "v2-basic-auth-passthrough",
   label:
     "Whether Whisparr v2 sends an authorization header, and whether Cove delivers one to an anonymous extension route",
   requires: {
@@ -319,10 +319,10 @@ export const row = {
         consequence:
           verdict === "out-of-band-secret-possible-on-v2"
             ? "On v2 the registration can carry the secret in the user and password fields, so the registered address carries none on either generation."
-            : "On v2 the registration carries the secret in the address, plus the standing quiet note that sits under the registration status while events still arrive that way and clears once one arrives out of band. That is the state HOOK-3 already describes, so the fallback needs no new behaviour beyond the note.",
+            : "On v2 the registration carries the secret in the address, plus the standing quiet note that sits under the registration status while events still arrive that way and clears once one arrives out of band. The secret is then in the address rather than unlogged, so the fallback needs no new behaviour beyond the note.",
         gapCrossReference: {
-          id: "GAP-1",
-          why: "GAP-1 records that v2's Webhook connection declares no headers field. This row settles the only remaining alternative that would have kept a v2 secret off the address.",
+          id: "v2-webhook-declares-no-headers-field",
+          why: "The notification-semantics row records that v2's Webhook connection declares no headers field. This row settles the only remaining alternative that would have kept a v2 secret off the address.",
         },
         limits:
           "Question 2 establishes that Cove neither rejected nor diverted a request carrying an authorization header, taken as a differential against the same request without one and against two controls. It does not read the header out of the extension's own handler, so it bounds the pipeline rather than proving what the handler saw.",

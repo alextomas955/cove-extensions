@@ -81,7 +81,7 @@ async function probeGeneration(ctx, generation) {
 }
 
 export const row = {
-  id: "row-01-generation-detect",
+  id: "generation-detect",
   label: "Which fields of GET /api/v3/system/status tell the two Whisparr generations apart",
   requires: {
     // Whisparr containers join the Cove instance's own network, so a row asking for one asks for both.

@@ -252,7 +252,7 @@ export function judgeExposure({
 }
 
 export const row = {
-  id: "row-12-extension-data-exposure",
+  id: "extension-data-exposure",
   label:
     "What GET /api/extensions/{id}/data returns for an installed extension, and to which caller",
   requires: {

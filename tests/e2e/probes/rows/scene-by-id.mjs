@@ -48,7 +48,7 @@ async function resolveSeededId(ctx, api) {
 }
 
 export const row = {
-  id: "row-scene-by-id",
+  id: "scene-by-id",
   label:
     "Does the pinned v3 build answer GET /api/v3/movie/{id} with the entity that was asked for",
   requires: {
@@ -65,7 +65,7 @@ export const row = {
     const { id, source, catalogue } = await resolveSeededId(ctx, api);
     if (id === null) {
       throw new Error(
-        `row-scene-by-id: neither the history read-back nor ${MOVIE_PATH} reported an entity to address, so there is nothing to fetch by id.`,
+        `scene-by-id: neither the history read-back nor ${MOVIE_PATH} reported an entity to address, so there is nothing to fetch by id.`,
       );
     }
 

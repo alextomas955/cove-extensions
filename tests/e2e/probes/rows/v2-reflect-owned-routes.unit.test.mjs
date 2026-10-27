@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifyRoute, judgeReflectOwnedOnV2 } from "./row-16-v2-reflect-owned-routes.mjs";
+import { classifyRoute, judgeReflectOwnedOnV2 } from "./v2-reflect-owned-routes.mjs";
 
 const VERDICTS = new Set([
   "v2-serves-all-three-reflect-owned-routes",

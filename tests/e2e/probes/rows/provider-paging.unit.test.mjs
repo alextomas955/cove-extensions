@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { summariseCeiling } from "./row-08-provider-paging.mjs";
+import { summariseCeiling } from "./provider-paging.mjs";
 
 const page = (requestedPerPage, returned, reportedTotal = null) => ({
   requestedPerPage,

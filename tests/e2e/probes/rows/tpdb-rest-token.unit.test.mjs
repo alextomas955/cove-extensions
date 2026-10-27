@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { buildRecord, redactRecord } from "../lib/record.mjs";
-import { row } from "./row-07-tpdb-rest-token.mjs";
+import { row } from "./tpdb-rest-token.mjs";
 
 // A drive-letter path, a UNC path, or a rooted POSIX path - the three shapes a data root arrives in.
 const ABSOLUTE_PATH = /[A-Za-z]:[\\/]|\\\\[A-Za-z]|(?:^|[\s"'(])\/[\w.]/;

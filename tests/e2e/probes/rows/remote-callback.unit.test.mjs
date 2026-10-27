@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifyObservation, judgeBoundary } from "./row-13-remote-callback.mjs";
+import { classifyObservation, judgeBoundary } from "./remote-callback.mjs";
 
 const route = (name, first, repeat) => ({ route: name, first, repeat });
 

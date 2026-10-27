@@ -168,7 +168,7 @@ async function resolveClient(container) {
   const client = output.trim();
   if (client === "none") {
     throw new Error(
-      "row-13-remote-callback: the container offers neither curl nor python3, so no request can be made from inside the network, which is the only place this row's subject exists.",
+      "remote-callback: the container offers neither curl nor python3, so no request can be made from inside the network, which is the only place this row's subject exists.",
     );
   }
   return client;
@@ -295,7 +295,7 @@ async function sourceAddresses(container) {
 }
 
 export const row = {
-  id: "row-13-remote-callback",
+  id: "remote-callback",
   label: "How Cove answers a request from another container on its network with auth off",
   requires: {
     cove: true,
