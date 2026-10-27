@@ -7,7 +7,7 @@
 import type { MissingPageView, MissingSceneActionResult, WhisparrEntityKind } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
-import type { MissingRun } from "./missingRunLogic";
+import { runIsWaitingOn, runWaitingOn, type MissingRun } from "./missingRunLogic";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
 
@@ -74,8 +74,12 @@ export interface MissingStore {
   /** The press produced no answer at all, so nothing is claimed about the instance. */
   cardActionFailed: (entity: MissingEntity, providerSceneId: string) => void;
   beginBulk: (entity: MissingEntity, run: MissingRun) => void;
-  /** The run this browser was waiting on has stopped, however it ended. */
-  runEnded: (entity: MissingEntity) => void;
+  /**
+   * The run `jobId` names has stopped, however it ended. A completion naming any other job is
+   * ignored: with overlapping presses the first run's end would otherwise clear a second that is
+   * still going.
+   */
+  runEnded: (entity: MissingEntity, jobId: string) => void;
   /** The route answered. A refusal keeps whatever is ticked, so the reader can press again. */
   bulkSettled: (entity: MissingEntity, outcome: SelectionOutcome) => void;
 }
@@ -199,12 +203,16 @@ export function createMissingStore(): MissingStore {
       emit({
         ...state,
         bulk: outcome,
-        running: outcome.kind === "started" ? state.running : null,
+        running:
+          outcome.kind === "started" && state.running !== null
+            ? runWaitingOn(state.running, outcome.jobId)
+            : null,
       });
     },
 
-    runEnded(entity) {
+    runEnded(entity, jobId) {
       if (!sameEntity(onScreen, entity)) return;
+      if (!runIsWaitingOn(state.running, jobId)) return;
       emit({ ...state, bulk: SELECTION_AT_REST, running: null });
     },
   };

@@ -148,5 +148,5 @@ test("a monitor-all that named a job is waiting rather than refused", async () =
     missing().monitorAll();
   });
 
-  expect(missing().state.bulk).toEqual({ kind: "started" });
+  expect(missing().state.bulk).toEqual({ kind: "started", jobId: "job-1" });
 });

@@ -85,7 +85,7 @@ describe("selectionOutcomeLine", () => {
     const quiet: SelectionOutcome[] = [
       { kind: "atRest" },
       { kind: "inFlight" },
-      { kind: "started" },
+      { kind: "started", jobId: "a-job" },
     ];
     for (const outcome of quiet) {
       expect(selectionOutcomeLine(outcome)).toBeNull();
@@ -103,6 +103,7 @@ describe("selectionOutcomeIn", () => {
   it("reads a started run off a job id", () => {
     expect(selectionOutcomeIn({ jobId: "ext:missing-bulk:1", refusal: "none" })).toEqual({
       kind: "started",
+      jobId: "ext:missing-bulk:1",
     });
   });
 

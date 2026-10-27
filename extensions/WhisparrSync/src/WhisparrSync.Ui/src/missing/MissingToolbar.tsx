@@ -12,7 +12,7 @@
  * `ui/src/components/listToolbarStyles.ts`, `DetailListToolbar.tsx` and `ListSearchControl.tsx`.
  * No stylesheet ships with this bundle, so a class the host does not emit renders nothing.
  */
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 // `Search` here is the search box's own affordance, not the verb that asks Whisparr to look.
 import { Search } from "lucide-react";
@@ -99,12 +99,24 @@ export function MissingToolbar({
   const [confirming, setConfirming] = useState(false);
   const headingId = useId();
 
-  // Written by replacement once typing settles, so the back button leaves the tab and does not
-  // step through half-typed searches. The page resets with it, because a shorter answer would
-  // otherwise leave the reader on an empty page of a non-empty result.
+  // The last search this box wrote or adopted. It decides which of the two sides is behind: a
+  // search that moved to something the box did not write came from outside, so the box takes it
+  // up; anything else is the reader still typing, and the box keeps its own value.
+  const written = useRef(view.q);
+
+  // The box's own value is written by replacement once typing settles, so the back button leaves
+  // the tab and does not step through half-typed searches. The page resets with it, because a
+  // shorter answer would otherwise leave the reader on an empty page of a non-empty result.
   useEffect(() => {
+    if (view.q !== written.current) {
+      written.current = view.q;
+      setText(view.q);
+      return undefined;
+    }
+
     if (text === view.q) return undefined;
     const timer = setTimeout(() => {
+      written.current = text;
       setView({ ...view, q: text, page: 1 });
     }, searchSettleDelayMs);
     return () => {

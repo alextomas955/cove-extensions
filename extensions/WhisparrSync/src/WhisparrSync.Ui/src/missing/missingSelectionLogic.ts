@@ -78,7 +78,7 @@ export type SelectionRefusalKind =
 export type SelectionOutcome =
   | { readonly kind: "atRest" }
   | { readonly kind: "inFlight" }
-  | { readonly kind: "started" }
+  | { readonly kind: "started"; readonly jobId: string }
   | { readonly kind: "refused"; readonly refusal: SelectionRefusalKind };
 
 export const SELECTION_AT_REST: SelectionOutcome = { kind: "atRest" };
@@ -110,7 +110,7 @@ export function selectionOutcomeIn(answer: unknown): SelectionOutcome {
 
   const body = answer as { jobId?: unknown; refusal?: unknown };
   if (body.refusal === "none" && typeof body.jobId === "string" && body.jobId !== "") {
-    return { kind: "started" };
+    return { kind: "started", jobId: body.jobId };
   }
   if (body.refusal === "noInstanceConnected") {
     return { kind: "refused", refusal: "noInstanceConnected" };

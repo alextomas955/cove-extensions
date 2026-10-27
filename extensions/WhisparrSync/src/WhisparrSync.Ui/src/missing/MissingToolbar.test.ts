@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from "vitest";
-import { createElement } from "react";
+import { Fragment, act, createElement } from "react";
 import { render, press } from "../common/lib/testRender";
+import { searchSettleDelayMs } from "./missingToolbarLogic";
+import { useMissingUrlState } from "./useMissingUrlState";
 
 import { ACTION_REFRESH, MISSING_MONITOR_ALL, MISSING_SORT_MENU } from "../common/ui/copy";
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
@@ -249,3 +251,96 @@ test("a performer page offers an enabled whole-catalogue control", async () => {
   expect(button).toBeDefined();
   expect(button?.disabled).toBe(false);
 });
+
+// The reader clears the search from outside the box: `MissingTab` offers that on an empty result,
+// and until the box could tell an outside change from its own it wrote its stale copy back after
+// the settle delay.
+test("clearing the search from outside the box leaves it cleared after the settle delay", async () => {
+  // Only the two the settle delay uses: faking the whole set stops the test runner's own worker.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let clear: (() => void) | null = null;
+    const Clearer = () => {
+      const [view, setView] = useMissingUrlState();
+      clear = () => {
+        setView({ ...view, q: "", page: 1 });
+      };
+      return null;
+    };
+
+    const container = await render(
+      createElement(Fragment, null, [
+        createElement(Clearer, { key: "clearer" }),
+        createElement(MissingToolbar, {
+          key: "toolbar",
+          onRefresh: () => undefined,
+          onMonitorAll: () => undefined,
+        }),
+      ]),
+    );
+
+    const box = container.querySelector("input");
+    await typeInto(box, "harbor");
+    await settle();
+    expect(window.location.search).toContain("harbor");
+
+    await act(() => {
+      clear?.();
+      return Promise.resolve();
+    });
+    await settle();
+
+    expect(window.location.search).not.toContain("harbor");
+    expect(box!.value).toBe("");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+// The control for the case above: the box is still the one that decides while a reader types.
+test("a typed search is still written once typing settles", async () => {
+  // Only the two the settle delay uses: faking the whole set stops the test runner's own worker.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const container = await render(
+      createElement(MissingToolbar, {
+        onRefresh: () => undefined,
+        onMonitorAll: () => undefined,
+      }),
+    );
+
+    const box = container.querySelector("input");
+    await typeInto(box, "harbor");
+    await settle();
+
+    expect(window.location.search).toContain("harbor");
+    expect(box!.value).toBe("harbor");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+// React overrides `value` on the node and skips a change whose value it already knows, so the
+// prototype's own setter is the one that reaches its tracker.
+async function typeInto(box: Element | null, value: string): Promise<void> {
+  if (box === null) throw new Error("No search box found");
+  const write = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  )?.set?.bind(box);
+  if (write === undefined) throw new Error("No value setter on the input prototype");
+
+  await act(() => {
+    write(value);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    return Promise.resolve();
+  });
+}
+
+// Fake timers, so the settle delay costs no wall-clock time.
+async function settle(): Promise<void> {
+  await act(() => {
+    vi.advanceTimersByTime(searchSettleDelayMs + 1);
+    return Promise.resolve();
+  });
+}

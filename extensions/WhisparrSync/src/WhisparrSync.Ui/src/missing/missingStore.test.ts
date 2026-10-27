@@ -2,7 +2,7 @@
 // read settling after a move to page four paints page three's cards under page four's address.
 import { describe, expect, it } from "vitest";
 
-import { runOver } from "./missingRunLogic";
+import { runCovers, runIsUnderWay, runOver } from "./missingRunLogic";
 import { createMissingStore, INITIAL_MISSING_STATE, type MissingViewKey } from "./missingStore";
 
 const STUDIO = { kind: "studio", coveId: 7 } as const;
@@ -121,10 +121,10 @@ describe("what the selection's own verb leaves behind", () => {
     store.mounted(STUDIO);
 
     store.beginBulk(STUDIO, runOver([]));
-    store.bulkSettled(STUDIO, { kind: "started" });
+    store.bulkSettled(STUDIO, { kind: "started", jobId: "a-job" });
 
     const { bulk } = store.getSnapshot();
-    expect(bulk).toEqual({ kind: "started" });
+    expect(bulk).toEqual({ kind: "started", jobId: "a-job" });
     for (const value of Object.values(bulk)) {
       expect(Array.isArray(value), "the bulk field carries a collection").toBe(false);
     }
@@ -196,8 +196,53 @@ describe("what the selection's own verb leaves behind", () => {
     store.mounted(STUDIO);
     store.mounted(OTHER_STUDIO);
 
-    store.bulkSettled(STUDIO, { kind: "started" });
+    store.bulkSettled(STUDIO, { kind: "started", jobId: "a-job" });
 
     expect(store.getSnapshot().bulk).toEqual({ kind: "atRest" });
+  });
+});
+
+// Two presses in a row is the ordinary way to reach this: the first run goes on marking while the
+// reader ticks a second selection and presses again.
+describe("a completion while a second run is still going", () => {
+  const startRun = (store: ReturnType<typeof createMissingStore>, jobId: string) => {
+    store.beginBulk(STUDIO, runOver([`scene-for-${jobId}`]));
+    store.bulkSettled(STUDIO, { kind: "started", jobId });
+  };
+
+  it("leaves the second run under way when the first one ends", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    startRun(store, "job-1");
+    startRun(store, "job-2");
+
+    store.runEnded(STUDIO, "job-1");
+
+    expect(runIsUnderWay(store.getSnapshot().running)).toBe(true);
+    expect(runCovers(store.getSnapshot().running, "scene-for-job-2")).toBe(true);
+  });
+
+  it("puts the selection back at rest when the run being held ends", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    startRun(store, "job-1");
+    startRun(store, "job-2");
+
+    store.runEnded(STUDIO, "job-1");
+    store.runEnded(STUDIO, "job-2");
+
+    expect(runIsUnderWay(store.getSnapshot().running)).toBe(false);
+    expect(store.getSnapshot().bulk).toEqual({ kind: "atRest" });
+  });
+
+  it("changes nothing on a completion naming a job it is not holding", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    startRun(store, "job-1");
+    const before = store.getSnapshot();
+
+    store.runEnded(STUDIO, "a-job-this-browser-never-started");
+
+    expect(store.getSnapshot()).toBe(before);
   });
 });
