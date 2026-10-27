@@ -81,12 +81,45 @@ public sealed class CallbackOutboundPairTests
         Assert.DoesNotContain("hunter2", sent.CallbackAddress, StringComparison.Ordinal);
     }
 
+    // The registration round trip is the longest window another writer of this record has. A save
+    // committed in it moves the address, so the status the call came back with describes an
+    // instance the row no longer names.
+    [Fact]
+    public async Task ARegistrationWhoseAddressMovedUnderTheCallRecordsNoStatus()
+    {
+        var options = new OptionsStore(new FakeStore());
+        var credentials = new RecordingCredentialPort()
+            .Holding(WhisparrGeneration.V3, StoredAddress, MovedKey);
+        var notifications = new MovingNotificationPort(credentials);
+
+        await RegisterCallbackAsync(credentials, notifications, options: options);
+
+        Assert.Single(notifications.Registrations);
+        var stored = (await options.LoadAsync(TestCt)).ConnectionFor(WhisparrGeneration.V3);
+        Assert.Equal(RegistrationStatus.NotCheckedYet, stored!.CallbackRegistration);
+    }
+
+    // The control: with the row still naming the instance the call reached, the status is recorded.
+    [Fact]
+    public async Task ARegistrationTheRowStillNamesRecordsItsStatus()
+    {
+        var options = new OptionsStore(new FakeStore());
+        var credentials = new RecordingCredentialPort()
+            .Holding(WhisparrGeneration.V3, StoredAddress, MovedKey);
+
+        await RegisterCallbackAsync(credentials, new RecordingNotificationPort(), options: options);
+
+        var stored = (await options.LoadAsync(TestCt)).ConnectionFor(WhisparrGeneration.V3);
+        Assert.Equal(RegistrationStatus.Registered, stored!.CallbackRegistration);
+    }
+
     private static async Task<CallbackView> RegisterCallbackAsync(
         ICredentialPort credentials,
         IWhisparrNotificationPort notifications,
-        string? editedAddress = null)
+        string? editedAddress = null,
+        OptionsStore? options = null)
     {
-        var options = new OptionsStore(new FakeStore());
+        options ??= new OptionsStore(new FakeStore());
         await options.SaveAsync(
             new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }.WithConnectionFor(
                 WhisparrGeneration.V3,
@@ -117,6 +150,27 @@ public sealed class CallbackOutboundPairTests
     private static CallbackView ValueOf(IResult result)
         => Assert.IsType<CallbackView>(
             Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+
+    // Moves the stored address while the registration is in flight, as a settings save committed in
+    // that window does.
+    private sealed class MovingNotificationPort(RecordingCredentialPort credentials)
+        : IWhisparrNotificationPort
+    {
+        private readonly RecordingNotificationPort _inner = new();
+
+        public IReadOnlyList<(WhisparrBinding Binding, string CallbackAddress, string Secret)>
+            Registrations => _inner.Registrations;
+
+        public Task<CallbackRegistrationOutcome> RegisterAsync(
+            WhisparrBinding binding, string callbackAddress, string secret, CancellationToken ct)
+        {
+            credentials.Holding(WhisparrGeneration.V3, MovedAddress, MovedKey);
+            return _inner.RegisterAsync(binding, callbackAddress, secret, ct);
+        }
+
+        public Task<CallbackRegistrationOutcome> ReadAsync(
+            WhisparrBinding binding, CancellationToken ct) => throw new NotSupportedException();
+    }
 
     // Records the pair and the secret each registration carried, so a case can say which instance
     // the secret was written into.

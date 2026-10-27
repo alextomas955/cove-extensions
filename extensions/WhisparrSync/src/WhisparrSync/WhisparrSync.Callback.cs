@@ -291,13 +291,25 @@ public sealed partial class WhisparrSync
         // Folded onto the connection the gate reloads, not onto the copy read before the call. The
         // registration is an outbound round trip, the longest window another writer of this record
         // has to commit in, and the secret-position write is one such writer on every delivery.
-        var persisted = await gate.MutateAsync(
+        // A writer that moved the address in that window leaves the status unwritten: it describes
+        // an instance the row no longer names.
+        var stillThere = false;
+        var persisted = await gate.MutateAfterAsync(
             options,
-            fresh => fresh.WithConnectionFor(
-                generation,
-                (fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())
-                    with
-                { CallbackRegistration = outcome.Status }),
+            async (_, readCt) =>
+            {
+                var held = await credentials
+                    .ReadConnectionAsync(generation, readCt).ConfigureAwait(false);
+                stillThere = ConnectionTester.IsSameAddress(
+                    held?.Address, binding.BaseAddress.ToString());
+            },
+            fresh => stillThere
+                ? fresh.WithConnectionFor(
+                    generation,
+                    (fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())
+                        with
+                    { CallbackRegistration = outcome.Status })
+                : fresh,
             ct).ConfigureAwait(false);
 
         return TypedResults.Ok(

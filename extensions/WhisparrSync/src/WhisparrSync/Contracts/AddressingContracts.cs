@@ -82,6 +82,17 @@ public enum FolderAgreementRefusal
 
     /// <summary>The folder sits under none of the host's configured library roots.</summary>
     FolderUnderNoLibraryRoot,
+
+    /// <summary>
+    /// The settings selected a different generation while the probe was in flight, so the verified
+    /// spelling belongs to an instance these settings no longer name.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is stored under it. A spelling verified against one generation landing in the
+    /// other's settings would also clear that generation's own refusal, so a partial write is worse
+    /// than none.
+    /// </remarks>
+    ConnectionChangedUnderTheProbe,
 }
 
 /// <summary>One Cove library root a path or a refusal is stored for.</summary>

@@ -323,6 +323,28 @@ public sealed class StoredConnectionTestTests
         Assert.Equal("3.3.8.1097", stored.RecordedVersion);
     }
 
+    // The competing writer here is a settings save that moved the address. The probe answered about
+    // the instance the row named when it started, so none of the three readings describes the
+    // instance the record now names.
+    [Fact]
+    public async Task AStoredTestWhoseAddressMovedUnderTheProbeRecordsNoneOfWhatItRead()
+    {
+        var options = await SeededAsync(null, null, null);
+        var credentials = KeyPort();
+        var tester = new MovingConnectionTester(
+            RecordingConnectionTester.Connected("3.3.8.1097"), credentials);
+
+        var view = await NewRunner(tester, options, credentials).TestStoredAsync(TestCt);
+
+        // The view reports the probe that was made; it is only the record that is withheld.
+        Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
+        var stored = await ConnectionAsync(options);
+        Assert.Null(stored.RecordedVersion);
+        Assert.Null(stored.VersionVerifiedAtUtc);
+        Assert.Null(stored.LastReachableAtUtc);
+        Assert.Equal(RegistrationStatus.NotCheckedYet, stored.CallbackRegistration);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // Driven through the real tester over the recording client seam, so the projection under test
@@ -413,6 +435,20 @@ public sealed class StoredConnectionTestTests
             await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(
                 options, gate, WhisparrGeneration.V3, position, ct);
             return await inner.TestAsync(address, apiKey, ct);
+        }
+    }
+
+    // Moves the stored address while the probe is in flight, as a settings save committed in that
+    // window does.
+    private sealed class MovingConnectionTester(
+        IWhisparrConnectionTester inner, RecordingCredentialPort credentials)
+        : IWhisparrConnectionTester
+    {
+        public Task<ConnectionTestView> TestAsync(
+            string? address, string? apiKey, CancellationToken ct)
+        {
+            credentials.Holding(WhisparrGeneration.V3, HeldAddress, StoredKey);
+            return inner.TestAsync(address, apiKey, ct);
         }
     }
 

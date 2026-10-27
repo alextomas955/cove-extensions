@@ -103,12 +103,24 @@ internal sealed class ConnectionTestRunner(
             : RegistrationStatus.NotCheckedYet;
 
         // Applied to the connection the gate loads, not the one read before the probe: another writer
-        // may have committed to the same record while the instance was being asked.
-        await gate.MutateAsync(
+        // may have committed to the same record while the instance was being asked. Where that
+        // writer moved the address, none of the three readings is applied: the view still reports
+        // the probe that was actually made, and it is only the record that is withheld.
+        var stillThere = false;
+        await gate.MutateAfterAsync(
             options,
-            fresh => fresh.WithConnectionFor(
-                generation,
-                Recording(fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())),
+            async (_, readCt) =>
+            {
+                var held = await credentials
+                    .ReadConnectionAsync(generation, readCt).ConfigureAwait(false);
+                stillThere = ConnectionTester.IsSameAddress(
+                    held?.Address, binding.BaseAddress.ToString());
+            },
+            fresh => stillThere
+                ? fresh.WithConnectionFor(
+                    generation,
+                    Recording(fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection()))
+                : fresh,
             ct).ConfigureAwait(false);
         return view;
 

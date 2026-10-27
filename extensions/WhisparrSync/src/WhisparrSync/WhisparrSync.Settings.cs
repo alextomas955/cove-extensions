@@ -260,7 +260,7 @@ public sealed partial class WhisparrSync
 
         if (string.IsNullOrWhiteSpace(request.InstancePath))
         {
-            await StoreAsync(mapping: null, clearRefusal: false).ConfigureAwait(false);
+            await StoreAsync(mapping: null, clearRefusal: false, probed: null).ConfigureAwait(false);
             return TypedResults.Ok(Answering(FolderMappingSaveOutcome.Removed));
         }
 
@@ -291,29 +291,56 @@ public sealed partial class WhisparrSync
 
         // The spelling the probe verified rather than the one that was typed, so what is stored is
         // what the instance answered to.
-        await StoreAsync(agreed, clearRefusal: true).ConfigureAwait(false);
+        if (!await StoreAsync(agreed, clearRefusal: true, target.Binding.Generation)
+                .ConfigureAwait(false))
+        {
+            return TypedResults.Ok(
+                Answering(
+                    FolderMappingSaveOutcome.Refused,
+                    FolderAgreementRefusal.ConnectionChangedUnderTheProbe,
+                    addressed.Tried));
+        }
+
         return TypedResults.Ok(
             Answering(FolderMappingSaveOutcome.Stored, refusal: null, addressed.Tried));
 
-        Task<WhisparrSyncOptions> StoreAsync(string? mapping, bool clearRefusal)
-            => gate.MutateAsync(
+        // False where the generation the probe ran against is no longer the selected one, which is
+        // read inside the gate rather than before it: a save committed while the probe was in
+        // flight may have moved it.
+        async Task<bool> StoreAsync(
+            string? mapping, bool clearRefusal, WhisparrGeneration? probed)
+        {
+            var landed = false;
+            await gate.MutateAsync(
                 options,
-                stored => stored.WithInstanceSettingsFor(
-                    stored.SelectedGeneration,
-                    stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration) with
+                stored =>
+                {
+                    if (probed is { } generation && stored.SelectedGeneration != generation)
                     {
-                        OutboundMappings = OutboundRefusalProjector.WithMapping(
-                            stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundMappings,
-                            coveRoot,
-                            mapping),
-                        OutboundRefusals = clearRefusal
-                            ? OutboundRefusalProjector.Fold(
-                                stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
-                                refused: null,
-                                [coveRoot])
-                            : stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
-                    }),
-                ct);
+                        return stored;
+                    }
+
+                    landed = true;
+                    return stored.WithInstanceSettingsFor(
+                        stored.SelectedGeneration,
+                        stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration) with
+                        {
+                            OutboundMappings = OutboundRefusalProjector.WithMapping(
+                                stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundMappings,
+                                coveRoot,
+                                mapping),
+                            OutboundRefusals = clearRefusal
+                                ? OutboundRefusalProjector.Fold(
+                                    stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
+                                    refused: null,
+                                    [coveRoot])
+                                : stored.InstanceSettingsOrEmptyFor(stored.SelectedGeneration).OutboundRefusals,
+                        });
+                },
+                ct).ConfigureAwait(false);
+
+            return landed;
+        }
 
         static FolderMappingSaveResult Answering(
             FolderMappingSaveOutcome outcome,

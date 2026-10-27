@@ -139,7 +139,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         CoveConfiguration? metadataConfig = null,
         CoveConfiguration? libraryConfig = null,
         ISiteNumberPort? siteNumbers = null,
-        bool foldersAddressThemselves = false)
+        bool foldersAddressThemselves = false,
+        Func<OptionsStore, IFolderAddressPort>? folderAddressing = null)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -231,7 +232,11 @@ internal sealed class MonitorHost : IAsyncDisposable
         // run over an instance whose spelling is the library's own instead; a case whose subject IS
         // the addressing names a configuration and gets the shipped chain. A case that needs a
         // configured root for some other reason asks for both.
-        if (libraryConfig is null || foldersAddressThemselves)
+        if (folderAddressing is { } supplied)
+        {
+            builder.Services.AddSingleton(supplied(options));
+        }
+        else if (libraryConfig is null || foldersAddressThemselves)
         {
             builder.Services.AddSingleton<IFolderAddressPort>(new PassThroughFolderAddresses());
         }

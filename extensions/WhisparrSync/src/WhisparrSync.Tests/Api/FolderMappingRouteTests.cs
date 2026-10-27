@@ -1,6 +1,7 @@
 using System.Net;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
@@ -168,6 +169,68 @@ public sealed class FolderMappingRouteTests
         Assert.Equal(HttpStatusCode.Forbidden, read.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, saved.StatusCode);
         Assert.Empty((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings);
+    }
+
+    // The probe runs against the generation that was selected when the save started. A switch
+    // committed while it was in flight would otherwise land a spelling verified on one generation
+    // in the other's settings, and clear that other generation's own refusal with it.
+    [Fact]
+    public async Task ASaveWhoseGenerationChangedUnderTheProbeStoresNothingAndSaysWhy()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            folderAddressing: options => new SwitchingFolderAddresses(options),
+            libraryConfig: new CoveConfiguration { CovePaths = [new CovePath { Path = CoveRoot }] });
+
+        var saved = await host.SaveFolderMappingAsync(CoveRoot, Mapping);
+
+        Assert.Equal(FolderMappingSaveOutcome.Refused, saved.Outcome);
+        Assert.Equal(FolderAgreementRefusal.ConnectionChangedUnderTheProbe, saved.Refusal);
+        var stored = await host.Options.LoadAsync(TestCt);
+        Assert.Empty(stored.InstanceSettingsOrEmptyFor(WhisparrGeneration.V2).OutboundMappings);
+        Assert.Empty(stored.InstanceSettingsOrEmptyFor(WhisparrGeneration.V3).OutboundMappings);
+    }
+
+    // The control for the case above: the same route over the same stub, with nothing switching.
+    [Fact]
+    public async Task ASaveWhoseGenerationDidNotChangeStoresTheProbedSpelling()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            folderAddressing: _ => new SwitchingFolderAddresses(null),
+            libraryConfig: new CoveConfiguration { CovePaths = [new CovePath { Path = CoveRoot }] });
+
+        var saved = await host.SaveFolderMappingAsync(CoveRoot, Mapping);
+
+        Assert.Equal(FolderMappingSaveOutcome.Stored, saved.Outcome);
+        Assert.Equal(
+            Mapping,
+            Assert.Single((await host.Options.LoadAsync(TestCt)).Instance().OutboundMappings)
+                .InstanceRoot);
+    }
+
+    // Answers the supplied path as agreed, and where it holds an options store, selects the other
+    // generation first, as a settings save committed during the probe does.
+    private sealed class SwitchingFolderAddresses(OptionsStore? switching) : IFolderAddressPort
+    {
+        public Task<AddressedFolder> AddressAsync(
+            FolderAddressTarget target, string folder, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public async Task<AddressedFolder> AddressAsync(
+            FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct)
+        {
+            if (switching is { } options)
+            {
+                var stored = await options.LoadAsync(ct);
+                await options.SaveAsync(
+                    stored with { SelectedGeneration = WhisparrGeneration.V2 }, ct);
+            }
+
+            return new AddressedFolder(supplied, null, coveRoot, [supplied + "/scene.mp4"]);
+        }
+
+        public Task<AddressedFolder> AgreedRootAsync(
+            FolderAddressTarget target, string coveRoot, CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     private enum Holding

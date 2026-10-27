@@ -2316,6 +2316,7 @@
           "probeCouldNotBeRead",
           "instanceCannotBeAsked",
           "folderUnderNoLibraryRoot",
+          "connectionChangedUnderTheProbe",
           null
         ]
       },
