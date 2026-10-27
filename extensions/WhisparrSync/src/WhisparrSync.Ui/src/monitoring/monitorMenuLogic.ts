@@ -36,6 +36,7 @@ import {
   MENU_UNMONITOR,
   MONITORING_COULD_NOT_BE_READ,
   NO_AGREED_ROOT_FOR_THIS_ENTITY,
+  CALLER_MAY_NOT_REACH_THIS_ENTITY,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
   REFLECT_OWNED_SKIPPED,
@@ -121,6 +122,10 @@ export interface MonitorRefusal {
 const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   none: { sentence: null, leavesNothingToOffer: false },
   notConfigured: { sentence: NO_INSTANCE_CONNECTED, leavesNothingToOffer: true },
+  callerMayNotReachThisEntity: {
+    sentence: CALLER_MAY_NOT_REACH_THIS_ENTITY,
+    leavesNothingToOffer: true,
+  },
   noIdentityInThisNamespace: {
     sentence: NO_IDENTITY_IN_THIS_NAMESPACE,
     leavesNothingToOffer: true,

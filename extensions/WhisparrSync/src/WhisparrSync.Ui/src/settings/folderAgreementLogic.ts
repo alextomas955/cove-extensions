@@ -21,6 +21,7 @@ import {
   FOLDER_SAVE_NOT_CONFIGURED,
   FOLDER_SAVE_REMOVED,
   FOLDER_SAVE_STORED,
+  FOLDER_CONNECTION_CHANGED_UNDER_THE_PROBE,
   FOLDER_UNDER_NO_LIBRARY_ROOT,
 } from "../common/ui/copy";
 
@@ -54,6 +55,7 @@ const REFUSAL_SENTENCES: Record<FolderRefusal, string> = {
   probeCouldNotBeRead: FOLDER_PROBE_COULD_NOT_BE_READ,
   instanceCannotBeAsked: FOLDER_INSTANCE_CANNOT_BE_ASKED,
   folderUnderNoLibraryRoot: FOLDER_UNDER_NO_LIBRARY_ROOT,
+  connectionChangedUnderTheProbe: FOLDER_CONNECTION_CHANGED_UNDER_THE_PROBE,
 };
 
 /**
@@ -68,6 +70,7 @@ export const FOLDER_AGREEMENT_REFUSALS: readonly FolderRefusal[] = [
   "probeCouldNotBeRead",
   "instanceCannotBeAsked",
   "folderUnderNoLibraryRoot",
+  "connectionChangedUnderTheProbe",
 ];
 
 // Refusals a stated path cannot settle. Cove holds no file under the folder, so no typed path

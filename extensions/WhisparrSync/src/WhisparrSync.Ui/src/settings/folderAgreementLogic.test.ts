@@ -124,6 +124,7 @@ describe("each folder says what happened to it", () => {
 
     expect([...asking].sort()).toEqual(
       [
+        "connectionChangedUnderTheProbe",
         "folderUnderNoLibraryRoot",
         "instanceCannotBeAsked",
         "instanceDeclaresNoRoot",

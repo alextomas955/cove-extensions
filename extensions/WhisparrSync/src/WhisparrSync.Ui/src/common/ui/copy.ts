@@ -152,6 +152,10 @@ export const WAITING_FOR_WHISPARR = "Waiting for Whisparr to answer the last thi
 export const NO_INSTANCE_CONNECTED =
   "No Whisparr instance is connected. Connect one on the Whisparr Sync settings page.";
 
+/** The account that asked holds no read over the entity, so nothing was sent for it. */
+export const CALLER_MAY_NOT_REACH_THIS_ENTITY =
+  "Your account can't see this entity, so Cove left it alone.";
+
 /** The entity carries no identifier the connected instance could be given. */
 export const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Whisparr can't identify this entity from the links Cove holds.";
@@ -689,6 +693,10 @@ export const FOLDER_PROBE_COULD_NOT_BE_READ =
 /** The connected instance offers no way to ask what it holds. */
 export const FOLDER_INSTANCE_CANNOT_BE_ASKED =
   "The Whisparr Cove is connected to offers it no way to ask what it holds.";
+
+/** The connection moved while Cove was asking the instance about the folder. */
+export const FOLDER_CONNECTION_CHANGED_UNDER_THE_PROBE =
+  "The Whisparr connection changed while Cove was checking. Nothing was saved; try again.";
 
 /** The folder sits under none of the host's own library folders. */
 export const FOLDER_UNDER_NO_LIBRARY_ROOT =

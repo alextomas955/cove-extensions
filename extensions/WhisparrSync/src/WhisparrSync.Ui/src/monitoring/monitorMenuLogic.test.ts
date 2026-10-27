@@ -367,6 +367,7 @@ describe("one refusal, one sentence", () => {
 const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
   none: null,
   notConfigured: null,
+  callerMayNotReachThisEntity: null,
   noIdentityInThisNamespace: null,
   severalIdentitiesInThisNamespace: null,
   capabilityAbsentOnThisGeneration: null,
