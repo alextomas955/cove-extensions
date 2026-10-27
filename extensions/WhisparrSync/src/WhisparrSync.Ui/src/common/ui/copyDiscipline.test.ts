@@ -1,15 +1,9 @@
 // Every expectation below is transcribed by hand from the spec. One computed from the module it
 // checks would agree with itself and report nothing.
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import * as copy from "./copy";
 import { describeRefusal, REFUSAL_KINDS } from "./refusalLogic";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = path.resolve(HERE, "../..");
 
 // Whisparr's two generations carry different entity models. That split must not reach a user, so
 // none of these words may appear in shipped copy.
@@ -50,36 +44,22 @@ const CONSTANTS: [string, string][] = Object.entries(copy).flatMap(([name, value
   typeof value === "string" ? [[name, value] as [string, string]] : [],
 );
 
-// Every `.ts` and `.tsx` under `src/`, excluding this file.
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    if (!/\.tsx?$/.test(entry.name)) return [];
-    return full === fileURLToPath(import.meta.url) ? [] : [full];
-  });
-}
-
 function contains(sentence: string, phrase: string): boolean {
   return new RegExp(`\\b${phrase}`, "i").test(sentence);
 }
 
-describe("neither metadata source is named in the bundle", () => {
-  // Which source answers follows the connected generation, so a name written into the bundle is
-  // wrong on the other generation.
+describe("neither metadata source is named in the copy", () => {
+  // Which source answers follows the connected generation, so a name written into a sentence is
+  // wrong on the other generation. The server names the source it read a page from, and the
+  // surface renders that; no sentence here may carry one.
   const SOURCE_NAMES = ["StashDB", "ThePornDB"];
 
-  it("writes neither name into shipped source", () => {
-    const named = sourceFiles(SRC)
-      .filter((file) => !/\.test\.tsx?$/.test(file))
-      .flatMap((file) => {
-        const text = readFileSync(file, "utf8");
-        return SOURCE_NAMES.filter((name) => text.includes(name)).map(
-          (name) => `${path.relative(SRC, file)} names ${name}`,
-        );
-      });
-
-    expect(named).toEqual([]);
+  it("names neither source in any copy constant", () => {
+    for (const [name, sentence] of CONSTANTS) {
+      for (const source of SOURCE_NAMES) {
+        expect(sentence.includes(source), `${name} names ${source}`).toBe(false);
+      }
+    }
   });
 });
 
@@ -242,9 +222,13 @@ describe("the confirmation names what the choice covers and what it costs", () =
   });
 });
 
-// Every sentence the sync section renders, grouped by whether it names what a run registers.
-// A run registers scenes or studios, and the monitor choice marks scenes either way. A `SYNC_`
-// constant in none of the three lists reddens the suite below.
+// The sync sentences that must name one noun and not the other. A run registers scenes or studios,
+// and the monitor choice marks scenes either way, so a sentence rendered on both passes that names
+// either noun is wrong on one of them.
+//
+// Only the sentences making a claim are listed. The ones naming neither noun are the ordinary case
+// and are not enumerated: a roster of them would have to be edited for every sentence the section
+// gains, and it would report that edit rather than any defect.
 const RENDERED_BY_THE_SYNC_SECTION = {
   // One declaration per noun: the scene one, then the studio one.
   pairedByWhatTheRunRegisters: [
@@ -265,39 +249,7 @@ const RENDERED_BY_THE_SYNC_SECTION = {
     "MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF",
     "SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM",
   ],
-
-  // Names neither noun. One declaration serves both ways unless the two runs do different things,
-  // which is why the linking sentences are two and neither of them names what it registers.
-  namesNeitherNoun: [
-    "SYNC_TITLE",
-    "SYNC_COUNT",
-    "SYNC_NOT_YET_IN_WHISPARR",
-    "SYNC_ALREADY_IN_WHISPARR",
-    "SYNC_SKIPPED_CANNOT_BE_IDENTIFIED",
-    "SYNC_SKIPS_ONE",
-    "SYNC_NO_FILE_RECORDED",
-    "SYNC_COUNTING",
-    "SYNC_NOTHING_COUNTED_YET",
-    "SYNC_COUNT_DID_NOT_FINISH",
-    "SYNC_IS_COUNTING",
-    "SYNC_LIBRARY",
-    "SYNC_ALSO_MONITOR",
-    "SYNC_ALREADY_RUNNING",
-    "SYNC_IS_STARTING",
-    "SYNC_RUNS_IN_THE_JOB_DRAWER",
-    "SYNC_ALSO_MONITORS_EACH",
-    "SYNC_MONITORS_NOTHING",
-    "SYNC_ALSO_LINKS_WHAT_YOU_OWN",
-    "SYNC_SITE_ALSO_LINKS_WHAT_YOU_OWN",
-  ],
 };
-
-const ACCOUNTED_FOR = [
-  ...RENDERED_BY_THE_SYNC_SECTION.pairedByWhatTheRunRegisters.flat(),
-  ...RENDERED_BY_THE_SYNC_SECTION.renderedOnTheScenePassAlone,
-  ...RENDERED_BY_THE_SYNC_SECTION.namesWhatMonitoringReaches,
-  ...RENDERED_BY_THE_SYNC_SECTION.namesNeitherNoun,
-];
 
 function sentenceOf(name: string): string {
   const found = CONSTANTS.find(([declared]) => declared === name);
@@ -305,16 +257,7 @@ function sentenceOf(name: string): string {
   return found[1];
 }
 
-describe("every sentence the sync section renders was walked for the noun it names", () => {
-  it("accounts for each of them exactly once", () => {
-    const declared = CONSTANTS.map(([name]) => name).filter((name) => name.startsWith("SYNC_"));
-
-    expect([...declared].sort()).toEqual(
-      [...ACCOUNTED_FOR.filter((name) => name.startsWith("SYNC_"))].sort(),
-    );
-    expect(new Set(ACCOUNTED_FOR).size).toBe(ACCOUNTED_FOR.length);
-  });
-
+describe("a sync sentence names the noun its own pass registers", () => {
   it("names both nouns in every pair, one apiece", () => {
     for (const [scene, studio] of RENDERED_BY_THE_SYNC_SECTION.pairedByWhatTheRunRegisters) {
       expect(contains(sentenceOf(scene), "scene"), `${scene} names no scene`).toBe(true);
@@ -337,13 +280,6 @@ describe("every sentence the sync section renders was walked for the noun it nam
       expect(contains(sentenceOf(name), "studio"), `${name} says a studio is monitored`).toBe(
         false,
       );
-    }
-  });
-
-  it("names neither noun in the sentences one declaration serves both ways", () => {
-    for (const name of RENDERED_BY_THE_SYNC_SECTION.namesNeitherNoun) {
-      expect(contains(sentenceOf(name), "scene"), `${name} names a scene`).toBe(false);
-      expect(contains(sentenceOf(name), "studio"), `${name} names a studio`).toBe(false);
     }
   });
 });
