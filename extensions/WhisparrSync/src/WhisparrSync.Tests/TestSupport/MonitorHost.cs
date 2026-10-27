@@ -101,6 +101,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingAuthorizationService Authz { get; } = new();
 
+    // The logger the route bundles carry, so a case can count the lines a contained failure emits.
+    public CapturingLogger<MonitorHost> Log { get; } = new();
+
     public HttpClient Http { get; private set; } = null!;
 
     // The routes the extension mounted on this host, so a case driving every one of them reads the
@@ -307,7 +310,7 @@ internal sealed class MonitorHost : IAsyncDisposable
                 options,
                 credentials,
                 services.GetRequiredService<IWhisparrInstanceFactory>(),
-                NullLogger.Instance));
+                host.Log));
         builder.Services.AddSingleton(
             services => new BackgroundWork(
                 services.GetRequiredService<IJobService>(),

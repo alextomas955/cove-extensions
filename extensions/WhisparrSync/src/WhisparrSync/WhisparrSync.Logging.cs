@@ -255,6 +255,36 @@ internal static partial class WhisparrSyncLog
     internal static partial void TreeEntriesAddressed(
         ILogger logger, string remoteId, int addressed, int unnumbered, int unresolved);
 
+    [LoggerMessage(
+        EventId = 2134, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a callback registration read from {Generation} at {Host} was contained ({Failure}); the stored status was left as it stood")]
+    internal static partial void RegistrationReadContained(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string failure,
+        string host);
+
+    [LoggerMessage(
+        EventId = 2135, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a catalogue tracking add to {Generation} at {Host} was contained ({Failure}); nothing was started")]
+    internal static partial void TrackRequestContained(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string failure,
+        string host);
+
+    // The read is named, because one member serves the quality-profile read and the root-folder
+    // read and two lines a reader cannot tell apart say less than one.
+    [LoggerMessage(
+        EventId = 2136, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the {Read} read from {Generation} at {Host} was contained ({Failure}); no add defaults could be composed")]
+    internal static partial void AddDefaultsReadContained(
+        ILogger logger,
+        string read,
+        WhisparrGeneration generation,
+        string failure,
+        string host);
+
     // caller or from a remote instance.
     internal static string Classify(Exception failure)
         => failure.InnerException is { } cause

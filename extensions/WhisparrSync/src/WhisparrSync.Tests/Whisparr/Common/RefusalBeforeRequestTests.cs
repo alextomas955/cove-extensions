@@ -316,6 +316,7 @@ public sealed class RefusalBeforeRequestTests
             new OptionsWriteGate(),
             credentials,
             ReadingNotificationPort.Answering(RegistrationStatus.Registered),
-            TimeProvider.System);
+            TimeProvider.System,
+            NullLogger<ConnectionTestRunner>.Instance);
     }
 }

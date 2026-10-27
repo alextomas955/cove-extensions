@@ -149,7 +149,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             mode is MissingEntryMode.TrackOnly
-                ? await TrackEntityAsync(entityKind, coveId, target, entry, ct)
+                ? await TrackEntityAsync(entityKind, coveId, target, entry, log, ct)
                     .ConfigureAwait(false)
                 : await MonitorEntityForItsCatalogueAsync(
                     entityKind, coveId, ScopeOf(mode), target, entry, log, ct)
@@ -230,6 +230,7 @@ public sealed partial class WhisparrSync
             int coveId,
             MonitoringTarget target,
             MissingEntryAccess entry,
+            ILogger log,
             CancellationToken ct)
     {
         var (identities, cache, _) = entry;
@@ -250,12 +251,12 @@ public sealed partial class WhisparrSync
         // The defaults the instance itself declares, read here rather than assumed: an add naming a
         // profile or a root the instance does not hold is refused by it.
         var profiles = await ReadOrNullAsync(
-            () => target.Reads.ReadQualityProfilesAsync(ct))
+            () => target.Reads.ReadQualityProfilesAsync(ct), "quality profile", target, log)
             .ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ReadOrNullAsync(
-                () => target.Reads.ReadRootFoldersAsync(ct))
+                () => target.Reads.ReadRootFoldersAsync(ct), "root folder", target, log)
                 .ConfigureAwait(false);
         if (profiles is null || roots is null)
         {
@@ -274,6 +275,11 @@ public sealed partial class WhisparrSync
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
+            WhisparrSyncLog.TrackRequestContained(
+                log,
+                target.Binding.Generation,
+                WhisparrSyncLog.Classify(failure),
+                target.Binding.BaseAddress.Host);
             return new MissingTrackResult(MissingTrackOutcome.NotStarted);
         }
 
@@ -289,9 +295,9 @@ public sealed partial class WhisparrSync
     }
 
     // A read that did not arrive answers null, so the caller reports it as nothing sent rather than
-    // failing the request.
+    // failing the request. The line names which read it was: one member serves both.
     private static async Task<WhisparrResponse?> ReadOrNullAsync(
-        Func<Task<WhisparrResponse>> read)
+        Func<Task<WhisparrResponse>> read, string named, MonitoringTarget target, ILogger log)
     {
         try
         {
@@ -299,6 +305,12 @@ public sealed partial class WhisparrSync
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
+            WhisparrSyncLog.AddDefaultsReadContained(
+                log,
+                named,
+                target.Binding.Generation,
+                WhisparrSyncLog.Classify(failure),
+                target.Binding.BaseAddress.Host);
             return null;
         }
     }

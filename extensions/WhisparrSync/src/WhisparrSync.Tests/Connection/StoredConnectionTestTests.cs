@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -199,7 +200,8 @@ public sealed class StoredConnectionTestTests
                 gate,
                 KeyPort(),
                 ReadingNotificationPort.Answering(RegistrationStatus.Registered),
-                new FixedClock(Now))
+                new FixedClock(Now),
+                NullLogger<ConnectionTestRunner>.Instance)
             .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
@@ -305,22 +307,45 @@ public sealed class StoredConnectionTestTests
     // A reading that did not arrive settles nothing, and must not turn a connection the instance
     // answered into a failed test.
     [Fact]
-    public async Task AReadingThatDidNotArriveLeavesTheStatusAndTheTestAlone()
+    public async Task AReadingThatDidNotArriveLeavesTheStatusAndTheTestAloneAndEmitsOneLine()
     {
         var options = await SeededAsync(
             null, null, null, registration: RegistrationStatus.Registered);
+        var log = new CapturingLogger<ConnectionTestRunner>();
 
         var view = await NewRunner(
                 RecordingConnectionTester.Connected("3.3.8.1097"),
                 options,
                 KeyPort(),
-                ReadingNotificationPort.Unreachable())
+                ReadingNotificationPort.Unreachable(),
+                log)
             .TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
         var stored = await ConnectionAsync(options);
         Assert.Equal(RegistrationStatus.Registered, stored.CallbackRegistration);
         Assert.Equal("3.3.8.1097", stored.RecordedVersion);
+
+        // Counted, not merely present: a second line for one swallowed failure is the defect.
+        Assert.Single(log.Entries);
+    }
+
+    // The control for the line above: a reading that arrived says nothing in the log.
+    [Fact]
+    public async Task AReadingThatArrivedEmitsNoLine()
+    {
+        var options = await SeededAsync(null, null, null);
+        var log = new CapturingLogger<ConnectionTestRunner>();
+
+        await NewRunner(
+                RecordingConnectionTester.Connected("3.3.8.1097"),
+                options,
+                KeyPort(),
+                ReadingNotificationPort.Answering(RegistrationStatus.Registered),
+                log)
+            .TestStoredAsync(TestCt);
+
+        Assert.Empty(log.Entries);
     }
 
     // The competing writer here is a settings save that moved the address. The probe answered about
@@ -370,14 +395,16 @@ public sealed class StoredConnectionTestTests
         IWhisparrConnectionTester tester,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrNotificationPort? notifications = null)
+        IWhisparrNotificationPort? notifications = null,
+        ILogger<ConnectionTestRunner>? log = null)
         => new(
             tester,
             options,
             new OptionsWriteGate(),
             credentials,
             notifications ?? ReadingNotificationPort.Answering(RegistrationStatus.Registered),
-            new FixedClock(Now));
+            new FixedClock(Now),
+            log ?? NullLogger<ConnectionTestRunner>.Instance);
 
     private static RecordingCredentialPort KeyPort()
         => new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredAddress, StoredKey);

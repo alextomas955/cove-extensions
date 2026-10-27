@@ -17,6 +17,7 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     private readonly BodyShape _shape;
     private readonly Func<string, string>? _byPath;
     private readonly Func<HttpMethod, string, (HttpStatusCode Status, string Answer)>? _byCall;
+    private Func<HttpMethod, string, bool>? _stopsPartWayOn;
 
     private BodyRecordingHandler(params (HttpStatusCode Status, string Answer)[] answers)
         : this(BodyShape.Whole, answers)
@@ -61,6 +62,17 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     public static BodyRecordingHandler AnsweringEach(
         Func<HttpMethod, string, (HttpStatusCode Status, string Answer)> answer)
         => new(answer);
+
+    // One call drops its body and the rest answer. A case about a failure contained on one request
+    // needs every other request on the way to it to succeed, which a handler-wide shape cannot give.
+    public static BodyRecordingHandler AnsweringEachAndStoppingPartWayOn(
+        Func<HttpMethod, string, (HttpStatusCode Status, string Answer)> answer,
+        Func<HttpMethod, string, bool> stopsPartWay)
+    {
+        var handler = new BodyRecordingHandler(answer);
+        handler._stopsPartWayOn = stopsPartWay;
+        return handler;
+    }
 
     // Generated rather than committed: the size is what the answer is for, so a fixture would be
     // eight megabytes of repository holding one fact. Declared here rather than in a case, so the
@@ -114,7 +126,12 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
         if (_byCall is not null)
         {
             var (called, answered) = _byCall(request.Method, path);
-            return new HttpResponseMessage(called) { Content = Content(answered) };
+            return new HttpResponseMessage(called)
+            {
+                Content = _stopsPartWayOn?.Invoke(request.Method, path) == true
+                    ? new StreamContent(new StoppingPartWayStream())
+                    : Content(answered),
+            };
         }
 
         var (status, answer) = _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();

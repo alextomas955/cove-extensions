@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Json;
 using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
@@ -66,6 +67,94 @@ public sealed class ContainedTransportFailureTests
             progress.Units);
         Assert.Contains(progress.Reports, report => report.Fraction >= 1d && report.SubTask is not null);
     }
+
+    // One line per swallowed failure. The count is asserted, not merely a presence: a second line
+    // for one failure is the defect the rule names.
+    [Fact]
+    public async Task ATrackRequestThatStopsPartWayEmitsOneLineAndStartsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync(bytes: TrackAddStoppingPartWay());
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var result = await TrackAsync(host, studio);
+
+        Assert.Equal(MissingTrackOutcome.NotStarted, result.Outcome);
+        Assert.Single(host.Log.Entries);
+    }
+
+    [Fact]
+    public async Task AQualityProfileReadThatStopsPartWayEmitsOneLine()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            bytes: Composed(
+                (_, path) => path.EndsWith("/qualityprofile", StringComparison.Ordinal)));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var result = await TrackAsync(host, studio);
+
+        Assert.Equal(MissingTrackOutcome.NotStarted, result.Outcome);
+        Assert.Single(host.Log.Entries);
+    }
+
+    // The two reads share one member, so a case driving only the first could not tell whether the
+    // second reaches the line at all.
+    [Fact]
+    public async Task ARootFolderReadThatStopsPartWayEmitsOneLineOfItsOwn()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            bytes: Composed((_, path) => path.EndsWith("/rootfolder", StringComparison.Ordinal)));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var result = await TrackAsync(host, studio);
+
+        Assert.Equal(MissingTrackOutcome.NotStarted, result.Outcome);
+        Assert.Single(host.Log.Entries);
+    }
+
+    // The control for the three above: a run every call answers whole logs nothing.
+    [Fact]
+    public async Task ATrackRequestEveryCallAnswersWholeEmitsNoLine()
+    {
+        await using var host = await MonitorHost.CreateAsync(bytes: Composed((_, _) => false));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var result = await TrackAsync(host, studio);
+
+        Assert.Equal(MissingTrackOutcome.Added, result.Outcome);
+        Assert.Empty(host.Log.Entries);
+    }
+
+    private static BodyRecordingHandler TrackAddStoppingPartWay()
+        => Composed((method, path) =>
+            method == HttpMethod.Post && path.EndsWith("/studio", StringComparison.Ordinal));
+
+    // The reads an add composes its defaults from, answered so a case reaches the call it is about.
+    private static BodyRecordingHandler Composed(Func<HttpMethod, string, bool> stopsPartWay)
+        => BodyRecordingHandler.AnsweringEachAndStoppingPartWayOn(
+            (_, path) => path switch
+            {
+                var route when route.EndsWith("/qualityprofile", StringComparison.Ordinal)
+                    => (HttpStatusCode.OK, """[{"id":4,"name":"Any"}]"""),
+                var route when route.EndsWith("/rootfolder", StringComparison.Ordinal)
+                    => (HttpStatusCode.OK, """[{"id":1,"path":"/config/library"}]"""),
+                _ => (HttpStatusCode.Created, """{"id":1}"""),
+            },
+            stopsPartWay);
+
+    private static async Task<MissingTrackResult> TrackAsync(MonitorHost host, int coveId)
+    {
+        var answered = await host.Http.PostAsync(
+            host.RouteFor("studio", coveId, "missing/track"), content: null, TestCt);
+
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<MissingTrackResult>(TestCt))!;
+    }
+
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static string UnitOf(int coveId) => coveId.ToString(CultureInfo.InvariantCulture);
 

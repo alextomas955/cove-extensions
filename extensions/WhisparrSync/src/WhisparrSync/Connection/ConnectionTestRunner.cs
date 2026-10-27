@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
@@ -31,7 +32,8 @@ internal sealed class ConnectionTestRunner(
     OptionsWriteGate gate,
     ICredentialPort credentials,
     IWhisparrNotificationPort notifications,
-    TimeProvider clock) : IConnectionTestRunner
+    TimeProvider clock,
+    ILogger<ConnectionTestRunner> log) : IConnectionTestRunner
 {
     public async Task<ConnectionTestView> TestTransientAsync(
         string? address, string? apiKey, CancellationToken ct)
@@ -151,6 +153,11 @@ internal sealed class ConnectionTestRunner(
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
+            WhisparrSyncLog.RegistrationReadContained(
+                log,
+                binding.Generation,
+                WhisparrSyncLog.Classify(failure),
+                binding.BaseAddress.Host);
             return RegistrationStatus.NotCheckedYet;
         }
     }
