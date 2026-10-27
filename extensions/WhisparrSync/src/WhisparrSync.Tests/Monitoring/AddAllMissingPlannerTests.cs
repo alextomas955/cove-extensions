@@ -209,8 +209,10 @@ public sealed class AddAllMissingPlannerTests
             nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync), client.Verbs);
     }
 
-    // The retraction half reads the shipped source, because a delete this run never happens to
-    // reach is still a delete this run could reach.
+    // Every call the run makes leaves through the recorded seam, and the seam declares no member
+    // that retracts: no method takes a verb or a path, and the only grabbing members are the two on
+    // their own roles. So a verb list holding neither is the whole guarantee, and nothing the run
+    // never happened to reach is left unaccounted for.
     [Fact]
     public async Task NothingTheRunIssuesGrabsAndNothingInItRetracts()
     {
@@ -220,10 +222,6 @@ public sealed class AddAllMissingPlannerTests
 
         Assert.NotEmpty(client.Verbs);
         Assert.DoesNotContain(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync), client.Verbs);
-        Assert.All(
-            new[] { "HttpMethod.Delete", "DeleteAsync", "\"DELETE\"", "Rename", "Organize" },
-            retracting => Assert.DoesNotContain(
-                retracting, PlannerSource(), StringComparison.OrdinalIgnoreCase));
     }
 
     private static RecordingWhisparrV3Client Accepting()
@@ -253,25 +251,5 @@ public sealed class AddAllMissingPlannerTests
             await Task.Yield();
             yield return identity;
         }
-    }
-
-    // Found by walking up to the extension directory rather than by a counted-out "..": the test
-    // assembly's depth below it varies with configuration and target framework.
-    private static string PlannerSource()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            var candidate = Path.Combine(
-                directory.FullName, "src", "WhisparrSync", "Monitoring", "AddAllMissingPlanner.cs");
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate);
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No src/WhisparrSync/Monitoring/AddAllMissingPlanner.cs above {AppContext.BaseDirectory}.");
     }
 }

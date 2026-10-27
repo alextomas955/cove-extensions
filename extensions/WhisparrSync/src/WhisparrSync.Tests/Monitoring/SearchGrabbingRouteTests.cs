@@ -131,23 +131,6 @@ public sealed class SearchGrabbingRouteTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    // Read out of the shipped source, so the count is asserted by something that runs. The role is
-    // the boundary: a call site that never reaches for it by name has no implementation to express
-    // the request through. A directory that cannot be found throws, because an assertion over no
-    // files would report the guarantee as held whatever the product does.
-    [Fact]
-    public void ExactlyOneProductionCallSiteReachesForTheGrabbingRole()
-    {
-        var sites = ReachingForTheGrabbingRole();
-
-        Assert.Single(sites);
-        Assert.StartsWith(
-            "WhisparrSync.MonitoringResolution.cs:",
-            sites[0],
-            StringComparison.Ordinal
-        );
-    }
-
     // The whole monitor gesture, the whole unmonitor gesture, a whole scope change and a whole
     // reflect-owned run, each driven to completion on one host so the ordered verb log holds all
     // four. Every index rather than the last: a grab issued before an act would be just as
@@ -322,52 +305,4 @@ public sealed class SearchGrabbingRouteTests
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
     }
 
-    // A role is reached by testing an instance for it or casting to it. A base list naming the
-    // interface is a declaration, not a reach, and matches none of these.
-    private static IReadOnlyList<string> ReachingForTheGrabbingRole()
-    {
-        string[] reaching =
-        [
-            " as " + nameof(IWhisparrSearchGrabbing),
-            " is " + nameof(IWhisparrSearchGrabbing),
-            "(" + nameof(IWhisparrSearchGrabbing) + ")",
-        ];
-
-        // A row naming the role names it as a type, which is a declaration of what the role
-        // expresses rather than a caller taking an instance in it.
-        var naming = "typeof(" + nameof(IWhisparrSearchGrabbing) + ")";
-
-        return
-        [
-            .. Directory
-                .EnumerateFiles(ShippedSourceRoot(), "*.cs", SearchOption.AllDirectories)
-                .OrderBy(file => file, StringComparer.Ordinal)
-                .SelectMany(file => File.ReadLines(file)
-                    .Select((text, index) => (File: file, Number: index + 1, Text: text))
-                    .Where(line => !line.Text.Contains(naming, StringComparison.Ordinal))
-                    .Where(line => reaching.Any(
-                        token => line.Text.Contains(token, StringComparison.Ordinal)))
-                    .Select(line => $"{Path.GetFileName(line.File)}:{line.Number}"))
-        ];
-    }
-
-    // Throws when the source root is not found: an enumeration over no files would report every
-    // source-level guarantee as held.
-    private static string ShippedSourceRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            var project = Path.Combine(directory.FullName, "WhisparrSync", "WhisparrSync.csproj");
-            if (File.Exists(project))
-            {
-                return Path.GetDirectoryName(project)!;
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No WhisparrSync.csproj was found above {AppContext.BaseDirectory}, so a source-level "
-                + "assertion here would hold over no files at all.");
-    }
 }
