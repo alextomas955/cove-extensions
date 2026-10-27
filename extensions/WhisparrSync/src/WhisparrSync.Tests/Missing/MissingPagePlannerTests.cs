@@ -12,6 +12,10 @@ public sealed class MissingPagePlannerTests
 {
     private const string StashDb = "https://stashdb.org/graphql";
 
+    // Transcribed from MissingPagePlanner, never read off it: a bound asserted against its own
+    // declaration holds at every value, including one the size of a library.
+    private const int ShippedOwnedQueryBatch = 500;
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -485,6 +489,23 @@ public sealed class MissingPagePlannerTests
 
         Assert.Equal(25, owned.Asked.Sum(batch => batch.Count));
         Assert.Equal(4, owned.Asked.Max(batch => batch.Count));
+    }
+
+    // The case above seeds the batch, so it holds whatever figure it was handed. This one drives the
+    // planner the product constructs and reads the figure off the query, because a widened default
+    // is a query parameter list the size of an entity's catalogue and every case that seeds its own
+    // batch stays green through it.
+    [Fact]
+    public async Task TheShippedBatchIsFiveHundredIdentifiersPerQuery()
+    {
+        var instance = new RecordingInstance(ScenesNamed([.. Many(ShippedOwnedQueryBatch + 1)]));
+        var owned = new RecordingOwned();
+
+        await PlannerOver(owned: owned)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(ShippedOwnedQueryBatch, owned.Asked[0].Count);
+        Assert.Single(owned.Asked[^1]);
     }
 
     [Fact]

@@ -19,6 +19,11 @@ public sealed class SiteSceneMonitorPassTests
     // The instance's own id for that site, off the answer the run already read.
     private const int SiteId = 11;
 
+    // Transcribed from SiteSceneMonitorPass, never read off it. A case that seeds from the constant
+    // and then asserts against it holds at every value, so a default widened to the size of a
+    // library would pass the chunking cases below unchanged.
+    private const int ShippedChunkSize = 500;
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // The timeout shape is the one WhisparrTransport.RequestTimeout produces, and it derives from the
@@ -27,14 +32,14 @@ public sealed class SiteSceneMonitorPassTests
     public static TheoryData<Type> UnanswerableReads =>
         [typeof(HttpRequestException), typeof(IOException), typeof(TaskCanceledException)];
 
-    // Seeded past SiteSceneMonitorPass.ChunkSize, read from the constant rather than restated, so a
-    // ceiling introduced at any value below the seed fails here. A cap would leave part of the
-    // library unmonitored and report a total that reads like a complete one. The chunk bounds what
-    // is held, so the numbers are asked about in reads of at most the chunk size.
+    // Seeded past the shipped chunk, so a ceiling introduced at any value below the seed fails here.
+    // A cap would leave part of the library unmonitored and report a total that reads like a
+    // complete one. The chunk bounds what is held, so the numbers are asked about in reads of at
+    // most that size, and the first read is asserted to be exactly it.
     [Fact]
     public async Task EverySceneTheReaderOwnsIsReachedAndNothingCapsHowMany()
     {
-        var owned = Scenes(SiteSceneMonitorPass.ChunkSize + 1);
+        var owned = Scenes(ShippedChunkSize + 1);
         var instance = new Instance(owned.Select(NumberOf));
 
         var (tally, provider) = await MonitorAsync(owned, instance);
@@ -44,8 +49,7 @@ public sealed class SiteSceneMonitorPassTests
         Assert.Equal(owned.Count, tally.Monitored);
         Assert.Equal(0, tally.NotMonitored);
         Assert.All(instance.SitesRead, read => Assert.Equal(SiteId, read));
-        Assert.All(
-            instance.RowReads, read => Assert.True(read.Count <= SiteSceneMonitorPass.ChunkSize));
+        Assert.Equal([ShippedChunkSize, 1], instance.RowReads.Select(read => read.Count));
         Assert.Equal(owned.Count, instance.RowReads.Sum(read => read.Count));
     }
 
@@ -130,7 +134,7 @@ public sealed class SiteSceneMonitorPassTests
     public async Task ARowReadThatCouldNotBeAnsweredCountsThoseScenesAsUnresolvedAndTheRunGoesOn(
         Type shape)
     {
-        var owned = Scenes(SiteSceneMonitorPass.ChunkSize + 1);
+        var owned = Scenes(ShippedChunkSize + 1);
         var instance = new Instance(owned.Select(NumberOf))
         {
             RefusingReadNumber = 1,
@@ -139,7 +143,7 @@ public sealed class SiteSceneMonitorPassTests
 
         var (tally, _) = await MonitorAsync(owned, instance);
 
-        Assert.Equal(SiteSceneMonitorPass.ChunkSize, tally.Unresolved);
+        Assert.Equal(ShippedChunkSize, tally.Unresolved);
         Assert.Equal(1, tally.Monitored);
         Assert.Equal(2, instance.RowReads.Count);
     }

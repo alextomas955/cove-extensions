@@ -10,6 +10,11 @@ public class TreeEntryPassTests
 {
     private const int SiteRow = 12;
 
+    // Transcribed from TreeEntryPass, never read off it. A case that seeds from the constant and
+    // then asserts against it holds at every value, so a default widened to the size of a library
+    // would pass the chunking cases below unchanged.
+    private const int ShippedChunkSize = 500;
+
     private static TreeEntryPorts Ports(
         IReadOnlyList<string> scenes,
         Dictionary<string, int> numbers,
@@ -105,7 +110,7 @@ public class TreeEntryPassTests
     [Fact]
     public async Task MoreScenesThanOneChunkAreHandedOverAChunkAtATimeAndNeverAsOne()
     {
-        var scenes = Enumerable.Range(1, TreeEntryPass.ChunkSize + 3)
+        var scenes = Enumerable.Range(1, ShippedChunkSize + 3)
             .Select(number => $"scene-{number}")
             .ToArray();
         var asked = new List<IReadOnlyCollection<int>>();
@@ -125,9 +130,8 @@ public class TreeEntryPassTests
             SiteRow,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal([TreeEntryPass.ChunkSize, 3], asked.Select(chunk => chunk.Count));
-        Assert.Equal(
-            [TreeEntryPass.ChunkSize, 3], batches.Select(batch => batch.ByName.Count));
+        Assert.Equal([ShippedChunkSize, 3], asked.Select(chunk => chunk.Count));
+        Assert.Equal([ShippedChunkSize, 3], batches.Select(batch => batch.ByName.Count));
         Assert.Equal(scenes.Length, batches.Sum(batch => batch.Tally.Addressed));
     }
 
