@@ -10,14 +10,14 @@
 // different device at the kernel level, and the assertion below reads both devices rather than
 // assuming it.
 //
-// WHAT THIS DOES NOT ESTABLISH, AND WHERE IT WAS DRIVEN INSTEAD. That the entity's registration
+// What this does not establish, and where it was driven instead. That the entity's registration
 // follows its files to the new drive. The second device here is inside the Cove container only: the
 // instance mounts the library's volume and nothing else, so it can reach no path on that drive and
 // agrees to no root there. The whole journey - the link rebuilt under the new drive's tree, the
 // registration moved to it, and the old name taken back - is driven on a stack with two real drives
 // both products mount, on both generations.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { pollUntil } from "@cove-extensions/e2e/poll";
 

@@ -1,13 +1,13 @@
 // The verb only v3 holds, and the rows a monitored entity offers, driven from a real studio page
 // against a real instance.
 //
-// WHY THIS FILE IS GENERATION-SPECIFIC. Registering the missing scenes of a studio is a capability
+// Why this file is generation-specific. Registering the missing scenes of a studio is a capability
 // the product's own table gives to this generation alone, so there is no same gesture on v2 to pair
 // it with. Its two former neighbours - handing the instance a file the library owns, and asking it
 // to search what an entity monitors - are held by both, and each is now one shared scenario pressed
 // on both generations.
 //
-// WHAT IS LEFT HERE THAT NO OTHER TIER REACHES:
+// What is left here that no other tier reaches:
 //
 // - Whether the three rows exist at all on a monitored entity, and whether they are ABSENT rather
 //   than disabled on one nothing monitors. Three routes were mounted for them, and mounting a route
@@ -20,7 +20,7 @@
 // to press, which row must be absent. A locator built from a hand-copied literal stops finding its
 // row the day the row is renamed, silently.
 //
-// WHAT THIS SPEC DELIBERATELY DOES NOT COVER, AND WHY IT IS NOT AN OMISSION. The sentence an action
+// What this spec deliberately does not cover, and why it is not an omission. The sentence an action
 // that never arrived states is reached from `state.actionError`, which is set only when the
 // EXTENSION's own route answers non-2xx. An unreachable Whisparr is not that case: the route reaches
 // it, fails to, and answers a refusal with a 200, which the browser states its own sentence for. So
@@ -28,7 +28,7 @@
 // see it would assert a condition rather than observe one. The notice's own geometry is asserted in
 // reflect-owned.shared.spec.mjs, on the same portal path and on a notice a real gesture produced.
 //
-// IF THIS SPEC GOES RED, read the log for a container-not-running line before debugging the UI. A red
+// If this spec goes red, read the log for a container-not-running line before debugging the UI. A red
 // e2e in this repository is usually the Cove container dying rather than the page under test.
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { readFileSync } from "node:fs";

@@ -4,17 +4,17 @@
 // no card badge, no toolbar toggle, no list row, no detail action and no bulk button. This spec is
 // the evidence that the bulk button is absent rather than present and explaining itself.
 //
-// WHY AN ABSENCE IS WORTH A SPEC. The bulk action is registered in the manifest, and a manifest
+// Why an absence is worth a spec. The bulk action is registered in the manifest, and a manifest
 // entry that slipped outside the generation gate would put a control for a kind this connection
 // cannot address back in front of a reader, with nothing in the build to notice. The host draws the
 // selection bar either way, so the bar is waited for first and the button read inside it: a bar that
 // never rendered would otherwise report as a button that is correctly gone.
 //
-// WHAT IT DOES NOT COVER. Whether pressing such a button would change anything on the instance. There
+// What it does not cover. Whether pressing such a button would change anything on the instance. There
 // is no button to press. The instance's rows are read anyway, so a build that reached it through some
 // other path is not recorded here as a clean pass.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 import { randomUUID } from "node:crypto";
 
 import {

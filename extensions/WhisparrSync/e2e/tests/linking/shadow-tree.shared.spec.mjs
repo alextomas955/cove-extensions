@@ -5,19 +5,19 @@
 // The generation is a fixture option rather than anything this body reads: both generations keep a
 // tree of their own, and what each calls its tree folder comes from the adapter.
 //
-// WHY THE EVIDENCE IS A SHELL. Cove cannot see the tree, and that is the capability rather than an
+// Why the evidence is a shell. Cove cannot see the tree, and that is the capability rather than an
 // obstacle: the ignore file at the tree root is what keeps the host's scan out of everything below
 // it. So there is no Cove route that answers what is in there. The instance's own filesystem route
 // reads a directory but reports no identity, and identity is what tells a second NAME for a file
 // from a second COPY of it. Both are read with `stat` in a container mounting the volume.
 //
-// WHAT THIS DOES NOT ESTABLISH. That the registration the run sends names the folder. Neither
+// What this does not establish. That the registration the run sends names the folder. Neither
 // generation creates a catalogue entry for an identifier it cannot resolve against its vendor's
 // metadata service, and no stand-in for that service is wired here, so the run's add lands on an
 // entry the fixture seeded rather than creating one. The folder reaching the add body is asserted
 // in the backend suite, against the body the instance received.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { attemptUntil, pollUntil } from "@cove-extensions/e2e/poll";
 

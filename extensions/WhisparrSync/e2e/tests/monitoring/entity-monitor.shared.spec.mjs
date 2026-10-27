@@ -5,16 +5,16 @@
 // instance, seeds the catalogue and supplies the read, so the actions and the assertions below are
 // the same words whichever generation is connected.
 //
-// WHAT THE EVIDENCE IS. The monitored flag is read off the instance's own row, never off this
+// What the evidence is. The monitored flag is read off the instance's own row, never off this
 // product's answer. A route that replied 200 and wrote nothing would pass an assertion made against
 // its reply. Both directions are driven for the same reason: a route writing a constant would pass
 // either one alone.
 //
-// WHY THE STUDIO IS SEEDED IN COVE THROUGH THE FIXTURE'S OWN CLIENT. Finding that studio in the
+// Why the studio is seeded in cove through the fixture's own client. Finding that studio in the
 // browser is what says the client and the browser address one installation. A browser left on
 // another Cove reads another database and renders no such studio.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { pollUntil } from "@cove-extensions/e2e/poll";

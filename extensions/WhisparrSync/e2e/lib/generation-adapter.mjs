@@ -1,14 +1,14 @@
 // What a generation calls a thing, and how a spec reads that generation's state off the instance.
 //
-// WHAT THIS IS FOR. A scenario written once and collected once per generation has to reach the
+// What this is for. A scenario written once and collected once per generation has to reach the
 // handful of places the two differ without naming either of them in its body. Those places are
 // spellings and read routes, not actions, so they all live here.
 //
-// WHAT IT NEVER DOES. It never performs the action under test. Every member below either names a
+// What it never does. It never performs the action under test. Every member below either names a
 // constant or reads the instance's own rows; a member that called one of this extension's routes
 // would make a spec's evidence come from the thing the spec is about.
 //
-// WHY EVERY READER REFUSES. A refused listing and an instance holding nothing are different facts.
+// Why every reader refuses. A refused listing and an instance holding nothing are different facts.
 // Read as empty data the first reads as the second, and a scenario then reports that the walk
 // imported nothing when what really happened is that it never saw a page. So every reader takes the
 // STATUS as well as the shape: a refusal carrying a plausible body - 503 with `[]`, 503 with a

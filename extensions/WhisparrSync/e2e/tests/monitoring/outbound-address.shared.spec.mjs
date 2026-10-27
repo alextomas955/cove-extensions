@@ -1,12 +1,12 @@
 // The folder this product hands an instance, against a running pair whose mounts differ on purpose.
 //
-// ONE FILESYSTEM AT TWO PATHS. `reflect-owned.shared.spec.mjs` mounts the library's volume in the
+// One filesystem at two paths. `reflect-owned.shared.spec.mjs` mounts the library's volume in the
 // instance at Cove's own path, so a folder handed over unchanged resolves whether or not this
 // product re-rooted anything. Here the instance mounts the same volume somewhere else, which is what
 // a container deployment really looks like and what hides the defect: a path the instance cannot
 // open lists nothing importable, and the run completes reporting no failure.
 //
-// WHAT THE EVIDENCE IS. The instance's own file rows for the seeded entry, read through the
+// What the evidence is. The instance's own file rows for the seeded entry, read through the
 // generation adapter. Not this product's answer, and not the line the run reports about itself. The
 // reported line is asserted separately, and only as the reason a run linked nothing.
 //
@@ -16,7 +16,7 @@
 // sits under, and a root a directory above produces a tail carrying a segment the instance's own
 // root already holds.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying rather than
 // the code under test.
 import { attemptUntil, pollUntil } from "@cove-extensions/e2e/poll";
@@ -110,7 +110,7 @@ for (const generation of ["v3", "v2"]) {
       );
     });
 
-    // WHAT THIS ESTABLISHES, and what it does not. With no Cove library path naming the instance's
+    // What this establishes, and what it does not. With no Cove library path naming the instance's
     // own catalogue root, every path the product forms is one the instance cannot see: its mount is
     // its own and it holds no /shared at all. So this establishes that a folder the instance cannot
     // see is reported as that, and it establishes nothing about a mapping - no case here supplies

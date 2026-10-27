@@ -1,16 +1,16 @@
 // A stand-in for the metadata service the Missing tab reads a catalogue from.
 //
-// WHY IT IS NEEDED. Cove reads a studio's scene catalogue from a hosted service of a third party's,
+// Why it is needed. Cove reads a studio's scene catalogue from a hosted service of a third party's,
 // behind a key. A suite that asks the real one needs that key on the machine running it, which no
 // runner has, so a spec that read a catalogue would stop early and report a pass over assertions it
 // never reached.
 //
-// WHY IT CAN STAND IN AT ALL. The address is configuration, not a constant: Cove holds the metadata
+// Why it can stand in at all. The address is configuration, not a constant: Cove holds the metadata
 // servers and this product reads whichever one shares a registrable domain with the identity an
 // entity carries. A container answering to the service's own name on this network is therefore the
 // configured server, with no change to the product and no change to what an entity's identity says.
 //
-// WHAT IT SERVES. The page a real instance of the service answered, captured beside the backend
+// What it serves. The page a real instance of the service answered, captured beside the backend
 // tests. It composes nothing: a query it was given no answer for gets an empty object, which is what
 // the service itself returns for a collection holding nothing.
 import { GenericContainer, Wait } from "testcontainers";

@@ -1,11 +1,11 @@
 // A stand-in for the metadata service v2 identifies entities against.
 //
-// WHY IT IS NEEDED. This product refuses to read anything for an entity whose source the host names
+// Why it is needed. This product refuses to read anything for an entity whose source the host names
 // no server for, and a server carrying no key is the same refusal. A suite that registered the real
 // service would need that service's key on the machine running it, which no runner has, so every
 // read on this generation stopped at "no provider is configured" before any surface was reached.
 //
-// WHAT IT REACHES, AND WHAT IT DOES NOT. Registering this container as the host's server for that
+// What it reaches, and what it does not. Registering this container as the host's server for that
 // source is what makes the source RESOLVE, which is the gate above. It is not what makes the
 // catalogue readable: this generation's catalogue client builds its request against a compiled-in
 // `https://api.theporndb.net` (Providers/ProviderEndpointPort.cs, read at
@@ -14,7 +14,7 @@
 // generated certificate installed into the Cove container's trust store, which this suite does not
 // do. The stub's own log is the evidence of which of the two happened on any given run.
 //
-// WHAT IT SERVES. The page a real instance of the service answered, captured beside the backend
+// What it serves. The page a real instance of the service answered, captured beside the backend
 // tests.
 import { GenericContainer, Wait } from "testcontainers";
 import { join } from "node:path";

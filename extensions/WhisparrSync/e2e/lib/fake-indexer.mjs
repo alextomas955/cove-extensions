@@ -6,16 +6,16 @@
 // single-file torrent carrying an HTTP webseed (`url-list`, BEP-19) pointing at `/content/<file>`,
 // so the download client fetches the bytes over HTTP and reaches 100% with nothing else running.
 //
-// WHY A WEBSEED. The alternative is a tracker plus a seeding peer inside a closed Docker network,
+// Why a webseed. The alternative is a tracker plus a seeding peer inside a closed Docker network,
 // which is three more containers and a DHT that cannot bootstrap there. A webseed is a real torrent
 // download through a real torrent engine with none of that.
 //
-// WHY A REAL VIDEO FILE. The payload has to be a file ffprobe can parse, or the import stalls in
+// Why a real video file. The payload has to be a file ffprobe can parse, or the import stalls in
 // `importPending` on a header-parsing failure. It also has to be long enough that the instance's
 // sample detection does not hold it there with the single word "Sample". A committed fixture is
 // copied in; the image has no ffmpeg to synthesize one.
 //
-// EACH OF THESE WAS A LIVE IMPORT BLOCKER, not an anticipated one:
+// Each of these was a live import blocker, not an anticipated one:
 //   - `pubDate` must be a valid RFC-822 date whose day-of-week MATCHES, or the parser throws "day of
 //     week was incorrect" and drops the item. Wed = 2025-01-01.
 //   - the release must carry a caps-mapped category (2000/6000), not a bare subcategory, or it is

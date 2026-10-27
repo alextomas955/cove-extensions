@@ -546,7 +546,7 @@ test.describe("scene tab", () => {
       `the names driven here are ${String(LONG_PROFILE_NAME.length)} and ${String(LONG_CUTOFF_GROUP_NAME.length)} characters, under the ${String(LONG_NAME_FLOOR)} this measurement needs to be about truncation at all`,
     ).toBe(true);
 
-    // ONE SCENE, READ TWICE. The profile is renamed between the two readings rather than a second
+    // One scene, read twice. The profile is renamed between the two readings rather than a second
     // scene being seeded under a second profile: the width of the host's content column follows
     // the page it is on, so two pages cannot tell a block widened by a value from a block sitting
     // in a wider column. Same video, same tab, same two viewports, and the instance's answer is
@@ -617,7 +617,7 @@ test.describe("scene tab", () => {
   // scene in an order that matters: exclude changes the state monitor and search read back, so it
   // goes last. This is the shape missing-card.spec.mjs already uses for the same reason.
   //
-  // EVERY STATE ASSERTION IS THE INSTANCE'S OWN. No case supplies the state it then asserts: after
+  // Every state assertion is the instance's own. No case supplies the state it then asserts: after
   // each press the instance is read and the tab is asserted to agree with what it answered. A tab
   // painting the state the browser asked for disagrees with that read whenever a verb is refused,
   // which is the failure this spec exists to catch.

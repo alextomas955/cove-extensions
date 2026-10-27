@@ -1,6 +1,6 @@
 // A Docker volume two or more containers in one test mount at the same path.
 //
-// WHY A VOLUME AND NOT A BIND MOUNT. The rest of this harness deliberately never bind-mounts a host
+// Why a volume and not a bind mount. The rest of this harness deliberately never bind-mounts a host
 // directory: that depends on the host's Docker file-sharing configuration, so the suite would run
 // only where the right drive happens to be shared. A named volume is created through the same Docker
 // connection Testcontainers already uses and is portable to any machine and any CI runner.

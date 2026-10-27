@@ -3,17 +3,17 @@
 // Cove opens the file that message named. One journey per generation, each against an installation
 // of its own.
 //
-// WHAT THE REST OF THE SUITE DOES INSTEAD. `import-webhook.shared.spec.mjs` composes a delivery body
+// What the rest of the suite does instead. `import-webhook.shared.spec.mjs` composes a delivery body
 // itself and posts it. That proves what Cove does with a delivery; it cannot prove that Whisparr
 // sends one, that the body it sends is the body the extension reads, or that the path it names
 // resolves to a file Cove can open. Nothing here writes a delivery body or a torrent peer.
 //
-// WHY A DOWNLOAD CLIENT AND NOT A HAND-PLACED FILE. Measured, not assumed: telling Whisparr to import
+// Why a download client and not a hand-placed file. Measured, not assumed: telling Whisparr to import
 // a file already on disk does import it, and raises no `Download` event. The extension acts on that
 // one event, so a hand-placed file reaches Cove as a delivery it correctly ignores. Only an import
 // that came from a download client produces the event the product listens for.
 //
-// WHAT MAKES IT POSSIBLE. One Docker volume, mounted by Cove, Whisparr and qBittorrent. Whisparr and
+// What makes it possible. One Docker volume, mounted by Cove, Whisparr and qBittorrent. Whisparr and
 // qBit see it at /data and Cove at /shared, one filesystem on one device, so the completed download is
 // where Whisparr expects it, the hardlink import has somewhere to land, and the imported file is one
 // Cove can open.
@@ -25,18 +25,18 @@
 // /shared/media is added as a Cove library path because it names the same directory as Whisparr's own
 // root.
 //
-// WHERE THE DOWNLOAD LANDS, and why it must not stay there. The entry is registered at the folder
+// Where the download lands, and why it must not stay there. The entry is registered at the folder
 // this extension keeps for it, so Whisparr imports the completed download into that folder, which is
 // inside the tree. The tree is invisible to Cove's own scan by design, so an item whose only file
 // sits there is outside the reader's layout and beyond anything a rescan would find again. The
 // extension gives the same bytes a second name under the library root and registers that one.
 //
-// WHY BOTH PRODUCTS ARE GIVEN THE ROOT. Whisparr owns what it downloads and Cove makes the second
+// Why both products are given the root. Whisparr owns what it downloads and Cove makes the second
 // name, so both write the same directory. The fixture hands the volume to the instance's user, which
 // leaves Cove unable to create anything and the placement refused for a reason that has nothing to
 // do with the product.
 //
-// IF THIS GOES RED, read the diagnostics it prints before failing. They name which link broke: the
+// If this goes red, read the diagnostics it prints before failing. They name which link broke: the
 // indexer answering, the engine downloading, Whisparr importing, the extension placing, or Cove
 // opening.
 import { WHISPARR_APP_USER, WHISPARR_DATA_MOUNT } from "@cove-extensions/e2e/whisparr";

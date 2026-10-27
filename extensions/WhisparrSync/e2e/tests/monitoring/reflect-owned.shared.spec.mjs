@@ -7,15 +7,15 @@
 // supplies the reads, so the gestures and the assertions below are the same words whichever
 // generation is connected.
 //
-// ONE FILESYSTEM AT ONE PATH. The verb hands the instance a folder the LIBRARY names, so an instance
+// One filesystem at one path. The verb hands the instance a folder the LIBRARY names, so an instance
 // mounting Cove's volume anywhere else is handed a path it cannot read: it links nothing and the run
 // still completes reporting no failure. The fixture's `ownedMedia` option is what arranges that.
 //
-// WHAT THE EVIDENCE IS. The instance's own file rows, never this product's answer and never the line
+// What the evidence is. The instance's own file rows, never this product's answer and never the line
 // the run reports about itself. "0 linked, 0 refused" satisfies the line, so a spec resting on it
 // passes a run that handed over nothing.
 //
-// BOTH HALVES OF THE SETTING. Linking is what the gesture does, and the instance's own hard-link
+// Both halves of the setting. Linking is what the gesture does, and the instance's own hard-link
 // setting decides whether it links or copies. With it off the product declines rather than doubling
 // the disk, and the notice it leaves is the reader's only word that nothing happened and why. That
 // notice renders through a portal because the host clips its entity hero, and whether the escape
@@ -25,7 +25,7 @@
 // to press and which notice to find. A locator built from a hand-copied literal stops finding its
 // row the day the row is renamed, silently.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { attemptUntil, pollUntil } from "@cove-extensions/e2e/poll";

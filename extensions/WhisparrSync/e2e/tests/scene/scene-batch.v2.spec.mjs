@@ -8,7 +8,7 @@
 // The manifest is read before the page, because the host draws no selection bar at all while
 // nothing is selected, so an absent button and an absent registration look alike from the page.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";

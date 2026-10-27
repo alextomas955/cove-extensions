@@ -1,15 +1,15 @@
 // The addresses and spellings this extension answers to, written down once.
 //
-// WHY ONE PLACE. These are strings the specs USE, not values they claim. What pins them is the
+// Why one place. These are strings the specs USE, not values they claim. What pins them is the
 // backend suite: a test emits the wire document from the shipped registrations and fails when the
 // committed copy differs, so a renamed route is already caught, by name, before any spec runs.
 // Repeating each address in every spec that calls it pins nothing a second time and drifts.
 //
-// WHAT DOES NOT BELONG HERE. A value a spec ASSERTS. Read from the same symbol the product reads,
+// What does not belong here. A value a spec ASSERTS. Read from the same symbol the product reads,
 // an assertion says a string equals itself. Those stay written out where they are asserted - the
 // wire spellings of a refusal, a state, a capability set.
 //
-// WHAT ALSO DOES NOT BELONG HERE. Anything of Whisparr's own. That contract is the vendor's, and
+// What also does not belong here. Anything of Whisparr's own. That contract is the vendor's, and
 // re-verifying it means re-capturing a payload rather than re-typing a constant. The captured
 // deliveries below are paths to those recordings, not transcriptions of them.
 import { join } from "node:path";

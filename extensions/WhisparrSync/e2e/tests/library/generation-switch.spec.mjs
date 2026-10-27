@@ -1,19 +1,19 @@
 // What changing the connected generation does to the surfaces on the page, in a real containerized
 // host.
 //
-// WHY THIS SPEC EXISTS. Which surfaces this extension registers is decided by the generation the
+// Why this spec exists. Which surfaces this extension registers is decided by the generation the
 // connection names, and the browser learns the set from a manifest it fetches on load. Nothing
 // pushes a new one. So the whole gate rests on a reload reading a manifest built from the other
 // generation, and only a run that switches the connection and reloads can say whether it does.
 //
-// WHY IT IS ITS OWN FILE. The connected generation is a global extension setting. A test that
+// Why it is its own file. The connected generation is a global extension setting. A test that
 // changes it cannot share an installation with tests that expect a fixed connection, and it cannot
 // sit beside them in a file that declares one generation for all of it.
 //
-// WHY BOTH INSTANCES ARE STARTED AT ONCE. What is measured is the difference between two
+// Why both instances are started at once. What is measured is the difference between two
 // connections. A run that started one of them only would compare a generation with itself.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { randomUUID } from "node:crypto";

@@ -3,19 +3,19 @@
 //
 // One scenario, collected once per generation, each execution against an installation of its own.
 //
-// WHY THIS IS NOT COVERED BY THE WEBHOOK SPECS. Those compose a delivery naming a file the
+// Why this is not covered by the webhook specs. Those compose a delivery naming a file the
 // instance downloaded, which is an arrival and must reach the library. This one names a file the
 // LINKING half handed over, whose bytes the library already holds under the reader's own name. The
 // two look alike on the wire and differ in one thing: whether the name is one this extension
 // composed. A product that reads them alike doubles a reader's library with rows carrying no title
 // and a file number for a name.
 //
-// WHY THE INSTANCE IS GIVEN THE LIBRARY ROOT. The extension only reads a delivery whose path lies
+// Why the instance is given the library root. The extension only reads a delivery whose path lies
 // under a root the reporting instance declares, and an installation where the instance downloads
 // into the library declares that library root. Without it the delivery is refused for the root
 // rather than settled for the name, and the spec would pass with the whole reading deleted.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { createApiClient } from "@cove-extensions/e2e";
 import { registerRootFolder } from "@cove-extensions/e2e/whisparr";

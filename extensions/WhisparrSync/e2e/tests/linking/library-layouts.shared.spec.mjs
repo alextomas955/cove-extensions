@@ -1,6 +1,6 @@
 // A library arranged the way readers arrange libraries, and every entity in it registering anyway.
 //
-// WHAT IS BEING CLAIMED. What a reader can link stops depending on how their own folders are
+// What is being claimed. What a reader can link stops depending on how their own folders are
 // arranged. Both generations refuse a second entity at a folder another entity already uses, so a
 // library that keeps several entities' files in one folder can register one of them and no more.
 // The folder this extension builds for each entity is what removes that: every entity gets a folder
@@ -23,14 +23,14 @@
 // folder the files were in and what they were called is the fixture's business, and the body reads
 // only what the instance now holds and what is on disk.
 //
-// WHAT THIS DOES NOT ESTABLISH. What the instance RECORDED against each entry. A file is recorded
+// What this does not establish. What the instance RECORDED against each entry. A file is recorded
 // from a folder of links only where the instance declares a root above that folder, and on one
 // generation only where the scene's own number can be resolved against the metadata service that
 // numbers it - a hosted service no sealed run reaches. The recording is driven on a stack with
 // real credentials instead. What is driven here is what the tree exists for: the registration and
 // the links.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { pollUntil } from "@cove-extensions/e2e/poll";
 

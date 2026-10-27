@@ -6,12 +6,12 @@
 // instance, seeds the catalogue and supplies the reads, so the gesture and the assertions below are
 // the same words whichever generation is connected.
 //
-// THIS IS THE ONE GESTURE ON THIS SURFACE THAT DOWNLOADS, and it is safe to press because the
+// This is the one gesture on this surface that downloads, and it is safe to press because the
 // instance is asserted to hold no indexer and no download client before anything happens. A search
 // it starts then has nowhere to search and nothing to hand a transfer to. Its queue is read
 // afterwards for the other half of that claim.
 //
-// WHAT THE EVIDENCE IS. The instance's own command roster, never this product's answer. The route
+// What the evidence is. The instance's own command roster, never this product's answer. The route
 // answers a monitoring view rather than a job, so its answer says nothing about whether the request
 // arrived, and a route that wrote nothing would pass an assertion made against its reply. The roster
 // is never expected to be empty - the instance runs scheduled tasks of its own - so the roster is
@@ -26,7 +26,7 @@
 // the sentence is what is asserted, and reading the constant the component renders would assert that
 // a string equals itself.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { attemptUntil, pollUntil } from "@cove-extensions/e2e/poll";

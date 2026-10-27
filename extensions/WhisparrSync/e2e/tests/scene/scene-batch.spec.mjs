@@ -345,7 +345,7 @@ test.describe("scene batch", () => {
       `the run reported ${JSON.stringify(entry.reported)}, so the gesture did not reach every selected scene`,
     ).toEqual({ total: SEEDED_SCENES, succeeded: SEEDED_SCENES, failed: 0, skipped: 0 });
 
-    // NOTHING THE READER IS SHOWN GROWS WITH THE SELECTION, asserted on the whole of the
+    // Nothing the reader is shown grows with the selection, asserted on the whole of the
     // extension's own line and on the absence of the scenes' own names.
     //
     // A Cove id is not what is looked for here: an id of a digit or two is a substring of the

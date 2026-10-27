@@ -5,22 +5,22 @@
 // fails the attach outright, because with a new name to write the import is no longer in place, so it
 // transfers, the hard link fails, and nothing is recorded. Neither is acceptable, so the run refuses.
 //
-// WHY THIS DRIVES THE MENU ROW RATHER THAN THE LIBRARY PASS. The setting is read at one gate, and
+// Why this drives the menu row rather than the library pass. The setting is read at one gate, and
 // that gate is on the path that asks the instance to take a file in. Both generations reach it from
 // this row. The library pass reaches it on one of them only, because on the other the pass that
 // registers sites asks the instance to take nothing in and therefore reads no setting.
 //
-// WHAT THE EVIDENCE IS. The instance's own file rows for the seeded entry, and what the route
+// What the evidence is. The instance's own file rows for the seeded entry, and what the route
 // answered. Not this product's account of what it did.
 //
-// WHY THE SPEC WRITES THE SETTING AND THE EXTENSION NEVER DOES. These config routes replace what they
+// Why the spec writes the setting and the extension never does. These config routes replace what they
 // are sent, so a caller that read one and wrote it back would reset every member it did not carry.
 // The extension holds a read and no write; arranging the setting is this spec's own work.
 //
 // THE SENTENCE IS IMPORTED FROM THE SHIPPED COPY MODULE, because here it is a LOCATOR. One built from
 // a hand-copied literal stops finding its notice the day the notice is reworded, silently.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 

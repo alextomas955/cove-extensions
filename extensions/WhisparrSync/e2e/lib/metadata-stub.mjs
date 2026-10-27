@@ -1,16 +1,16 @@
 // A stand-in for the hosted metadata service the instance resolves every identifier through.
 //
-// WHY IT IS NEEDED. Neither generation calls the metadata source directly. Every lookup goes to a
+// Why it is needed. Neither generation calls the metadata source directly. Every lookup goes to a
 // hosted service of the vendor's, which no sealed container run can reach, so an entity read that
 // resolves an identifier answers "the instance refused" and no monitoring can be driven at all.
 //
-// WHY IT SERVES SYNTHETIC ROWS. It answers for the rows the caller seeded and for nothing else. That
+// Why it serves synthetic rows. It answers for the rows the caller seeded and for nothing else. That
 // is possible because a spec using this owns both sides: it wrote the catalogue row, so it knows the
 // identifier and can say what a lookup of it returns. Replaying recordings of the real service would
 // put a copy of somebody else's catalogue in this repository to prove something the spec already
 // controls.
 //
-// IT REACHES NOTHING. There is no forwarding path in the served script. A request matching no seeded
+// It reaches nothing. There is no forwarding path in the served script. A request matching no seeded
 // row answers an empty array, which is the same answer the real service gives for an identifier it
 // does not know, and it cannot fall through to the real service.
 import { GenericContainer, Wait } from "testcontainers";

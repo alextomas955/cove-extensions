@@ -1,12 +1,12 @@
 // One Cove installation per test, with one Whisparr generation connected to it, addressed by both
 // the browser and the API client.
 //
-// WHY BOTH OVERRIDES. The `page` fixture resolves its address through `baseUrl`, and the shared
+// Why both overrides. The `page` fixture resolves its address through `baseUrl`, and the shared
 // `api` fixture is wired to the worker-shared harness independently of it. Overriding one alone
 // leaves the browser and the client on different Cove instances, and both answer, so a spec reads
 // one database and asserts against another.
 //
-// WHY THE GENERATION IS AN OPTION. Which generation is connected is a global extension setting, so
+// Why the generation is an option. Which generation is connected is a global extension setting, so
 // two executions of one scenario cannot share an installation. An option is also the only thing a
 // fixture can read: a variable a spec's own loop closes over is invisible to the fixture that has to
 // decide which container to start.

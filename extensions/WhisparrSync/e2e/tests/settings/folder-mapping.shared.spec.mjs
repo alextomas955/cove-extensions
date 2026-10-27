@@ -1,13 +1,13 @@
 // The path an operator states for a library folder Whisparr could not be shown to hold, driven from
 // the settings page against a running pair whose mounts differ on purpose.
 //
-// WHAT THIS ESTABLISHES. That a stated path is refused until a probe resolves the folder under it,
+// What this establishes. That a stated path is refused until a probe resolves the folder under it,
 // that one which does resolve makes the next run hand the instance the file, and that the path in
 // force can then be read back at the settings page and withdrawn there. The evidence for the second
 // part is the instance's own file rows for the seeded entry, read through the generation adapter:
 // not this product's answer and not the line the run reports about itself.
 //
-// WHAT IT DOES NOT ESTABLISH. Nothing about more than one candidate resolving. A stated path builds
+// What it does not establish. Nothing about more than one candidate resolving. A stated path builds
 // exactly one candidate, so that outcome cannot arise through the save at all, and this harness has
 // one filesystem and could not arrange two places holding the file even where it could.
 //
@@ -16,7 +16,7 @@
 // the roots the instance declares is therefore one the instance cannot open, which is what leaves
 // the first run with a folder nothing resolved for and the prompt with something to ask about.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying rather than
 // the code under test.
 import { attemptUntil } from "@cove-extensions/e2e/poll";

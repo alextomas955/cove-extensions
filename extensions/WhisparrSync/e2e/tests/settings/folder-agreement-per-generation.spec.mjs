@@ -1,10 +1,10 @@
 // A folder answer belongs to the instance that gave it, driven against one Cove holding both
 // generations.
 //
-// WHAT THIS ESTABLISHES. That a path stated and stored against one generation is not reported for
+// What this establishes. That a path stated and stored against one generation is not reported for
 // the other, and that switching back returns the first generation's own answer.
 //
-// WHY IT IS NOT PART OF THE SHARED FOLDER-MAPPING SPEC. That spec parameterises on the generation
+// Why it is not part of the shared folder-mapping spec. That spec parameterises on the generation
 // with `test.use`, which gives each its own Cove installation. Both generations are never in one
 // installation there, and the selection never moves, so the defect this covers cannot arise in it.
 //
@@ -12,7 +12,7 @@
 // than through a probe. What is under test is which generation an answer is filed under and read
 // back from, not whether a probe resolves, and the probe path is already covered.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { expect } from "@cove-extensions/e2e";
 

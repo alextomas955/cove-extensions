@@ -15,7 +15,7 @@
 // NO SEARCH IS EXECUTED HERE. The search row is read and never pressed, and the wider scope is
 // cancelled rather than confirmed, so the instance's catalogue is left as the fixture seeded it.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
+// If this spec goes red, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
 import { pollUntil } from "@cove-extensions/e2e/poll";

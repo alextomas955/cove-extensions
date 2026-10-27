@@ -7,22 +7,22 @@
 // which leaves the entity owning nothing and therefore out of reach of any walk over what the
 // library holds.
 //
-// WHY A RENAME IS DRIVEN AGAINST THE FILESYSTEM. A rename by the reader, a rename by the Renamer
+// Why a rename is driven against the filesystem. A rename by the reader, a rename by the Renamer
 // and a move within one drive are one act down there: the name changes and the identity does not.
 // So driving `mv` tests what driving the Renamer would, and needs no second extension installed.
 // Cove's own move route is driven as well, because that is the case where the library's record
 // follows the file and the product reads it at its new path.
 //
-// WHY THE EVIDENCE IS A SHELL. Cove cannot see the tree; the ignore file at its root is what keeps
+// Why the evidence is a shell. Cove cannot see the tree; the ignore file at its root is what keeps
 // the host's scan out. There is no route that answers what is in there, and identity is what tells
 // a second NAME for a file from a second COPY of it.
 //
-// WHAT THIS DOES NOT ESTABLISH. The sentence a run carries when it finds files it did not compose.
+// What this does not establish. The sentence a run carries when it finds files it did not compose.
 // Only the pass that registers scenes composes a linking line at all, so asserting it here would be
 // a claim about one generation inside a body that runs on both. It is asserted in the backend suite
 // against the line itself.
 //
-// IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the
+// If this spec goes red, read the run log for a container-not-running line before debugging the
 // product. A red end-to-end run in this repository is usually the Cove container dying.
 import { attemptUntil, pollUntil } from "@cove-extensions/e2e/poll";
 

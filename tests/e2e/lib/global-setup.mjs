@@ -1,7 +1,7 @@
 // Creates the networks the harness stacks join (see docker/docker-compose.yml). It runs before any
 // worker because creating a network raises a host address event, and no browser exists yet.
 //
-// ONE NETWORK PER PARALLEL SLOT, not one for the whole run. A network is a DNS namespace, and the
+// One network per parallel slot, not one for the whole run. A network is a DNS namespace, and the
 // fixtures reach each other by name: `stashdb.org` for the metadata stub, `metadata-stub`, the
 // indexer and the download client. Those names are fixed on purpose - the stub answering to
 // `stashdb.org` is how the product's own configured endpoint resolves to it - so on one shared

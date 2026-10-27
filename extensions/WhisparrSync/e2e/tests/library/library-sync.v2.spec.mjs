@@ -235,7 +235,7 @@ test("a count asks the instance's own metadata source nothing", async ({
   // Both readings are taken around the count alone. A registration does make the instance read its
   // metadata source, so a measurement spanning one would fail for a reason that is not a defect.
   //
-  // WHAT THIS ESTABLISHES: a count reaches the instance's own metadata source not at all, so the
+  // What this establishes: a count reaches the instance's own metadata source not at all, so the
   // search route it once walked is off the count path. WHAT IT DOES NOT: anything about a studio
   // identified by a uuid. A uuid resolves through a service this container cannot reach, so the
   // identifiers here are numbers and the resolve they take short-circuits.
