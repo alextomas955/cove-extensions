@@ -36,56 +36,59 @@ async function probeUntilAnswered(api, predicate, label) {
   return answered.json;
 }
 
-test("the host starts the worker, and disabling the extension cancels it without hanging the stop", async ({
-  isolatedHarness,
-}) => {
-  // Read through the handle rather than captured: installExtension restarts the container, which
-  // re-mints the token and can republish the instance on a different host port.
-  const api = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
+// `@smoke` - part of the selection host-configuration.spec.mjs explains.
+test(
+  "the host starts the worker, and disabling the extension cancels it without hanging the stop",
+  { tag: "@smoke" },
+  async ({ isolatedHarness }) => {
+    // Read through the handle rather than captured: installExtension restarts the container, which
+    // re-mints the token and can republish the instance on a different host port.
+    const api = createApiClient(
+      () => isolatedHarness.baseUrl,
+      () => isolatedHarness.token,
+    );
 
-  const started = await probeUntilAnswered(
-    api,
-    (view) => view.workerStartedAtUtc !== null && view.workerStartedAtUtc !== undefined,
-    "the host to start the extension's background worker",
-  );
-  // Nothing has stopped it yet, so a cancel instant here would mean the reading below could have
-  // been true before the disable ran.
-  expect(
-    started.workerCancelledAtUtc,
-    "the worker reported a cancellation before anything cancelled it",
-  ).toBeNull();
+    const started = await probeUntilAnswered(
+      api,
+      (view) => view.workerStartedAtUtc !== null && view.workerStartedAtUtc !== undefined,
+      "the host to start the extension's background worker",
+    );
+    // Nothing has stopped it yet, so a cancel instant here would mean the reading below could have
+    // been true before the disable ran.
+    expect(
+      started.workerCancelledAtUtc,
+      "the worker reported a cancellation before anything cancelled it",
+    ).toBeNull();
 
-  const stopBegan = Date.now();
-  const disabled = await api
-    .post(DISABLE_ROUTE, undefined, { signal: AbortSignal.timeout(STOP_BUDGET_MS) })
-    .catch((cause) => {
-      throw new Error(
-        `POST ${DISABLE_ROUTE} did not answer within ${STOP_BUDGET_MS}ms. Cove blocks on the ` +
-          "worker's task while stopping it, so a worker whose awaits do not take its cancellation " +
-          `token hangs here (${cause?.message ?? cause}).`,
-      );
-    });
-  const stopTookMs = Date.now() - stopBegan;
+    const stopBegan = Date.now();
+    const disabled = await api
+      .post(DISABLE_ROUTE, undefined, { signal: AbortSignal.timeout(STOP_BUDGET_MS) })
+      .catch((cause) => {
+        throw new Error(
+          `POST ${DISABLE_ROUTE} did not answer within ${STOP_BUDGET_MS}ms. Cove blocks on the ` +
+            "worker's task while stopping it, so a worker whose awaits do not take its cancellation " +
+            `token hangs here (${cause?.message ?? cause}).`,
+        );
+      });
+    const stopTookMs = Date.now() - stopBegan;
 
-  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text}`).toBe(200);
-  expect(
-    stopTookMs,
-    `the host took ${stopTookMs}ms to stop the worker, against a budget of ${STOP_BUDGET_MS}ms`,
-  ).toBeLessThan(STOP_BUDGET_MS);
+    expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text}`).toBe(200);
+    expect(
+      stopTookMs,
+      `the host took ${stopTookMs}ms to stop the worker, against a budget of ${STOP_BUDGET_MS}ms`,
+    ).toBeLessThan(STOP_BUDGET_MS);
 
-  const enabled = await api.post(ENABLE_ROUTE);
-  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text}`).toBe(200);
+    const enabled = await api.post(ENABLE_ROUTE);
+    expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text}`).toBe(200);
 
-  const afterStop = await probeUntilAnswered(
-    api,
-    (view) => view.workerCancelledAtUtc !== null && view.workerCancelledAtUtc !== undefined,
-    "the extension to report its worker as cancelled",
-  );
-  expect(
-    Date.parse(afterStop.workerCancelledAtUtc),
-    `the worker was recorded as cancelled at ${afterStop.workerCancelledAtUtc}, before it started at ${started.workerStartedAtUtc}`,
-  ).toBeGreaterThanOrEqual(Date.parse(started.workerStartedAtUtc));
-});
+    const afterStop = await probeUntilAnswered(
+      api,
+      (view) => view.workerCancelledAtUtc !== null && view.workerCancelledAtUtc !== undefined,
+      "the extension to report its worker as cancelled",
+    );
+    expect(
+      Date.parse(afterStop.workerCancelledAtUtc),
+      `the worker was recorded as cancelled at ${afterStop.workerCancelledAtUtc}, before it started at ${started.workerStartedAtUtc}`,
+    ).toBeGreaterThanOrEqual(Date.parse(started.workerStartedAtUtc));
+  },
+);

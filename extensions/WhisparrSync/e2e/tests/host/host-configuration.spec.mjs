@@ -67,17 +67,25 @@ const ownerClient = (authHarness) =>
     () => authHarness.token,
   );
 
-test("the extension installs into a live Cove and the host reports it enabled", async ({
-  authHarness,
-}) => {
-  const listed = await ownerClient(authHarness).get("/api/extensions");
+// `@smoke` marks one test per host contract this extension rests on: it installs and is enabled, the
+// host builds the table it owns, the host runs its worker and cancels it, the host mounts its bundle,
+// the host's bulk data route never carries the stored key, and a delivery through the callback
+// reaches the library. `ci.yml` selects them with `--grep @smoke` on the newest-GA leg, where the
+// subject is the host rather than Whisparr: the floor leg has already run every spec. So nothing
+// whose answer comes from Whisparr belongs in the selection, however central it is to the product.
+test(
+  "the extension installs into a live Cove and the host reports it enabled",
+  { tag: "@smoke" },
+  async ({ authHarness }) => {
+    const listed = await ownerClient(authHarness).get("/api/extensions");
 
-  expect(listed.status, `reading the installed extensions failed: ${listed.text}`).toBe(200);
-  expect(
-    listed.json?.find((extension) => extension.id === EXTENSION_ID)?.enabled,
-    `the host does not report ${EXTENSION_ID} as enabled`,
-  ).toBe(true);
-});
+    expect(listed.status, `reading the installed extensions failed: ${listed.text}`).toBe(200);
+    expect(
+      listed.json?.find((extension) => extension.id === EXTENSION_ID)?.enabled,
+      `the host does not report ${EXTENSION_ID} as enabled`,
+    ).toBe(true);
+  },
+);
 
 test("the probe answers a permitted caller with exactly its camelCase scalars", async ({
   authHarness,

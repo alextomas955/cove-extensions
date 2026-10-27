@@ -25,46 +25,49 @@ const test = base.extend({
   isolatedHarness: isolatedCoveFixture(),
 });
 
-test("a saved key reaches neither the settings response nor the host's bulk data route", async ({
-  isolatedHarness,
-}) => {
-  const owner = createApiClient(
-    () => isolatedHarness.baseUrl,
-    () => isolatedHarness.token,
-  );
+// `@smoke` - part of the selection host-configuration.spec.mjs explains.
+test(
+  "a saved key reaches neither the settings response nor the host's bulk data route",
+  { tag: "@smoke" },
+  async ({ isolatedHarness }) => {
+    const owner = createApiClient(
+      () => isolatedHarness.baseUrl,
+      () => isolatedHarness.token,
+    );
 
-  const saved = await owner.put(SETTINGS_ROUTE, {
-    selectedGeneration: "v3",
-    v3: { address: SAVED_ADDRESS, keyWrite: "replace", apiKey: SAVED_KEY },
-    v2: null,
-  });
+    const saved = await owner.put(SETTINGS_ROUTE, {
+      selectedGeneration: "v3",
+      v3: { address: SAVED_ADDRESS, keyWrite: "replace", apiKey: SAVED_KEY },
+      v2: null,
+    });
 
-  expect(saved.status, `PUT ${SETTINGS_ROUTE} answered: ${saved.text}`).toBe(200);
-  expect(saved.json?.v3?.keyIsSet, "the save did not store the key at all").toBe(true);
-  expect(saved.text).not.toContain(SAVED_KEY);
+    expect(saved.status, `PUT ${SETTINGS_ROUTE} answered: ${saved.text}`).toBe(200);
+    expect(saved.json?.v3?.keyIsSet, "the save did not store the key at all").toBe(true);
+    expect(saved.text).not.toContain(SAVED_KEY);
 
-  const read = await owner.get(SETTINGS_ROUTE);
+    const read = await owner.get(SETTINGS_ROUTE);
 
-  expect(read.status, `GET ${SETTINGS_ROUTE} answered: ${read.text}`).toBe(200);
-  expect(read.json?.v3?.address).toBe(SAVED_ADDRESS);
-  expect(read.json?.v3?.keyIsSet).toBe(true);
-  expect(read.text).not.toContain(SAVED_KEY);
+    expect(read.status, `GET ${SETTINGS_ROUTE} answered: ${read.text}`).toBe(200);
+    expect(read.json?.v3?.address).toBe(SAVED_ADDRESS);
+    expect(read.json?.v3?.keyIsSet).toBe(true);
+    expect(read.text).not.toContain(SAVED_KEY);
 
-  const bulk = await owner.get(DATA_ROUTE);
+    const bulk = await owner.get(DATA_ROUTE);
 
-  expect(bulk.status, `GET ${DATA_ROUTE} answered: ${bulk.text}`).toBe(200);
-  // The discriminating control: the bulk route DID return this extension's stored values, so its
-  // silence about the key is about the key rather than about an empty answer. Matched on a member
-  // name rather than a quoted one: the blob arrives as a JSON string inside the answer, so every
-  // quote in it is escaped.
-  expect(
-    bulk.text,
-    "the bulk data route returned nothing of this extension, so it is no evidence about the key",
-  ).toContain("SelectedGeneration");
-  expect(bulk.text).not.toContain(SAVED_KEY);
-  // The address is held in the credential row with the key, and the row is not served here.
-  expect(bulk.text).not.toContain(SAVED_ADDRESS);
-});
+    expect(bulk.status, `GET ${DATA_ROUTE} answered: ${bulk.text}`).toBe(200);
+    // The discriminating control: the bulk route DID return this extension's stored values, so its
+    // silence about the key is about the key rather than about an empty answer. Matched on a member
+    // name rather than a quoted one: the blob arrives as a JSON string inside the answer, so every
+    // quote in it is escaped.
+    expect(
+      bulk.text,
+      "the bulk data route returned nothing of this extension, so it is no evidence about the key",
+    ).toContain("SelectedGeneration");
+    expect(bulk.text).not.toContain(SAVED_KEY);
+    // The address is held in the credential row with the key, and the row is not served here.
+    expect(bulk.text).not.toContain(SAVED_ADDRESS);
+  },
+);
 
 test("the other version's key is write-only too, and is stored in its own slot", async ({
   isolatedHarness,

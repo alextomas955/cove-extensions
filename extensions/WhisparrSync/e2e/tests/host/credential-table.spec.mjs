@@ -112,49 +112,52 @@ function waitForEnabled(harness) {
   );
 }
 
-test("the host creates the credential table on Postgres and a second load still finds it", async ({
-  isolatedHarness,
-}) => {
-  // Two container restarts: the one installExtension performs, and the one this test takes to reach
-  // the second load. The default per-test budget covers neither.
-  test.setTimeout(900_000);
+// `@smoke` - part of the selection host-configuration.spec.mjs explains.
+test(
+  "the host creates the credential table on Postgres and a second load still finds it",
+  { tag: "@smoke" },
+  async ({ isolatedHarness }) => {
+    // Two container restarts: the one installExtension performs, and the one this test takes to reach
+    // the second load. The default per-test budget covers neither.
+    test.setTimeout(900_000);
 
-  // ── 1. The host applied the migration ──────────────────────────────────────────────────────────
-  expect(await readEnabled(isolatedHarness), `${EXTENSION_ID} is not enabled`).toBe(true);
-  expect(
-    await countCredentialTables(isolatedHarness),
-    `the host did not create ${TABLE_NAME} - an extension migration that fails is only a host log line, so the extension is enabled either way`,
-  ).toBe("1");
-  expect(
-    await readCredentialColumns(isolatedHarness),
-    "the table the host created does not carry the columns the model maps",
-  ).toBe(COLUMNS);
-  expect(
-    await countMigrationReceipts(isolatedHarness),
-    `the host recorded no receipt for ${MIGRATION_NAME}`,
-  ).toBe("1");
+    // ── 1. The host applied the migration ──────────────────────────────────────────────────────────
+    expect(await readEnabled(isolatedHarness), `${EXTENSION_ID} is not enabled`).toBe(true);
+    expect(
+      await countCredentialTables(isolatedHarness),
+      `the host did not create ${TABLE_NAME} - an extension migration that fails is only a host log line, so the extension is enabled either way`,
+    ).toBe("1");
+    expect(
+      await readCredentialColumns(isolatedHarness),
+      "the table the host created does not carry the columns the model maps",
+    ).toBe(COLUMNS);
+    expect(
+      await countMigrationReceipts(isolatedHarness),
+      `the host recorded no receipt for ${MIGRATION_NAME}`,
+    ).toBe("1");
 
-  // ── 2. The second load meets a table that already exists ────────────────────────────────────────
-  //
-  // The receipt makes the host skip the migration, so what is proven here is that the extension
-  // loads against a table it did not just create. A migration whose statements were not
-  // create-if-absent would also fail this on a database restored without its receipt.
-  await isolatedHarness.restart();
-  await waitForEnabled(isolatedHarness);
+    // ── 2. The second load meets a table that already exists ────────────────────────────────────────
+    //
+    // The receipt makes the host skip the migration, so what is proven here is that the extension
+    // loads against a table it did not just create. A migration whose statements were not
+    // create-if-absent would also fail this on a database restored without its receipt.
+    await isolatedHarness.restart();
+    await waitForEnabled(isolatedHarness);
 
-  expect(await readEnabled(isolatedHarness), `${EXTENSION_ID} did not come back enabled`).toBe(
-    true,
-  );
-  expect(
-    await countCredentialTables(isolatedHarness),
-    `${TABLE_NAME} did not survive the restart`,
-  ).toBe("1");
-  expect(
-    await readCredentialColumns(isolatedHarness),
-    "the table's columns changed across the restart",
-  ).toBe(COLUMNS);
-  expect(
-    await countMigrationReceipts(isolatedHarness),
-    "the second load re-applied a migration the host had already receipted",
-  ).toBe("1");
-});
+    expect(await readEnabled(isolatedHarness), `${EXTENSION_ID} did not come back enabled`).toBe(
+      true,
+    );
+    expect(
+      await countCredentialTables(isolatedHarness),
+      `${TABLE_NAME} did not survive the restart`,
+    ).toBe("1");
+    expect(
+      await readCredentialColumns(isolatedHarness),
+      "the table's columns changed across the restart",
+    ).toBe(COLUMNS);
+    expect(
+      await countMigrationReceipts(isolatedHarness),
+      "the second load re-applied a migration the host had already receipted",
+    ).toBe("1");
+  },
+);
