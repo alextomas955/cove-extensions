@@ -86,21 +86,31 @@ public static class MonitoringBulkJob
         return new MonitorBulkBatch(entityType, verb, scope, IdsIn(Read(parameters, EntityIdsKey)));
     }
 
+    /// <summary>The subset of a deduplicated selection the account that asked may read.</summary>
+    /// <remarks>
+    /// The per-entity work runs as System, because Cove's per-principal filters answer an anonymous
+    /// reader with zero rows and no error, which on this path reports every entity as carrying no
+    /// identity. So the caller's own reach is decided here, before the elevation buys anything, and
+    /// against the principal the request carried rather than the ambient one.
+    /// </remarks>
+    internal delegate Task<IReadOnlyList<int>> AllowedSelection(
+        IServiceProvider services, IReadOnlyList<int> coveIds, CancellationToken ct);
+
     // Deduplicated before any per-id work: a selection can carry one entity twice, and acting twice
     // issues two adds.
-    // Runs as System: the batch carries no principal, and Cove's per-principal filters answer an
-    // anonymous reader with zero rows and no error, reporting every entity as carrying no identity.
     // A stop classifies as cancelled, not failed. The host stops a job by cancelling its token, so a
     // failure here would report a shutdown as a fault.
     internal static async Task<MonitorBulkRun> RunAsync(
         IReadOnlyList<int> entityIds,
         IServiceScopeFactory scopes,
+        AllowedSelection reach,
         Func<IServiceProvider, int, CancellationToken, Task<MonitorRefusalKind>> act,
         IJobProgress progress,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(entityIds);
         ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(reach);
         ArgumentNullException.ThrowIfNull(act);
         ArgumentNullException.ThrowIfNull(progress);
 
@@ -116,12 +126,16 @@ public static class MonitoringBulkJob
         {
             try
             {
+                var allowed = await AllowedAsync(reach, services, selected, ct).ConfigureAwait(false);
+
                 foreach (var coveId in selected)
                 {
                     ct.ThrowIfCancellationRequested();
 
                     using var unit = progress.StartUnit(UnitOf(coveId));
-                    var refusal = await act(services, coveId, ct).ConfigureAwait(false);
+                    var refusal = allowed.Contains(coveId)
+                        ? await act(services, coveId, ct).ConfigureAwait(false)
+                        : MonitorRefusalKind.CallerMayNotReachThisEntity;
                     outcomes.Add(new MonitorBulkOutcome(coveId, refusal));
                     unit.Complete(UnitOutcomeFor(refusal), refusal == MonitorRefusalKind.None ? null : refusal.ToString());
                 }
@@ -142,10 +156,11 @@ public static class MonitoringBulkJob
     // An entity that does not resolve is reported and not sent: the command fails outright on the
     // first id the instance does not hold, so one unheld entity would cost every other entity its
     // search.
-    // Scope, System elevation and the cancellation rule are RunAsync's.
+    // Scope, System elevation, caller reach and the cancellation rule are RunAsync's.
     internal static async Task<MonitorBulkRun> RunOneCallAsync(
         IReadOnlyList<int> entityIds,
         IServiceScopeFactory scopes,
+        AllowedSelection reach,
         Func<IServiceProvider, int, CancellationToken, Task<MonitorBulkAim>> aim,
         Func<IServiceProvider, IReadOnlyList<int>, CancellationToken, Task<MonitorRefusalKind>> act,
         IJobProgress progress,
@@ -153,6 +168,7 @@ public static class MonitoringBulkJob
     {
         ArgumentNullException.ThrowIfNull(entityIds);
         ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(reach);
         ArgumentNullException.ThrowIfNull(aim);
         ArgumentNullException.ThrowIfNull(act);
         ArgumentNullException.ThrowIfNull(progress);
@@ -171,11 +187,21 @@ public static class MonitoringBulkJob
 
             try
             {
+                var allowed = await AllowedAsync(reach, services, selected, ct).ConfigureAwait(false);
+
                 foreach (var coveId in selected)
                 {
                     ct.ThrowIfCancellationRequested();
 
                     var unit = progress.StartUnit(UnitOf(coveId));
+                    if (!allowed.Contains(coveId))
+                    {
+                        outcomes.Add(new MonitorBulkOutcome(
+                            coveId, MonitorRefusalKind.CallerMayNotReachThisEntity));
+                        Close(unit, MonitorRefusalKind.CallerMayNotReachThisEntity);
+                        continue;
+                    }
+
                     var aimed = await aim(services, coveId, ct).ConfigureAwait(false);
                     if (aimed.EntityId is { } entityId)
                     {
@@ -214,6 +240,13 @@ public static class MonitoringBulkJob
             }
         }).ConfigureAwait(false);
     }
+
+    private static async Task<HashSet<int>> AllowedAsync(
+        AllowedSelection reach,
+        IServiceProvider services,
+        IReadOnlyList<int> selected,
+        CancellationToken ct)
+        => [.. await reach(services, selected, ct).ConfigureAwait(false)];
 
     private static void Close(IJobUnit unit, MonitorRefusalKind refusal)
     {
@@ -285,6 +318,7 @@ public static class MonitoringBulkJob
                 or MonitorRefusalKind.AnswerTooLargeToRead
                 or MonitorRefusalKind.InstanceDidNotReportTheChange => JobUnitOutcome.Failed,
             MonitorRefusalKind.NotConfigured
+                or MonitorRefusalKind.CallerMayNotReachThisEntity
                 or MonitorRefusalKind.NoIdentityInThisNamespace
                 or MonitorRefusalKind.SeveralIdentitiesInThisNamespace
                 or MonitorRefusalKind.CapabilityAbsentOnThisGeneration

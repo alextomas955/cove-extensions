@@ -99,6 +99,8 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingJobService Jobs { get; } = new();
 
+    public RecordingAuthorizationService Authz { get; } = new();
+
     public HttpClient Http { get; private set; } = null!;
 
     // The routes the extension mounted on this host, so a case driving every one of them reads the
@@ -188,6 +190,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<ICurrentPrincipalAccessor>(
             principal ?? FakePrincipalAccessor.WithPermissions(
                 Permissions.VideosRead, Permissions.ExtensionsConfigure));
+        builder.Services.AddSingleton<IAuthorizationService>(host.Authz);
         if (bytes is null)
         {
             builder.Services.AddSingleton<IWhisparrInstanceFactory>(

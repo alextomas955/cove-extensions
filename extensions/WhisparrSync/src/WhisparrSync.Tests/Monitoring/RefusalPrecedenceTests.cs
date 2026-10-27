@@ -1,3 +1,5 @@
+using System.Globalization;
+using Cove.Core.Entities;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
@@ -55,6 +57,7 @@ public sealed class RefusalPrecedenceTests
             await TheKindAnEntityTheInstanceDoesNotHoldProducesAsync(),
             await TheKindAReadBackThatFindsNothingProducesAsync(),
             await TheKindAnEntityWhoseRootAgreedOnNothingProducesAsync(),
+            await TheKindAnEntityTheCallerCannotReadProducesAsync(),
         };
 
         foreach (var kind in Enum.GetValues<MonitorRefusalKind>())
@@ -161,6 +164,26 @@ public sealed class RefusalPrecedenceTests
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         return (await host.MonitorAsync(studioId)).Refusal;
+    }
+
+    // Only a batch produces this one, because only a batch carries a copied caller to decide against.
+    // The kind is read back off the unit the run settled rather than named here.
+    private static async Task<MonitorRefusalKind> TheKindAnEntityTheCallerCannotReadProducesAsync()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        host.Authz.Denying(EntityKinds.Studio, studioId);
+        var progress = new RecordingJobProgress();
+
+        await host.PostBulkAsync(string.Create(
+            CultureInfo.InvariantCulture,
+            $$"""
+            {"entityType":"studios","verb":"monitor","scope":"futureScenes","entityIds":[{{studioId}}]}
+            """));
+        await host.RunEnqueuedBatchAsync(progress);
+
+        return Enum.Parse<MonitorRefusalKind>(Assert.Single(progress.Units).Message!);
     }
 
     // Answered by the one seam an add body's root is composed through, for an entity whose own

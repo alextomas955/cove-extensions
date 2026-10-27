@@ -276,6 +276,7 @@ public sealed class MonitoringBulkJobTests
         return await MonitoringBulkJob.RunAsync(
             entityIds,
             provider.GetRequiredService<IServiceScopeFactory>(),
+            (_, coveIds, _) => Task.FromResult(coveIds),
             act,
             progress,
             ct);

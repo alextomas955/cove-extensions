@@ -194,6 +194,16 @@ public enum MonitorRefusalKind
     NotConfigured,
 
     /// <summary>
+    /// The account that asked holds no read over this entity, so nothing was sent for it.
+    /// </summary>
+    /// <remarks>
+    /// Decided against the caller rather than against the elevated principal the run's per-entity
+    /// work uses, and read rather than write: an entity a scoped account cannot see is one it cannot
+    /// name here either.
+    /// </remarks>
+    CallerMayNotReachThisEntity,
+
+    /// <summary>
     /// The entity carries no identifier in the connected generation's own namespace, so there is
     /// nothing to name it by.
     /// </summary>

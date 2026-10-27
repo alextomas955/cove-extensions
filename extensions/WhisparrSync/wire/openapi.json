@@ -3206,6 +3206,7 @@
         "enum": [
           "none",
           "notConfigured",
+          "callerMayNotReachThisEntity",
           "noIdentityInThisNamespace",
           "severalIdentitiesInThisNamespace",
           "capabilityAbsentOnThisGeneration",

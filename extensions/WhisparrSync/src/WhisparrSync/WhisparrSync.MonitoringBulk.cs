@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
@@ -91,11 +92,13 @@ public sealed partial class WhisparrSync
         var parameters = MonitoringBulkJob.Encode(
             request.EntityType!, verb, request.Scope, entityIds);
 
+        var caller = EntityAuthorization.Snapshot(principal.Current);
+
         // Exclusive so two batches over overlapping selections do not issue overlapping adds.
         var jobId = jobs.Enqueue(
             OwnJobTypePrefix + MonitoringBulkJob.JobId,
             $"[{Name}] Monitoring, {entityIds.Length} selected",
-            (progress, ct) => RunBulkMonitorAsync(parameters, scopes, progress, ct),
+            (progress, ct) => RunBulkMonitorAsync(parameters, caller, scopes, progress, ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
@@ -125,13 +128,14 @@ public sealed partial class WhisparrSync
     // inside the host's job runner.
     private async Task RunBulkMonitorAsync(
         IReadOnlyDictionary<string, string> parameters,
+        CovePrincipal? caller,
         IServiceScopeFactory scopes,
         CoreJobProgress progress,
         CancellationToken ct)
     {
         var batch = MonitoringBulkJob.Decode(parameters);
         var acting = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
-            ? new BulkVerbs(this, batch, kind, verb)
+            ? new BulkVerbs(this, batch, kind, verb, caller)
             : null;
 
         var run = acting is null
@@ -157,7 +161,11 @@ public sealed partial class WhisparrSync
     // One selection under one verb. Held as a type rather than as closures over the run, so the
     // target read once for the batch and the linking accumulated across it have an owner.
     private sealed class BulkVerbs(
-        WhisparrSync owner, MonitorBulkBatch batch, WhisparrEntityKind kind, MonitorBulkVerb verb)
+        WhisparrSync owner,
+        MonitorBulkBatch batch,
+        WhisparrEntityKind kind,
+        MonitorBulkVerb verb,
+        CovePrincipal? caller)
     {
         internal BatchTarget Target { get; } = new();
 
@@ -169,8 +177,19 @@ public sealed partial class WhisparrSync
             IServiceScopeFactory scopes, CoreJobProgress progress, CancellationToken ct)
             => verb == MonitorBulkVerb.SearchAllMonitored
                 ? MonitoringBulkJob.RunOneCallAsync(
-                    batch.EntityIds, scopes, AimOneAsync, SearchNamedAsync, progress, ct)
-                : MonitoringBulkJob.RunAsync(batch.EntityIds, scopes, ActOnOneAsync, progress, ct);
+                    batch.EntityIds, scopes, ReachAsync, AimOneAsync, SearchNamedAsync, progress, ct)
+                : MonitoringBulkJob.RunAsync(
+                    batch.EntityIds, scopes, ReachAsync, ActOnOneAsync, progress, ct);
+
+        private Task<IReadOnlyList<int>> ReachAsync(
+            IServiceProvider services, IReadOnlyList<int> coveIds, CancellationToken ct)
+            => EntityAuthorization.AllowedOnlyAsync(
+                services.GetRequiredService<IAuthorizationService>(),
+                caller,
+                CoveKindOf(kind),
+                ReadPermissionOf(kind),
+                coveIds,
+                ct);
 
         private async Task<MonitoringBulkJob.MonitorBulkAim> AimOneAsync(
             IServiceProvider services, int coveId, CancellationToken entityCt)
@@ -388,6 +407,24 @@ public sealed partial class WhisparrSync
             }
         }
     }
+
+    // Read rather than write: what a scoped account is refused here is an entity Cove hides from it,
+    // and read is the permission that decides whether it is hidden.
+    private static string ReadPermissionOf(WhisparrEntityKind kind) => kind switch
+    {
+        WhisparrEntityKind.Studio => Permissions.StudiosRead,
+        WhisparrEntityKind.Performer => Permissions.PerformersRead,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind), kind, "This kind is not one the selection bar can name."),
+    };
+
+    private static string CoveKindOf(WhisparrEntityKind kind) => kind switch
+    {
+        WhisparrEntityKind.Studio => EntityKinds.Studio,
+        WhisparrEntityKind.Performer => EntityKinds.Performer,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind), kind, "This kind is not one the selection bar can name."),
+    };
 
     // Matched against the same constants the registration declares, so the spelling the selection
     // bar sends and the one the route accepts cannot drift apart.
