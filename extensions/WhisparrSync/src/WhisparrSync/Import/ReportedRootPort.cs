@@ -7,10 +7,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
 
-// Holds what each generation's instance last said about its roots, so a stream of deliveries costs
-// one outbound request rather than one per file. A singleton, bounded by construction: one entry
-// per generation, each a small list of hand-created paths. Nothing per file or per delivery joins
-// it.
+// Holds what each instance last said about its roots, so a stream of deliveries costs one outbound
+// request rather than one per file. A singleton. An entry is keyed by the generation and the
+// resolved address together, because an instance that moved answers about its own roots and not the
+// previous one's.
+//
+// What it holds is one entry per instance contacted inside a lifetime, each a small list of
+// hand-created paths, with nothing per file or per delivery joining it. Expired entries are dropped
+// as a later one is written, so a reader editing the address repeatedly does not leave one entry
+// behind per spelling tried.
+//
 // An entry expires on its own rather than being invalidated by a writer, because a root added in
 // Whisparr is a change this extension is never told about.
 internal sealed class ReportedRootCache(TimeProvider clock)
@@ -22,16 +28,26 @@ internal sealed class ReportedRootCache(TimeProvider clock)
     // request's timeout, so a burst during an outage cannot re-probe per delivery.
     internal static readonly TimeSpan NothingToReadLifetime = TimeSpan.FromSeconds(30);
 
+    // A resolution with no binding has no address to key on. Its own key, rather than one folded
+    // onto an address, so configuring an address afterwards does not find a reading made about
+    // nothing.
+    private const string NoInstance = "";
+
     private readonly ConcurrentDictionary<
-        WhisparrGeneration, (DateTimeOffset ReadAt, TimeSpan For, IReadOnlyList<string>? Roots)>
+        (WhisparrGeneration Generation, string Address),
+        (DateTimeOffset ReadAt, TimeSpan For, IReadOnlyList<string>? Roots)>
         _entries = new();
+
+    internal static (WhisparrGeneration Generation, string Address) NothingConfigured(
+        WhisparrGeneration generation) => (generation, NoInstance);
 
     // The roots are null on a held reading nothing could be established from, which is a different
     // fact from an instance declaring none.
-    internal bool TryHeld(WhisparrGeneration generation, out IReadOnlyList<string>? roots)
+    internal bool TryHeld(
+        (WhisparrGeneration Generation, string Address) instance, out IReadOnlyList<string>? roots)
     {
         roots = null;
-        if (_entries.TryGetValue(generation, out var entry)
+        if (_entries.TryGetValue(instance, out var entry)
             && clock.GetUtcNow() - entry.ReadAt < entry.For)
         {
             roots = entry.Roots;
@@ -41,13 +57,31 @@ internal sealed class ReportedRootCache(TimeProvider clock)
         return false;
     }
 
-    internal void Hold(WhisparrGeneration generation, IReadOnlyList<string> roots)
-        => _entries[generation] = (clock.GetUtcNow(), Lifetime, roots);
+    internal void Hold(
+        (WhisparrGeneration Generation, string Address) instance, IReadOnlyList<string> roots)
+        => Write(instance, Lifetime, roots);
 
     // One reading for both an unconfigured connection and a request that found nobody: the caller's
     // next step is the same.
-    internal void HoldNothingToRead(WhisparrGeneration generation)
-        => _entries[generation] = (clock.GetUtcNow(), NothingToReadLifetime, null);
+    internal void HoldNothingToRead((WhisparrGeneration Generation, string Address) instance)
+        => Write(instance, NothingToReadLifetime, null);
+
+    private void Write(
+        (WhisparrGeneration Generation, string Address) instance,
+        TimeSpan For,
+        IReadOnlyList<string>? roots)
+    {
+        var now = clock.GetUtcNow();
+        foreach (var (key, entry) in _entries)
+        {
+            if (now - entry.ReadAt >= entry.For)
+            {
+                _entries.TryRemove(key, out _);
+            }
+        }
+
+        _entries[instance] = (now, For, roots);
+    }
 }
 
 internal sealed class ReportedRootPort(
@@ -59,20 +93,26 @@ internal sealed class ReportedRootPort(
     public async Task<IReadOnlyList<string>?> ReadAsync(
         WhisparrGeneration generation, CancellationToken ct)
     {
-        if (cache.TryHeld(generation, out var held))
-        {
-            return held;
-        }
-
-        // Resolved for the generation this port was asked about, which a delivery names and the
-        // settings do not. Refused where nothing is configured, so an unconfigured connection
-        // reaches nothing that could make a request.
+        // Resolved before the cache is consulted, because an entry answers for the instance it was
+        // read from. Resolving reads the credential row and makes no outbound request, so a stream
+        // of deliveries still costs one call to the instance rather than one per file.
         var resolution = await OutboundPair
             .ResolveAsync(credentials, generation, ct).ConfigureAwait(false);
         if (resolution.Binding is not { } binding)
         {
-            cache.HoldNothingToRead(generation);
+            var nothingConfigured = ReportedRootCache.NothingConfigured(generation);
+            if (cache.TryHeld(nothingConfigured, out var unconfigured))
+            {
+                return unconfigured;
+            }
+
+            cache.HoldNothingToRead(nothingConfigured);
             return null;
+        }
+
+        if (cache.TryHeld(binding.Instance, out var held))
+        {
+            return held;
         }
 
         WhisparrResponse response;
@@ -95,19 +135,19 @@ internal sealed class ReportedRootPort(
 
             // Held, so a burst of deliveries during an outage does not re-pay the client's timeout
             // and retry once per file inside the inbound request pipeline.
-            cache.HoldNothingToRead(generation);
+            cache.HoldNothingToRead(binding.Instance);
             return null;
         }
 
         if (RootsIn(response) is not { } roots)
         {
-            cache.HoldNothingToRead(generation);
+            cache.HoldNothingToRead(binding.Instance);
             return null;
         }
 
         // Held even when empty, so an instance that declares none is asked at the same rate as one
         // that declares several.
-        cache.Hold(generation, roots);
+        cache.Hold(binding.Instance, roots);
         return roots;
     }
 
