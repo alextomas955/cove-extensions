@@ -546,6 +546,13 @@ jobs:
         working-directory: extensions
         run: npm ci --ignore-scripts
 
+      # The harness's own tests, and the probe helpers'. They need no browser and no container, so
+      # they belong here rather than in `e2e`: that job starts a Cove per leg and skips entirely for
+      # an extension declaring no suite, which would leave these running nowhere.
+      - name: Test the e2e harness
+        working-directory: extensions/tests/e2e
+        run: npm run test:unit
+
       - name: knip (dead files, exports and dependencies)
         working-directory: extensions
         run: npm run knip
