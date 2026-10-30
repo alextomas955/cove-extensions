@@ -16,7 +16,7 @@ import { api } from "../common/lib/extension";
 const OPTIONS_PATH = api("options");
 
 /** Sets one option on the unsaved copy. */
-export type SetOption = <K extends keyof RunOptions>(key: K, value: RunOptions[K]) => void;
+type SetOption = <K extends keyof RunOptions>(key: K, value: RunOptions[K]) => void;
 
 export interface UseRunOptions {
   options: RunOptions | null;

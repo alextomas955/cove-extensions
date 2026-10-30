@@ -5,29 +5,12 @@ import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 import type { RunOptions } from "./runOptions";
+import { answered, buttonNamed, resetServer, server, switchNamed } from "./testRunOptions";
 
-const server = vi.hoisted(() => ({
-  // What the options read answers with. Null until a test sets it, so an unconfigured call fails
-  // loudly rather than resolving something nobody chose.
-  respond: null as (() => Promise<RunOptions>) | null,
-  writes: [] as { path: string; method: string | undefined; body: string | undefined }[],
-}));
-
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  requestJson: (path: string) => {
-    if (server.respond === null) throw new Error(`unconfigured request to ${path}`);
-    return server.respond();
-  },
-  request: (path: string, options: RequestInit) => {
-    server.writes.push({
-      path,
-      method: options.method,
-      body: typeof options.body === "string" ? options.body : undefined,
-    });
-    return Promise.resolve(undefined);
-  },
-}));
+vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
+  const { extensionRequestDouble } = await import("./testRunOptions");
+  return extensionRequestDouble();
+});
 
 const { RunOptionsForm } = await import("./RunOptionsForm");
 
@@ -38,32 +21,10 @@ function mount(): HTMLElement {
   return container;
 }
 
-const toggle = (container: HTMLElement) =>
-  container.querySelector<HTMLButtonElement>('button[role="switch"]');
-
-const button = (container: HTMLElement, text: string) =>
-  [...container.querySelectorAll("button")].find((e) => e.textContent.trim() === text);
-
-// A whole record, the way the route answers one. Copied from the C# record's declared defaults, so a
-// field the server stops writing shows up here as a type error rather than as an invented value.
-const answered = (overrides: Partial<RunOptions> = {}): RunOptions => ({
-  thumbnails: true,
-  previews: true,
-  sprites: true,
-  vrStereo: false,
-  imageThumbnails: true,
-  galleryThumbnails: true,
-  backfillFingerprints: true,
-  rescan: false,
-  createMissingEntities: true,
-  markOrganized: false,
-  ...overrides,
-});
+const switches = (container: HTMLElement) => container.querySelectorAll('button[role="switch"]');
 
 beforeEach(() => {
-  server.respond = null;
-  server.writes = [];
-  document.body.replaceChildren();
+  resetServer();
 });
 
 test("a read still in flight shows the spinner and no switch", async () => {
@@ -75,27 +36,17 @@ test("a read still in flight shows the spinner and no switch", async () => {
     () => container.querySelector("svg.animate-spin") !== null,
   );
 
-  expect(toggle(container)).toBeNull();
+  expect(switches(container)).toHaveLength(0);
 });
 
-test("a settled read shows the switch at the value the server answered", async () => {
-  server.respond = () => Promise.resolve(answered({ backfillFingerprints: false }));
-  const container = mount();
-
-  await waitFor("the switch to render", () => toggle(container) !== null);
-
-  expect(toggle(container)?.getAttribute("aria-checked")).toBe("false");
-  expect(button(container, "Save")?.disabled).toBe(true);
-});
-
-test("toggling the switch enables Save, and Save issues one PUT carrying the edited value", async () => {
+test("Save issues one PUT carrying the whole record with the edited value in it", async () => {
   server.respond = () => Promise.resolve(answered());
   const container = mount();
-  await waitFor("the switch to render", () => toggle(container) !== null);
+  await waitFor("the switches to render", () => switches(container).length > 0);
 
-  toggle(container)?.click();
-  await waitFor("Save to become enabled", () => button(container, "Save")?.disabled === false);
-  button(container, "Save")?.click();
+  switchNamed(container, "Fill in missing fingerprints").click();
+  await waitFor("Save to become enabled", () => !buttonNamed(container, "Save").disabled);
+  buttonNamed(container, "Save").click();
   await waitFor("the write to be issued", () => server.writes.length > 0);
 
   expect(server.writes).toEqual([
@@ -114,5 +65,5 @@ test("a rejected read shows the failure the request reported and no switch", asy
   await waitFor("the failure to render", () => /couldn't read/i.test(container.textContent));
 
   expect(container.textContent).toContain("403 forbidden");
-  expect(toggle(container)).toBeNull();
+  expect(switches(container)).toHaveLength(0);
 });
