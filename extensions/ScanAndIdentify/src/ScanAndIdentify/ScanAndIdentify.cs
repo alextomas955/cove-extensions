@@ -26,10 +26,14 @@ public sealed partial class ScanAndIdentify : FullExtensionBase
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // GetService, not GetRequiredService: the capabilities route exists to report what resolved, so
-        // a missing registration has to be reportable rather than fatal at load.
-        _jobServiceAvailable = services.GetService<IJobService>() is not null;
-        _scanServiceAvailable = services.GetService<IScanService>() is not null;
+        // Registration is asked about, never resolved. The host passes its root provider here, and
+        // Cove registers IScanService per request, so resolving it throws "Cannot resolve scoped
+        // service from root provider" and the host disables the extension. IsService answers whether
+        // the host declared the service without constructing one. When the host supplies no probe at
+        // all, nothing can be reported and the route says unavailable.
+        var registrations = services.GetService<IServiceProviderIsService>();
+        _jobServiceAvailable = registrations?.IsService(typeof(IJobService)) ?? false;
+        _scanServiceAvailable = registrations?.IsService(typeof(IScanService)) ?? false;
         return Task.CompletedTask;
     }
 }

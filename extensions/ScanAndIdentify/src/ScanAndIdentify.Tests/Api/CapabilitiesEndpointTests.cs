@@ -54,11 +54,13 @@ public sealed class CapabilitiesEndpointTests
             services.AddSingleton<IJobService, StubJobService>();
         }
 
+        // Scoped and scope-validating, the way Cove registers it and builds its container. A singleton
+        // stub here would resolve from the root provider and hide that the host's does not.
         if (scanService)
         {
-            services.AddSingleton<IScanService, StubScanService>();
+            services.AddScoped<IScanService, StubScanService>();
         }
 
-        return services.BuildServiceProvider();
+        return services.BuildServiceProvider(validateScopes: true);
     }
 }
