@@ -33,6 +33,7 @@
       "projectPath": "extensions/ScanAndIdentify/src/ScanAndIdentify/ScanAndIdentify.csproj",
       "testProjectPath": "extensions/ScanAndIdentify/src/ScanAndIdentify.Tests/ScanAndIdentify.Tests.csproj",
       "manifestPath": "extensions/ScanAndIdentify/src/ScanAndIdentify/extension.json",
+      "uiPath": "extensions/ScanAndIdentify/src/ScanAndIdentify.Ui",
       "registryManifestPath": "extensions/ScanAndIdentify/registry/com.alextomas955.scanandidentify.json",
       "artifacts": [
         "extension.json",

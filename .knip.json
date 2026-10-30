@@ -15,6 +15,11 @@
       ],
       "project": ["src/**/*.{ts,tsx}"]
     },
+    "extensions/ScanAndIdentify/src/ScanAndIdentify.Ui": {
+      "vite": false,
+      "entry": ["src/index.ts", "vite.config.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
     "shared/ui-shared": {
       "entry": [
         "vite/createExtensionViteConfig.ts",

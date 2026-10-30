@@ -22,6 +22,11 @@ pre-commit:
       glob: "*.tsx"
       run: npm run check-classes
 
+    check-classes-scanandidentify:
+      root: extensions/ScanAndIdentify/src/ScanAndIdentify.Ui/
+      glob: "*.tsx"
+      run: npm run check-classes
+
     # Every host import-map external (lucide-react) resolved against the module the HOST actually
     # serves, not the one in node_modules. Those differ: a name can typecheck, build and pass every
     # other check while the shipped bundle fails to load in the browser and every surface renders
