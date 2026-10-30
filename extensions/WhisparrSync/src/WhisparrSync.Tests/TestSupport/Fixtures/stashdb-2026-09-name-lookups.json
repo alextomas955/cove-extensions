@@ -1,0 +1,240 @@
+{
+  "recordedOn": "2026-09-06",
+  "recordedAgainst": "https://stashdb.org/graphql",
+  "note": "The answers the exact-name lookup is built on. findTag returns null for a word findTagOrAlias resolves to a canonical tag, and a common performer name really does return several exact matches.",
+  "cases": {
+    "findStudioExact": {
+      "query": "query FindStudio($name: String!) { findStudio(name: $name) { id name } }",
+      "variables": {
+        "name": "Brazzers"
+      },
+      "response": {
+        "data": {
+          "findStudio": {
+            "id": "eec95cdd-9f58-4fc7-b7d1-e98786453d27",
+            "name": "Brazzers"
+          }
+        }
+      }
+    },
+    "findStudioAbsent": {
+      "query": "query FindStudio($name: String!) { findStudio(name: $name) { id name } }",
+      "variables": {
+        "name": "ZZZ No Such Studio Here 12345"
+      },
+      "response": {
+        "data": {
+          "findStudio": null
+        }
+      }
+    },
+    "findTagPlain": {
+      "query": "query FindTag($name: String!) { findTag(name: $name) { id name } }",
+      "variables": {
+        "name": "Anal"
+      },
+      "response": {
+        "data": {
+          "findTag": null
+        }
+      }
+    },
+    "findTagOrAlias": {
+      "query": "query FindTagOrAlias($name: String!) { findTagOrAlias(name: $name) { id name aliases } }",
+      "variables": {
+        "name": "Anal"
+      },
+      "response": {
+        "data": {
+          "findTagOrAlias": {
+            "id": "b70c78b7-a25a-4c82-9929-591a5795b54d",
+            "name": "Anal Sex",
+            "aliases": [
+              "Anal",
+              "Anal Slut",
+              "Anal-Sex",
+              "AnalSex",
+              "Ask For Anal",
+              "Ass Fuck",
+              "Ass Fucking",
+              "Ass Is in Session",
+              "BG Anal",
+              "Brutal Anal",
+              "hardcore anal sex",
+              "アナルセックス",
+              "肛门"
+            ]
+          }
+        }
+      }
+    },
+    "performerExact": {
+      "query": "query QueryPerformers($input: PerformerQueryInput!) { queryPerformers(input: $input) { count performers { id name disambiguation } } }",
+      "variables": {
+        "input": {
+          "name": "Mia Malkova",
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "response": {
+        "data": {
+          "queryPerformers": {
+            "count": 1,
+            "performers": [
+              {
+                "id": "6a167db8-80b6-485a-841c-8bbaf0292a82",
+                "name": "Mia Malkova",
+                "disambiguation": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    "performerDuplicate": {
+      "query": "query QueryPerformers($input: PerformerQueryInput!) { queryPerformers(input: $input) { count performers { id name disambiguation } } }",
+      "variables": {
+        "input": {
+          "name": "Jessica",
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "response": {
+        "data": {
+          "queryPerformers": {
+            "count": 324,
+            "performers": [
+              {
+                "id": "01a04dd0-17d4-7f8b-8e0a-cd1ab807a66d",
+                "name": "Jessica",
+                "disambiguation": "Abby Winters"
+              },
+              {
+                "id": "019f6d6d-c5b9-726d-b7ba-260fb748acf0",
+                "name": "Jessica",
+                "disambiguation": "Monger In Asia"
+              },
+              {
+                "id": "019f6208-b77f-77ab-b9ff-e6d18d50f25d",
+                "name": "Jessica Hot",
+                "disambiguation": "CumLouder"
+              },
+              {
+                "id": "019eefb7-a107-763e-b4e6-0b6435c2b26e",
+                "name": "Jessica Joy",
+                "disambiguation": null
+              },
+              {
+                "id": "019e03dc-9645-7ba1-a25e-2d4d0d3acc29",
+                "name": "Jessica D.",
+                "disambiguation": null
+              },
+              {
+                "id": "019e005c-0108-714b-b164-6e094a360c81",
+                "name": "Jessica",
+                "disambiguation": "Desperate Amateurs"
+              },
+              {
+                "id": "019dfc4e-e1f4-7a8b-893c-eb1b8bd0880a",
+                "name": "Jessica",
+                "disambiguation": "Ersties"
+              },
+              {
+                "id": "019d8d2b-182f-7337-80e1-699204c933e6",
+                "name": "Jessica Braun",
+                "disambiguation": "xes.pl"
+              },
+              {
+                "id": "019d43d2-638b-7c21-833f-10b3b6066264",
+                "name": "Jessica Marsh",
+                "disambiguation": null
+              },
+              {
+                "id": "019cac03-0ed2-7580-a3ce-ca933ca16176",
+                "name": "Jessica Claira",
+                "disambiguation": null
+              },
+              {
+                "id": "019c901b-ad25-794b-a393-9a0d0be546d8",
+                "name": "Jessica Vitale",
+                "disambiguation": null
+              },
+              {
+                "id": "019c209e-b42c-771a-afd9-e8f79126771e",
+                "name": "Jessica Eden",
+                "disambiguation": null
+              },
+              {
+                "id": "019bfbb6-feaa-7def-826d-17463c6652cd",
+                "name": "Jessica Casadinha",
+                "disambiguation": null
+              },
+              {
+                "id": "019b5d80-6e26-799f-8e58-cb6aadab9019",
+                "name": "Jessica Taylor",
+                "disambiguation": "Sugar Babes.TV"
+              },
+              {
+                "id": "019b2100-2c2a-71ec-8de9-07e1a5fdb5ed",
+                "name": "Jessica Rose",
+                "disambiguation": "House of Gord"
+              },
+              {
+                "id": "019b0d72-fb2b-76ba-b422-f9e518cd2d75",
+                "name": "Jessica Guerra",
+                "disambiguation": null
+              },
+              {
+                "id": "2fdc9d03-c9b8-40fb-a601-d7fdf9bacdb1",
+                "name": "Jessica Valentine",
+                "disambiguation": null
+              },
+              {
+                "id": "588be7a4-493d-4a65-811b-f42fb7100b2c",
+                "name": "Jessica Romans",
+                "disambiguation": null
+              },
+              {
+                "id": "45ed7bfc-7314-4b46-a1b8-7ea353f2b600",
+                "name": "Jessica Summer",
+                "disambiguation": null
+              },
+              {
+                "id": "d4534200-20f5-4fbc-af87-3b62660fdf9b",
+                "name": "Jessica",
+                "disambiguation": "Dare Dorm, 2011-12"
+              },
+              {
+                "id": "946d42f9-32ab-4e33-a26c-a21a2ce046ea",
+                "name": "Jessica",
+                "disambiguation": "Dare Dorm, 2009-10"
+              },
+              {
+                "id": "146086e3-e7f2-4513-aa58-f8873fd7fb93",
+                "name": "Jessica",
+                "disambiguation": "2008, Shady PI"
+              },
+              {
+                "id": "5dccc6f5-c055-4513-bc80-fe18de117298",
+                "name": "Jessica",
+                "disambiguation": "2005, DDF"
+              },
+              {
+                "id": "dc9cb2bc-5356-484d-96dd-4bc88802c839",
+                "name": "Jessica",
+                "disambiguation": "2005, V9"
+              },
+              {
+                "id": "035cd635-ed3f-4058-80d8-1bc214a42330",
+                "name": "Jessica",
+                "disambiguation": "2009, Young Porn Home Video"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

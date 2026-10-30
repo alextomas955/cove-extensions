@@ -1,0 +1,418 @@
+{
+  "schemaCount": 162,
+  "StudioResource": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "title": {
+        "type": "string",
+        "nullable": true
+      },
+      "sortTitle": {
+        "type": "string",
+        "nullable": true
+      },
+      "searchTitle": {
+        "type": "string",
+        "nullable": true
+      },
+      "foreignId": {
+        "type": "string",
+        "nullable": true
+      },
+      "tmdbId": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "tpdbId": {
+        "type": "string",
+        "nullable": true
+      },
+      "website": {
+        "type": "string",
+        "nullable": true
+      },
+      "network": {
+        "type": "string",
+        "nullable": true
+      },
+      "images": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MediaCover"
+        },
+        "nullable": true
+      },
+      "monitored": {
+        "type": "boolean"
+      },
+      "moviesMonitored": {
+        "type": "boolean"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StudioStatus"
+      },
+      "afterDate": {
+        "type": "string",
+        "nullable": true
+      },
+      "rootFolderPath": {
+        "type": "string",
+        "nullable": true
+      },
+      "qualityProfileId": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "searchOnAdd": {
+        "type": "boolean"
+      },
+      "aliases": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "nullable": true
+      },
+      "tags": {
+        "uniqueItems": true,
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nullable": true
+      },
+      "hasMovies": {
+        "type": "boolean"
+      },
+      "hasScenes": {
+        "type": "boolean"
+      },
+      "totalMovieCount": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "totalSceneCount": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "movieCount": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "sceneCount": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "years": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nullable": true
+      },
+      "sizeOnDisk": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "remotePoster": {
+        "type": "string",
+        "nullable": true,
+        "readOnly": true
+      }
+    },
+    "additionalProperties": false
+  },
+  "PerformerResource": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer",
+        "format": "int32"
+      },
+      "fullName": {
+        "type": "string",
+        "description": "The performer's name with Disambiguation",
+        "nullable": true
+      },
+      "name": {
+        "type": "string",
+        "description": "The performer's name",
+        "nullable": true
+      },
+      "aliases": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of alternative names or aliases for the performer",
+        "nullable": true
+      },
+      "gender": {
+        "$ref": "#/components/schemas/Gender"
+      },
+      "eyeColor": {
+        "$ref": "#/components/schemas/EyeColor"
+      },
+      "hairColor": {
+        "$ref": "#/components/schemas/HairColor"
+      },
+      "ethnicity": {
+        "$ref": "#/components/schemas/Ethnicity"
+      },
+      "country": {
+        "type": "string",
+        "description": "The performer's country of origin (optional)  ISO 3166 codes",
+        "nullable": true
+      },
+      "eyesColor": {
+        "$ref": "#/components/schemas/EyeColor"
+      },
+      "hairColour": {
+        "$ref": "#/components/schemas/HairColor"
+      },
+      "height": {
+        "type": "integer",
+        "description": "The performer's height in centimeters (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "cupSize": {
+        "type": "string",
+        "description": "The performer's cup size (optional)",
+        "nullable": true
+      },
+      "bandSize": {
+        "type": "integer",
+        "description": "The performer's band size (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "waistSize": {
+        "type": "integer",
+        "description": "The performer's waist size in centimeters (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "hipSize": {
+        "type": "integer",
+        "description": "The performer's hip size in centimeters (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "breastType": {
+        "$ref": "#/components/schemas/BreastTypeEnum"
+      },
+      "status": {
+        "$ref": "#/components/schemas/PerformerStatus"
+      },
+      "careerStart": {
+        "type": "integer",
+        "description": "Four-digit Year the performer started their career (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "careerEnd": {
+        "type": "integer",
+        "description": "Year the performer ended their career (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "birthDate": {
+        "type": "string",
+        "description": "The performer's birth date (optional)",
+        "format": "date-time",
+        "nullable": true
+      },
+      "deathDate": {
+        "type": "string",
+        "description": "The performer's death date (optional)",
+        "format": "date-time",
+        "nullable": true
+      },
+      "age": {
+        "type": "integer",
+        "description": "Current age of the performer (optional)",
+        "format": "int32",
+        "nullable": true
+      },
+      "tattoos": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of the performer's tattoos (optional)",
+        "nullable": true
+      },
+      "piercings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of the performer's piercings (optional)",
+        "nullable": true
+      },
+      "foreignId": {
+        "type": "string",
+        "description": "External foreign ID from metadata source (e.g., StashDB ID)",
+        "nullable": true
+      },
+      "tmdbId": {
+        "type": "integer",
+        "description": "The Movie Database (TMDB) identifier",
+        "format": "int32"
+      },
+      "tpdbId": {
+        "type": "string",
+        "description": "The Porn Database (TPDB) identifier",
+        "nullable": true
+      },
+      "images": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MediaCover"
+        },
+        "description": "Collection of performer images (posters, headshots, etc.)",
+        "nullable": true
+      },
+      "monitored": {
+        "type": "boolean",
+        "description": "Whether this performer is being monitored for new content"
+      },
+      "moviesMonitored": {
+        "type": "boolean",
+        "description": "Whether movies featuring this performer are monitored"
+      },
+      "rootFolderPath": {
+        "type": "string",
+        "description": "Root folder path where performer content is stored",
+        "nullable": true
+      },
+      "qualityProfileId": {
+        "type": "integer",
+        "description": "ID of the quality profile to use for this performer's content",
+        "format": "int32"
+      },
+      "searchOnAdd": {
+        "type": "boolean",
+        "description": "Whether to automatically search for content when adding this performer"
+      },
+      "tags": {
+        "uniqueItems": true,
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": "Set of tag IDs associated with this performer",
+        "nullable": true
+      },
+      "remotePoster": {
+        "type": "string",
+        "description": "URL of the remote poster image from StashDb/TMDb/TPDb",
+        "nullable": true,
+        "readOnly": true
+      },
+      "added": {
+        "type": "string",
+        "description": "Date and time when this performer was added to Whisparr",
+        "format": "date-time",
+        "readOnly": true
+      },
+      "hasMovies": {
+        "type": "boolean",
+        "description": "Indicates if the performer has any associated movies"
+      },
+      "hasScenes": {
+        "type": "boolean",
+        "description": "Indicates if the performer has any associated scenes"
+      },
+      "movieCount": {
+        "type": "integer",
+        "description": "Number of movies (on disk)from this performer",
+        "format": "int32"
+      },
+      "totalMovieCount": {
+        "type": "integer",
+        "description": "Total number of movies associated with this performer",
+        "format": "int32"
+      },
+      "totalSceneCount": {
+        "type": "integer",
+        "description": "Total number of scenes associated with this performer",
+        "format": "int32"
+      },
+      "sceneCount": {
+        "type": "integer",
+        "description": "Number of scenes (on disk) from this performer",
+        "format": "int32"
+      },
+      "sizeOnDisk": {
+        "type": "integer",
+        "description": "Total size in bytes of all files on disk associated with this performer///",
+        "format": "int64"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Represents a performer (adult film actor/actress) in Whisparr"
+  },
+  "StudioEditorResource": {
+    "type": "object",
+    "properties": {
+      "studioIds": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": "The IDs of the studios to be edited",
+        "nullable": true
+      },
+      "monitored": {
+        "type": "boolean",
+        "description": "Whether the studios' scenes are monitored",
+        "nullable": true
+      },
+      "moviesMonitored": {
+        "type": "boolean",
+        "description": "Whether the studios' movies are monitored",
+        "nullable": true
+      },
+      "qualityProfileId": {
+        "type": "integer",
+        "description": "The quality profile ID to set on the studios",
+        "format": "int32",
+        "nullable": true
+      },
+      "rootFolderPath": {
+        "type": "string",
+        "description": "The root folder path to set on the studios",
+        "nullable": true
+      },
+      "searchOnAdd": {
+        "type": "boolean",
+        "description": "Whether to search for new items when added to studio",
+        "nullable": true
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": "The tags to apply to the studios",
+        "nullable": true
+      },
+      "applyTags": {
+        "$ref": "#/components/schemas/ApplyTags"
+      }
+    },
+    "additionalProperties": false,
+    "description": "A resource for editing multiple studios"
+  }
+}

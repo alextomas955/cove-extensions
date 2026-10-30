@@ -1,0 +1,18 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  width="24"
+  height="24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  role="img"
+>
+  <title>Whisparr Sync</title>
+  <path d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3" />
+  <polyline points="17.3 2.5 17.3 6.7 13.1 6.7" />
+  <path d="M19.5 12a7.5 7.5 0 0 1-12.8 5.3" />
+  <polyline points="6.7 21.5 6.7 17.3 10.9 17.3" />
+</svg>
