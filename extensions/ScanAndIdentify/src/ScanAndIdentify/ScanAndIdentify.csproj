@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- RepositoryUrl mirrors extension.json's url. The extension class declares no Url, because the host
+       reads a class property in preference to the manifest. -->
+  <PropertyGroup>
+    <Authors>alextomas955</Authors>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="extension.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+</Project>

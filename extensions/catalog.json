@@ -24,6 +24,24 @@
       ],
       "e2ePath": "extensions/Renamer/e2e",
       "e2eProject": "renamer"
+    },
+    {
+      "name": "ScanAndIdentify",
+      "id": "com.alextomas955.scanandidentify",
+      "path": "extensions/ScanAndIdentify",
+      "tagPrefix": "scan-and-identify/",
+      "projectPath": "extensions/ScanAndIdentify/src/ScanAndIdentify/ScanAndIdentify.csproj",
+      "manifestPath": "extensions/ScanAndIdentify/src/ScanAndIdentify/extension.json",
+      "registryManifestPath": "extensions/ScanAndIdentify/registry/com.alextomas955.scanandidentify.json",
+      "artifacts": [
+        "extension.json",
+        "index.mjs",
+        "ScanAndIdentify.dll",
+        "ScanAndIdentify.deps.json",
+        "ScanAndIdentify.runtimeconfig.json",
+        "README.md",
+        "LICENSE"
+      ]
     }
   ]
 }
