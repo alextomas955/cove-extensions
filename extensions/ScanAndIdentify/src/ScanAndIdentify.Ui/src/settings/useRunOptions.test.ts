@@ -44,6 +44,22 @@ const toggle = (container: HTMLElement) =>
 const button = (container: HTMLElement, text: string) =>
   [...container.querySelectorAll("button")].find((e) => e.textContent.trim() === text);
 
+// A whole record, the way the route answers one. Copied from the C# record's declared defaults, so a
+// field the server stops writing shows up here as a type error rather than as an invented value.
+const answered = (overrides: Partial<RunOptions> = {}): RunOptions => ({
+  thumbnails: true,
+  previews: true,
+  sprites: true,
+  vrStereo: false,
+  imageThumbnails: true,
+  galleryThumbnails: true,
+  backfillFingerprints: true,
+  rescan: false,
+  createMissingEntities: true,
+  markOrganized: false,
+  ...overrides,
+});
+
 beforeEach(() => {
   server.respond = null;
   server.writes = [];
@@ -63,7 +79,7 @@ test("a read still in flight shows the spinner and no switch", async () => {
 });
 
 test("a settled read shows the switch at the value the server answered", async () => {
-  server.respond = () => Promise.resolve({ backfillFingerprints: false });
+  server.respond = () => Promise.resolve(answered({ backfillFingerprints: false }));
   const container = mount();
 
   await waitFor("the switch to render", () => toggle(container) !== null);
@@ -73,7 +89,7 @@ test("a settled read shows the switch at the value the server answered", async (
 });
 
 test("toggling the switch enables Save, and Save issues one PUT carrying the edited value", async () => {
-  server.respond = () => Promise.resolve({ backfillFingerprints: true });
+  server.respond = () => Promise.resolve(answered());
   const container = mount();
   await waitFor("the switch to render", () => toggle(container) !== null);
 
@@ -86,7 +102,7 @@ test("toggling the switch enables Save, and Save issues one PUT carrying the edi
     {
       path: "/extensions/com.alextomas955.scanandidentify/options",
       method: "PUT",
-      body: JSON.stringify({ backfillFingerprints: false }),
+      body: JSON.stringify(answered({ backfillFingerprints: false })),
     },
   ]);
 });

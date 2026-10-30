@@ -139,7 +139,34 @@
       "RunOptions": {
         "type": "object",
         "properties": {
+          "thumbnails": {
+            "type": "boolean"
+          },
+          "previews": {
+            "type": "boolean"
+          },
+          "sprites": {
+            "type": "boolean"
+          },
+          "vrStereo": {
+            "type": "boolean"
+          },
+          "imageThumbnails": {
+            "type": "boolean"
+          },
+          "galleryThumbnails": {
+            "type": "boolean"
+          },
           "backfillFingerprints": {
+            "type": "boolean"
+          },
+          "rescan": {
+            "type": "boolean"
+          },
+          "createMissingEntities": {
+            "type": "boolean"
+          },
+          "markOrganized": {
             "type": "boolean"
           }
         }

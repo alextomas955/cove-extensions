@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
@@ -36,18 +37,32 @@ public sealed class RunOptionsEndpointTests
     }
 
     [Fact]
-    public async Task SaveOptions_PersistsWhatTheNextReadAnswers()
+    public async Task SaveOptions_PersistsEveryFieldThatTheNextReadAnswers()
     {
         var store = new FakeStore();
         var extension = ScanAndIdentifyFixture.Create(store);
+        var flipped = new RunOptions
+        {
+            Thumbnails = false,
+            Previews = false,
+            Sprites = false,
+            VrStereo = true,
+            ImageThumbnails = false,
+            GalleryThumbnails = false,
+            BackfillFingerprints = false,
+            Rescan = true,
+            CreateMissingEntities = false,
+            MarkOrganized = true,
+        };
 
         var saved = await extension.SaveOptionsAsync(
-            Body("""{"BackfillFingerprints":false}"""), Configurer);
+            Body(JsonSerializer.Serialize(flipped, RunOptions.JsonOptions)), Configurer);
         var read = await extension.GetOptionsAsync(Configurer);
 
         Assert.IsType<NoContent>(HttpResultUnwrap.Unwrap(saved));
         var ok = Assert.IsType<Ok<RunOptions>>(HttpResultUnwrap.Unwrap(read));
-        Assert.False(ok.Value!.BackfillFingerprints);
+        Assert.Equal(flipped, ok.Value);
+        Assert.NotEqual(new RunOptions(), ok.Value);
     }
 
     [Fact]
