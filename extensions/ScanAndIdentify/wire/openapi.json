@@ -1,0 +1,59 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "cove extension wire contract",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/extensions/com.alextomas955.scanandidentify/capabilities": {
+      "get": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CapabilitiesView": {
+        "required": [
+          "coveVersion",
+          "jobService",
+          "scanService"
+        ],
+        "type": "object",
+        "properties": {
+          "coveVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jobService": {
+            "type": "boolean"
+          },
+          "scanService": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "ScanAndIdentify"
+    }
+  ]
+}

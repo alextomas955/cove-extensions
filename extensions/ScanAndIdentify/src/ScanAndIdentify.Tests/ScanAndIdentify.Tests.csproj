@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure
+      copied local. The transitive Cove.Sdk reference imports Cove.Sdk.targets, whose strip would
+      otherwise remove the host-provided assemblies from this project's output and make xUnit fail to
+      reflect over it. Directory.Build.targets turns this into what Cove.Sdk reads.
+    -->
+    <CoveStripHostProvidedAssemblies>false</CoveStripHostProvidedAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!--
+      TEST-ONLY, and a version PIN on an edge that already exists rather than a new dependency: Npgsql
+      is restored here anyway through Cove.Core → Pgvector, at a version that trails the one the host
+      runs. Naming it puts the compile graph on the runtime users receive; the symptom without it is an
+      MSB3277, which TreatWarningsAsErrors cannot catch because that switch is compiler-only.
+    -->
+    <PackageReference Include="Npgsql" />
+    <!--
+      TEST-ONLY: FullExtensionBase implements IDataExtension, so reflecting over the extension type
+      loads Microsoft.EntityFrameworkCore. It is host-provided, so the extension's own output is
+      stripped of it and nothing else here puts it beside the test assembly; the symptom is a
+      FileNotFoundException at the first test that constructs the extension, not a compile error.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ScanAndIdentify\ScanAndIdentify.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
+    <!--
+      Cove.Core IS on nuget.org and reaches every project transitively through the Cove.Sdk chain the
+      root targets wires. It is named anyway so the Cove.Core matching the checkout is what compiles,
+      rather than whatever version the feed last published. A mismatch there splits the closure, and
+      MSBuild reports that skew as a warning at most, which TreatWarningsAsErrors does not cover
+      because that switch is compiler-only.
+
+      The location comes from the repo-wide $(CoveSourceMode) seam rather than a relative path literal
+      of this project's own, and is UNCONDITIONAL: this suite has no meaning without it, and the
+      RequireCoveSource target below is what states that. A mode-conditional reference here is what
+      used to let a test drop out of the run silently.
+    -->
+    <ProjectReference Include="$(CoveCoreProjectPath)" />
+  </ItemGroup>
+
+  <!--
+    Without this target the misconfiguration is silent where it starts: an empty
+    $(CoveCoreProjectPath) makes MSBuild drop the ProjectReference item and the build succeeds, and a
+    path that does not exist reports only MSB9008, an MSBuild warning TreatWarningsAsErrors does not
+    cover because that switch is compiler-only. Either way the first real signal is a wall of CS0234
+    far from its cause.
+  -->
+  <Target Name="RequireCoveSource" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CoveSourceMode)' != 'source'"
+           Text="$(MSBuildProjectName) requires a Cove source checkout (CoveSourceMode is '$(CoveSourceMode)'). Point COVE_REPO or -p:CoveRepoRoot at one. The extension itself builds and publishes without a checkout; its tests do not." />
+  </Target>
+</Project>
