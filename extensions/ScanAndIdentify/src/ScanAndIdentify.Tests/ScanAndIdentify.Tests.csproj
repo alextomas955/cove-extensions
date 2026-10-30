@@ -13,6 +13,13 @@
       reflect over it. Directory.Build.targets turns this into what Cove.Sdk reads.
     -->
     <CoveStripHostProvidedAssemblies>false</CoveStripHostProvidedAssemblies>
+    <!--
+      CA1716: the linked shared fake declares the Cove.Extensions.Shared.Testing namespace, whose
+      "Shared" segment is a VB reserved keyword. These are C#-only test types never consumed from VB,
+      so the rule does not apply - mirror the suppression the shared projects carry. It fires here
+      because a linked file compiles INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -55,6 +62,18 @@
       used to let a test drop out of the run silently.
     -->
     <ProjectReference Include="$(CoveCoreProjectPath)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      HOST-DEPENDENT shared test fake: FakePrincipalAccessor, over Cove.Core auth. It lives in a
+      source-only sibling dir with NO csproj and is pulled in as an ordinary Compile item, NOT a
+      ProjectReference (IDEs don't fully respect reference conditions; msbuild#5410). Named file by
+      file rather than with a glob: the other file there is CoveContextFactory, which needs Cove.Data,
+      and this suite references none of it.
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\FakePrincipalAccessor.cs"
+             LinkBase="TestSupport\Shared" />
   </ItemGroup>
 
   <!--

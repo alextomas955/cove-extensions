@@ -29,6 +29,14 @@ internal static class ScanAndIdentifyFixture
         return extension;
     }
 
+    // The store the host hands a stateful extension, which the options routes read and write through.
+    internal static global::ScanAndIdentify.ScanAndIdentify Create(IExtensionStore store)
+    {
+        var extension = Create();
+        ((IStatefulExtension)extension).SetStore(store);
+        return extension;
+    }
+
     // Runs the two host lifecycle hooks the capabilities view is built from, in the host's order.
     internal static async Task<global::ScanAndIdentify.ScanAndIdentify> CreateInitializedAsync(
         string coveVersion, IServiceProvider services)

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\..\..\shared\Cove.Extensions.Shared\Cove.Extensions.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

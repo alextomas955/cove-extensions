@@ -39,6 +39,7 @@
         "extension.json",
         "index.mjs",
         "ScanAndIdentify.dll",
+        "Cove.Extensions.Shared.dll",
         "ScanAndIdentify.deps.json",
         "ScanAndIdentify.runtimeconfig.json",
         "README.md",

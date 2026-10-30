@@ -2,6 +2,8 @@ using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ScanAndIdentify;
 
@@ -15,6 +17,10 @@ public sealed partial class ScanAndIdentify : FullExtensionBase
     private string? _coveVersion;
     private bool _jobServiceAvailable;
     private bool _scanServiceAvailable;
+
+    // The one place a user's whole stored configuration can be discarded in silence is the options
+    // store's corrupt-blob arm, which says so through this logger and nowhere else.
+    private ILogger _log = NullLogger.Instance;
 
     public override void ConfigureServices(IServiceCollection services, ExtensionContext context)
     {
@@ -31,6 +37,10 @@ public sealed partial class ScanAndIdentify : FullExtensionBase
         // service from root provider" and the host disables the extension. IsService answers whether
         // the host declared the service without constructing one. When the host supplies no probe at
         // all, nothing can be reported and the route says unavailable.
+        // Safe from the root provider where IScanService is not: AddLogging registers the ILogger<>
+        // open generic as a singleton, so there is no scope to resolve it out of.
+        _log = services.GetService<ILogger<ScanAndIdentify>>() ?? _log;
+
         var registrations = services.GetService<IServiceProviderIsService>();
         _jobServiceAvailable = registrations?.IsService(typeof(IJobService)) ?? false;
         _scanServiceAvailable = registrations?.IsService(typeof(IScanService)) ?? false;
