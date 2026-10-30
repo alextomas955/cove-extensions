@@ -28,6 +28,19 @@ The rest of this file is for contributors working on the extension itself.
 | `src/ScanAndIdentify.Tests/`                     | The backend suite. Needs a `../cove` source checkout.                   |
 | `registry/com.alextomas955.scanandidentify.json` | The registry manifest for this extension.                               |
 
+## Run options
+
+The settings panel reads and writes one options document through the extension's own routes, under
+`/api/extensions/com.alextomas955.scanandidentify`:
+
+| Route          | What it does                                                                 |
+| -------------- | ---------------------------------------------------------------------------- |
+| `GET /options` | Answers the saved options, or the defaults when nothing has been saved.      |
+| `PUT /options` | Replaces them. A body it cannot read is a `400` with code `INVALID_OPTIONS`. |
+
+Both routes require the `extensions.configure` permission. The document is stored as one value under
+the store key `options`.
+
 ## Build and test
 
 Build the whole monorepo (including this extension) from the repo root:

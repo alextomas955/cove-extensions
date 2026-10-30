@@ -20,6 +20,12 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
   library data, which is why it declares `AllowWithoutCovePermission`.
 - The settings section's `componentName` and the key in the bundle's `defineExtension` components map
   are the same string. A mismatch renders a host placeholder and logs nothing.
+- One store key, `options`, holds the whole run options document. Its field set is fixed, so nothing
+  stored grows with the library.
+- `GET` and `PUT /options` both declare `extensions.configure` and re-check the principal in the
+  handler, because the document decides what a later run does to the whole library.
+- `overwrite` is hardcoded false in both generate stages and is deliberately not a user switch.
+  Nothing a run does replaces an asset that already exists, which is what keeps a repeat run cheap.
 
 ## Build and deploy
 
