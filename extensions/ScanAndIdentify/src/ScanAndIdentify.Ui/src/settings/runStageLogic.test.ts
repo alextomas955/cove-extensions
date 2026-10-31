@@ -6,8 +6,9 @@ import {
   isRunInFlight,
   nextStageToStart,
   stageInFlight,
+  stageProgressPercent,
 } from "./runStageLogic";
-import { runView } from "./testRun";
+import { runView, stageDetail } from "./testRun";
 import type { RunStageState } from "./run";
 
 const STARTABLE = ["scan", "fingerprints", "identify", "images"] as const;
@@ -121,5 +122,24 @@ describe("whether the poll keeps reading", () => {
     for (let tick = 0; tick < RUN_FAILURE_ALLOWANCE * 100; tick++) {
       expect(decidePoll({ read: "ok", run }, fresh)).toEqual({ action: "continue" });
     }
+  });
+});
+
+describe("a stage's progress as a percent", () => {
+  test("nothing at all, when no host job has been read", () => {
+    expect(stageProgressPercent(null)).toBeUndefined();
+  });
+
+  test("nothing at all, when the host has reported no progress", () => {
+    expect(stageProgressPercent(stageDetail())).toBeUndefined();
+  });
+
+  test.for<[number, number]>([
+    [0.42, 42],
+    [0.999, 100],
+    [-0.5, 0],
+    [1.5, 100],
+  ])("a fraction of %s reads as %s", ([progress, percent]) => {
+    expect(stageProgressPercent(stageDetail({ progress }))).toBe(percent);
   });
 });

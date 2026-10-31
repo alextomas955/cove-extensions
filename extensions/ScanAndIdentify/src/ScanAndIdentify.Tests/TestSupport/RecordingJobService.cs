@@ -10,10 +10,22 @@ internal sealed class RecordingJobService : IJobService
 {
     private readonly Dictionary<string, JobInfo> _jobs = [];
 
-    public RecordingJobService With(string jobId, JobStatus status)
+    public RecordingJobService With(
+        string jobId,
+        JobStatus status,
+        double progress = 0,
+        string? subTask = null,
+        string? summary = null,
+        string? error = null,
+        int? unitsTotal = null,
+        int? unitsCompleted = null,
+        int? unitsSucceeded = null,
+        int? unitsFailed = null,
+        int? unitsSkipped = null)
     {
         _jobs[jobId] = new JobInfo(
-            jobId, "scan", "Scanning", status, 0, null, DateTime.UtcNow, null, null);
+            jobId, "scan", "Scanning", status, progress, subTask, DateTime.UtcNow, null, error,
+            unitsTotal, unitsCompleted, unitsSucceeded, unitsFailed, unitsSkipped, summary);
         return this;
     }
 

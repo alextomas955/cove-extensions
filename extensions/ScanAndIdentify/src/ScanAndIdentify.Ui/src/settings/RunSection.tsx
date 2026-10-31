@@ -1,4 +1,11 @@
-import { Button, SectionCard, Spinner, StatusPill, StatusText } from "@cove-extensions/ui-shared";
+import {
+  Button,
+  ProgressBar,
+  SectionCard,
+  Spinner,
+  StatusPill,
+  StatusText,
+} from "@cove-extensions/ui-shared";
 
 import type { RunEndReason, RunStageView } from "./run";
 import {
@@ -7,6 +14,8 @@ import {
   RUN_STAGE_STATE_LABELS,
   RUN_STAGE_STATE_VARIANTS,
   isRunInFlight,
+  stageInFlightOf,
+  stageProgressPercent,
 } from "./runStageLogic";
 import { useRun } from "./useRun";
 
@@ -23,6 +32,7 @@ const WAITING: readonly RunStageView[] = RUN_STAGES.map((stage) => ({
   stage,
   state: "pending",
   jobId: null,
+  detail: null,
 }));
 
 /** The run: one button, and where each of the four stages has got to. */
@@ -42,6 +52,7 @@ export function RunSection() {
 
   const stages = run === null ? WAITING : run.stages;
   const inFlight = isRunInFlight(run ?? undefined);
+  const moving = run === null ? null : stageInFlightOf(run);
 
   return (
     <SectionCard
@@ -73,17 +84,21 @@ export function RunSection() {
 
       <ul className="space-y-2">
         {stages.map((stage) => (
-          <li
-            key={stage.stage}
-            data-stage={stage.stage}
-            className="flex items-center justify-between gap-2 text-sm"
-          >
-            <span className="text-secondary">{RUN_STAGE_LABELS[stage.stage]}</span>
-            <span data-state={stage.state}>
-              <StatusPill variant={RUN_STAGE_STATE_VARIANTS[stage.state]}>
-                {RUN_STAGE_STATE_LABELS[stage.state]}
-              </StatusPill>
-            </span>
+          <li key={stage.stage} data-stage={stage.stage} className="space-y-1 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-secondary">{RUN_STAGE_LABELS[stage.stage]}</span>
+              <span data-state={stage.state}>
+                <StatusPill variant={RUN_STAGE_STATE_VARIANTS[stage.state]}>
+                  {RUN_STAGE_STATE_LABELS[stage.state]}
+                </StatusPill>
+              </span>
+            </div>
+            {stage.stage === moving?.stage ? (
+              <ProgressBar
+                percent={stageProgressPercent(stage.detail)}
+                label={`${RUN_STAGE_LABELS[stage.stage]} progress`}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

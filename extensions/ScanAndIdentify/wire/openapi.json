@@ -411,6 +411,82 @@
           "images"
         ]
       },
+      "RunStageDetail": {
+        "required": [
+          "progress",
+          "subTask",
+          "unitsTotal",
+          "unitsCompleted",
+          "unitsSucceeded",
+          "unitsFailed",
+          "unitsSkipped",
+          "summary",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "progress": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "subTask": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unitsTotal": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsCompleted": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsSucceeded": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsFailed": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsSkipped": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "RunStageStarted": {
         "required": [
           "runId",
@@ -453,7 +529,8 @@
         "required": [
           "stage",
           "state",
-          "jobId"
+          "jobId",
+          "detail"
         ],
         "type": "object",
         "properties": {
@@ -467,6 +544,16 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunStageDetail"
+              }
             ]
           }
         }

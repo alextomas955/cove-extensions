@@ -10,7 +10,7 @@
  * from the Tasks page can hold the next exclusive stage behind it for hours.
  */
 
-import type { RunStage, RunStageState, RunStageView, RunView } from "./run";
+import type { RunStage, RunStageDetail, RunStageState, RunStageView, RunView } from "./run";
 
 /** One read per second, against the one route that reports the whole run. */
 export const RUN_POLL_INTERVAL_MS = 1000;
@@ -64,6 +64,18 @@ export const RUN_STAGE_STATE_VARIANTS: Record<RunStageState, StagePillVariant> =
   skipped: "gray",
   indeterminate: "amber",
 };
+
+/**
+ * A stage's progress as a whole percent, or undefined when the host has not reported one.
+ *
+ * Undefined is what leaves the bar indeterminate. The host reports a fraction from 0 to 1, clamped
+ * here because a bar wider than its track is a layout break rather than a report.
+ */
+export function stageProgressPercent(detail: RunStageDetail | null): number | undefined {
+  const raw = detail?.progress;
+  if (raw === null || raw === undefined || Number.isNaN(raw)) return undefined;
+  return Math.round(Math.min(1, Math.max(0, raw)) * 100);
+}
 
 /** States a stage is still moving through, and the only ones a later read can change. */
 const CARRIED_ON: readonly RunStageState[] = ["starting", "queued", "running"];

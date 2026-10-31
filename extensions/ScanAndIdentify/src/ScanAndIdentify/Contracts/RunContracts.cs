@@ -71,8 +71,65 @@ public enum RunEndReason
     Interrupted,
 }
 
+/// <summary>What the host job behind one stage reports about itself.</summary>
+/// <remarks>
+/// Every member is nullable because the host leaves most of them unset: only a job run through
+/// <c>RunBatchAsync</c> counts units, which the scan and identify passes do not, so their tallies are
+/// absent rather than zero.
+/// <para>
+/// <c>Progress</c> runs 0 to 1 as the host reports it, and <c>SubTask</c> is the host's free-text
+/// line, which can name a file. The three text members are truncated at <see cref="MaxTextLength"/>:
+/// a terminal stage's detail is stored, Cove serializes every stored value on its bulk data route,
+/// and a host error naming every failed file would otherwise grow that value until the whole
+/// settings page fails to load.
+/// </para>
+/// <para>
+/// The host's estimate, result url, job type and description are deliberately absent. Nothing here
+/// presents an estimate, and the last two name the owning extension.
+/// </para>
+/// </remarks>
+public sealed record RunStageDetail(
+    double? Progress,
+    string? SubTask,
+    int? UnitsTotal,
+    int? UnitsCompleted,
+    int? UnitsSucceeded,
+    int? UnitsFailed,
+    int? UnitsSkipped,
+    string? Summary,
+    string? Error)
+{
+    /// <summary>How much of a host text line is kept.</summary>
+    public const int MaxTextLength = 500;
+
+    /// <summary>Projects a host <see cref="JobInfo"/> onto this contract.</summary>
+    public static RunStageDetail From(JobInfo job)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+
+        return new(
+            job.Progress,
+            Truncate(job.SubTask),
+            job.UnitsTotal,
+            job.UnitsCompleted,
+            job.UnitsSucceeded,
+            job.UnitsFailed,
+            job.UnitsSkipped,
+            Truncate(job.Summary),
+            Truncate(job.Error));
+    }
+
+    private static string? Truncate(string? text)
+        => text is not null && text.Length > MaxTextLength ? text[..MaxTextLength] : text;
+}
+
 /// <summary>One stage of a run as the page reads it.</summary>
-public sealed record RunStageView(RunStage Stage, RunStageState State, string? JobId)
+/// <remarks>
+/// <c>Detail</c> is what the stage's host job reported: read live while the stage is still moving,
+/// and answered from the record once it has settled, because the host forgets a finished job once a
+/// hundred others have finished.
+/// </remarks>
+public sealed record RunStageView(RunStage Stage, RunStageState State, string? JobId, RunStageDetail? Detail)
 {
     /// <summary>
     /// Maps a host job status onto a stage state.

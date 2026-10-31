@@ -4,7 +4,7 @@
  * The request double refuses a call no test configured, so a suite that forgets to seed a response
  * fails loudly instead of driving the chain against something nobody chose.
  */
-import type { RunEndReason, RunStage, RunStageState, RunView } from "./run";
+import type { RunEndReason, RunStage, RunStageDetail, RunStageState, RunView } from "./run";
 import { answered } from "./testRunOptions";
 
 /** The stage order, written out rather than read from the module the suites are testing. */
@@ -116,6 +116,7 @@ export const runView = (
   states: Partial<Record<RunStage, RunStageState>> = {},
   overrides: Partial<RunView> = {},
   jobIds: Partial<Record<RunStage, string>> = {},
+  details: Partial<Record<RunStage, RunStageDetail>> = {},
 ): RunView => ({
   runId: "run-1",
   startedAt: "2026-10-30T09:00:00Z",
@@ -126,7 +127,22 @@ export const runView = (
     stage,
     state: states[stage] ?? "pending",
     jobId: jobIds[stage] ?? null,
+    detail: details[stage] ?? null,
   })),
+  ...overrides,
+});
+
+/** One stage detail, the way the route answers one: every member present, most of them null. */
+export const stageDetail = (overrides: Partial<RunStageDetail> = {}): RunStageDetail => ({
+  progress: null,
+  subTask: null,
+  unitsTotal: null,
+  unitsCompleted: null,
+  unitsSucceeded: null,
+  unitsFailed: null,
+  unitsSkipped: null,
+  summary: null,
+  error: null,
   ...overrides,
 });
 

@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
-import { FakeApiError, calledPaths, resetServer, runView, server } from "./testRun";
+import { FakeApiError, calledPaths, resetServer, runView, server, stageDetail } from "./testRun";
 import { answered } from "./testRunOptions";
 import { RUN_POLL_INTERVAL_MS } from "./runStageLogic";
 
@@ -60,6 +60,11 @@ function stageStates(container: HTMLElement): Record<string, string> {
       row.querySelector("[data-state]")?.textContent ?? "";
   }
   return states;
+}
+
+/** The row one stage draws, or null before the first render has committed. */
+function stageRow(container: HTMLElement, stage: string): HTMLElement | null {
+  return container.querySelector(`[data-stage="${stage}"]`);
 }
 
 /** The Run button, or null before the first render has committed. */
@@ -433,4 +438,30 @@ test("a read refused with a forbidden says the account cannot start or watch a r
   );
 
   expect([...container.querySelectorAll("button")]).toEqual([]);
+});
+
+test("the stage in flight draws its host job's progress", async () => {
+  server.reads = [
+    runView(
+      { scan: "running" },
+      {},
+      { scan: "host-scan-7" },
+      {
+        scan: stageDetail({ progress: 0.42 }),
+      },
+    ),
+  ];
+
+  const container = render();
+  await waitFor(
+    "the scan stage's bar to render",
+    () => stageRow(container, "scan")?.querySelector('[role="progressbar"]') != null,
+  );
+
+  expect(
+    stageRow(container, "scan")
+      ?.querySelector('[role="progressbar"]')
+      ?.getAttribute("aria-valuenow"),
+  ).toBe("42");
+  expect(stageRow(container, "identify")?.querySelector('[role="progressbar"]')).toBeNull();
 });

@@ -11,6 +11,7 @@ import type { Complete } from "../common/lib/wire";
 
 export type RunView = Complete<Wire.RunView>;
 export type RunStageView = Complete<Wire.RunStageView>;
+export type RunStageDetail = Complete<Wire.RunStageDetail>;
 export type RunStage = Wire.RunStage;
 export type RunStageState = Wire.RunStageState;
 

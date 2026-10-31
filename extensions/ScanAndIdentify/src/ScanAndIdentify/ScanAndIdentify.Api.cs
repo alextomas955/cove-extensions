@@ -112,14 +112,16 @@ public sealed partial class ScanAndIdentify
             .RequireCovePermission(PermissionMode.All, RunPermissions);
 
         endpoints.MapPost(RunStagesRoute,
-            (RunStageStarted? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => RecordStageAsync(body, principal, ct))
+            (RunStageStarted? body, ICurrentPrincipalAccessor principal, IJobService jobs,
+                CancellationToken ct)
+                => RecordStageAsync(body, principal, jobs, ct))
             .Accepts<RunStageStarted>("application/json")
             .RequireCovePermission(PermissionMode.All, RunPermissions);
 
         endpoints.MapPost(RunEndRoute,
-            (RunEnded? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => EndRunAsync(body, principal, ct))
+            (RunEnded? body, ICurrentPrincipalAccessor principal, IJobService jobs,
+                CancellationToken ct)
+                => EndRunAsync(body, principal, jobs, ct))
             .Accepts<RunEnded>("application/json")
             .RequireCovePermission(PermissionMode.All, RunPermissions);
     }
@@ -229,7 +231,7 @@ public sealed partial class ScanAndIdentify
             };
 
             await store.SaveAsync(claimed, ct);
-            return TypedResults.Ok(ViewOf(claimed));
+            return TypedResults.Ok(ViewOf(claimed, jobs));
         }
         finally
         {
@@ -264,7 +266,7 @@ public sealed partial class ScanAndIdentify
                 await store.SaveAsync(advanced, ct);
             }
 
-            return TypedResults.Ok(ViewOf(advanced));
+            return TypedResults.Ok(ViewOf(advanced, jobs));
         }
         finally
         {
@@ -275,8 +277,13 @@ public sealed partial class ScanAndIdentify
     // A caller reporting that it is starting a stage, or that the stage's job now exists.
     internal async Task<Results<Ok<RunView>, BadRequest<ErrorCode>, Conflict<ErrorCode>, NotFound, ForbiddenCode>>
         RecordStageAsync(
-            RunStageStarted? body, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
+            RunStageStarted? body,
+            ICurrentPrincipalAccessor principal,
+            IJobService jobs,
+            CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(jobs);
+
         if (ForbiddenForRun(principal) is { } denied)
         {
             return denied;
@@ -323,7 +330,7 @@ public sealed partial class ScanAndIdentify
             var stages = new List<RunStageEntry>(record.Stages) { [index] = written };
             var updated = record with { Stages = stages };
             await store.SaveAsync(updated, ct);
-            return TypedResults.Ok(ViewOf(updated));
+            return TypedResults.Ok(ViewOf(updated, jobs));
         }
         finally
         {
@@ -337,8 +344,14 @@ public sealed partial class ScanAndIdentify
     // Only the two reasons a caller can know are accepted. Completed and interrupted are read off the
     // stages, so accepting either here would let a caller assert an outcome it cannot observe.
     internal async Task<Results<Ok<RunView>, BadRequest<ErrorCode>, Conflict<ErrorCode>, NotFound, ForbiddenCode>>
-        EndRunAsync(RunEnded? body, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
+        EndRunAsync(
+            RunEnded? body,
+            ICurrentPrincipalAccessor principal,
+            IJobService jobs,
+            CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(jobs);
+
         if (ForbiddenForRun(principal) is { } denied)
         {
             return denied;
@@ -365,12 +378,12 @@ public sealed partial class ScanAndIdentify
 
             if (record.EndedAt is not null)
             {
-                return TypedResults.Ok(ViewOf(record));
+                return TypedResults.Ok(ViewOf(record, jobs));
             }
 
             var ended = record with { EndedAt = DateTime.UtcNow, EndedReason = body.Reason };
             await store.SaveAsync(ended, ct);
-            return TypedResults.Ok(ViewOf(ended));
+            return TypedResults.Ok(ViewOf(ended, jobs));
         }
         finally
         {
@@ -502,11 +515,29 @@ public sealed partial class ScanAndIdentify
             : null;
     }
 
-    private static RunView ViewOf(RunRecord record) => new(
+    // One projection for all four routes, so they cannot answer different views of the same record.
+    //
+    // A settled stage's detail is answered from the record and never re-read, by the same rule that
+    // already governs its state: the host forgets a finished job once a hundred others have finished,
+    // so a finished run would otherwise report blank rows.
+    private static RunView ViewOf(RunRecord record, IJobService jobs) => new(
         record.RunId,
         record.StartedAt,
         record.EndedAt,
         record.EndedReason,
         record.Options,
-        [.. record.Stages.Select(stage => new RunStageView(stage.Stage, stage.State, stage.JobId))]);
+        [.. record.Stages.Select(stage => new RunStageView(
+            stage.Stage, stage.State, stage.JobId, DetailOf(stage, jobs)))]);
+
+    private static RunStageDetail? DetailOf(RunStageEntry stage, IJobService jobs)
+    {
+        if (IsSettled(stage.State))
+        {
+            return null;
+        }
+
+        return stage.JobId is { } jobId && jobs.GetJob(jobId) is { } job
+            ? RunStageDetail.From(job)
+            : null;
+    }
 }
