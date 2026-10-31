@@ -1,0 +1,139 @@
+/**
+ * The pure decisions the run section takes: what the four stages read as, which one starts next, and
+ * whether the poll keeps reading.
+ *
+ * Nothing here reaches a browser or a host, so every boundary is testable without either.
+ *
+ * There is no stall budget. The record carries no progress number for one to key on, and the one
+ * window that can wedge - a stage claimed whose host job id never arrives - is bounded on the server
+ * instead. A stage queued in Cove is healthy for as long as it stays queued: a scan the user started
+ * from the Tasks page can hold the next exclusive stage behind it for hours.
+ */
+
+import type { RunStage, RunStageState, RunView } from "./run";
+
+/** One read per second, against the one route that reports the whole run. */
+export const RUN_POLL_INTERVAL_MS = 1000;
+
+/**
+ * How many consecutive failed reads end the watch. Counted in polls, because this module does not
+ * own the interval. A stage whose job id no longer resolves is not a failed read: the server answers
+ * that as a state.
+ */
+export const RUN_FAILURE_ALLOWANCE = 30;
+
+/** The stages in run order. */
+export const RUN_STAGES: readonly RunStage[] = ["scan", "fingerprints", "identify", "images"];
+
+export const RUN_STAGE_LABELS: Record<RunStage, string> = {
+  scan: "Scan",
+  fingerprints: "Fingerprints",
+  identify: "Identify",
+  images: "Images and previews",
+};
+
+export const RUN_STAGE_STATE_LABELS: Record<RunStageState, string> = {
+  pending: "waiting",
+  starting: "starting",
+  queued: "queued in Cove",
+  running: "running",
+  succeeded: "done",
+  failed: "failed",
+  cancelled: "cancelled",
+  skipped: "skipped",
+  indeterminate: "unknown",
+};
+
+/**
+ * The pill colors the stage rows draw with.
+ *
+ * The union is written out rather than imported from the shared primitives, because a pure module
+ * takes no non-relative import. It is structurally the variant the pill accepts, so a value this map
+ * stopped matching would be a type error at the row.
+ */
+type StagePillVariant = "accent" | "amber" | "red" | "green" | "gray";
+
+export const RUN_STAGE_STATE_VARIANTS: Record<RunStageState, StagePillVariant> = {
+  pending: "gray",
+  starting: "accent",
+  queued: "amber",
+  running: "accent",
+  succeeded: "green",
+  failed: "red",
+  cancelled: "amber",
+  skipped: "gray",
+  indeterminate: "amber",
+};
+
+/** States a stage is still moving through, and the only ones a later read can change. */
+const CARRIED_ON: readonly RunStageState[] = ["starting", "queued", "running"];
+
+/** One read of the run route: either the run came back, or the read itself failed. */
+export type PollObservation = { read: "ok"; run: RunView } | { read: "failed" };
+
+/** What the caller has counted up to this read. The one bound is a parameter, never a clock. */
+export interface PollContext {
+  consecutiveFailures: number;
+  failureAllowance: number;
+}
+
+/**
+ * What the poller does next. `giveUp` is the page stopping on a server that will not answer, which
+ * says nothing about whether the run is still going.
+ */
+export type PollDecision =
+  { action: "continue" } | { action: "stop" } | { action: "giveUp"; message: string };
+
+/** Whether a run exists and has not ended. */
+export function isRunInFlight(run: RunView | undefined): boolean {
+  return run?.endedAt === null;
+}
+
+/** Whether a stage of this run is claimed, queued or running. */
+export function stageInFlight(run: RunView): boolean {
+  return run.stages.some((stage) => CARRIED_ON.includes(stage.state));
+}
+
+/**
+ * The stage this page should start next, or null when there is none.
+ *
+ * Nothing in Cove orders these four. Identify is enqueued non-exclusive, so it runs the moment it is
+ * asked for, and the order holds only because this returns null until the stage before has reached a
+ * state it will not move out of.
+ *
+ * @param startable the stages this page knows how to start.
+ */
+export function nextStageToStart(run: RunView, startable: readonly RunStage[]): RunStage | null {
+  if (!isRunInFlight(run) || stageInFlight(run)) return null;
+
+  for (const stage of run.stages) {
+    if (stage.state === "pending") {
+      return startable.includes(stage.stage) ? stage.stage : null;
+    }
+    if (stage.state !== "succeeded" && stage.state !== "skipped") return null;
+  }
+  return null;
+}
+
+/**
+ * Decide what the poller does after `observation`.
+ *
+ * The poll stops when the run has ended **and** no stage is still moving, not when it has ended: the
+ * server keeps resolving stage states afterwards, so a cancel the host takes a batch to honor
+ * arrives after the end time and the last row would otherwise read running for good. A stage left
+ * waiting behind a failure is not still moving - nothing will ever start it.
+ */
+export function decidePoll(observation: PollObservation, context: PollContext): PollDecision {
+  if (observation.read === "failed") {
+    return context.consecutiveFailures >= context.failureAllowance
+      ? {
+          action: "giveUp",
+          message:
+            "Cove stopped answering when asked about this run. The run may still be going, so reopen this page before starting another",
+        }
+      : { action: "continue" };
+  }
+
+  const { run } = observation;
+  return run.endedAt !== null && !stageInFlight(run) ? { action: "stop" } : { action: "continue" };
+}
