@@ -92,6 +92,211 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run/stages": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RunStageStarted"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run/end": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RunEnded"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -136,6 +341,33 @@
           }
         }
       },
+      "RunEnded": {
+        "required": [
+          "runId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RunEndReason"
+          }
+        }
+      },
+      "RunEndReason": {
+        "enum": [
+          "completed",
+          "failed",
+          "cancelled",
+          "interrupted",
+          null
+        ]
+      },
       "RunOptions": {
         "type": "object",
         "properties": {
@@ -168,6 +400,120 @@
           },
           "markOrganized": {
             "type": "boolean"
+          }
+        }
+      },
+      "RunStage": {
+        "enum": [
+          "scan",
+          "fingerprints",
+          "identify",
+          "images"
+        ]
+      },
+      "RunStageStarted": {
+        "required": [
+          "runId",
+          "stage",
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/RunStage"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RunStageState": {
+        "enum": [
+          "pending",
+          "starting",
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "skipped",
+          "indeterminate"
+        ]
+      },
+      "RunStageView": {
+        "required": [
+          "stage",
+          "state",
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/RunStage"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RunStageState"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RunView": {
+        "required": [
+          "runId",
+          "startedAt",
+          "endedAt",
+          "endedReason",
+          "options",
+          "stages"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endedReason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunEndReason"
+              }
+            ]
+          },
+          "options": {
+            "$ref": "#/components/schemas/RunOptions"
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunStageView"
+            }
           }
         }
       }

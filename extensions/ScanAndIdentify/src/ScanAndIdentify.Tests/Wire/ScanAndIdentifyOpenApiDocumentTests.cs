@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using ScanAndIdentify.Tests.TestSupport;
@@ -10,8 +11,12 @@ public sealed class ScanAndIdentifyOpenApiDocumentTests : ExtensionOpenApiDocume
     protected override IApiExtension CreateExtension() => ScanAndIdentifyFixture.Create(new FakeStore());
 
     // Registration-time binding only. Minimal-API binding resolves an unregistered complex type as a
-    // body parameter, and the options write already has one, so leaving the accessor out throws while
-    // the route is being mapped. Nothing here is ever dereferenced.
+    // body parameter, and the write routes already have one, so leaving either of these out throws
+    // while the route is being mapped. Nothing here is ever dereferenced.
     protected override void ConfigureBindingServices(IServiceCollection services)
-        => services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
+        services.AddSingleton<IJobService>(_ => null!);
+    }
 }
