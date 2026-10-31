@@ -7,8 +7,9 @@ namespace ScanAndIdentify.Run;
 /// <summary>One stage of a run as it is stored.</summary>
 /// <remarks>
 /// <c>JobId</c> stays null until a caller reports the host job it started, which is the window the
-/// <c>Starting</c> state exists to make visible. <c>EndedAt</c> is written the first time the stage
-/// is observed in a terminal state.
+/// <c>Starting</c> state exists to make visible. <c>EndedAt</c> and <c>Detail</c> are both written
+/// the first time the stage is observed in a terminal state, and <c>Detail</c> stays null for a
+/// stage no read ever saw a job for.
 /// </remarks>
 public sealed record RunStageEntry
 {
@@ -21,6 +22,8 @@ public sealed record RunStageEntry
     public DateTime? StartedAt { get; init; }
 
     public DateTime? EndedAt { get; init; }
+
+    public RunStageDetail? Detail { get; init; }
 }
 
 /// <summary>The persisted description of one run: what it was started with and where it has got to.</summary>

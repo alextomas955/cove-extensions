@@ -200,6 +200,51 @@ public sealed class RunEndpointTests
     }
 
     [Fact]
+    public async Task Read_KeepsWhatAStageReported_AfterTheHostHasForgottenItsJob()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job",
+            JobStatus.Completed,
+            progress: 1,
+            summary: "4,920 of 5,000 units succeeded",
+            unitsTotal: 5000,
+            unitsCompleted: 5000,
+            unitsSucceeded: 4920,
+            unitsFailed: 80));
+
+        var later = await ReadAsync(extension, new RecordingJobService());
+
+        var stage = StageOf(later, RunStage.Scan);
+        Assert.Equal(RunStageState.Succeeded, stage.State);
+        Assert.NotNull(stage.Detail);
+        Assert.Equal("4,920 of 5,000 units succeeded", stage.Detail.Summary);
+        Assert.Equal(5000, stage.Detail.UnitsTotal);
+        Assert.Equal(4920, stage.Detail.UnitsSucceeded);
+        Assert.Equal(80, stage.Detail.UnitsFailed);
+    }
+
+    [Fact]
+    public async Task Read_WritesNothing_WhenAllThatMovedWasARunningStagesProgress()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        var first = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job", JobStatus.Running, progress: 0.1));
+        int writes = store.SetCallCount;
+
+        var second = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job", JobStatus.Running, progress: 0.5));
+
+        Assert.Equal(0.1, StageOf(first, RunStage.Scan).Detail!.Progress);
+        Assert.Equal(0.5, StageOf(second, RunStage.Scan).Detail!.Progress);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
     public async Task Read_EndsTheRunAsInterrupted_WhenAStagesJobNoLongerResolves()
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
@@ -209,6 +254,7 @@ public sealed class RunEndpointTests
         var next = await extension.ClaimRunAsync(Runner, new RecordingJobService());
 
         Assert.Equal(RunStageState.Indeterminate, StageOf(read, RunStage.Scan).State);
+        Assert.Null(StageOf(read, RunStage.Scan).Detail);
         Assert.Equal(RunEndReason.Interrupted, read.EndedReason);
         Assert.NotNull(read.EndedAt);
         Assert.NotEqual(run.RunId, Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(next)).Value!.RunId);

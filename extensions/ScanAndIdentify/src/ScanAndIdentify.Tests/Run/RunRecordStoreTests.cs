@@ -48,6 +48,40 @@ public sealed class RunRecordStoreTests
     }
 
     [Fact]
+    public async Task Load_AnswersASettledStagesDetail_AfterASave()
+    {
+        var fake = new FakeStore();
+        var store = new RunRecordStore(fake);
+        var detail = new RunStageDetail(1, "Scanning clip.mp4", 5000, 5000, 4920, 80, 0, "done", null);
+        await store.SaveAsync(new RunRecord
+        {
+            RunId = "7f1c",
+            Stages =
+            [
+                new() { Stage = RunStage.Scan, State = RunStageState.Succeeded, Detail = detail },
+                new() { Stage = RunStage.Fingerprints, State = RunStageState.Pending },
+                new() { Stage = RunStage.Identify, State = RunStageState.Pending },
+                new() { Stage = RunStage.Images, State = RunStageState.Pending },
+            ],
+        });
+
+        var loaded = await store.LoadAsync();
+
+        var stored = loaded!.Stages[0].Detail;
+        Assert.NotNull(stored);
+        Assert.Equal(detail.Progress, stored.Progress);
+        Assert.Equal(detail.SubTask, stored.SubTask);
+        Assert.Equal(detail.UnitsTotal, stored.UnitsTotal);
+        Assert.Equal(detail.UnitsCompleted, stored.UnitsCompleted);
+        Assert.Equal(detail.UnitsSucceeded, stored.UnitsSucceeded);
+        Assert.Equal(detail.UnitsFailed, stored.UnitsFailed);
+        Assert.Equal(detail.UnitsSkipped, stored.UnitsSkipped);
+        Assert.Equal(detail.Summary, stored.Summary);
+        Assert.Null(stored.Error);
+        Assert.Null(loaded.Stages[1].Detail);
+    }
+
+    [Fact]
     public async Task Save_WritesTheStageNamesInTheirWireSpelling()
     {
         var fake = new FakeStore();

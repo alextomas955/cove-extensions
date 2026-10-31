@@ -447,18 +447,33 @@ public sealed partial class ScanAndIdentify
         var stages = new List<RunStageEntry>(record.Stages.Count);
         foreach (var stage in record.Stages)
         {
-            var derived = IsSettled(stage.State) ? stage.State : DeriveState(stage, jobs, now);
-            if (derived == stage.State)
+            if (IsSettled(stage.State))
             {
                 stages.Add(stage);
                 continue;
             }
 
+            // Read once, so the state and the detail describe the same observation of the same job.
+            var job = stage.JobId is { } jobId ? jobs.GetJob(jobId) : null;
+            var derived = DeriveState(stage, job, now);
+            if (!IsSettled(derived))
+            {
+                // Reported, not stored. A stage still moving is re-derived on the next read anyway,
+                // and storing it would write the store on every poll for as long as the run lasts.
+                stages.Add(derived == stage.State ? stage : stage with { State = derived });
+                continue;
+            }
+
+            // The detail the host reported at the moment the stage settled, kept because the host
+            // forgets a finished job once a hundred others have finished. A stage that settled only
+            // because its job stopped resolving keeps whatever it had, which is nothing when no read
+            // ever saw the job.
             changed = true;
             stages.Add(stage with
             {
                 State = derived,
-                EndedAt = IsSettled(derived) ? now : stage.EndedAt,
+                EndedAt = now,
+                Detail = job is null ? stage.Detail : RunStageDetail.From(job),
             });
         }
 
@@ -475,7 +490,7 @@ public sealed partial class ScanAndIdentify
     // A null answer from GetJob is authoritative rather than a failed read: the call is in-process.
     // It covers a finished job evicted from the host's history, a job lost to a host restart and an
     // id that was never real, which the record cannot tell apart.
-    private static RunStageState DeriveState(RunStageEntry stage, IJobService jobs, DateTime now)
+    private static RunStageState DeriveState(RunStageEntry stage, JobInfo? job, DateTime now)
     {
         if (stage.JobId is null)
         {
@@ -486,9 +501,7 @@ public sealed partial class ScanAndIdentify
                     : stage.State;
         }
 
-        return jobs.GetJob(stage.JobId) is { } job
-            ? RunStageView.StateFor(job.Status)
-            : RunStageState.Indeterminate;
+        return job is null ? RunStageState.Indeterminate : RunStageView.StateFor(job.Status);
     }
 
     // The stages after a failed, cancelled or unknown one stay pending, which is what the run ending
@@ -533,7 +546,7 @@ public sealed partial class ScanAndIdentify
     {
         if (IsSettled(stage.State))
         {
-            return null;
+            return stage.Detail;
         }
 
         return stage.JobId is { } jobId && jobs.GetJob(jobId) is { } job
