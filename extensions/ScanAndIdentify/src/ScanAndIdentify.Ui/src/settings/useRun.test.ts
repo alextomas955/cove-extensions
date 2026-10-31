@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { waitFor } from "../common/lib/flushRender";
 import { FakeApiError, calledPaths, resetServer, runView, server } from "./testRun";
+import { answered } from "./testRunOptions";
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
   const { extensionRequestDouble } = await import("./testRun");
@@ -17,6 +18,17 @@ const RUN_PATH = "/extensions/com.alextomas955.scanandidentify/run";
 const STAGES_PATH = `${RUN_PATH}/stages`;
 const END_PATH = `${RUN_PATH}/end`;
 const SCAN_PATH = "/metadata/scan";
+const GENERATE_PATH = "/metadata/generate";
+const IDENTIFY_PATH = "/metadata/identify";
+
+/** The body of the one call the page made to `path`. */
+const bodySentTo = (path: string): unknown => server.calls.find((call) => call.path === path)?.body;
+
+/** The stage each run write named, in the order the page wrote them. */
+const stagesWritten = (): unknown[] =>
+  server.calls
+    .filter((call) => call.path === STAGES_PATH)
+    .map((call) => (call.body as { stage: string }).stage);
 
 beforeEach(resetServer);
 
@@ -128,16 +140,93 @@ test("a second Run is impossible while a run is in flight", async () => {
   expect(runButton(container)?.disabled).toBe(true);
 });
 
-test("once the scan is done and nothing else can start, the run stops and Run comes back", async () => {
-  server.reads = [runView({ scan: "succeeded" })];
+test("once the scan is done the fingerprint pass starts, with the host's thumbnail default off", async () => {
+  server.reads = [
+    runView({ scan: "succeeded" }),
+    runView({ scan: "succeeded", fingerprints: "starting" }),
+    runView({ scan: "succeeded", fingerprints: "running" }),
+  ];
+
+  render();
+  await waitFor("the generate pass to be posted", () => calledPaths().includes(GENERATE_PATH));
+
+  expect(stagesWritten()).toEqual(["fingerprints", "fingerprints"]);
+  expect(bodySentTo(GENERATE_PATH)).toEqual({
+    md5: true,
+    phashes: true,
+    imagePhashes: true,
+    audioPhashes: true,
+    textPhashes: true,
+    thumbnails: false,
+    overwrite: false,
+  });
+});
+
+test("with the fingerprint switch off, identify starts straight after the scan", async () => {
+  const options = answered({ backfillFingerprints: false });
+  server.reads = [
+    runView({ scan: "succeeded", fingerprints: "skipped" }, { options }),
+    runView({ scan: "succeeded", fingerprints: "skipped", identify: "starting" }, { options }),
+    runView({ scan: "succeeded", fingerprints: "skipped", identify: "running" }, { options }),
+  ];
+
+  render();
+  await waitFor("identify to be posted", () => calledPaths().includes(IDENTIFY_PATH));
+
+  expect(calledPaths()).not.toContain(GENERATE_PATH);
+  expect(bodySentTo(IDENTIFY_PATH)).toEqual({
+    createTags: true,
+    createPerformers: true,
+    createStudios: true,
+    markOrganized: false,
+  });
+});
+
+test("once identify is done the images pass starts, even with every visual switch off", async () => {
+  const options = answered({
+    thumbnails: false,
+    previews: false,
+    sprites: false,
+    vrStereo: false,
+    imageThumbnails: false,
+    galleryThumbnails: false,
+  });
+  const done = { scan: "succeeded", fingerprints: "succeeded", identify: "succeeded" } as const;
+  server.reads = [
+    runView(done, { options }),
+    runView({ ...done, images: "starting" }, { options }),
+    runView({ ...done, images: "running" }, { options }),
+  ];
+
+  render();
+  await waitFor("the images pass to be posted", () => calledPaths().includes(GENERATE_PATH));
+
+  expect(stagesWritten()).toEqual(["images", "images"]);
+  expect(bodySentTo(GENERATE_PATH)).toEqual({
+    thumbnails: false,
+    previews: false,
+    sprites: false,
+    vrStereo: false,
+    imageThumbnails: false,
+    galleryThumbnails: false,
+    overwrite: false,
+  });
+});
+
+test("a run the server ended as completed says so, and the page ends nothing itself", async () => {
+  server.reads = [
+    runView(
+      { scan: "succeeded", fingerprints: "skipped", identify: "succeeded", images: "succeeded" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "completed" },
+    ),
+  ];
 
   const container = render();
-  await waitFor("the run to be ended", () => calledPaths().includes(END_PATH));
-  await waitFor("the stopped line to render", () =>
-    container.textContent.includes("The run stopped."),
+  await waitFor("the finished line to render", () =>
+    container.textContent.includes("The run finished."),
   );
 
-  expect(server.calls.at(-1)?.body).toEqual({ runId: "run-1", reason: "cancelled" });
+  expect(calledPaths()).not.toContain(END_PATH);
   expect(offersRun(container)).toBe(true);
 });
 
