@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { waitFor } from "../common/lib/flushRender";
 import { FakeApiError, calledPaths, resetServer, runView, server } from "./testRun";
 import { answered } from "./testRunOptions";
+import { RUN_POLL_INTERVAL_MS } from "./runStageLogic";
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
   const { extensionRequestDouble } = await import("./testRun");
@@ -20,6 +21,7 @@ const END_PATH = `${RUN_PATH}/end`;
 const SCAN_PATH = "/metadata/scan";
 const GENERATE_PATH = "/metadata/generate";
 const IDENTIFY_PATH = "/metadata/identify";
+const CANCEL_PATH = "/jobs/host-scan-7";
 
 /** The body of the one call the page made to `path`. */
 const bodySentTo = (path: string): unknown => server.calls.find((call) => call.path === path)?.body;
@@ -71,6 +73,21 @@ function runButton(container: HTMLElement): HTMLButtonElement | null {
 
 const offersRun = (container: HTMLElement): boolean => runButton(container)?.disabled === false;
 
+/** The Cancel button, or null while no run is in flight. */
+function cancelButton(container: HTMLElement): HTMLButtonElement | null {
+  return (
+    [...container.querySelectorAll("button")].find((button) =>
+      button.textContent.startsWith("Cancel"),
+    ) ?? null
+  );
+}
+
+function pressCancel(container: HTMLElement): void {
+  const button = cancelButton(container);
+  if (button === null) throw new Error("no Cancel button");
+  button.click();
+}
+
 function pressRun(container: HTMLElement): void {
   const button = runButton(container);
   if (button === null) throw new Error("no Run button");
@@ -93,6 +110,30 @@ test("with no run, the page offers Run and shows four waiting stages", async () 
     images: "waiting",
   });
   expect(offersRun(container)).toBe(true);
+  expect(cancelButton(container)).toBeNull();
+});
+
+test("a stage that failed starts nothing after it, and those stages are still waiting", async () => {
+  server.reads = [
+    runView(
+      { scan: "succeeded", fingerprints: "failed" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "failed" },
+      { fingerprints: "host-generate-2" },
+    ),
+  ];
+
+  const container = render();
+  await waitFor("the failed line to render", () =>
+    container.textContent.includes("The run stopped: a stage failed."),
+  );
+
+  expect(stageStates(container)).toEqual({
+    scan: "done",
+    fingerprints: "failed",
+    identify: "waiting",
+    images: "waiting",
+  });
+  expect(calledPaths().filter((path) => path.startsWith("/metadata/"))).toEqual([]);
 });
 
 test("a run already in flight is adopted on mount, with nothing pressed", async () => {
@@ -228,6 +269,108 @@ test("a run the server ended as completed says so, and the page ends nothing its
 
   expect(calledPaths()).not.toContain(END_PATH);
   expect(offersRun(container)).toBe(true);
+});
+
+test("Cancel asks Cove to stop the job in flight, then ends the run", async () => {
+  server.reads = [
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView(
+      { scan: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+  ];
+
+  const container = render();
+  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
+  pressCancel(container);
+  await waitFor("the run to be ended", () => calledPaths().includes(END_PATH));
+
+  // The order is the behavior: ending the run first would leave the page watching a job it has
+  // stopped reporting, and the DELETE answers before a running job has settled.
+  expect(calledPaths().indexOf(CANCEL_PATH)).toBeLessThan(calledPaths().indexOf(END_PATH));
+  expect(server.calls.find((call) => call.path === CANCEL_PATH)?.method).toBe("DELETE");
+  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "cancelled" });
+});
+
+test("Cancel with no host job to stop ends the run and asks Cove to stop nothing", async () => {
+  // A stage reads starting, with no job id, between its claim and its host job being reported.
+  server.reads = [
+    runView({ scan: "starting" }),
+    runView({ scan: "starting" }, { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" }),
+  ];
+
+  const container = render();
+  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
+  pressCancel(container);
+  await waitFor("the run to be ended", () => calledPaths().includes(END_PATH));
+
+  expect(calledPaths().filter((path) => path.startsWith("/jobs/"))).toEqual([]);
+});
+
+test("a cancel Cove refuses still ends the run and says the stage could not be stopped", async () => {
+  server.reads = [
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView(
+      { scan: "running" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+  ];
+  server.cancelError = new FakeApiError(403, '{"code":"FORBIDDEN","missing":["jobs.cancel"]}');
+
+  const container = render();
+  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
+  pressCancel(container);
+  await waitFor("the refusal to render", () =>
+    container.textContent.includes("would not stop the stage already in flight"),
+  );
+
+  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "cancelled" });
+});
+
+test("after a cancel no further stage starts, even when the stopped job reports completed", async () => {
+  server.reads = [
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView(
+      { scan: "succeeded" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+  ];
+
+  const container = render();
+  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
+  pressCancel(container);
+  await waitFor("the stopped job to report done", () => stageStates(container).scan === "done");
+
+  expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("the poll keeps reading after the run ends and stops once the last stage settles", async () => {
+  server.reads = [
+    runView(
+      { scan: "running" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+    runView(
+      { scan: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+  ];
+
+  const container = render();
+  // The row changing is the positive control: the page read the run again after its end time was
+  // written, which is the only way the cancelled state could arrive.
+  await waitFor("the scan row to settle", () => stageStates(container).scan === "cancelled");
+  const readsBefore = calledPaths().length;
+  await new Promise((resolve) => setTimeout(resolve, RUN_POLL_INTERVAL_MS * 2));
+
+  expect(calledPaths().length).toBe(readsBefore);
 });
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {

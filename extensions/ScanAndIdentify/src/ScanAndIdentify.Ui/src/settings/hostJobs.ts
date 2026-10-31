@@ -8,7 +8,7 @@
  * that record later would otherwise start reaching a host route nobody intended, and one host
  * member defaults on rather than off.
  */
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { request, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { RunStage } from "./run";
 import type { RunOptions } from "./runOptions";
@@ -122,4 +122,15 @@ export async function startHostStage(stage: RunStage, options: RunOptions): Prom
     body: JSON.stringify(body(options)),
   });
   return started.jobId;
+}
+
+/**
+ * Asks Cove to stop one job.
+ *
+ * The host's own route, which demands `jobs.cancel` and so can refuse a caller who may start a run
+ * but not stop one. A queued job is terminal before this answers; a running one only has its token
+ * cancelled, so the stage's outcome is read from the next run report rather than from this call.
+ */
+export async function cancelHostJob(jobId: string): Promise<void> {
+  await request(`/jobs/${jobId}`, { method: "DELETE" });
 }

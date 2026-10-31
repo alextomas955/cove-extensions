@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { RunStage, RunView } from "./run";
-import { STARTABLE_STAGES, startHostStage } from "./hostJobs";
+import { STARTABLE_STAGES, cancelHostJob, startHostStage } from "./hostJobs";
 import { claimRun, endRun, readRun, recordStage } from "./runStore";
 import {
   RUN_FAILURE_ALLOWANCE,
@@ -22,10 +22,14 @@ import {
   isRunInFlight,
   nextStageToStart,
   stageInFlight,
+  stageInFlightOf,
 } from "./runStageLogic";
 
 /** What a 409 on the claim means, in the words the section shows. */
 const ALREADY_IN_FLIGHT = "A run is already in flight.";
+
+/** What a refused cancel means: the run is over, the job it was running may not be. */
+const CANCEL_REFUSED = "The run has stopped, but Cove would not stop the stage already in flight:";
 
 export interface UseRun {
   run: RunView | null;
@@ -34,7 +38,9 @@ export interface UseRun {
   forbidden: boolean;
   failure: string | null;
   claiming: boolean;
+  cancelling: boolean;
   start: () => void;
+  cancel: () => void;
 }
 
 /** What starting one stage came to. */
@@ -84,6 +90,7 @@ export function useRun(): UseRun {
   const [forbidden, setForbidden] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [watching, setWatching] = useState(true);
 
   // Holds across the whole three-request advance, so a tick firing while the previous one is still
@@ -149,17 +156,14 @@ export function useRun(): UseRun {
 
       if (!isRunInFlight(observed) || stageInFlight(observed)) return;
 
+      // The page ends a run only when it stopped one itself or its own host request failed. Every
+      // other ending is the server's derivation from the stage states, so a run with nothing to
+      // start is left to the next read rather than closed here.
       const next = nextStageToStart(observed, STARTABLE_STAGES);
+      if (next === null) return;
+
       advancing.current = true;
       try {
-        if (next === null) {
-          // Nothing left this page can take further, which the record records as a run something
-          // stopped rather than one that finished.
-          const ended = await endRun(observed.runId, "cancelled");
-          if (stillLive()) setRun(ended);
-          return;
-        }
-
         const advance = await startStage(observed, next);
         if (!stillLive() || advance.outcome === "abandoned") return;
         setRun(advance.run);
@@ -210,5 +214,38 @@ export function useRun(): UseRun {
     })();
   }, []);
 
-  return { run, loading, forbidden, failure, claiming, start };
+  const cancel = useCallback(() => {
+    if (run === null || !isRunInFlight(run)) return;
+
+    void (async () => {
+      setCancelling(true);
+      setFailure(null);
+      // Held across the whole cancel so a tick cannot start the next stage in the window between
+      // the host job being stopped and the run being ended.
+      advancing.current = true;
+      try {
+        const stage = stageInFlightOf(run);
+        if (stage?.jobId != null) {
+          try {
+            await cancelHostJob(stage.jobId);
+          } catch (err) {
+            // Ended anyway: a run left in flight is one nobody can start again, and a caller who
+            // may run a chain without holding jobs.cancel is a real account.
+            setFailure(`${CANCEL_REFUSED} ${errorText(err)}`);
+          }
+        }
+        setRun(await endRun(run.runId, "cancelled"));
+      } catch (err) {
+        setFailure(errorText(err));
+      } finally {
+        advancing.current = false;
+        setCancelling(false);
+        // The stage in flight settles after the end time is written, so the watch carries on until
+        // it does.
+        setWatching(true);
+      }
+    })();
+  }, [run]);
+
+  return { run, loading, forbidden, failure, claiming, cancelling, start, cancel };
 }

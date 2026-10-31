@@ -27,7 +27,7 @@ const WAITING: readonly RunStageView[] = RUN_STAGES.map((stage) => ({
 
 /** The run: one button, and where each of the four stages has got to. */
 export function RunSection() {
-  const { run, loading, forbidden, failure, claiming, start } = useRun();
+  const { run, loading, forbidden, failure, claiming, cancelling, start, cancel } = useRun();
 
   if (forbidden) {
     return (
@@ -41,6 +41,7 @@ export function RunSection() {
   }
 
   const stages = run === null ? WAITING : run.stages;
+  const inFlight = isRunInFlight(run ?? undefined);
 
   return (
     <SectionCard
@@ -55,9 +56,14 @@ export function RunSection() {
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button onClick={start} disabled={isRunInFlight(run ?? undefined) || claiming}>
+        <Button onClick={start} disabled={inFlight || claiming}>
           {claiming ? "Starting…" : "Run"}
         </Button>
+        {inFlight ? (
+          <Button variant="ghost" onClick={cancel} disabled={cancelling}>
+            {cancelling ? "Cancelling…" : "Cancel"}
+          </Button>
+        ) : null}
         {run?.endedReason == null ? null : (
           <StatusText kind={run.endedReason === "completed" ? "success" : "muted"}>
             {END_TEXT[run.endedReason]}

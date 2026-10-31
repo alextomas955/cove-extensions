@@ -10,7 +10,7 @@
  * from the Tasks page can hold the next exclusive stage behind it for hours.
  */
 
-import type { RunStage, RunStageState, RunView } from "./run";
+import type { RunStage, RunStageState, RunStageView, RunView } from "./run";
 
 /** One read per second, against the one route that reports the whole run. */
 export const RUN_POLL_INTERVAL_MS = 1000;
@@ -89,9 +89,19 @@ export function isRunInFlight(run: RunView | undefined): boolean {
   return run?.endedAt === null;
 }
 
+/**
+ * The stage this run is claimed, queued or running at, or null when none is.
+ *
+ * Its job id is null for as long as the stage has been claimed and its host job not yet reported,
+ * which is the window a cancel has nothing to stop in.
+ */
+export function stageInFlightOf(run: RunView): RunStageView | null {
+  return run.stages.find((stage) => CARRIED_ON.includes(stage.state)) ?? null;
+}
+
 /** Whether a stage of this run is claimed, queued or running. */
 export function stageInFlight(run: RunView): boolean {
-  return run.stages.some((stage) => CARRIED_ON.includes(stage.state));
+  return stageInFlightOf(run) !== null;
 }
 
 /**

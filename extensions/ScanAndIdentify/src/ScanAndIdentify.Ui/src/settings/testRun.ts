@@ -37,6 +37,8 @@ export const server = {
   stageError: null as Error | null,
   hostError: null as Error | null,
   hostJobId: "scan-job",
+  /** What the host's job cancel fails with. Null means it answers 200. */
+  cancelError: null as Error | null,
 };
 
 export function resetServer(): void {
@@ -48,6 +50,7 @@ export function resetServer(): void {
   server.stageError = null;
   server.hostError = null;
   server.hostJobId = "scan-job";
+  server.cancelError = null;
 }
 
 /** The run the read answers next, leaving the last seeded one in place once the queue is spent. */
@@ -69,6 +72,11 @@ export function extensionRequestDouble() {
     errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
     request: (path: string, options?: RequestInit) => {
       record(path, options);
+      if (path.startsWith("/jobs/")) {
+        return server.cancelError === null
+          ? Promise.resolve(undefined)
+          : Promise.reject(server.cancelError);
+      }
       if (server.readError !== null) return Promise.reject(server.readError);
       return Promise.resolve(nextRead());
     },
@@ -107,13 +115,18 @@ export function extensionRequestDouble() {
 export const runView = (
   states: Partial<Record<RunStage, RunStageState>> = {},
   overrides: Partial<RunView> = {},
+  jobIds: Partial<Record<RunStage, string>> = {},
 ): RunView => ({
   runId: "run-1",
   startedAt: "2026-10-30T09:00:00Z",
   endedAt: null,
   endedReason: null,
   options: answered(),
-  stages: STAGES.map((stage) => ({ stage, state: states[stage] ?? "pending", jobId: null })),
+  stages: STAGES.map((stage) => ({
+    stage,
+    state: states[stage] ?? "pending",
+    jobId: jobIds[stage] ?? null,
+  })),
   ...overrides,
 });
 
