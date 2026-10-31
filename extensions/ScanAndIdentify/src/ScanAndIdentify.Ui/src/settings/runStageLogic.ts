@@ -77,6 +77,46 @@ export function stageProgressPercent(detail: RunStageDetail | null): number | un
   return Math.round(Math.min(1, Math.max(0, raw)) * 100);
 }
 
+/**
+ * What a stage has counted, or null when the host counted nothing.
+ *
+ * Only a host job run as a batch counts units, which the scan and identify passes are not, so an
+ * absent total means the host reported no tally rather than a tally of zero.
+ */
+export function stageTallyText(detail: RunStageDetail | null): string | null {
+  if (detail?.unitsTotal == null) return null;
+
+  const count = (value: number) => value.toLocaleString("en-US");
+  let line = `${count(detail.unitsCompleted ?? 0)} of ${count(detail.unitsTotal)} done`;
+  if ((detail.unitsFailed ?? 0) > 0) line += ` · ${count(detail.unitsFailed ?? 0)} failed`;
+  if ((detail.unitsSkipped ?? 0) > 0) line += ` · ${count(detail.unitsSkipped ?? 0)} skipped`;
+  return line;
+}
+
+/**
+ * What each state says one pass did. A state still moving answers null, because the live detail is
+ * what the row shows instead.
+ *
+ * Total over the state union, so a state added to the contract is a type error here rather than a
+ * row that says nothing.
+ */
+const STAGE_OUTCOMES: Record<RunStageState, (detail: RunStageDetail | null) => string | null> = {
+  pending: () => "did not run",
+  starting: () => null,
+  queued: () => null,
+  running: () => null,
+  succeeded: (detail) => detail?.summary ?? "finished",
+  failed: (detail) => detail?.error ?? "failed, with no reason given",
+  cancelled: () => "stopped",
+  skipped: () => "turned off in the run options",
+  indeterminate: () => "Cove no longer knows how this pass went",
+};
+
+/** What one pass did, or null while it is still moving. */
+export function stageOutcomeText(stage: RunStageView): string | null {
+  return STAGE_OUTCOMES[stage.state](stage.detail);
+}
+
 /** States a stage is still moving through, and the only ones a later read can change. */
 const CARRIED_ON: readonly RunStageState[] = ["starting", "queued", "running"];
 

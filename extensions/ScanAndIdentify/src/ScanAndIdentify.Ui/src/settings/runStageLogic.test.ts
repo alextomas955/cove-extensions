@@ -6,10 +6,12 @@ import {
   isRunInFlight,
   nextStageToStart,
   stageInFlight,
+  stageOutcomeText,
   stageProgressPercent,
+  stageTallyText,
 } from "./runStageLogic";
 import { runView, stageDetail } from "./testRun";
-import type { RunStageState } from "./run";
+import type { RunStageDetail, RunStageState } from "./run";
 
 const STARTABLE = ["scan", "fingerprints", "identify", "images"] as const;
 
@@ -141,5 +143,68 @@ describe("a stage's progress as a percent", () => {
     [1.5, 100],
   ])("a fraction of %s reads as %s", ([progress, percent]) => {
     expect(stageProgressPercent(stageDetail({ progress }))).toBe(percent);
+  });
+});
+
+describe("a stage's tally line", () => {
+  test("nothing at all, when no host job has been read", () => {
+    expect(stageTallyText(null)).toBeNull();
+  });
+
+  test("nothing at all, when the host counted no units", () => {
+    expect(stageTallyText(stageDetail({ subTask: "Generating" }))).toBeNull();
+  });
+
+  test("the completed count against the total, grouped", () => {
+    expect(stageTallyText(stageDetail({ unitsTotal: 5000, unitsCompleted: 1204 }))).toBe(
+      "1,204 of 5,000 done",
+    );
+  });
+
+  test("the failures and the skips, once there are any", () => {
+    expect(
+      stageTallyText(
+        stageDetail({ unitsTotal: 5000, unitsCompleted: 1204, unitsFailed: 12, unitsSkipped: 3 }),
+      ),
+    ).toBe("1,204 of 5,000 done · 12 failed · 3 skipped");
+  });
+});
+
+describe("what one pass did", () => {
+  const stage = (state: RunStageState, detail: RunStageDetail | null = null) => ({
+    stage: "scan" as const,
+    state,
+    jobId: null,
+    detail,
+  });
+
+  test.for<RunStageState>(["starting", "queued", "running"])(
+    "nothing, while the pass reads %s and its live detail is what shows",
+    (state) => {
+      expect(stageOutcomeText(stage(state))).toBeNull();
+    },
+  );
+
+  test.for<RunStageState>([
+    "pending",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "skipped",
+    "indeterminate",
+  ])("something, once the pass reads %s", (state) => {
+    expect(stageOutcomeText(stage(state))).not.toBeNull();
+  });
+
+  test("the host's summary, for a pass that finished with one", () => {
+    expect(
+      stageOutcomeText(stage("succeeded", stageDetail({ summary: "4,920 of 5,000 succeeded" }))),
+    ).toBe("4,920 of 5,000 succeeded");
+  });
+
+  test("the host's error, for a pass that failed with one", () => {
+    expect(stageOutcomeText(stage("failed", stageDetail({ error: "the disk is full" })))).toBe(
+      "the disk is full",
+    );
   });
 });

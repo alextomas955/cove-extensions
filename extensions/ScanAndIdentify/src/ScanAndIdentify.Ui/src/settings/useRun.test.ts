@@ -465,3 +465,73 @@ test("the stage in flight draws its host job's progress", async () => {
   ).toBe("42");
   expect(stageRow(container, "identify")?.querySelector('[role="progressbar"]')).toBeNull();
 });
+
+test("the pass in flight shows what it is working on and what it has counted", async () => {
+  server.reads = [
+    runView(
+      { scan: "succeeded", fingerprints: "running" },
+      {},
+      { fingerprints: "host-generate-9" },
+      {
+        fingerprints: stageDetail({
+          progress: 0.24,
+          subTask: "Fingerprinting clip.mp4",
+          unitsTotal: 5000,
+          unitsCompleted: 1204,
+        }),
+      },
+    ),
+  ];
+
+  const container = render();
+  await waitFor(
+    "the fingerprint row to report its subtask",
+    () =>
+      stageRow(container, "fingerprints")?.textContent.includes("Fingerprinting clip.mp4") === true,
+  );
+
+  expect(stageRow(container, "fingerprints")?.textContent).toContain("1,204 of 5,000 done");
+  expect(stageRow(container, "scan")?.textContent).not.toContain("1,204");
+});
+
+test("a pass that failed shows the reason Cove gave", async () => {
+  server.reads = [
+    runView(
+      { scan: "succeeded", fingerprints: "skipped", identify: "failed" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "failed" },
+      { identify: "host-identify-3" },
+      { identify: stageDetail({ error: "the metadata provider refused the request" }) },
+    ),
+  ];
+
+  const container = render();
+  await waitFor(
+    "the identify row to report the reason",
+    () =>
+      stageRow(container, "identify")?.textContent.includes(
+        "the metadata provider refused the request",
+      ) === true,
+  );
+
+  expect(stageRow(container, "identify")?.querySelector('[class*="text-red"]')).not.toBeNull();
+});
+
+test("once a run has ended, every pass says what it did", async () => {
+  server.reads = [
+    runView(
+      { scan: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { scan: "host-scan-7" },
+    ),
+  ];
+
+  const container = render();
+  await waitFor(
+    "the scan row to say it was stopped",
+    () => stageRow(container, "scan")?.textContent.includes("stopped") === true,
+  );
+
+  expect(stageRow(container, "fingerprints")?.textContent).toContain("did not run");
+  expect(stageRow(container, "identify")?.textContent).toContain("did not run");
+  expect(stageRow(container, "images")?.textContent).toContain("did not run");
+});

@@ -15,7 +15,9 @@ import {
   RUN_STAGE_STATE_VARIANTS,
   isRunInFlight,
   stageInFlightOf,
+  stageOutcomeText,
   stageProgressPercent,
+  stageTallyText,
 } from "./runStageLogic";
 import { useRun } from "./useRun";
 
@@ -34,6 +36,30 @@ const WAITING: readonly RunStageView[] = RUN_STAGES.map((stage) => ({
   jobId: null,
   detail: null,
 }));
+
+/** What the pass in flight is doing: how far it has got, what it is on, and what it has counted. */
+function StageProgress({ stage }: { stage: RunStageView }) {
+  const tally = stageTallyText(stage.detail);
+  return (
+    <>
+      <ProgressBar
+        percent={stageProgressPercent(stage.detail)}
+        label={`${RUN_STAGE_LABELS[stage.stage]} progress`}
+      />
+      {stage.detail?.subTask == null ? null : (
+        <p className="truncate text-xs text-muted">{stage.detail.subTask}</p>
+      )}
+      {tally === null ? null : <StatusText kind="muted">{tally}</StatusText>}
+    </>
+  );
+}
+
+/** What one pass did, once the run has ended. */
+function StageOutcome({ stage }: { stage: RunStageView }) {
+  const outcome = stageOutcomeText(stage);
+  if (outcome === null) return null;
+  return <StatusText kind={stage.state === "failed" ? "error" : "muted"}>{outcome}</StatusText>;
+}
 
 /** The run: one button, and where each of the four stages has got to. */
 export function RunSection() {
@@ -93,12 +119,8 @@ export function RunSection() {
                 </StatusPill>
               </span>
             </div>
-            {stage.stage === moving?.stage ? (
-              <ProgressBar
-                percent={stageProgressPercent(stage.detail)}
-                label={`${RUN_STAGE_LABELS[stage.stage]} progress`}
-              />
-            ) : null}
+            {stage.stage === moving?.stage ? <StageProgress stage={stage} /> : null}
+            {run?.endedAt == null ? null : <StageOutcome stage={stage} />}
           </li>
         ))}
       </ul>
