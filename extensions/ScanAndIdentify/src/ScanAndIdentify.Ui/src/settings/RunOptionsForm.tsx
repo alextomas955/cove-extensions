@@ -25,7 +25,7 @@ export function RunOptionsForm() {
   return (
     <SectionCard
       title="Run options"
-      description="What a run does. Nothing runs yet; these are saved for the run to read."
+      description="What a run does. A run reads them once, when it starts."
     >
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-secondary">

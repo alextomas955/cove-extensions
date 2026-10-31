@@ -18,7 +18,7 @@ export function CapabilitiesCard() {
   return (
     <SectionCard
       title="Scan and Identify"
-      description="Finds library items Cove holds no metadata for and identifies them. Nothing scans yet: this panel reports what the host supplied when the extension loaded."
+      description="Finds library items Cove holds no metadata for and identifies them. This card reports what the host supplied when the extension loaded."
     >
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-secondary">
