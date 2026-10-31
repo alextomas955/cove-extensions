@@ -28,18 +28,27 @@ The rest of this file is for contributors working on the extension itself.
 | `src/ScanAndIdentify.Tests/`                     | The backend suite. Needs a `../cove` source checkout.                   |
 | `registry/com.alextomas955.scanandidentify.json` | The registry manifest for this extension.                               |
 
-## Run options
+## Routes
 
-The settings panel reads and writes one options document through the extension's own routes, under
-`/api/extensions/com.alextomas955.scanandidentify`:
+The settings panel reads and writes the options document and the run record through the extension's
+own routes, under `/api/extensions/com.alextomas955.scanandidentify`:
 
-| Route          | What it does                                                                 |
-| -------------- | ---------------------------------------------------------------------------- |
-| `GET /options` | Answers the saved options, or the defaults when nothing has been saved.      |
-| `PUT /options` | Replaces them. A body it cannot read is a `400` with code `INVALID_OPTIONS`. |
+| Route              | What it does                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `GET /options`     | Answers the saved options, or the defaults when nothing has been saved.             |
+| `PUT /options`     | Replaces them. A body it cannot read is a `400` with code `INVALID_OPTIONS`.        |
+| `POST /run`        | Claims a run, or answers `409 RUN_IN_FLIGHT` when one is already going.             |
+| `GET /run`         | Answers the run with every unsettled stage re-read from its host job, or `204`.     |
+| `POST /run/stages` | Records a stage being started, then the job id it was started as.                   |
+| `POST /run/end`    | Ends a run the stage states cannot end by themselves, such as one a person stopped. |
 
-Both routes require the `extensions.configure` permission. The document is stored as one value under
-the store key `options`.
+Both options routes require `extensions.configure`. The four run routes require `library.scan`,
+`jobs.run`, `library.identify` and `extensions.configure` together, the last because the run view
+answers the options document the options routes gate on it.
+
+The panel starts each stage through Cove's own routes with the signed-in session; the extension
+enqueues nothing. The options document and the run record are stored as one value each, under the
+store keys `options` and `run`.
 
 ## Build and test
 

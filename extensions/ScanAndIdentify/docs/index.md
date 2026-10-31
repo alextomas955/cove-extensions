@@ -34,8 +34,55 @@ a cover with nothing on it.
 ## Where to find it
 
 Open **Settings**, then under **Extensions** select **Scan and Identify**. The panel reports the Cove
-version it loaded against and whether the host services it needs are available, and it carries the
-run options below it. It has no run button yet.
+version it loaded against and whether the host services it needs are available. Below that it
+carries the **Run** card and the run options.
+
+## Start a run
+
+1. Open **Settings**, then under **Extensions** select **Scan and Identify**.
+2. Check the switches under **Run options** are as you want them. A run reads them once, when it
+   starts, so a switch you change afterwards does not affect the run going on.
+3. In the **Run** card, select **Run**.
+
+The four passes then run in order. Each one starts only after the one before it has finished, and
+the card shows a row for each with where it has got to. **Run** stays unavailable until the run ends,
+so you cannot start a second run on top of one that is going.
+
+Identify goes through every item in the library, so a run over a whole library takes hours.
+
+## Leave the page open
+
+The run advances only while the **Scan and Identify** page is open. Closing the page, or moving to
+another screen in Cove, leaves the pass that is working to finish on its own, and the passes after it
+do not start. Open the page again and the run picks up from where it got to.
+
+## What each pass can show
+
+| State              | What it means                                                            |
+| ------------------ | ------------------------------------------------------------------------ |
+| **waiting**        | The pass has not started. It is waiting for the one before it.           |
+| **starting**       | Cove has been asked for the pass and has not answered yet.               |
+| **queued in Cove** | Cove has the work and is waiting for another job to finish first.        |
+| **running**        | The pass is working.                                                     |
+| **done**           | The pass finished.                                                       |
+| **failed**         | The pass stopped on an error.                                            |
+| **cancelled**      | The pass was stopped.                                                    |
+| **skipped**        | The pass was turned off in the run options, so the run passed over it.   |
+| **unknown**        | Cove no longer knows about the pass, so the run cannot tell how it went. |
+
+With **Fill in missing fingerprints** off, the fingerprint pass reads **skipped** and identify starts
+straight after the scan.
+
+## Stop a run
+
+In the **Run** card, select **Cancel**. Cove stops the pass that is working and the run ends there.
+The passes after it do not start.
+
+Cove may take a short while to stop a pass that is already working, so the row can stay on
+**running** for a moment after you select **Cancel**.
+
+A run also stops by itself at the first pass that fails or that something else cancels. The passes
+after it stay on **waiting** and never start. The card says why the run stopped.
 
 ## What you can turn on and off
 
