@@ -1,0 +1,107 @@
+[
+  {
+    "title": "Blacked",
+    "sortTitle": "blacked",
+    "status": "continuing",
+    "ended": false,
+    "overview": "Blacked is a part of the Vixen Media Group network.",
+    "network": "Vixen Media Group",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/df378d79cb97186da2edc047cb615009774c016cab10d0824e24b8a5afe5e53e/poster.jpg",
+        "remoteUrl": "https://cdn.theporndb.net/sites/39/ba/42/4c362d9c57a2129d675f5157877e352/poster/poster.jpg"
+      },
+      {
+        "coverType": "logo",
+        "url": "/MediaCoverProxy/3856accb81e211b130603aad5556d5579cf3a2d02aa54a14a1e5ca6faff3c262/blacked-logo.png",
+        "remoteUrl": "https://cdn.theporndb.net/sites/24/c9/fa/2b5dd3258662ed1d065fa3b77768d8f/logo/blacked-logo.png"
+      }
+    ],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "remotePoster": "https://cdn.theporndb.net/sites/39/ba/42/4c362d9c57a2129d675f5157877e352/poster/poster.jpg",
+    "seasons": [
+      {
+        "seasonNumber": 2014,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2015,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2016,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2017,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2018,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2019,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2020,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2021,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2022,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2023,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2024,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2025,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2026,
+        "monitored": true
+      }
+    ],
+    "year": 2014,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 38,
+    "tvdbId": 200,
+    "cleanTitle": "blacked",
+    "titleSlug": "blacked",
+    "folder": "Blacked",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 13,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  }
+]

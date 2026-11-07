@@ -1,0 +1,63 @@
+/**
+ * One card's status data layer: the only place a card badge reads what the instance holds.
+ *
+ * `enabled` gates the subscription, the snapshot and the registration together. With it off nothing
+ * is registered and no request is sent at all.
+ */
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+
+import type { LibraryCardKind, LibraryCardReading } from "../wire/api";
+import {
+  cardIsRunning,
+  cardStatusRefusal,
+  cardStatusSettled,
+  readCardStatus,
+  requestCardStatus,
+  subscribeCardStatus,
+} from "./cardStatusStore";
+
+export interface CardStatus {
+  /** What the instance holds, or null where nothing was established for this card. */
+  readonly reading: LibraryCardReading | null;
+  /** Whether the read has answered. False while it is still in flight. */
+  readonly settled: boolean;
+  /** Whether a run this browser started is still working through this card. */
+  readonly running: boolean;
+  /**
+   * Whether the page could not be answered for at all.
+   *
+   * A card with no reading means two different things. Where the page was answered, the library
+   * holds no id the instance could be asked by. Where it was refused, nothing was established about
+   * any card, and the reason is stated once for the page rather than on every card.
+   */
+  readonly pageRefused: boolean;
+}
+
+export function useCardStatus(kind: LibraryCardKind, coveId: number, enabled: boolean): CardStatus {
+  const subscribe = useCallback(
+    (onChange: () => void) => (enabled ? subscribeCardStatus(onChange) : () => undefined),
+    [enabled],
+  );
+
+  const reading = useSyncExternalStore(subscribe, () =>
+    enabled ? readCardStatus(kind, coveId) : null,
+  );
+  const settled = useSyncExternalStore(subscribe, () =>
+    enabled ? cardStatusSettled(kind, coveId) : false,
+  );
+
+  const running = useSyncExternalStore(subscribe, () =>
+    enabled ? cardIsRunning(kind, coveId) : false,
+  );
+
+  const pageRefused = useSyncExternalStore(subscribe, () =>
+    enabled ? cardStatusRefusal() !== "none" : false,
+  );
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    return requestCardStatus(kind, coveId);
+  }, [enabled, kind, coveId]);
+
+  return { reading, settled, running, pageRefused };
+}

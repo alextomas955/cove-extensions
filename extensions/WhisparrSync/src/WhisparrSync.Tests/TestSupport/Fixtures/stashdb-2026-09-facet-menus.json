@@ -1,0 +1,304 @@
+{
+  "recordedOn": "2026-09-06",
+  "recordedAgainst": "https://stashdb.org/graphql",
+  "note": "Each menu is filled by asking the provider once, at the page size the client asks for. The count beside the rows is what says whether more values exist than a page carries.",
+  "cases": {
+    "studioPerformers": {
+      "query": "query QueryPerformers($input: PerformerQueryInput!) {\n  queryPerformers(input: $input) { count performers { id name } }\n}",
+      "variables": {
+        "input": {
+          "studio_id": "eec95cdd-9f58-4fc7-b7d1-e98786453d27",
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "response": {
+        "data": {
+          "queryPerformers": {
+            "count": 0,
+            "performers": []
+          }
+        }
+      }
+    },
+    "subStudios": {
+      "query": "query QuerySubStudios($input: StudioQueryInput!) {\n  queryStudios(input: $input) { count studios { id name } }\n}",
+      "variables": {
+        "input": {
+          "parent": {
+            "value": ["eec95cdd-9f58-4fc7-b7d1-e98786453d27"],
+            "modifier": "INCLUDES"
+          },
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "response": {
+        "data": {
+          "queryStudios": {
+            "count": 48,
+            "studios": [
+              {
+                "id": "3e6a44b8-a8be-413d-b88c-f64dcb078474",
+                "name": "Asses In Public"
+              },
+              {
+                "id": "def4c670-2ce1-430e-b257-b3c0e0978a49",
+                "name": "Baby Got Boobs"
+              },
+              {
+                "id": "238dcdc6-0b20-4add-9924-8bbbcd9c6387",
+                "name": "Big Butts Like It Big"
+              },
+              {
+                "id": "6ce865cf-cdd5-465a-a5f5-ea4831497933",
+                "name": "Big Tits at School"
+              },
+              {
+                "id": "b4d8e327-b0f9-4c6e-bca2-244ea625abeb",
+                "name": "Big Tits at Work"
+              },
+              {
+                "id": "e90fd923-791a-48d2-a25e-636ed652862c",
+                "name": "Big Tits In Sports"
+              },
+              {
+                "id": "3ec8d2a3-fdea-428e-983d-eadd48931ce1",
+                "name": "Big Tits In Uniform"
+              },
+              {
+                "id": "330bebaf-ec3f-4a36-ba5a-c18f4c66e924",
+                "name": "Big Wet Butts"
+              },
+              {
+                "id": "60c8e43a-5ce0-4a92-b883-ccf2f6dd8afb",
+                "name": "Brazzers en Español"
+              },
+              {
+                "id": "39cee498-a9ac-4403-910a-1a0157ad22d8",
+                "name": "Brazzers Exxtra"
+              },
+              {
+                "id": "84e0ee99-77f0-40ee-8d30-3b5f55480381",
+                "name": "Brazzers Interactive"
+              },
+              {
+                "id": "10482703-35ea-40a9-8f6f-fe6c1adc6c87",
+                "name": "Brazzers Live"
+              },
+              {
+                "id": "d1b5ca9a-8a02-4fde-b779-da3469179e94",
+                "name": "Brazzers Vault"
+              },
+              {
+                "id": "426a6452-69fc-40a3-ada6-3910eda9320d",
+                "name": "Brazzers VIP"
+              },
+              {
+                "id": "55fb3ce1-b76f-43f2-8e4f-fcb1d50d2ae1",
+                "name": "Brazzers VR"
+              },
+              {
+                "id": "67b33c3c-da84-4003-805f-943a67657db1",
+                "name": "Busty & Real"
+              },
+              {
+                "id": "1c807982-f213-483f-83c1-77174948ad21",
+                "name": "Bustyz"
+              },
+              {
+                "id": "12de956b-d6e8-48a4-8b82-2eaa08174f02",
+                "name": "Butts & Blacks"
+              },
+              {
+                "id": "44d924eb-81cb-4012-9fcb-337b0c8170bf",
+                "name": "CFNM"
+              },
+              {
+                "id": "0d9130a5-67cd-45cb-b7db-494300b38867",
+                "name": "Charles Dera"
+              },
+              {
+                "id": "d2769f9a-0fcf-402b-a536-ac2cca6f2b88",
+                "name": "Day With A Pornstar"
+              },
+              {
+                "id": "95d0eb55-514c-4206-a521-c83e5749e59b",
+                "name": "Desiree Dulce"
+              },
+              {
+                "id": "c1d2ce28-d0bb-4b35-8437-9f113cf7b45d",
+                "name": "Dirty Masseur"
+              },
+              {
+                "id": "387527d8-64fd-4d14-a0ad-f051a2a1fe8d",
+                "name": "Doctor Adventures"
+              },
+              {
+                "id": "ca9337f7-1774-442b-b7cb-76f578f96136",
+                "name": "Emily Willis"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "tags": {
+      "query": "query QueryTags($input: TagQueryInput!) {\n  queryTags(input: $input) { count tags { id name } }\n}",
+      "variables": {
+        "input": {
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "response": {
+        "data": {
+          "queryTags": {
+            "count": 2941,
+            "tags": [
+              {
+                "id": "9441c3ad-41d2-4d6e-bc97-54ad8cc227d5",
+                "name": "120 FPS"
+              },
+              {
+                "id": "42d9e5c4-1a1d-4c93-bf47-9086f2016dcd",
+                "name": "12K Available"
+              },
+              {
+                "id": "01a03448-2566-7636-badb-3c19c27142eb",
+                "name": "150°"
+              },
+              {
+                "id": "8534d108-1f4c-42f9-8caa-5ca9064f560d",
+                "name": "18+"
+              },
+              {
+                "id": "103a1f16-83e1-4b9f-ab14-e85e0405e715",
+                "name": "180°"
+              },
+              {
+                "id": "6cd87d98-eea8-4b97-9db9-aa38a96997d9",
+                "name": "1800s"
+              },
+              {
+                "id": "e3338b1d-63f8-42ea-b617-37b0acf0eea5",
+                "name": "190°"
+              },
+              {
+                "id": "f39a7106-3da1-47c1-becd-6df314ab8997",
+                "name": "1920s"
+              },
+              {
+                "id": "49d19546-ba15-4539-bfe5-75e86930e5c3",
+                "name": "1930s"
+              },
+              {
+                "id": "074c5ead-738f-4dd6-b7c2-e31dbc80d52d",
+                "name": "1940s"
+              },
+              {
+                "id": "05f134d7-d283-410c-85f0-ff9395f63ade",
+                "name": "1950s"
+              },
+              {
+                "id": "2a8df7ac-9095-48cb-a9da-cafc05235dcd",
+                "name": "1960s"
+              },
+              {
+                "id": "ed06faa2-04cd-42e4-abcc-ff750018b466",
+                "name": "1970s"
+              },
+              {
+                "id": "f83df5ac-64e3-4ee7-b2c7-d745cea87271",
+                "name": "1980s"
+              },
+              {
+                "id": "258099d4-3f3c-43a0-858c-e7d1ff78ea67",
+                "name": "1990s"
+              },
+              {
+                "id": "1a8516f9-ae32-469a-99d3-830de60e1060",
+                "name": "20+"
+              },
+              {
+                "id": "823219a4-41a6-48f0-ab1b-de9ed82927c3",
+                "name": "200°"
+              },
+              {
+                "id": "eb6e1816-36b7-459c-9881-fb2d315d1d08",
+                "name": "220°"
+              },
+              {
+                "id": "64c564c8-bb95-41fd-a138-7ad1aa9663bd",
+                "name": "24 FPS"
+              },
+              {
+                "id": "e3ea23c8-344b-496a-94b0-b9115abc156a",
+                "name": "25 FPS"
+              },
+              {
+                "id": "1257be8b-d1ec-4cb1-bb22-beeb89fcb2c1",
+                "name": "2D Available"
+              },
+              {
+                "id": "7fdb769e-fbcd-4d80-83d7-ca286bc98344",
+                "name": "30+"
+              },
+              {
+                "id": "6e6aa9ee-356e-4d4a-922f-2ecd48b02c2f",
+                "name": "30 FPS"
+              },
+              {
+                "id": "99985259-c544-412a-870c-e51e26a46cda",
+                "name": "360°"
+              },
+              {
+                "id": "52992c2c-4617-4540-8ca4-291e9c1507c6",
+                "name": "3D Available"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "shortPerformerMenu": {
+      "query": "query QueryPerformers($input: PerformerQueryInput!) {\n  queryPerformers(input: $input) { count performers { id name } }\n}",
+      "variables": {
+        "input": {
+          "studio_id": "84e0ee99-77f0-40ee-8d30-3b5f55480381",
+          "page": 1,
+          "per_page": 25
+        }
+      },
+      "studio": {
+        "id": "84e0ee99-77f0-40ee-8d30-3b5f55480381",
+        "name": "Brazzers Interactive"
+      },
+      "response": {
+        "data": {
+          "queryPerformers": {
+            "count": 4,
+            "performers": [
+              {
+                "id": "c00d2172-e5d5-4c1c-9d48-d9118b4ad791",
+                "name": "Alex Jones"
+              },
+              {
+                "id": "5bce4acd-2d8d-419f-bbe4-2177a099197f",
+                "name": "Kira Noir"
+              },
+              {
+                "id": "26cdc70c-ba92-4028-bcab-d5a32802db19",
+                "name": "Christian Clay"
+              },
+              {
+                "id": "155f2559-d1f1-42b1-8cbe-9008542df5ce",
+                "name": "Angela White"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

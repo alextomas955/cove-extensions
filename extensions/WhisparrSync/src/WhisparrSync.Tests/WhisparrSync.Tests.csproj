@@ -1,0 +1,116 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
+    <!-- A test project is never a Cove plugin: neutralize the inherited dynamic-loading flag. -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is not deployed, so it must keep its full runtime closure. The extension's
+      Cove.Sdk reference imports Cove.Sdk.targets, whose strip target would remove Cove.Plugins.dll
+      from THIS project's output and leave xUnit unable to reflect over the assembly. The value must
+      be NON-EMPTY: those targets re-apply their default denylist when the property is empty, so a
+      sentinel matching no real assembly name is what disables the strip.
+    -->
+    <CoveHostProvidedAssemblies>;__whisparrsync_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
+      Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. They are
+      C#-only test types never consumed from VB, so the rule does not apply - mirror the suppression the
+      Cove.Extensions.Shared(.Testing) projects already carry. It fires here because a linked file
+      compiles INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <!--
+      The Sonar job runs this suite with the platform's coverage switch. Without this extension that
+      switch is not recognised, and what the run reports is "Zero tests ran" rather than an unknown
+      argument, so the suite reads as empty instead of as misconfigured.
+    -->
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!--
+      TEST-ONLY runtime closure, not a compile dependency: the extension base class binds to EF Core
+      types, so merely constructing the extension loads the assembly. The host supplies it at runtime
+      and the extension therefore consumes it with the runtime assets excluded, which leaves it out of
+      the test output unless it is named here.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!--
+      TEST-ONLY: the credential table is exercised against a real relational provider on
+      SQLite-in-memory, created by the SHIPPED migration string rather than by the entity model, so
+      the fixture is wrong in the same way production would be wrong.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!--
+      TEST-ONLY: the route-table walk mounts the extension's own MapEndpoints in an in-process
+      WebApplication and starts it, because route registrations reach the EndpointDataSource only when
+      routing middleware is built at start.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) and CoveContextFactory
+      (Cove.Data). They live in a source-only sibling directory with NO csproj and are pulled in as
+      ordinary per-project Compile items, NOT a ProjectReference (IDEs do not fully respect reference
+      conditions; msbuild#5410). Promoting that directory to a real csproj would give it its own
+      dependency on a Cove checkout, one level further down.
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\*.cs"
+             LinkBase="TestSupport\Shared" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The captured Whisparr response bodies ProbeFixtures reads. Flattened into the output root,
+         beside extension.json, because that is where ProbeFixtures looks. -->
+    <Content Include="TestSupport\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- The wire-document base class and the host-free store fakes are both in this namespace. -->
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The extension's own code, and the shipped extension.json the fixture reads out of the test
+         output directory. -->
+    <ProjectReference Include="..\WhisparrSync\WhisparrSync.csproj" />
+    <!-- Host-free shared test support (the store fakes over Cove.Plugins only). -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
+    <!--
+      TEST-ONLY: the host's own context lives in Cove.Data and its entities in Cove.Core. A test whose
+      subject is Cove's per-principal query filters needs the real context, because the host declares
+      those filters per host entity type and an extension-owned table carries none.
+
+      Cove.Data is on no feed and the root targets deliberately do not wire it, so a project wanting the
+      context has to say where Cove is for itself. Cove.Core is named beside it so the copy matching the
+      checkout compiles rather than whatever the feed last published; a skew there splits the closure and
+      is reported as a warning at most, which the compiler-only warnings-as-errors switch does not cover.
+
+      Both are UNCONDITIONAL: this suite has no meaning without them, and the RequireCoveSource target
+      below is what states that. A mode-conditional reference here is what used to let a test drop out
+      of the run silently.
+    -->
+    <ProjectReference Include="$(CoveDataProjectPath)" />
+    <ProjectReference Include="$(CoveCoreProjectPath)" />
+  </ItemGroup>
+
+  <!--
+    This suite needs Cove.Data types, which only a Cove source checkout supplies. Without this target
+    the misconfiguration is silent where it starts: an empty $(CoveDataProjectPath) makes MSBuild drop
+    the ProjectReference item and the build succeeds, and a path that does not exist reports only
+    MSB9008, an MSBuild warning the compiler-only warnings-as-errors switch does not cover. Either way
+    the first real signal is a wall of CS0234 far from its cause. BeforeTargets="PrepareForBuild" lands
+    ahead of the compiler, mirroring AssertCoveLocation in the root Directory.Build.targets.
+  -->
+  <Target Name="RequireCoveSource" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CoveSourceMode)' != 'source'"
+           Text="$(MSBuildProjectName) requires a Cove source checkout (CoveSourceMode is '$(CoveSourceMode)'). Point COVE_REPO or -p:CoveRepoRoot at one. The extension itself builds and publishes without a checkout; its tests do not." />
+  </Target>
+</Project>

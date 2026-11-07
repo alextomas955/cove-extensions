@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Tests.TestSupport;
 

@@ -1,0 +1,1030 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using Cove.Core.Auth;
+using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
+using WhisparrSync.Connection;
+using WhisparrSync.Contracts;
+using WhisparrSync.Import;
+using WhisparrSync.Jobs;
+using WhisparrSync.Library;
+using WhisparrSync.Linking;
+using WhisparrSync.Missing;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Providers;
+using WhisparrSync.Scene;
+using WhisparrSync.Whisparr;
+using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
+
+namespace WhisparrSync;
+
+public sealed partial class WhisparrSync
+{
+    private void MapSyncLibraryEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, BackgroundWork work,
+             WhisparrAccess whisparr,
+             CancellationToken ct)
+                => EnqueueSyncPreviewAsync(
+                    principal, work, whisparr, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
+             WhisparrAccess whisparr,
+             CancellationToken ct)
+                => ReadSyncPreviewAsync(
+                    principal, jobs, counts, whisparr, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SyncRunRoute,
+            (SyncRunRequest? request, ICurrentPrincipalAccessor principal, BackgroundWork work, WhisparrAccess whisparr, CancellationToken ct)
+                => EnqueueSyncRunAsync(
+                    request, principal, work, whisparr, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
+    // One literal, so the route's in-flight derivation and the type the host enqueues cannot drift
+    // apart.
+    internal const string SyncLibraryJobId = "sync-library";
+
+    // Enqueued non-exclusive. The count creates nothing and changes nothing, and it must not queue
+    // behind an unrelated run this extension made exclusive.
+    internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncPreviewAsync(
+        ICurrentPrincipalAccessor principal,
+        BackgroundWork work,
+        WhisparrAccess whisparr,
+        CancellationToken ct)
+    {
+        var (jobs, scopes) = work;
+
+        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
+        // API.
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(jobs);
+
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
+        if (refused is not SyncRefusalKind.None)
+        {
+            return TypedResults.Ok(new SyncEnqueued(null, refused));
+        }
+
+        var started = jobs.Enqueue(
+            OwnJobTypePrefix + SyncPreviewJob.JobId,
+            $"[{Name}] Count what a library sync would offer",
+            (progress, runCt) => RunSyncPreviewAsync(scopes, progress, runCt),
+            exclusive: false);
+
+        return TypedResults.Ok(new SyncEnqueued(started, SyncRefusalKind.None));
+    }
+
+    // Whether a run is in flight is derived from the host's own job list rather than from a stored
+    // flag, so it answers false the moment the run ends.
+    internal async Task<Results<Ok<SyncPreviewRead>, ForbiddenCode>> ReadSyncPreviewAsync(
+        ICurrentPrincipalAccessor principal,
+        IJobService jobs,
+        SyncPreviewCache counts,
+        WhisparrAccess whisparr,
+        CancellationToken ct)
+    {
+        var (options, _, _, _) = whisparr;
+
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(jobs);
+        ArgumentNullException.ThrowIfNull(counts);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var running = SyncRunIsInFlight(jobs);
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
+        if (refused is not SyncRefusalKind.None)
+        {
+            return TypedResults.Ok(new SyncPreviewRead(null, refused, running));
+        }
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        return TypedResults.Ok(
+            new SyncPreviewRead(
+                counts.Held(stored.SelectedGeneration), SyncRefusalKind.None, running));
+    }
+
+    // What the count compares against is resolved at run start: the connected instance is a setting
+    // a person can change while a run is queued. The summary is the last progress call, the host
+    // writing its own unit line over JobInfo.Summary for a run declaring units.
+    private async Task RunSyncPreviewAsync(
+        IServiceScopeFactory scopes, CoreJobProgress progress, CancellationToken ct)
+    {
+        var counted = await SyncPreviewJob.RunAsync(scopes, AimAsync, _log, ct).ConfigureAwait(false);
+        if (counted is null)
+        {
+            return;
+        }
+
+        progress.SetSummary(SyncPreviewJob.SummaryOf(counted));
+        ct.ThrowIfCancellationRequested();
+
+        async Task<SyncPreviewAiming?> AimAsync(IServiceProvider services, CancellationToken runCt)
+        {
+            var target = await ResolveTargetAsync(
+                    services.GetRequiredService<WhisparrAccess>(),
+                    runCt)
+                .ConfigureAwait(false);
+
+            if (target is null)
+            {
+                return null;
+            }
+
+            return SyncPassFor(target) switch
+            {
+                SyncRegisters.Scenes => new SyncPreviewAiming(
+                    target.Binding.Generation,
+                    SyncRegisters.Scenes,
+                    (asked, batchCt) => target.Reads is IWhisparrSceneStatusReading reads
+                        ? reads.ReduceHeldScenesAsync(asked, batchCt)
+                        : throw new InvalidOperationException(
+                            "A scene count reached a target holding no scene-status read."),
+                    HeldSites: null),
+
+                SyncRegisters.Sites => new SyncPreviewAiming(
+                    target.Binding.Generation,
+                    SyncRegisters.Sites,
+                    Held: null,
+                    (asked, batchCt) => ReduceHeldSitesAsync(
+                        services.GetRequiredService<ISiteNumberPort>(),
+                        target.Binding,
+                        (numbers, numbersCt) => target.Reads is IWhisparrHeldSiteReading reads
+                            ? reads.ReduceHeldSitesAsync(numbers, numbersCt)
+                            : throw new InvalidOperationException(
+                                "A site count reached a target holding no held-site read."),
+                        asked,
+                        batchCt)),
+
+                _ => null,
+            };
+        }
+    }
+
+    // Mapped forward from the library's identifiers to the numbers a site is named by: the reverse
+    // cannot tell a studio the source names no site for from one the instance does not hold. Throws
+    // where the source was not reached, counting that as not-held having offered it for
+    // registration on the strength of nothing.
+    internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
+        ISiteNumberPort siteNumbers,
+        WhisparrBinding binding,
+        Func<IReadOnlyCollection<int>, CancellationToken, Task<SitesHeld>> heldSites,
+        IReadOnlyCollection<string> asked,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(siteNumbers);
+        ArgumentNullException.ThrowIfNull(heldSites);
+        ArgumentNullException.ThrowIfNull(asked);
+
+        var numbered = new List<(string Identity, int Number)>(asked.Count);
+        var namesNone = new HashSet<string>(StringComparer.Ordinal);
+
+        using var outstanding = new SemaphoreSlim(SyncPreviewJob.MetadataResolvesInFlight);
+        var resolutions = await Task.WhenAll(asked.Select(ResolveAsync)).ConfigureAwait(false);
+
+        foreach (var (identity, resolved) in resolutions)
+        {
+            if (!resolved.WasReached)
+            {
+                throw new HttpRequestException(
+                    "The metadata source was not reached for a studio the library holds, so which "
+                        + "sites the instance is missing was not established.");
+            }
+
+            if (resolved.Number is { } named)
+            {
+                numbered.Add((identity, named));
+            }
+            else
+            {
+                namesNone.Add(identity);
+            }
+        }
+
+        var held = await heldSites(
+                [.. numbered.Select(pair => pair.Number).Distinct()], ct)
+            .ConfigureAwait(false);
+
+        return new SiteBatchReading(
+            numbered.Where(pair => held.Held.Contains(pair.Number))
+                .Select(pair => pair.Identity)
+                .ToHashSet(StringComparer.Ordinal),
+            namesNone,
+            numbered.Where(pair => held.WithNoFileRecorded.Contains(pair.Number))
+                .Select(pair => pair.Identity)
+                .ToHashSet(StringComparer.Ordinal));
+
+        async Task<(string Identity, WhisparrSiteNumber Resolved)> ResolveAsync(string identity)
+        {
+            // The wait is here, not around the request, so resolves past the bound queue on this
+            // semaphore rather than the instance's, which refuses past its depth instead of
+            // holding.
+            await outstanding.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                return (
+                    identity,
+                    await siteNumbers.ResolveSiteNumberAsync(binding, identity, ct)
+                        .ConfigureAwait(false));
+            }
+            finally
+            {
+                outstanding.Release();
+            }
+        }
+    }
+
+    // Non-exclusive: a run lasts as long as the library is large and would hold the reader's own
+    // scans and refreshes behind it. A second is refused while the first is pending or running,
+    // read from the host's job list, which answers false the moment a run ends and empties on a
+    // restart.
+    internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncRunAsync(
+        SyncRunRequest? request,
+        ICurrentPrincipalAccessor principal,
+        BackgroundWork work,
+        WhisparrAccess whisparr,
+        CancellationToken ct)
+    {
+        var (jobs, scopes) = work;
+
+        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
+        // API.
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(jobs);
+
+        var refused = await SyncRefusalFor(whisparr, ct).ConfigureAwait(false);
+        if (refused is not SyncRefusalKind.None)
+        {
+            return TypedResults.Ok(new SyncEnqueued(null, refused));
+        }
+
+        if (SyncRunInFlight(jobs) is { } running)
+        {
+            return TypedResults.Ok(new SyncEnqueued(running.Id, SyncRefusalKind.AlreadyRunning));
+        }
+
+        var parameters = SyncLibraryJob.Encode(request?.AlsoMonitor ?? false);
+
+        var started = jobs.Enqueue(
+            OwnJobTypePrefix + SyncLibraryJob.JobId,
+            $"[{Name}] Offer every identified entry to Whisparr",
+            (progress, runCt) => RunSyncLibraryAsync(parameters, scopes, progress, runCt),
+            exclusive: false);
+
+        return TypedResults.Ok(new SyncEnqueued(started, SyncRefusalKind.None));
+    }
+
+    // Everything the run acts through is resolved at start: the profile, the root and the connected
+    // instance are each the reader's to change while a run is queued. A cancellation is rethrown
+    // after the summary is written, so the host classifies the run as cancelled and the reader
+    // still sees what it offered.
+    private async Task RunSyncLibraryAsync(
+        IReadOnlyDictionary<string, string> parameters,
+        IServiceScopeFactory scopes,
+        CoreJobProgress progress,
+        CancellationToken ct)
+    {
+        // One entry per library root the pass asked about, so the settings page can offer a root
+        // this run could not settle.
+        var readings = new ConcurrentDictionary<string, AddressedFolder>(StringComparer.Ordinal);
+
+        // The generation the pass aimed at, not the one selected when it ends: a selection change
+        // during a pass would otherwise file what this instance established under the other one.
+        WhisparrGeneration? aimedAt = null;
+
+        await SyncLibraryJob.RunAsync(
+            SyncLibraryJob.Decode(parameters), scopes, AimAsync, progress, ct).ConfigureAwait(false);
+
+        // Before the cancellation check, for the reason RecordRootReadingsAsync states: what a run
+        // established about a root holds whether or not the run went on to finish.
+        if (aimedAt is { } generation)
+        {
+            await RecordRootReadingsAsync(
+                scopes,
+                generation,
+                [.. readings.Values
+                    .Where(reading => reading.Refusal is not null)
+                    .Select(reading => new FolderAddressRefusal(
+                        reading.CoveRoot, reading.Refusal!.Value, reading.Tried))],
+                [.. readings.Values
+                    .Where(reading => reading.Refusal is null)
+                    .Select(reading => reading.CoveRoot)])
+                .ConfigureAwait(false);
+        }
+
+        ct.ThrowIfCancellationRequested();
+
+        async Task<SyncLibraryAiming?> AimAsync(
+            IServiceProvider services, SyncLibraryBatch batch, CancellationToken runCt)
+        {
+            var target = await ResolveTargetAsync(
+                    services.GetRequiredService<WhisparrAccess>(),
+                    runCt)
+                .ConfigureAwait(false);
+
+            if (target is null)
+            {
+                return null;
+            }
+
+            aimedAt = target.Binding.Generation;
+
+            // Which library roots this instance can reach, worked out once per run. Asked through
+            // the root overload: a root is not a folder beneath itself, so the folder overload puts
+            // every root under none and the ranking collapses.
+            var ranked = await RankedRootsAsync(target, services, runCt).ConfigureAwait(false);
+
+            // One holder for the run, whichever pass it makes: both give entities a folder in the
+            // tree and take names back from it, and the line is composed from what it gathered.
+            var siteTally = new LinkTally();
+            var sceneTally = new LinkTally();
+
+            return SyncPassFor(target) switch
+            {
+                // Scenes only: the generation that keeps them creates a scene's studio and
+                // performers itself, so there is no studio or performer pass, and no catalogue
+                // refresh, which is a per-entity act with no single entity here.
+                SyncRegisters.Scenes =>
+                    await ComposeSceneAddAsync(owningKind: null, owningId: 0, services, runCt)
+                            .ConfigureAwait(false) is { } register
+                        ? new SyncLibraryAiming(
+                            target.Binding.Generation,
+                            SyncRegisters.Scenes,
+                            (identity, placement, sceneCt) =>
+                                OfferSceneAsync(register, identity, placement, sceneCt),
+                            RegisterSite: null,
+                            MonitorFor(batch, target),
+                            Link: await LinkOwnedAimAsync(target, services, runCt)
+                                .ConfigureAwait(false),
+                            RootOrder: ranked.Order,
+                            OutOfReach: ranked.OutOfReach,
+                            Tree: TreeFor(services, target.Binding.Generation),
+                            Sweep: SweepFor(services),
+                            Tally: sceneTally,
+                            Relocate: RelocatingScenesThrough(target))
+                        : null,
+
+                // Nothing monitors the site itself: what the reader owns on a site is its scenes,
+                // so the monitor slot here marks those.
+                SyncRegisters.Sites => await ComposeSitePassAsync(
+                        target, services, readings, batch, siteTally, runCt).ConfigureAwait(false),
+
+                _ => null,
+            };
+        }
+    }
+
+    // The add's own refusal is what tells a scene the instance already holds from one it declines.
+    private static async Task<SyncRegistration> OfferSceneAsync(
+        Func<string, EntityPlacement, CancellationToken, Task<WhisparrResponse?>> register,
+        string identity,
+        EntityPlacement placement,
+        CancellationToken ct)
+        => SyncRegistration.Offered(
+            await register(identity, placement, ct).ConfigureAwait(false));
+
+    // Both passes take one, because both build folders in a tree and the names in one have to be
+    // taken back whichever pass wrote them.
+    private static TreeSweepStep SweepFor(IServiceProvider services)
+        => new(
+            services.GetRequiredService<ITreeLinkPort>(),
+            services.GetRequiredService<TimeProvider>());
+
+    // Resolved out of the run's elevated services, and one step per run: it remembers which library
+    // roots it has already written the host's ignore file at, so a run over a library of scenes
+    // writes one per root rather than one per scene.
+    private static TreeAiming TreeFor(IServiceProvider services, WhisparrGeneration generation)
+    {
+        var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+        var links = services.GetRequiredService<ITreeLinkPort>();
+
+        return new TreeAiming(
+            services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+            new TreeReconcileStep(links),
+            links,
+            (remoteId, coveRoot, ct) =>
+                identities.SceneFilePathsUnder(remoteId, generation, coveRoot, ct));
+    }
+
+    // Nothing monitors the site itself: what the reader owns on a site is its scenes, so the
+    // monitor slot marks those.
+    //
+    // The linking aim is resolved once for the run and threaded into the offer, because this pass
+    // hands over one entity's folder as it registers that entity rather than one library folder as
+    // the walk leaves it. Its refusal still rides on the aiming, so a reader whose settings stop
+    // the hand-over is told which setting it was.
+    private async Task<SyncLibraryAiming?> ComposeSitePassAsync(
+        MonitoringTarget target,
+        IServiceProvider services,
+        ConcurrentDictionary<string, AddressedFolder> readings,
+        SyncLibraryBatch batch,
+        LinkTally tally,
+        CancellationToken runCt)
+    {
+        var link = await LinkOwnedAimAsync(target, services, runCt).ConfigureAwait(false);
+
+        return await ComposeSiteRegistrationAsync(services, readings, link, tally, runCt)
+                .ConfigureAwait(false) is { } registerSite
+            ? new SyncLibraryAiming(
+                target.Binding.Generation,
+                SyncRegisters.Sites,
+                RegisterScene: null,
+                registerSite,
+                Monitor: null,
+                ComposeSiteSceneMonitor(services, batch, target),
+                Link: link,
+                Sweep: SweepFor(services),
+                Tally: tally)
+            : null;
+    }
+
+    // The presence-only add, so nothing this run registers is monitored or searched for.
+    private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
+        ComposeSiteRegistrationAsync(
+            IServiceProvider services,
+            ConcurrentDictionary<string, AddressedFolder> readings,
+            ReflectOwnedAim? link,
+            LinkTally tally,
+            CancellationToken runCt)
+    {
+        if (await ResolveTargetAsync(
+                services.GetRequiredService<WhisparrAccess>(),
+                runCt).ConfigureAwait(false) is not { } target
+            || target.Reads is not IWhisparrSiteRegistrationActing acting
+            || target.Reads is not IWhisparrStudioActing studios)
+        {
+            return null;
+        }
+
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(runCt),
+            target,
+            _log,
+            runCt).ConfigureAwait(false);
+        var roots = profiles is null
+            ? null
+            : await ContainedAsync(
+                () => target.Reads.ReadRootFoldersAsync(runCt),
+                target,
+                _log,
+                runCt).ConfigureAwait(false);
+        if (profiles is null || roots is null)
+        {
+            return null;
+        }
+
+        if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } composeWith)
+        {
+            return null;
+        }
+
+        // Resolved out of the run's elevated services: Cove's filters answer an anonymous reader
+        // zero rows and no error, which here would report every studio as owning no file and
+        // register them all at the run-wide root.
+        var files = services.GetRequiredService<IEntityFolderPort>();
+        var library = services.GetRequiredService<ICoveLibraryPort>();
+        var addressing = AgreedRootThrough(
+            target, services.GetRequiredService<IFolderAddressPort>());
+        var agreedRoot = async (string coveRoot, CancellationToken addressCt) =>
+        {
+            var addressed = await addressing(coveRoot, addressCt).ConfigureAwait(false);
+            readings[addressed.CoveRoot] = addressed;
+            return addressed;
+        };
+
+        var placing = new SitePlacing(
+            library.LibraryRoots,
+            target.Binding.Generation,
+            files,
+            agreedRoot,
+            new TreeReconcileStep(services.GetRequiredService<ITreeLinkPort>()),
+            tally);
+
+        var attaching = await AttachingSiteFoldersAsync(
+            link, services, target.Binding.Generation, tally, runCt).ConfigureAwait(false);
+
+        return async (site, siteCt) =>
+        {
+            var placed = await PlacedSiteAsync(composeWith, placing, site, siteCt)
+                .ConfigureAwait(false);
+            var composed = placed.Composed;
+
+            // A refused composition still reaches the step, so the site is read: where the instance
+            // holds it, its root need not settle for its scenes to be marked, and stopping short
+            // would leave a run's scenes unflagged.
+            var registered = await SiteRegistrationStep.RegisterAsync(
+                new SiteRegistering(
+                    target.Binding.Generation,
+                    (identity, readCt) => ContainedAsync(
+                        () => studios.ReadStudioAsync(
+                            identity, readCt),
+                        target,
+                        _log,
+                        readCt),
+                    (identity, addCt) => composed.Defaults is { } addWith
+                        ? ContainedAsync(
+                            () => acting.RegisterSiteAsync(
+                                identity, addWith, addCt),
+                            target,
+                            _log,
+                            addCt)
+                        : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
+                    RelocatingThrough(target),
+                    (siteId, refreshCt) => ContainedAsync(
+                        () => acting.RefreshSiteCatalogueAsync(
+                            siteId, refreshCt),
+                        target,
+                        _log,
+                        refreshCt)),
+                new EntityPlacement(
+                    composed.Root.InstanceRoot, composed.Defaults?.EntityFolderPath),
+                site,
+                siteCt).ConfigureAwait(false);
+
+            if (registered.Registration is SceneRegistration.Refused)
+            {
+                WhisparrSyncLog.SiteRegistrationRefused(
+                    _log, site.StudioId, site.RemoteId, RefusalReason(registered.Answer));
+            }
+
+            // The entity's folder holds one name per file it owns, each spelled as the identity of
+            // the file it points at, so this generation parses no scene out of any of them and
+            // would record nothing. The entry each name belongs to is supplied instead.
+            //
+            // A site the instance holds no row for can address nothing in the folder, so its files
+            // are left where they are rather than handed over on whatever the instance parsed.
+            if (attaching is { } attach
+                && placed.InTree is { } inTree
+                && registered.InstanceId is not null)
+            {
+                tally.Add(
+                    await AttachedSiteFolderAsync(attach, site, inTree, siteCt)
+                        .ConfigureAwait(false));
+            }
+
+            return registered with { Root = composed.Root };
+        };
+
+        // Nothing was sent, so there is no status to classify and the refusal is all a caller reads.
+        static WhisparrResponse Nothing(MonitorRefusalKind refusal)
+            => new(0, null, string.Empty) { Refusal = refusal };
+
+        static string RefusalReason(WhisparrResponse? answer)
+        {
+            if (answer is null)
+            {
+                return "nothing arrived";
+            }
+
+            return answer.Refusal is not MonitorRefusalKind.None
+                ? answer.Refusal.ToString()
+                : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    // One read of the scene the instance already holds, then the move. The read is what carries the
+    // folder the instance records it at, which no add answers: an add for a scene already held is
+    // refused and says nothing about where it sits.
+    //
+    // Null where the connected generation keeps no per-scene record, which leaves the scene pass
+    // registering as it did before entities followed their files.
+    private Func<string, EntityPlacement, CancellationToken, Task<TreeRelocation>>?
+        RelocatingScenesThrough(MonitoringTarget target)
+    {
+        if (target.Reads is not IWhisparrSceneStatusReading reading)
+        {
+            return null;
+        }
+
+        var relocate = RelocatingThrough(target);
+
+        return async (remoteId, intended, ct) =>
+        {
+            var held = await ContainedAsync(
+                () => reading.ReadSceneByRemoteIdAsync(remoteId, ct),
+                target,
+                _log,
+                ct).ConfigureAwait(false);
+
+            if (held is null || SceneStatusPort.ReadRow(held) is not { InstanceId: { } sceneId } row)
+            {
+                return TreeRelocation.NothingToCompare;
+            }
+
+            return await TreeRelocationStep.RelocateAsync(
+                row.Path,
+                intended,
+                relocate is null
+                    ? null
+                    : (root, folder, moveCt) => relocate(sceneId, root, folder, moveCt),
+                ct).ConfigureAwait(false);
+        };
+    }
+
+    // Null where the connected generation registers no relocation role, which leaves an entity
+    // whose files changed drive registered where it is rather than at a folder nothing agreed to.
+    private Func<int, string, string?, CancellationToken, Task<WhisparrResponse?>>? RelocatingThrough(
+        MonitoringTarget target)
+        => target.Reads is IWhisparrEntityRelocationActing relocating
+            ? (entityId, agreed, folder, moveCt) => ContainedAsync(
+                () => relocating.MoveEntityFolderAsync(entityId, agreed, folder, moveCt),
+                target,
+                _log,
+                moveCt)
+            : null;
+
+    // What the site pass needs to settle where one site goes, resolved once for the run rather than
+    // once per site: the roots, the connected generation, the library reads, the agreement and the
+    // step that builds a folder.
+    private sealed record SitePlacing(
+        IReadOnlyList<string> CoveRoots,
+        WhisparrGeneration Generation,
+        IEntityFolderPort Files,
+        Func<string, CancellationToken, Task<AddressedFolder>> AgreedRoot,
+        TreeReconcileStep Tree,
+        LinkTally Tally);
+
+    // Where one site was placed: the defaults its add carries, and the folder this run built for
+    // it as both systems spell it. A null tree is a site no folder was built for, which is what a
+    // library root Cove cannot write inside leaves.
+    private sealed record SitePlacement(
+        EntityAddDefaultsResolution Composed, AddressedTree? InTree);
+
+    // What one site's own folder is handed over through: the aim the run resolved, the roots the
+    // instance declared, and the pass that says which entry each name in the folder belongs to.
+    private sealed record SiteAttaching(
+        ReflectOwnedAiming Through,
+        IReadOnlyList<string> InstanceRoots,
+        Func<WhisparrEntityKind, int, EntityTreeFolder, CancellationToken,
+            IAsyncEnumerable<IReadOnlyDictionary<string, EntryAddress>>> Supply);
+
+    // Null where nothing is handed over: no reflect-owned role on the connected generation, a
+    // setting that refused, or a generation that names a scene by a row of its own and so supplies
+    // no entries. The refusal itself rides on the aiming, so a reader is still told which setting
+    // stopped it.
+    //
+    // The declared roots are read once for the run rather than once per site. A list that could not
+    // be established hands nothing over at all: an import composed without that comparison copies
+    // the bytes in full rather than linking them.
+    private static async Task<SiteAttaching?> AttachingSiteFoldersAsync(
+        ReflectOwnedAim? link,
+        IServiceProvider services,
+        WhisparrGeneration generation,
+        LinkTally tally,
+        CancellationToken ct)
+    {
+        if (link?.Through is not { SupplyEntries: { } supply } through)
+        {
+            return null;
+        }
+
+        var instanceRoots = await services.GetRequiredService<IReportedRootPort>()
+            .ReadAsync(generation, ct).ConfigureAwait(false);
+
+        if (instanceRoots is null)
+        {
+            tally.Add(
+                new ReflectOwnedRun(
+                    ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true));
+
+            return null;
+        }
+
+        return new SiteAttaching(through, instanceRoots, supply);
+    }
+
+    // The names in one site's folder, handed over with the entry each belongs to. The addresses
+    // arrive a chunk at a time and each chunk's entries go as they are composed, so neither what is
+    // held nor what one command carries follows the size of the studio.
+    private static Task<ReflectOwnedRun> AttachedSiteFolderAsync(
+        SiteAttaching attaching,
+        LibrarySiteIdentity site,
+        AddressedTree inTree,
+        CancellationToken ct)
+        => ReflectOwnedJob.AttachSuppliedAsync(
+            attaching.Through,
+            attaching.InstanceRoots,
+            inTree.CoveRoot,
+            inTree.OnInstance,
+            attaching.Supply(
+                WhisparrEntityKind.Studio,
+                site.StudioId,
+                new EntityTreeFolder(inTree.CoveRoot, inTree.EntityFolder, site.RemoteId),
+                ct),
+            ct);
+
+    // The root and the folder one site is registered at, with the folder built before it is sent.
+    //
+    // A folder sent for a path nothing holds leaves the instance recording an entry whose files it
+    // reports and cannot open, which is worse than registering the way it did before this product
+    // built folders. So the folder is dropped where the build made none: a library root this
+    // product cannot write to is the arrangement that reaches here.
+    //
+    // The files are the ones the studio owns under its chosen root, streamed one at a time, because
+    // a studio's files reach the size of the library.
+    private static async Task<SitePlacement> PlacedSiteAsync(
+        AddDefaults composeWith,
+        SitePlacing placing,
+        LibrarySiteIdentity site,
+        CancellationToken ct)
+    {
+        var (coveRoots, generation, files, agreedRoot, tree, tally) = placing;
+        var composed = await EntityAddDefaults.ComposeAsync(
+            composeWith,
+            coveRoots,
+            generation,
+            site.RemoteId,
+            (coveRoot, countCt) => files.FilesUnderAsync(
+                WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
+            agreedRoot,
+            ct).ConfigureAwait(false);
+
+        if (composed.Defaults is not { EntityFolderPath: { } onInstance } wanted
+            || composed.Root.CoveRoot is not { } chosen)
+        {
+            return new SitePlacement(composed, null);
+        }
+
+        var built = await tree.BuildAsync(
+            chosen,
+            generation,
+            site.RemoteId,
+            files.FilePathsUnder(WhisparrEntityKind.Studio, site.StudioId, chosen, ct),
+            ct).ConfigureAwait(false);
+
+        tally.Add(SyncLibraryJob.ReportedBuild(built, chosen));
+
+        return built.EntityFolder is { } entityFolder
+            ? new SitePlacement(composed, new AddressedTree(chosen, entityFolder, onInstance))
+            : new SitePlacement(
+                composed with { Defaults = wanted with { EntityFolderPath = null } }, null);
+    }
+
+    // A generation this product cannot ask refuses the root rather than composing one, a root
+    // nobody checked reading back as a clean pass. Reachable roots first, then the rest, one probe
+    // each: a root it cannot reach refuses every folder under it, so asking per folder costs a
+    // request apiece to learn what the root already said.
+    private static async Task<(IReadOnlyList<string> Order, IReadOnlyList<string> OutOfReach)>
+        RankedRootsAsync(MonitoringTarget target, IServiceProvider services, CancellationToken ct)
+    {
+        var agreed = AgreedRootThrough(target, services.GetRequiredService<IFolderAddressPort>());
+        var reachable = new List<string>();
+        var outOfReach = new List<string>();
+
+        foreach (var root in services.GetRequiredService<ICoveLibraryPort>().LibraryRoots)
+        {
+            var addressed = await agreed(root, ct).ConfigureAwait(false);
+            (addressed.InstancePath is null ? outOfReach : reachable).Add(root);
+        }
+
+        return ([.. reachable, .. outOfReach], outOfReach);
+    }
+
+    // The instance's own reading of a file, where an import's quality and languages come from. Null
+    // where the generation reads no file, leaving the run composing and linking nothing.
+    private Func<OwnedFilePlacement, CancellationToken, Task<WhisparrResponse?>>? ReadingFilesOn(
+        MonitoringTarget target)
+        => target.Reads is IWhisparrOwnedFileReading reading
+            ? (file, ct) => ContainedAsync(
+                () => reading.ReadFileAsync(file, ct), target, _log, ct)
+            : null;
+
+    // Pairs one folder's files with the instance ids the run registered, by name. The instance
+    // parses a studio and a date out of a file name to decide which scene it is, so a library whose
+    // names it cannot parse gets nothing attached however certainly the library knows; this hands
+    // it the answer. One read per folder, one row per identified file in it.
+    private static Func<string, IReadOnlyDictionary<string, RegisteredScene>, CancellationToken,
+        Task<IReadOnlyDictionary<string, RegisteredScene>>> IdentifyingFilesIn(
+            IServiceProvider services, WhisparrGeneration generation)
+    {
+        var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
+
+        return async (folder, registered, ct) =>
+        {
+            if (registered.Count == 0)
+            {
+                return registered;
+            }
+
+            var byName = new Dictionary<string, RegisteredScene>(StringComparer.Ordinal);
+            await foreach (var carried in identities
+                .FileIdentitiesIn(folder, generation, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                if (registered.TryGetValue(carried.RemoteId, out var scene))
+                {
+                    byName[carried.FileName] = scene;
+                }
+            }
+
+            return byName;
+        };
+    }
+
+    // Null where the connected generation registers no reflect-owned role: a generation gap rather
+    // than a refusal, and naming the hard-link setting would point a reader at a value nobody read.
+    private async Task<ReflectOwnedAim?> LinkOwnedAimAsync(
+        MonitoringTarget target, IServiceProvider services, CancellationToken ct)
+    {
+        if (ReflectOwnedActingOn(target) is not { } acting)
+        {
+            return null;
+        }
+
+        var decision = await ReflectOwnedDecisionAsync(target, acting, ct).ConfigureAwait(false);
+
+        return decision.Act
+            ? new ReflectOwnedAim(
+                AimedAt(target, acting, services) with
+                {
+                    Identify = IdentifyingFilesIn(services, target.Binding.Generation),
+                    ReadFile = ReadingFilesOn(target),
+                },
+                null)
+            : new ReflectOwnedAim(null, decision.Reason);
+    }
+
+    private static Func<string, CancellationToken, Task<AddressedFolder>> AgreedRootThrough(
+        MonitoringTarget target, IFolderAddressPort addressing)
+    {
+        if (FilesystemReadingOn(target) is not { } role)
+        {
+            return (_, _) => Task.FromResult(
+                new AddressedFolder(
+                    null,
+                    FolderAgreementRefusal.InstanceCannotBeAsked,
+                    string.Empty,
+                    Array.Empty<string>()));
+        }
+
+        var aimed = new FolderAddressTarget(target.Binding, role);
+
+        return (coveRoot, ct) => addressing.AgreedRootAsync(aimed, coveRoot, ct);
+    }
+
+    // Null unless the reader asked and the generation registers both the row read and the per-scene
+    // monitor, so monitoring costs only where it was asked for. The scene stream resolves out of
+    // the run's elevated services: anonymous, Cove's filters answer zero rows and no error,
+    // monitoring nothing while reporting an empty library.
+    private Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
+        ComposeSiteSceneMonitor(
+            IServiceProvider services, SyncLibraryBatch batch, MonitoringTarget target)
+    {
+        if (!batch.AlsoMonitor
+            || target.Reads is not IWhisparrSceneMonitorActing monitoring
+            || target.Reads is not IWhisparrSiteSceneReading rows)
+        {
+            return null;
+        }
+
+        var catalogues = services.GetRequiredService<ProviderCatalogueSource>();
+        var scenes = services.GetRequiredService<IEntitySceneIdentityPort>();
+
+        var ports = new SiteSceneMonitorPorts(
+            (studioId, ct) => scenes.SceneIdentitiesFor(
+                WhisparrEntityKind.Studio, studioId, target.Binding.Generation, ct),
+            async (providerSceneId, ct) =>
+                await (await catalogues(ct).ConfigureAwait(false))
+                    .ResolveNumericSceneIdAsync(providerSceneId, ct)
+                    .ConfigureAwait(false),
+            (siteId, numbers, ct) => rows.ReduceSiteSceneRowsAsync(
+                siteId, numbers, ct),
+            (rowId, ct) => ContainedAsync(
+                () => monitoring.SetSceneMonitoredAsync(
+                    rowId, monitored: true, ct),
+                target,
+                _log,
+                ct));
+
+        // A site the instance named no id for is a site nothing can reach the scenes under. Its
+        // registration is already counted as refused.
+        return (site, registered, ct) => registered.InstanceId is { } siteId
+            ? SiteSceneMonitorPass.MonitorAsync(ports, site, siteId, _log, ct)
+            : Task.FromResult(SceneMonitorTally.Nothing);
+    }
+
+    // Null unless the reader asked and the generation registers a per-scene monitor, so v2 obtains
+    // none and monitors nothing rather than being refused once called. One request at a time: the
+    // instance's command queue is the shared resource.
+    private Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? MonitorFor(
+        SyncLibraryBatch batch, MonitoringTarget target)
+    {
+        if (!batch.AlsoMonitor
+            || target.Reads is not IWhisparrSceneMonitorActing monitoring)
+        {
+            return null;
+        }
+
+        var reading = target.Reads as IWhisparrSceneStatusReading;
+
+        return async (identity, offered, ct) => SceneMonitorTally.For(
+            await MonitorOfferedSceneAsync(target, monitoring, reading, identity, offered, ct)
+                .ConfigureAwait(false));
+    }
+
+    // The flag is set by the instance's own numeric scene id, which this product does not hold:
+    // taken off an accepted add's answer, or off one read of a scene it already held.
+    private async Task<WhisparrResponse?> MonitorOfferedSceneAsync(
+        MonitoringTarget target,
+        IWhisparrSceneMonitorActing monitoring,
+        IWhisparrSceneStatusReading? reading,
+        string identity,
+        SyncRegistration offered,
+        CancellationToken ct)
+    {
+        var sceneId = offered.InstanceId;
+
+        if (sceneId is null && reading is not null)
+        {
+            var held = await ContainedAsync(
+                () => reading.ReadSceneByRemoteIdAsync(identity, ct),
+                target,
+                _log,
+                ct).ConfigureAwait(false);
+            sceneId = held is null ? null : SceneStatusPort.ReadRow(held).InstanceId;
+        }
+
+        // No id is no flag to set. Answering nothing counts it as not monitored, which is the
+        // reading that claims less rather than more.
+        return sceneId is { } named
+            ? await ContainedAsync(
+                () => monitoring.SetSceneMonitoredAsync(
+                    named,
+                    monitored: true,
+                    ct),
+                target,
+                _log,
+                ct).ConfigureAwait(false)
+            : null;
+    }
+
+    private bool SyncRunIsInFlight(IJobService jobs) => SyncRunInFlight(jobs) is not null;
+
+    private JobInfo? SyncRunInFlight(IJobService jobs)
+        => jobs.GetAllJobs().FirstOrDefault(job =>
+            string.Equals(
+                job.Type, OwnJobTypePrefix + SyncLibraryJobId, StringComparison.Ordinal)
+            && job.Status is JobStatus.Pending or JobStatus.Running);
+
+    private static async Task<SyncRefusalKind> SyncRefusalFor(
+        WhisparrAccess whisparr,
+        CancellationToken ct)
+    {
+        if (await ResolveTargetAsync(whisparr, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return SyncRefusalKind.NoInstanceConnected;
+        }
+
+        // Read off the roles the target obtains, not its version. A generation keeping no per-scene
+        // records registers no scene-status read and can be told about its sites instead, so the
+        // refusal stands only where neither role is obtained.
+        if (SyncPassFor(target) is not null)
+        {
+            return SyncRefusalKind.None;
+        }
+
+        return SyncRefusalKind.WhisparrKeepsNoSceneRecords;
+    }
+
+    // Scenes are preferred where both are obtainable: a per-scene entry is what the reader's own
+    // library holds, and a site entry stands in only where no per-scene entry exists.
+    private static SyncRegisters? SyncPassFor(MonitoringTarget target)
+    {
+        if (target.Reads is IWhisparrSceneStatusReading)
+        {
+            return SyncRegisters.Scenes;
+        }
+
+        return target.Reads is IWhisparrSiteRegistrationActing
+                ? SyncRegisters.Sites
+                : null;
+    }
+}

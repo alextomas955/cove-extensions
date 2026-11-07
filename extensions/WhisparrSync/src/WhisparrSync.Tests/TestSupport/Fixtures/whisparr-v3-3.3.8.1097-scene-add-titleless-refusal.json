@@ -1,0 +1,13 @@
+[
+  {
+    "propertyName": "Title",
+    "errorMessage": "\u0027Title\u0027 must not be empty.",
+    "severity": "error",
+    "errorCode": "NotEmptyValidator",
+    "formattedMessagePlaceholderValues": {
+      "propertyName": "Title",
+      "propertyValue": null,
+      "propertyPath": "Title"
+    }
+  }
+]

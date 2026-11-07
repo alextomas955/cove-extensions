@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 
 namespace Renamer.Tests.Execution.Journal;

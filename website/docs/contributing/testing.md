@@ -123,7 +123,8 @@ That generates the wire types first, then does one Vitest run. It is also one of
 `npm run verify`, which is what the pull-request build runs for a UI bundle.
 
 Renamer's configuration runs its own tests and the shared UI suite rooted at `shared/ui-shared` as
-separate Vitest projects. Read the project names from the relevant `vite.config.ts`. Shared UI currently resolves through source aliases and uses Renamer's
+separate Vitest projects. Whisparr's configuration runs its own suite. Read the project names from
+the relevant `vite.config.ts`. Shared UI currently resolves through source aliases and uses Renamer's
 test runner; run that suite when changing shared UI code.
 
 ## Measure coverage

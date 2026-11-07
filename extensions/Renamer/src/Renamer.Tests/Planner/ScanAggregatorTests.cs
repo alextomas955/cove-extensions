@@ -218,16 +218,18 @@ public sealed class ScanAggregatorTests
         Assert.Equal(OnVol("D", overName).Length, OnVol("C", overName).Length);
 
         var aggregator = new ScanAggregator(Budget, Mounts);
-        var sizes = new Dictionary<int, long>();
         aggregator.Fold(
             RenamerFileKind.Video,
-            Plan(RenamerFileKind.Video, 1, Acting(1, OnVol("C", "a.mkv"), OnVol("D", fitsName))), sizes);
+            Plan(RenamerFileKind.Video, 1, Acting(1, OnVol("C", "a.mkv"), OnVol("D", fitsName))),
+            new Dictionary<int, long>());
         aggregator.Fold(
             RenamerFileKind.Video,
-            Plan(RenamerFileKind.Video, 2, Acting(2, OnVol("C", "b.mkv"), OnVol("D", overName))), sizes);
+            Plan(RenamerFileKind.Video, 2, Acting(2, OnVol("C", "b.mkv"), OnVol("D", overName))),
+            new Dictionary<int, long>());
         aggregator.Fold(
             RenamerFileKind.Video,
-            Plan(RenamerFileKind.Video, 3, Acting(3, OnVol("C", "c.mkv"), OnVol("C", overName))), sizes);
+            Plan(RenamerFileKind.Video, 3, Acting(3, OnVol("C", "c.mkv"), OnVol("C", overName))),
+            new Dictionary<int, long>());
 
         var blastRadius = Assert.Single(aggregator.ToSummary(0L).Kinds).BlastRadius;
 
@@ -246,9 +248,10 @@ public sealed class ScanAggregatorTests
         string fitsName = NameForPathLength(Budget - PathOps.InFlightSuffixLength);
 
         var aggregator = new ScanAggregator(Budget, Mounts);
-        var sizes = new Dictionary<int, long>();
         void FoldOne(RenamerFileKind kind, int fileId, string name) => aggregator.Fold(
-            kind, Plan(kind, fileId, Acting(fileId, OnVol("C", $"{fileId}.mkv"), OnVol("D", name))), sizes);
+            kind,
+            Plan(kind, fileId, Acting(fileId, OnVol("C", $"{fileId}.mkv"), OnVol("D", name))),
+            new Dictionary<int, long>());
 
         FoldOne(RenamerFileKind.Video, 1, overName);
         FoldOne(RenamerFileKind.Image, 2, overName);

@@ -1,0 +1,57 @@
+/**
+ * Bundle entry. The default export is the extension module, and every `components` map key MUST
+ * equal the C# manifest `componentName` it is advertised under (the manifest's
+ * AddSettingsSection for the settings page, AddSlot for each detail page's action-row control): the
+ * host resolves one to the other by exact string and renders nothing, with no error, when they
+ * differ.
+ *
+ * The default export ALSO carries an `actionHandlers` map. The SDK's `ExtensionModule` type does not
+ * declare it and the host loader reads `mod.default.actionHandlers` untyped, so it is attached
+ * through a local cast rather than by editing the SDK. Every handler key must equal the
+ * `handlerName` the matching action is registered under, by the same exact-string rule.
+ */
+import { defineExtension } from "@cove/extension-sdk";
+import { WhisparrSyncPage } from "./settings/WhisparrSyncPage";
+import { WhisparrPerformerActions, WhisparrStudioActions } from "./monitoring/EntityMonitorButton";
+import { monitorSelected } from "./monitoring/bulkMonitor";
+import { WhisparrMissingTab } from "./missing/MissingTab";
+import { WhisparrLibraryToggle } from "./library/WhisparrLibraryToggle";
+import {
+  WhisparrPerformerCardBadge,
+  WhisparrStudioCardBadge,
+} from "./library/WhisparrEntityCardBadge";
+import { WhisparrVideoCardBadge } from "./library/WhisparrVideoCardBadge";
+import {
+  WhisparrPerformerLibraryRow,
+  WhisparrStudioLibraryRow,
+  WhisparrVideoLibraryRow,
+} from "./library/LibraryStatusRow";
+import { WhisparrSceneTab } from "./scene/WhisparrSceneTab";
+import { sceneBatchSelected } from "./batch/whisparrBatchSelected";
+
+interface WithActionHandlers {
+  actionHandlers: Record<string, unknown>;
+}
+
+const mod = defineExtension({
+  components: {
+    WhisparrSyncPage,
+    WhisparrStudioActions,
+    WhisparrPerformerActions,
+    WhisparrMissingTab,
+    WhisparrLibraryToggle,
+    WhisparrStudioCardBadge,
+    WhisparrPerformerCardBadge,
+    WhisparrVideoCardBadge,
+    WhisparrVideoLibraryRow,
+    WhisparrStudioLibraryRow,
+    WhisparrPerformerLibraryRow,
+    WhisparrSceneTab,
+  },
+});
+(mod as typeof mod & WithActionHandlers).actionHandlers = {
+  whisparrMonitorSelected: monitorSelected,
+  whisparrSceneBatch: sceneBatchSelected,
+};
+
+export default mod;
