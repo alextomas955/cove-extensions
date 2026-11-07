@@ -121,29 +121,100 @@ public class ExtensionOptionsStore<TOptions>(
             }
 
             var fallback = property.GetValue(defaults);
-            if (fallback is null)
+            if (fallback is not null)
             {
-                continue;
+                RepairMember(loaded, property, fallback, nullability);
+            }
+        }
+    }
+
+    /// <summary>Repairs one member: its own null, a nested object's, or a collection entry's.</summary>
+    private static void RepairMember(
+        object loaded, PropertyInfo property, object fallback, NullabilityInfoContext nullability)
+    {
+        var value = property.GetValue(loaded);
+        if (value is null)
+        {
+            if (property.CanWrite && nullability.Create(property).ReadState == NullabilityState.NotNull)
+            {
+                property.SetValue(loaded, fallback);
             }
 
-            var value = property.GetValue(loaded);
-            if (value is null)
+            return;
+        }
+
+        if (IsNestedOptions(property.PropertyType))
+        {
+            RestoreDeclaredNonNull(value, fallback, nullability);
+            return;
+        }
+
+        DropDeclaredNonNullEntries(value, nullability.Create(property));
+    }
+
+    /// <summary>
+    /// Drops every entry a collection holds as <c>null</c> whose element the model declares non-null.
+    /// </summary>
+    /// <remarks>
+    /// Dropped rather than replaced, because an element has no counterpart in the defaults to restore
+    /// from: a list of rules has no rule that stands for "the one that should have been here". An entry
+    /// the model allows to be null is kept, on the same criterion the members above use.
+    /// <para>
+    /// Without this a stored <c>[null]</c> survives binding and a consumer dereferences it, which is a
+    /// <c>NullReferenceException</c> rather than the <see cref="JsonException"/> <see cref="LoadAsync"/>
+    /// catches - so it surfaces wherever the list is read rather than where it was loaded, and for
+    /// Renamer that is every preview and every rename.
+    /// </para>
+    /// </remarks>
+    private static void DropDeclaredNonNullEntries(object value, NullabilityInfo info)
+    {
+        if (value is IDictionary map)
+        {
+            // The value is the second argument; a null key cannot be stored at all.
+            if (DeclaredNonNull(info, index: 1))
             {
-                if (property.CanWrite && nullability.Create(property).ReadState == NullabilityState.NotNull)
-                {
-                    property.SetValue(loaded, fallback);
-                }
+                DropNullValues(map);
             }
-            else if (IsNestedOptions(property.PropertyType))
+
+            return;
+        }
+
+        // A fixed-size list is an array, which cannot be shortened in place. No options model here
+        // declares one, and rebuilding the member would be a second way to write a collection.
+        if (value is IList { IsReadOnly: false, IsFixedSize: false } list && DeclaredNonNull(info, index: 0))
+        {
+            DropNullItems(list);
+        }
+    }
+
+    private static bool DeclaredNonNull(NullabilityInfo info, int index)
+        => info.GenericTypeArguments.Length > index
+            && info.GenericTypeArguments[index].ReadState == NullabilityState.NotNull;
+
+    private static void DropNullValues(IDictionary map)
+    {
+        var nullKeys = map.Keys.Cast<object>().Where(key => map[key] is null).ToList();
+        foreach (var key in nullKeys)
+        {
+            map.Remove(key);
+        }
+    }
+
+    private static void DropNullItems(IList list)
+    {
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is null)
             {
-                RestoreDeclaredNonNull(value, fallback, nullability);
+                list.RemoveAt(i);
             }
         }
     }
 
     /// <summary>
     /// True for a member that is itself an options object - one whose own members can carry the same
-    /// null. A collection is excluded: its elements have no counterpart in the defaults to restore from.
+    /// null. A collection is excluded: its elements are handled by
+    /// <see cref="DropDeclaredNonNullEntries"/>, which has no counterpart in the defaults to restore from.
     /// </summary>
     private static bool IsNestedOptions(Type type)
         => type.IsClass && type != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(type);

@@ -132,4 +132,57 @@ public sealed class ExtensionOptionsStoreTests
 
         Assert.Equal(2, loaded.Count);
     }
+
+    private static ExtensionOptionsStore<ToyCollections> CollectionsStore(FakeStore fake)
+        => new(fake, Json, () => new ToyCollections(), NullLogger.Instance);
+
+    private static async Task<FakeStore> HoldingCollections(string blob)
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(ExtensionOptionsStore<ToyCollections>.Key, blob);
+        return fake;
+    }
+
+    // An element has no counterpart in the defaults, so it is dropped rather than replaced. Left in, it
+    // reaches a consumer as a NullReferenceException, which LoadAsync does not catch - the failure then
+    // surfaces wherever the collection is read rather than where the blob was loaded.
+    [Fact]
+    public async Task LoadAsync_ANullInsideACollectionTheModelDeclaresNonNull_IsDropped()
+    {
+        var store = CollectionsStore(await HoldingCollections(
+            """{"Name":"kept","Rules":[null,{"Label":"real"}],"Map":{"gone":null,"kept":{"Label":"m"}}}"""));
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Equal("kept", loaded.Name);
+        Assert.Equal(["real"], loaded.Rules.Select(rule => rule.Label));
+        Assert.Equal(["kept"], loaded.Map.Keys);
+    }
+
+    // The same criterion the members use: a null the model allows is a state, not damage.
+    [Fact]
+    public async Task LoadAsync_ANullInsideACollectionTheModelAllows_IsKept()
+    {
+        var store = CollectionsStore(await HoldingCollections("""{"OptionalRules":[null]}"""));
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Single(loaded.OptionalRules);
+        Assert.Null(loaded.OptionalRules[0]);
+    }
+
+    // What the repair buys over letting the serializer refuse the blob: one unusable member costs that
+    // member, not the whole configuration. RespectNullableAnnotations would raise a JsonException here,
+    // which LoadAsync answers with defaults - every other setting the user chose would go with it.
+    [Fact]
+    public async Task LoadAsync_OneUnusableMember_CostsThatMemberAndNotTheRest()
+    {
+        var store = Store(await Holding("""{"Name":"user-chose-this","Items":null,"Count":99}"""));
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Equal("user-chose-this", loaded.Name);
+        Assert.Equal(99, loaded.Count);
+        Assert.Equal(new ToyOptions().Items, loaded.Items);
+    }
 }

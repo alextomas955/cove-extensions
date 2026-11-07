@@ -16,6 +16,19 @@ public sealed record ToyOptions
     public int Count { get; init; } = 3;
 }
 
+// Collections whose elements the model declares non-null, beside one that allows them, so a stored
+// null inside a collection is distinguishable from a state the model permits.
+public sealed record ToyCollections
+{
+    public string Name { get; init; } = "default-name";
+
+    public List<ToyNested> Rules { get; init; } = [];
+
+    public List<ToyNested?> OptionalRules { get; init; } = [];
+
+    public Dictionary<string, ToyNested> Map { get; init; } = [];
+}
+
 public sealed record ToyNested
 {
     public string Label { get; init; } = "nested-label";
