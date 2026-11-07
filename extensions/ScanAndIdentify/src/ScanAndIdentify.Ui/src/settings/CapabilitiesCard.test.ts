@@ -29,8 +29,7 @@ function mount(): HTMLElement {
   return container;
 }
 
-const values = (container: HTMLElement) =>
-  [...container.querySelectorAll("dd")].map((e) => e.textContent);
+const rendered = (container: HTMLElement) => container.querySelector("section") !== null;
 
 beforeEach(() => {
   server.respond = null;
@@ -46,7 +45,6 @@ test("a request still in flight shows the spinner and neither the values nor an 
     () => container.querySelector("svg.animate-spin") !== null,
   );
 
-  expect(values(container)).toEqual([]);
   expect(container.textContent).not.toMatch(/couldn't read/i);
 });
 
@@ -57,23 +55,34 @@ test("a rejected request shows the failure the request reported and no values", 
   await waitFor("the failure to render", () => /couldn't read/i.test(container.textContent));
 
   expect(container.textContent).toContain("403 forbidden");
-  expect(values(container)).toEqual([]);
   expect(container.querySelector("svg.animate-spin")).toBeNull();
 });
 
+test("a host that supplied everything renders nothing at all", async () => {
+  server.respond = () =>
+    Promise.resolve({ coveVersion: "1.7.0", jobService: true, scanService: true });
+  const container = mount();
+
+  await waitFor("the spinner to go", () => container.querySelector("svg.animate-spin") === null);
+
+  expect(rendered(container)).toBe(false);
+  expect(container.textContent).toBe("");
+});
+
 test.each([
-  ["both services resolved", "1.7.0", true, true, ["1.7.0", "available", "available"]],
-  ["only the job service resolved", "1.7.0", true, false, ["1.7.0", "available", "unavailable"]],
-  ["a host that reported no version", null, true, true, ["not reported", "available", "available"]],
+  ["the scan service", true, false, "the scan service"],
+  ["the job service", false, true, "the job service"],
+  ["both services", false, false, "the job service or the scan service"],
 ])(
-  "a successful read renders %s",
-  async (_case, coveVersion, jobService, scanService, expected) => {
-    server.respond = () => Promise.resolve({ coveVersion, jobService, scanService });
+  "a host missing %s says so and names the version",
+  async (_case, jobService, scanService, named) => {
+    server.respond = () => Promise.resolve({ coveVersion: "1.7.0", jobService, scanService });
     const container = mount();
 
-    await waitFor("the reported values to render", () => values(container).length === 3);
+    await waitFor("the warning to render", () => rendered(container));
 
-    expect(values(container)).toEqual(expected);
-    expect(container.querySelector("svg.animate-spin")).toBeNull();
+    expect(container.textContent).toContain(named);
+    expect(container.textContent).toContain("a run cannot start");
+    expect(container.textContent).toContain("1.7.0");
   },
 );

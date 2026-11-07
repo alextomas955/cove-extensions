@@ -53,8 +53,12 @@ function StageOutcome({ stage }: { stage: RunStageView }) {
   return <StatusText kind={stage.state === "failed" ? "error" : "muted"}>{outcome}</StatusText>;
 }
 
+/** Why a run cannot start right now, or null when it can. */
+const DIRTY_OPTIONS =
+  "Save the run options first. A run reads what is saved, not what is on screen.";
+
 /** The run: one button, and where each of the four stages has got to. */
-export function RunSection() {
+export function RunSection({ optionsDirty = false }: Readonly<{ optionsDirty?: boolean }> = {}) {
   const { run, loading, forbidden, failure, claiming, cancelling, start, cancel } = useRun();
 
   if (forbidden) {
@@ -76,8 +80,16 @@ export function RunSection() {
   return (
     <SectionCard
       title="Run"
-      description="Scan, fill in the missing fingerprints, identify, then generate the images. Each stage starts only once the one before it has finished."
+      description="Finds library items Cove holds no metadata for and identifies them. A run scans, fills in the missing fingerprints, identifies, then generates the images. Each pass starts only once the one before it has finished."
     >
+      <p className="text-sm text-secondary">
+        A run covers your whole library. On a large library it takes hours.
+      </p>
+      <StatusText kind={inFlight ? "warning" : "muted"}>
+        Keep this page open. A run advances only while it is open, and stops where it is if you
+        close it.
+      </StatusText>
+
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-secondary">
           <Spinner />
@@ -86,9 +98,18 @@ export function RunSection() {
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button onClick={start} disabled={inFlight || claiming}>
+        <Button
+          onClick={start}
+          disabled={inFlight || claiming || optionsDirty}
+          aria-describedby={optionsDirty ? "scanandidentify-run-blocked" : undefined}
+        >
           {claiming ? "Starting…" : "Run"}
         </Button>
+        {optionsDirty ? (
+          <span id="scanandidentify-run-blocked" role="status">
+            <StatusText kind="warning">{DIRTY_OPTIONS}</StatusText>
+          </span>
+        ) : null}
         {inFlight ? (
           <Button variant="ghost" onClick={cancel} disabled={cancelling}>
             {cancelling ? "Cancelling…" : "Cancel"}

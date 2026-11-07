@@ -20,11 +20,18 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
 });
 
 const { RunOptionsForm } = await import("./RunOptionsForm");
+const { useRunOptions } = await import("./useRunOptions");
+
+// The page owns the controller so the run card can read its unsaved state, so the form is driven
+// here through the same hook the page calls rather than mounted bare.
+function Harness() {
+  return createElement(RunOptionsForm, { controller: useRunOptions() });
+}
 
 function mount(): HTMLElement {
   const container = document.createElement("div");
   document.body.append(container);
-  createRoot(container).render(createElement(RunOptionsForm));
+  createRoot(container).render(createElement(Harness));
   return container;
 }
 

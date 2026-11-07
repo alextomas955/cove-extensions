@@ -2,42 +2,50 @@ import { SectionCard, Spinner, StatusText } from "@cove-extensions/ui-shared";
 
 import { useCapabilities } from "./useCapabilities";
 
-function Row({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <div className="flex gap-2 text-sm">
-      <dt className="text-secondary">{label}</dt>
-      <dd className="text-foreground">{value}</dd>
-    </div>
-  );
-}
-
-/** What the host supplied this extension at load, as the panel reports it. */
+/**
+ * What the host did not supply this extension at load.
+ *
+ * It renders nothing when the host supplied everything, because a row reading "available" is a
+ * diagnostic rather than something a person came here to do. It appears only while the read is in
+ * flight, when the read failed, or when a service the run needs is missing.
+ */
 export function CapabilitiesCard() {
   const { view, loading, error } = useCapabilities();
 
-  return (
-    <SectionCard
-      title="Scan and Identify"
-      description="Finds library items Cove holds no metadata for and identifies them. This card reports what the host supplied when the extension loaded."
-    >
-      {loading ? (
+  if (loading) {
+    return (
+      <SectionCard title="Scan and Identify">
         <div className="flex items-center gap-2 text-sm text-secondary">
           <Spinner />
           Reading what the host supplied…
         </div>
-      ) : null}
+      </SectionCard>
+    );
+  }
 
-      {error === null ? null : (
+  if (error !== null) {
+    return (
+      <SectionCard title="Scan and Identify">
         <StatusText kind="error">Couldn&apos;t read the host capabilities: {error}</StatusText>
-      )}
+      </SectionCard>
+    );
+  }
 
-      {view === null ? null : (
-        <dl className="space-y-1">
-          <Row label="Cove version" value={view.coveVersion ?? "not reported"} />
-          <Row label="Job service" value={view.jobService ? "available" : "unavailable"} />
-          <Row label="Scan service" value={view.scanService ? "available" : "unavailable"} />
-        </dl>
-      )}
+  if (view === null) return null;
+
+  const missing = [
+    view.jobService ? null : "the job service",
+    view.scanService ? null : "the scan service",
+  ].filter((name): name is string => name !== null);
+
+  if (missing.length === 0) return null;
+
+  return (
+    <SectionCard title="Scan and Identify">
+      <StatusText kind="warning">
+        This Cove did not supply {missing.join(" or ")}, so a run cannot start. Cove reports version{" "}
+        {view.coveVersion ?? "nothing"}.
+      </StatusText>
     </SectionCard>
   );
 }

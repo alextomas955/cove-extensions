@@ -8,7 +8,7 @@ import {
 } from "@cove-extensions/ui-shared";
 
 import { RUN_OPTION_FIELDS, RUN_OPTION_GROUPS, type RunOptionGroup } from "./runOptions";
-import { useRunOptions } from "./useRunOptions";
+import type { UseRunOptions } from "./useRunOptions";
 
 // The question the missing switch raises. Nothing a run does replaces an asset that already exists,
 // so the answer belongs beside the switches rather than only in the documentation.
@@ -17,10 +17,15 @@ const GROUP_NOTES: Partial<Record<RunOptionGroup, string>> = {
     "A run never replaces an asset that already exists, so running it again only fills the gaps.",
 };
 
-/** The saved description of a run: what a later run performs, and how. */
-export function RunOptionsForm() {
+/**
+ * The saved description of a run: what a later run performs, and how.
+ *
+ * The controller is passed in rather than read here, because the page holds one copy and the run
+ * card reads its unsaved state from the same copy.
+ */
+export function RunOptionsForm({ controller }: Readonly<{ controller: UseRunOptions }>) {
   const { options, loading, loadError, saving, saveError, canSave, onSave, discard, set } =
-    useRunOptions();
+    controller;
 
   return (
     <SectionCard
