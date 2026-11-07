@@ -103,6 +103,10 @@ settings only, and it is turned off while you have unsaved edits. Save first.
 
 ### The totals are different from what I expected
 
-Renamer keeps one scan result for the whole Cove, so the totals you see may come from someone else's
-most recent dry run. They are also limited to the kinds of item your account can read. Run a new dry
-run for figures of your own.
+The totals cover only the items your account can read, so they can be lower than the size of the
+library. They are the totals of the dry run you started, never anyone else's.
+
+### Another library scan finished after this one, so its results replaced yours
+
+Renamer keeps one set of scan results at a time. If someone else runs a dry run while yours is
+open, theirs replaces yours and your totals are no longer available. Run the dry run again.
