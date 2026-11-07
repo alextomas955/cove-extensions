@@ -246,4 +246,102 @@ public sealed class ParallelBatchTests
             await shared.DisposeAsync();
         }
     }
+
+    // The bound that makes this execution path its own rather than the host's batch helper. Cove's
+    // RunBatchAsync takes one worker count over a flat list; a cross-volume copy has to be bounded per
+    // (source, destination) pair, because the limit protects a disk's queue and not the process. A
+    // substitution that kept the work and lost the partitioning would still rename every file, so
+    // nothing but a concurrency observation can catch it.
+    //
+    // Observed at the in-flight free-space probe, which each acting unit calls exactly once before its
+    // copy: the probe is this run's own injected delegate, so the count is of units the executor
+    // actually had in flight.
+    [Fact]
+    public async Task CrossVolumeCopies_RunNoMoreThanTheConfiguredPerPairConcurrency()
+    {
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        const int files = 6;
+        const int allowed = 2;
+
+        using var dir = new TempDir();
+        using var drive = new SecondVolume();
+        var shared = await SharedCacheSqlite.CreateAsync();
+        try
+        {
+            string srcPathFwd = dir.Root.Replace('\\', '/');
+            string destRootFwd = drive.Root.Replace('\\', '/');
+            var ids = await SeedVideosAsync(shared, dir, files);
+
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                FolderTemplate = "Films",
+                CrossVolumeConcurrency = allowed,
+                FreeSpaceHeadroomBytes = 0,
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dest.At(destRootFwd, "Films"), IsRegex = false,
+                    },
+                ],
+            };
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
+                shared, options, [srcPathFwd, destRootFwd]);
+
+            // A rendezvous of exactly `allowed` participants rather than a wait: units are held until
+            // that many are in flight together, so the overlap is forced rather than hoped for, and a
+            // scheduler that happened to serialize them would time out instead of passing.
+            using var rendezvous = new Barrier(allowed);
+            int calls = 0;
+            int live = 0;
+            int peak = 0;
+
+            long Probe(string volume)
+            {
+                // The first call is the single-threaded aggregate check before any unit starts. It has
+                // nobody to rendezvous with, and it cannot inflate the peak.
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    return 1L << 40;
+                }
+
+                InterlockedMax(ref peak, Interlocked.Increment(ref live));
+                rendezvous.SignalAndWait(TimeSpan.FromSeconds(30));
+                Interlocked.Decrement(ref live);
+                return 1L << 40;
+            }
+
+            await ext.RunRenamerBatchAsync(
+                RenamerFileKind.Video, [.. ids], new FakeJobProgress(), default, Probe);
+
+            Assert.True(
+                peak <= allowed,
+                $"{peak} cross-volume copies were in flight at once, with {allowed} configured over "
+                    + $"{files} files - the per-pair bound is not holding");
+            // The rendezvous completing is what says the bound was reached rather than merely not
+            // exceeded: a run that never had two copies in flight would have timed out above.
+            Assert.Equal(allowed, peak);
+        }
+        finally
+        {
+            await shared.DisposeAsync();
+        }
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen = Volatile.Read(ref target);
+        while (value > seen)
+        {
+            int actual = Interlocked.CompareExchange(ref target, value, seen);
+            if (actual == seen)
+            {
+                return;
+            }
+
+            seen = actual;
+        }
+    }
 }

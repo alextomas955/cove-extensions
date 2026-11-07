@@ -23,6 +23,25 @@ internal sealed record RenameRun(
 /// into chunks, plans and executes each one through <see cref="RenamerExecutor"/>, and journals what
 /// it moved so undo can replay it. The whole-library counterpart is <c>Renamer.Library.cs</c>.
 /// </summary>
+/// <remarks>
+/// Why this schedules its own work rather than handing the units to Cove's <c>IJobService</c>
+/// <c>RunBatchAsync</c>, which does run a list of units across fixed workers and tally the outcomes:
+/// <list type="bullet">
+/// <item>It takes one worker count over a flat list. A copy's limit belongs to the disk pair it moves
+/// between, not to the process, so the units are partitioned by (source, destination) and each
+/// partition carries its own bound. Peak concurrency is then one pair's bound rather than the sum over
+/// pairs, which is what a free-space headroom is sized against.</item>
+/// <item>It runs every unit. A destination that cannot fit the chunk stops the run here, before a
+/// journal batch is opened, so a refusal leaves nothing to undo.</item>
+/// <item>Its outcome is succeeded, failed or skipped. A rename distinguishes a planner skip, a
+/// contested path, a move-time skip and a disk-full skip, and the last of those decides whether the run
+/// continues.</item>
+/// </list>
+/// What it would still carry unchanged is the per-worker scope, since a <c>DbContext</c> is not
+/// thread-safe and Cove disables EF's own checks; that is opened inside the unit body either way. The
+/// per-pair bound is the invariant a substitution would quietly lose, because every file would still be
+/// renamed - <c>ParallelBatchTests</c> observes it.
+/// </remarks>
 public sealed partial class Renamer
 {
     // The fraction of a chunk's progress bar the planning pass owns, execution taking the rest. The
