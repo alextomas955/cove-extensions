@@ -218,14 +218,16 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
     `POST scan-library as the owner answered ${asOwner.status}: ${asOwner.text}`,
   ).toBe(202);
   const jobId = asOwner.json?.jobId;
+  const runId = asOwner.json?.runId;
   expect(typeof jobId, `the enqueue carried no jobId: ${asOwner.text}`).toBe("string");
+  expect(typeof runId, `the enqueue carried no runId: ${asOwner.text}`).toBe("string");
   const job = await pollRenamerJob(owner, routeBase, jobId, { timeoutMs: 120_000 });
   expect(
     job?.status?.toLowerCase(),
     `the scan job did not complete (status ${job?.status}, error ${job?.error})`,
   ).toBe("completed");
 
-  const summary = await owner.get(`${routeBase}/last-scan`);
+  const summary = await owner.get(`${routeBase}/last-scan/${runId}`);
   expect(
     summary.status,
     `GET last-scan as the owner answered ${summary.status}: ${summary.text}`,
