@@ -6,9 +6,10 @@
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import { waitFor } from "../common/lib/flushRender";
+import { createTestQueryClient } from "../common/lib/testQueryClient";
 
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
@@ -85,9 +86,7 @@ async function mountHook() {
     return null;
   }
 
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  });
+  const queryClient = createTestQueryClient();
   queryClient.setQueryData(LAST_BATCH_KEY, { hasBatch: false });
 
   const container = document.createElement("div");

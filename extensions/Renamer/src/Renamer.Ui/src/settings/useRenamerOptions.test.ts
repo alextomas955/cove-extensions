@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 
 import { useRenamerOptions, type UseRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
+import { withQueryClient } from "../common/lib/testQueryClient";
 import type { OptionsView } from "./options";
 
 // The stubbed endpoint's script, hoisted so the module factory below can reach it.
@@ -27,6 +28,9 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
       method: String(init.method),
       body: JSON.parse(init.body as string) as unknown,
     });
+    // The PUT writes a whole, well-formed document, so the blob a later GET reads is no longer
+    // unreadable. Modelled here because the hook asks the server rather than assuming it.
+    if (endpoint.view) endpoint.view = { ...endpoint.view, unreadable: false };
     return Promise.resolve(undefined);
   },
 }));
@@ -58,13 +62,35 @@ async function mountHook() {
   document.body.append(container);
   const root = createRoot(container);
   await commit(() => {
-    root.render(createElement(Probe));
+    root.render(withQueryClient(createElement(Probe)));
   });
+
+  // Read through a call so the compiler does not narrow `latest` to the null it is initialised with:
+  // every assignment happens inside the probe's render, which the flow analysis here cannot see.
+  const read = () => latest;
+
+  // Wait for the load to settle rather than for a fixed number of microtasks: the query resolves
+  // through its client's own scheduler, so how many turns that takes is not this test's to know.
+  for (let i = 0; i < 100 && read()?.loading !== false; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    });
+  }
+  expect(read()?.loading, "the options never loaded").toBe(false);
 
   return {
     get current(): UseRenamerOptions {
       expect(latest, "the probe never rendered").not.toBeNull();
       return latest as unknown as UseRenamerOptions;
+    },
+    /** Commits renders until `holds` is true, for a refetch the last action started. */
+    settled: async (condition: string, holds: () => boolean) => {
+      for (let i = 0; i < 200 && !holds(); i++) {
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2));
+        });
+      }
+      expect(holds(), `waited for ${condition}, which never became true`).toBe(true);
     },
     unmount: async () => {
       await commit(() => {
@@ -155,6 +181,12 @@ test("an unreadable stored blob offers a save although nothing is edited", async
   });
 
   expect(endpoint.sent).toHaveLength(1);
+  // The save re-reads the stored facts rather than assuming them: the blob it just wrote is readable,
+  // so the endpoint stops reporting one and the offer to overwrite it goes away.
+  await hook.settled(
+    "the save to re-read the stored blob",
+    () => !hook.current.recoveredFromBadBlob,
+  );
   expect(hook.current.canSave).toBe(false);
 
   await hook.unmount();

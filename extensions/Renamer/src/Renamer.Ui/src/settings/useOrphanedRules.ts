@@ -7,9 +7,10 @@
  * worse than the stuck spinner it replaces.
  *
  * A failed read reports nothing orphaned, so the panel falls back to the host's own label rather than
- * accusing every rule of being broken.
+ * accusing every rule of being broken. That is what the fallback below carries: an error leaves `data`
+ * unset, and the caller reads it as "none".
  */
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
@@ -27,21 +28,16 @@ interface OrphanedRules {
 const NONE: OrphanedRules = { studios: new Set(), tags: new Set() };
 
 export function useOrphanedRules(): OrphanedRules {
-  const [orphaned, setOrphaned] = useState<OrphanedRules>(NONE);
+  // The sets are built in `select` rather than on each render, so a row's lookup compares against the
+  // same object until the response itself changes.
+  const query = useQuery({
+    queryKey: ["renamer", "orphaned-rules"],
+    queryFn: ({ signal }) => requestJson<OrphanedRulesView>(ORPHANED_RULES_PATH, { signal }),
+    select: (view): OrphanedRules => ({
+      studios: new Set(view.studios),
+      tags: new Set(view.tags),
+    }),
+  });
 
-  useEffect(() => {
-    let live = true;
-    void requestJson<OrphanedRulesView>(ORPHANED_RULES_PATH)
-      .then((view) => {
-        if (live) setOrphaned({ studios: new Set(view.studios), tags: new Set(view.tags) });
-      })
-      .catch(() => {
-        if (live) setOrphaned(NONE);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  return orphaned;
+  return query.data ?? NONE;
 }

@@ -13,6 +13,7 @@ import { HOST_SELECTOR_MARK } from "../../../../../../shared/ui-shared/src/coveR
 import type { LibraryPathsState, RenamerOptions } from "./options";
 
 import { waitFor } from "../common/lib/flushRender";
+import { withQueryClient } from "../common/lib/testQueryClient";
 
 import { AdvancedSection } from "./AdvancedSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
@@ -110,7 +111,7 @@ async function renderPanel() {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(Panel));
+  root.render(withQueryClient(createElement(Panel)));
   await waitFor("the panel to mount", () => container.querySelector("[data-section]") !== null);
 
   // Every Advanced panel is collapsed by default and renders no children until opened, so the fields
