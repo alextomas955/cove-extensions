@@ -7,28 +7,20 @@ import {
   StatusText,
 } from "@cove-extensions/ui-shared";
 
-import type { RunEndReason, RunStageView } from "./run";
+import type { RunStageView } from "./run";
 import {
   RUN_STAGES,
   RUN_STAGE_LABELS,
   RUN_STAGE_STATE_LABELS,
   RUN_STAGE_STATE_VARIANTS,
   isRunInFlight,
+  runEndText,
   stageInFlightOf,
   stageOutcomeText,
   stageProgressPercent,
   stageTallyText,
 } from "./runStageLogic";
 import { useRun } from "./useRun";
-
-// `cancelled` is the record's reason both for a person stopping a run and for one nothing could take
-// further, so it reads as stopped rather than as cancelled by you.
-const END_TEXT: Record<RunEndReason, string> = {
-  completed: "The run finished.",
-  failed: "The run stopped: a stage failed.",
-  cancelled: "The run stopped.",
-  interrupted: "The run was interrupted: Cove no longer knows about one of its jobs.",
-};
 
 const WAITING: readonly RunStageView[] = RUN_STAGES.map((stage) => ({
   stage,
@@ -79,6 +71,7 @@ export function RunSection() {
   const stages = run === null ? WAITING : run.stages;
   const inFlight = isRunInFlight(run ?? undefined);
   const moving = run === null ? null : stageInFlightOf(run);
+  const endText = run === null ? null : runEndText(run);
 
   return (
     <SectionCard
@@ -101,9 +94,9 @@ export function RunSection() {
             {cancelling ? "Cancelling…" : "Cancel"}
           </Button>
         ) : null}
-        {run?.endedReason == null ? null : (
-          <StatusText kind={run.endedReason === "completed" ? "success" : "muted"}>
-            {END_TEXT[run.endedReason]}
+        {endText === null ? null : (
+          <StatusText kind={run?.endedReason === "completed" ? "success" : "muted"}>
+            {endText}
           </StatusText>
         )}
       </div>

@@ -129,7 +129,7 @@ test("a stage that failed starts nothing after it, and those stages are still wa
 
   const container = render();
   await waitFor("the failed line to render", () =>
-    container.textContent.includes("The run stopped: a stage failed."),
+    container.textContent.includes("The run stopped: the Fingerprints pass failed."),
   );
 
   expect(stageStates(container)).toEqual({
@@ -282,7 +282,7 @@ test("Cancel asks Cove to stop the job in flight, then ends the run", async () =
     runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
     runView(
       { scan: "cancelled" },
-      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "stoppedByUser" },
       { scan: "host-scan-7" },
     ),
   ];
@@ -296,14 +296,20 @@ test("Cancel asks Cove to stop the job in flight, then ends the run", async () =
   // stopped reporting, and the DELETE answers before a running job has settled.
   expect(calledPaths().indexOf(CANCEL_PATH)).toBeLessThan(calledPaths().indexOf(END_PATH));
   expect(server.calls.find((call) => call.path === CANCEL_PATH)?.method).toBe("DELETE");
-  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "cancelled" });
+  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "stoppedByUser" });
+  await waitFor("the stopped line to render", () =>
+    container.textContent.includes("You stopped the run at the Scan pass."),
+  );
 });
 
 test("Cancel with no host job to stop ends the run and asks Cove to stop nothing", async () => {
   // A stage reads starting, with no job id, between its claim and its host job being reported.
   server.reads = [
     runView({ scan: "starting" }),
-    runView({ scan: "starting" }, { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" }),
+    runView(
+      { scan: "starting" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "stoppedByUser" },
+    ),
   ];
 
   const container = render();
@@ -319,7 +325,7 @@ test("a cancel Cove refuses still ends the run and says the stage could not be s
     runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
     runView(
       { scan: "running" },
-      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "stoppedByUser" },
       { scan: "host-scan-7" },
     ),
   ];
@@ -332,7 +338,7 @@ test("a cancel Cove refuses still ends the run and says the stage could not be s
     container.textContent.includes("would not stop the stage already in flight"),
   );
 
-  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "cancelled" });
+  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "stoppedByUser" });
 });
 
 test("after a cancel no further stage starts, even when the stopped job reports completed", async () => {
@@ -341,7 +347,7 @@ test("after a cancel no further stage starts, even when the stopped job reports 
     runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
     runView(
       { scan: "succeeded" },
-      { endedAt: "2026-10-30T10:00:00Z", endedReason: "cancelled" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "stoppedByUser" },
       { scan: "host-scan-7" },
     ),
   ];

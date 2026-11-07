@@ -234,7 +234,9 @@ export function useRun(): UseRun {
             setFailure(`${CANCEL_REFUSED} ${errorText(err)}`);
           }
         }
-        setRun(await endRun(run.runId, "cancelled"));
+        // The reason only this page can report. A stage the host cancelled is the server's own
+        // `cancelled`, which a host shutdown produces and which reads differently on the page.
+        setRun(await endRun(run.runId, "stoppedByUser"));
       } catch (err) {
         setFailure(errorText(err));
       } finally {

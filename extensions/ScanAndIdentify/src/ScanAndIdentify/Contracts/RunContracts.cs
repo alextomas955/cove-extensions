@@ -57,7 +57,12 @@ public enum RunStageState
 /// <summary>Why a run stopped.</summary>
 /// <remarks>
 /// <c>Completed</c> and <c>Interrupted</c> are derived from the stage states and are not assertable
-/// by a caller; the end route accepts only the other two.
+/// by a caller; the end route accepts only the other three.
+/// <para>
+/// <c>Cancelled</c> is a stage the host cancelled, which a host shutdown produces, and is what the
+/// derivation writes. <c>StoppedByUser</c> is only ever asserted by the page a person pressed Cancel
+/// on, so the two cannot be told apart from the stage states alone.
+/// </para>
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum RunEndReason
@@ -67,6 +72,8 @@ public enum RunEndReason
     Failed,
 
     Cancelled,
+
+    StoppedByUser,
 
     Interrupted,
 }

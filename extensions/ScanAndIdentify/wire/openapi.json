@@ -364,6 +364,7 @@
           "completed",
           "failed",
           "cancelled",
+          "stoppedByUser",
           "interrupted",
           null
         ]

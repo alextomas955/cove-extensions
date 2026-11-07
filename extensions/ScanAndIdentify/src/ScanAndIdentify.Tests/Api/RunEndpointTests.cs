@@ -350,15 +350,20 @@ public sealed class RunEndpointTests
         Assert.IsType<NoContent>(HttpResultUnwrap.Unwrap(read));
     }
 
-    [Fact]
-    public async Task EndRun_StopsTheCurrentRunWithTheReasonTheCallerNamed()
+    [Theory]
+    // The three a caller can observe: the host cancelled the stage, the caller's own host request
+    // failed, or a person pressed Cancel.
+    [InlineData(RunEndReason.Cancelled)]
+    [InlineData(RunEndReason.Failed)]
+    [InlineData(RunEndReason.StoppedByUser)]
+    public async Task EndRun_StopsTheCurrentRunWithTheReasonTheCallerNamed(RunEndReason reason)
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
 
-        var ended = await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.Cancelled), Runner, NoJobs);
+        var ended = await extension.EndRunAsync(new RunEnded(run.RunId, reason), Runner, NoJobs);
 
         var view = Answered(ended);
-        Assert.Equal(RunEndReason.Cancelled, view.EndedReason);
+        Assert.Equal(reason, view.EndedReason);
         Assert.NotNull(view.EndedAt);
     }
 

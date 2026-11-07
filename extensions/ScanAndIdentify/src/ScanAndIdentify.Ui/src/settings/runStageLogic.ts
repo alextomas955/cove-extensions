@@ -10,7 +10,14 @@
  * from the Tasks page can hold the next exclusive stage behind it for hours.
  */
 
-import type { RunStage, RunStageDetail, RunStageState, RunStageView, RunView } from "./run";
+import type {
+  RunEndReason,
+  RunStage,
+  RunStageDetail,
+  RunStageState,
+  RunStageView,
+  RunView,
+} from "./run";
 
 /** One read per second, against the one route that reports the whole run. */
 export const RUN_POLL_INTERVAL_MS = 1000;
@@ -115,6 +122,34 @@ const STAGE_OUTCOMES: Record<RunStageState, (detail: RunStageDetail | null) => s
 /** What one pass did, or null while it is still moving. */
 export function stageOutcomeText(stage: RunStageView): string | null {
   return STAGE_OUTCOMES[stage.state](stage.detail);
+}
+
+/**
+ * The pass a stopped run stopped at: the furthest one it reached.
+ *
+ * A pass after the one that stopped the run stays waiting, and a pass turned off in the options is
+ * skipped wherever it sits in the order, so neither is the pass an ending is about.
+ */
+function stoppedAt(run: RunView): RunStageView | null {
+  return (
+    run.stages.findLast((stage) => stage.state !== "pending" && stage.state !== "skipped") ?? null
+  );
+}
+
+const END_TEXT: Record<RunEndReason, (pass: string) => string> = {
+  completed: () => "The run finished.",
+  failed: (pass) => `The run stopped: ${pass} failed.`,
+  cancelled: (pass) =>
+    `The run stopped: Cove cancelled ${pass}. Cove usually does this when it shuts down.`,
+  stoppedByUser: (pass) => `You stopped the run at ${pass}.`,
+  interrupted: (pass) => `The run stopped: Cove no longer knows about ${pass}.`,
+};
+
+/** Why a run stopped and which pass it stopped at, or null while it is still going. */
+export function runEndText(run: RunView): string | null {
+  const stage = stoppedAt(run);
+  const pass = stage === null ? "the pass it was on" : `the ${RUN_STAGE_LABELS[stage.stage]} pass`;
+  return run.endedReason === null ? null : END_TEXT[run.endedReason](pass);
 }
 
 /** States a stage is still moving through, and the only ones a later read can change. */

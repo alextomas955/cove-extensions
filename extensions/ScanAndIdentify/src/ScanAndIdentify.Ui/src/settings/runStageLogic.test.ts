@@ -5,13 +5,14 @@ import {
   decidePoll,
   isRunInFlight,
   nextStageToStart,
+  runEndText,
   stageInFlight,
   stageOutcomeText,
   stageProgressPercent,
   stageTallyText,
 } from "./runStageLogic";
 import { runView, stageDetail } from "./testRun";
-import type { RunStageDetail, RunStageState } from "./run";
+import type { RunEndReason, RunStage, RunStageDetail, RunStageState } from "./run";
 
 const STARTABLE = ["scan", "fingerprints", "identify", "images"] as const;
 
@@ -206,5 +207,52 @@ describe("what one pass did", () => {
     expect(stageOutcomeText(stage("failed", stageDetail({ error: "the disk is full" })))).toBe(
       "the disk is full",
     );
+  });
+});
+
+describe("why a run stopped", () => {
+  const ended = (states: Partial<Record<RunStage, RunStageState>>, reason: RunEndReason) =>
+    runView(states, { endedAt: "2026-10-30T10:00:00Z", endedReason: reason });
+
+  test("nothing, while the run has not ended", () => {
+    expect(runEndText(runView({ scan: "running" }))).toBeNull();
+  });
+
+  test("a run that finished says so and names no pass", () => {
+    expect(runEndText(ended({ scan: "succeeded" }, "completed"))).toBe("The run finished.");
+  });
+
+  test("a failure names the pass that failed", () => {
+    expect(runEndText(ended({ scan: "succeeded", fingerprints: "failed" }, "failed"))).toBe(
+      "The run stopped: the Fingerprints pass failed.",
+    );
+  });
+
+  test("a person stopping the run names the pass it was on", () => {
+    expect(runEndText(ended({ scan: "succeeded", fingerprints: "running" }, "stoppedByUser"))).toBe(
+      "You stopped the run at the Fingerprints pass.",
+    );
+  });
+
+  test("a pass Cove cancelled reads as Cove's doing, not the user's", () => {
+    const text = runEndText(ended({ scan: "succeeded", fingerprints: "cancelled" }, "cancelled"));
+
+    expect(text).toBe(
+      "The run stopped: Cove cancelled the Fingerprints pass. Cove usually does this when it shuts down.",
+    );
+  });
+
+  test("a pass Cove forgot names that pass", () => {
+    expect(
+      runEndText(ended({ scan: "succeeded", fingerprints: "indeterminate" }, "interrupted")),
+    ).toBe("The run stopped: Cove no longer knows about the Fingerprints pass.");
+  });
+
+  test("a pass skipped after the one that stopped the run is not the pass named", () => {
+    const text = runEndText(
+      ended({ scan: "running", fingerprints: "pending", images: "skipped" }, "stoppedByUser"),
+    );
+
+    expect(text).toBe("You stopped the run at the Scan pass.");
   });
 });

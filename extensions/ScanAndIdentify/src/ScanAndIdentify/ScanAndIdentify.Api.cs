@@ -341,8 +341,8 @@ public sealed partial class ScanAndIdentify
     // Ends a run the stage states cannot end by themselves, such as a person stopping the chain while
     // the stage in flight keeps running.
     //
-    // Only the two reasons a caller can know are accepted. Completed and interrupted are read off the
-    // stages, so accepting either here would let a caller assert an outcome it cannot observe.
+    // Only the three reasons a caller can know are accepted. Completed and interrupted are read off
+    // the stages, so accepting either here would let a caller assert an outcome it cannot observe.
     internal async Task<Results<Ok<RunView>, BadRequest<ErrorCode>, Conflict<ErrorCode>, NotFound, ForbiddenCode>>
         EndRunAsync(
             RunEnded? body,
@@ -357,7 +357,8 @@ public sealed partial class ScanAndIdentify
             return denied;
         }
 
-        if (body is null || body.Reason is not (RunEndReason.Cancelled or RunEndReason.Failed))
+        if (body is null || body.Reason is not
+            (RunEndReason.Cancelled or RunEndReason.Failed or RunEndReason.StoppedByUser))
         {
             return TypedResults.BadRequest(new ErrorCode("INVALID_END_REASON"));
         }

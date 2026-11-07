@@ -84,8 +84,12 @@ The passes after it do not start.
 Cove may take a short while to stop a pass that is already working, so the row can stay on
 **running** for a moment after you select **Cancel**.
 
+The card then says that you stopped the run, and names the pass it was on.
+
 A run also stops by itself at the first pass that fails or that something else cancels. The passes
-after it stay on **waiting** and never start. The card says why the run stopped.
+after it stay on **waiting** and never start. The card says why the run stopped and names the pass
+it stopped at. A pass Cove cancelled reads as Cove's doing, which usually means Cove was shutting
+down.
 
 ## What you can turn on and off
 

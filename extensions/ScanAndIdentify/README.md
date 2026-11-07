@@ -42,6 +42,9 @@ own routes, under `/api/extensions/com.alextomas955.scanandidentify`:
 | `POST /run/stages` | Records a stage being started, then the job id it was started as.                   |
 | `POST /run/end`    | Ends a run the stage states cannot end by themselves, such as one a person stopped. |
 
+`POST /run/end` takes `cancelled`, `failed` or `stoppedByUser`. `completed` and `interrupted` are
+derived from the stage states, so the route refuses either with `400 INVALID_END_REASON`.
+
 Both options routes require `extensions.configure`. The four run routes require `library.scan`,
 `jobs.run`, `library.identify` and `extensions.configure` together, the last because the run view
 answers the options document the options routes gate on it.
