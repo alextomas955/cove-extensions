@@ -6,9 +6,12 @@ import assert from "node:assert/strict";
 
 import {
   JOB_FAILURE_ALLOWANCE,
+  JOB_POLL_INTERVAL_MS,
+  JOB_POLL_MAX_BACKOFF_MS,
   JOB_STALL_BUDGET_MS,
   advanceStallClock,
   decidePoll,
+  pollDelayMs,
   type PollContext,
 } from "./jobPollLogic";
 
@@ -154,4 +157,21 @@ test("the shipped bounds are far enough out that a healthy run is never abandone
     JOB_FAILURE_ALLOWANCE >= 5,
     `failure allowance ${JOB_FAILURE_ALLOWANCE} would end a run on a transient blip`,
   );
+});
+
+test("the wait doubles while reads fail and stops at the cap", () => {
+  assert.equal(pollDelayMs(0), JOB_POLL_INTERVAL_MS);
+  assert.equal(pollDelayMs(1), 2000);
+  assert.equal(pollDelayMs(2), 4000);
+  // Capped from here on, so a host that comes back is noticed within the cap rather than hours later.
+  assert.equal(pollDelayMs(3), JOB_POLL_MAX_BACKOFF_MS);
+  assert.equal(pollDelayMs(JOB_FAILURE_ALLOWANCE), JOB_POLL_MAX_BACKOFF_MS);
+});
+
+test("the whole failure allowance is spent well inside the stall budget", () => {
+  // Otherwise a host that stopped answering would be reported as a job that stopped reporting
+  // progress, which tells the user to go and check their library for a rename that never started.
+  let total = 0;
+  for (let i = 0; i < JOB_FAILURE_ALLOWANCE; i++) total += pollDelayMs(i);
+  assert.ok(total < JOB_STALL_BUDGET_MS, `${String(total)}ms of backoff outlives the stall budget`);
 });

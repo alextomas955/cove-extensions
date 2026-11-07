@@ -1,9 +1,17 @@
 /**
  * Polls this extension's own `GET job-status/{jobId}` route until the run ends. The host's job route
- * is gated on unrestricted read, so a scoped account is refused there even for a run it started.
+ * is gated on unrestricted read, so a scoped account is refused there even for a run it started, and
+ * the host serves extensions no job subscription: `@cove/runtime/api` exports `extensionFetch` and
+ * nothing else, and its import map carries no SignalR client. Reading is therefore the only contract
+ * available, and this is the whole of it.
  *
- * Every verdict and both bounds are `jobPollLogic.ts`'s. The clock is read here so that module needs
- * none.
+ * One read is in flight at a time, and the next is scheduled only once the current one has settled.
+ * That is what keeps a slow host from stacking reads whose answers then arrive out of order: an older
+ * answer landing last would walk the progress bar backwards and restart the stall clock on a reading
+ * already superseded.
+ *
+ * Every verdict, both bounds and the wait between reads are `jobPollLogic.ts`'s. The clock is read
+ * here so that module needs none.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
@@ -16,10 +24,9 @@ import {
   JobUnresponsiveError,
   advanceStallClock,
   decidePoll,
+  pollDelayMs,
   type StallClock,
 } from "./jobPollLogic";
-
-const JOB_POLL_INTERVAL_MS = 1000;
 
 /** How a poll ended on the job's own verdict. */
 interface JobOutcome {
@@ -47,9 +54,10 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
     let failures = 0;
     // NaN so the first reading counts as movement and spends none of the stall budget.
     let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
-    // Clearing the interval does not cancel reads already in flight, so a read that settles after the
-    // run ended must not report it a second time.
+    // Cancellation cannot recall a read already in flight, so its answer must not report a run this
+    // poll has stopped watching.
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     const bounds = (msSinceProgress: number) => ({
       msSinceProgress,
@@ -58,7 +66,17 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
       failureAllowance: JOB_FAILURE_ALLOWANCE,
     });
 
-    const interval = setInterval(() => {
+    const finish = (settle: () => void) => {
+      settled = true;
+      clearTimeout(timer);
+      settle();
+    };
+
+    const scheduleNext = () => {
+      timer = setTimeout(read, pollDelayMs(failures));
+    };
+
+    function read() {
       requestJson<RenamerJobStatus>(api(`job-status/${jobId}`))
         .then((job) => {
           if (settled) return;
@@ -72,33 +90,43 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
 
           if (decision.action === "continue") {
             onProgress?.(job);
+            scheduleNext();
             return;
           }
 
-          settled = true;
-          clearInterval(interval);
           if (decision.action === "expire") {
-            reject(new JobUnresponsiveError(decision.message));
+            finish(() => {
+              reject(new JobUnresponsiveError(decision.message));
+            });
             return;
           }
-          resolve({ job, failure: decision.action === "reject" ? decision.message : null });
+
+          finish(() => {
+            resolve({ job, failure: decision.action === "reject" ? decision.message : null });
+          });
         })
         .catch(() => {
           if (settled) return;
           failures += 1;
           const decision = decidePoll({ read: "failed" }, bounds(Date.now() - stall.sinceMs));
           if (decision.action === "expire") {
-            settled = true;
-            clearInterval(interval);
-            reject(new JobUnresponsiveError(decision.message));
+            finish(() => {
+              reject(new JobUnresponsiveError(decision.message));
+            });
+            return;
           }
+          scheduleNext();
         });
-    }, JOB_POLL_INTERVAL_MS);
+    }
+
+    // The first read waits one interval, as the interval it replaces did: the job was enqueued a
+    // moment ago and has nothing to report yet.
+    scheduleNext();
 
     stop = () => {
-      settled = true;
-      clearInterval(interval);
-      reject(new Error("the poll was stopped"));
+      finish(() => {
+        reject(new Error("the poll was stopped"));
+      });
     };
   });
 
