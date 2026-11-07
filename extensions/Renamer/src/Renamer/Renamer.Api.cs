@@ -334,7 +334,18 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var job = jobs.GetJob(jobId);
+        // Asked for by owner where the host gives this caller one. A job's progress, sub-task text and
+        // error name what someone is doing with their own library, and the host records the enqueueing
+        // principal on every job started from a request, so a run is readable by the caller who started
+        // it and reads as 404 to anyone else.
+        //
+        // With authentication disabled the host hands every request one bypass principal of kind
+        // System, which JobOwner declines to name an owner for - so neither the job nor the reader has
+        // one, and asking by owner would refuse the only user there is. The unscoped read is what that
+        // instance had before this check, and it withholds nothing from anybody, because there is
+        // nobody else.
+        var owner = JobOwner.FromPrincipal(principal.Current);
+        var job = owner is null ? jobs.GetJob(jobId) : jobs.GetJobFor(owner, jobId, includeAll: false);
         if (job is null || !job.Type.StartsWith(OwnJobTypePrefix, StringComparison.Ordinal))
         {
             return TypedResults.NotFound();
