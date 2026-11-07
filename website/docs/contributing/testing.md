@@ -25,7 +25,9 @@ build without one, which [Run the C# suite](#run-the-c-suite) covers.
 Use the smallest test tier that can detect the relevant failure. Test domain rules with inputs and
 outputs, components through rendered behavior and user actions, and host integration through the
 assembled extension. Add coverage for meaningful regressions and failure modes; a new helper does
-not automatically need its own test file.
+not automatically need its own test file, and no helper is extracted so that a test can reach it -
+that moves the seam instead of testing the behavior. A regression test is written so you can watch
+it fail against the unfixed code and pass after the fix.
 
 For example, click a row's action and assert the callback receives that row's identifier. An
 assertion that the source contains the call cannot establish that the rendered action works. Likewise, test the toolbar itself instead of rebuilding its output in a

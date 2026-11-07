@@ -9,6 +9,28 @@ contract, and the correctness rules every extension shares. It is the reasoning 
 in the repo-root `CLAUDE.md`; when you add an extension or reshape one, follow those rules and read here
 for the why.
 
+## Check the host before writing infrastructure
+
+Cove hands an extension most of the machinery an extension would otherwise build. On the backend
+that is `FullExtensionBase` and the services reached through DI: job definitions that arrive with an
+`IJobProgress` and a cancellation token, migrations, event handlers, the extension store, the
+host-provided `DbContext`, and the repositories and authorization helpers in Cove's own interfaces.
+On the frontend it is `@cove/runtime/components`, the host's component barrel - confirm and edit
+dialogs, form fields, list pages, pagers, filter and bulk-edit dialogs, entity grids, multi-select,
+list URL state - and `@cove/runtime/api`, whose `extensionFetch` is the only fetch that carries the
+signed-in user's credential.
+
+The host also serves a small set of libraries through its import map, listed in
+`shared/ui-shared/vite/host-externals.json`. `@tanstack/react-query` is one of them, so a query
+library costs an extension bundle nothing and the host already mounts its provider above the tree an
+extension renders in. Prefer it to a hand-written loading-and-error state machine or poll loop. A
+dependency the import map does not serve is bundled, so it needs a benefit worth the bytes.
+
+Reimplementing any of this is the most common way an extension grows code it does not need. Where a
+host capability exists and genuinely does not fit, name it and say why where the replacement lives:
+Renamer polls its own `job-status` route because the host's job route requires unrestricted read,
+which a scoped account does not have.
+
 ## Keep related code together
 
 Extract a module when it isolates substantial domain logic, an external dependency, shared state,
@@ -24,6 +46,13 @@ without copying unnecessary structure or comment density.
 Investigate configuration and dependency problems before adding compensating code. Record the removal
 condition for a necessary workaround. Validate external inputs at boundaries; within trusted code,
 rely on established invariants and avoid default values that conceal programming errors.
+
+A new abstraction answers three questions in the change that introduces it: why it exists, what host,
+library or shared code was considered instead, and what code it replaces. No answer to the third
+means it is speculative. A one-line wrapper, a service that forwards to another, an interface a
+single class implements with no inversion behind it, and a helper extracted only so a test can reach
+it all fail that test. Keep an unrelated cleanup out of a feature change; report the defect and fix
+it on its own.
 
 Use these responsibilities to place modules that need to exist:
 
@@ -94,6 +123,22 @@ Before adding to one of them, check whether the host already provides it. Cove e
 modules and a component library to extensions, and reimplementing those is the most common way this
 rule gets violated.
 
+Reach is necessary but not sufficient. A module earns a place in a repo-level package when it has one
+named responsibility and a second extension that can use it unchanged - one that exists, or one in
+work already planned. Written for a single caller against a use case nobody has, it is a framework
+with no users, and it will be shaped wrong when the second caller arrives.
+
+The shared form primitives are the case where the check lands the other way, and they are worth
+knowing before you reach for the host versions. The host's `Field`, `TextInput`, `TextArea`,
+`NumberInput`, `SelectInput` and `SaveButton` do render standalone and themed, outside `EditModal`
+and without a provider. They are also a smaller set: the host `Field` nests its control instead of
+pairing it with `htmlFor` and has no helper text, `SelectInput` always prepends an empty option and
+is not generic over the value type, and `NumberInput` does not clamp to `min` and `max`. The shared
+set adds `FieldGroup` as well, which exists because a `<label>` forwards a click to its first
+labelable descendant - a label wrapped over a chip row turns a click on the heading into a deleted
+chip. So build a form from the shared primitives and the dialog shell from the host's components,
+and do not collapse the first into the second.
+
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
 `actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
 applied, not an omission - at this size a `ui/` and `lib/` split would only restate what the filenames
@@ -147,15 +192,27 @@ without a red build, and the TypeScript is a pure function of it.
 ## Frontend conventions
 
 Use named exports (the one default export is `defineExtension` in `index.ts`) and avoid barrel files.
-Do data access through a named `use*` hook that lives beside its store, never a raw fetch in a
-`useEffect`, and don't collect hooks into a `hooks/` folder. Overlays rest on one small hand-rolled
-foundation shared by the popovers and dialogs: a focus, keyboard and outside-click hook offering two
+
+Data access belongs in a named `use*` hook rather than inline in a view, and hooks are not collected
+into a `hooks/` folder. The hook is where the request, subscription or poll lives; it does not oblige
+a `*Store.ts` beside it. A store is for a request lifecycle or state that outlives one component or
+is shared by several, and a hook that reads one route has neither. The suffixes name kinds of module
+so you can tell them apart - they do not require that every kind be present.
+
+A confirmation, or an edit form over a few fields, uses the host's `ConfirmDialog` or `EditModal`.
+What is left is the overlay the host has no component for: a menu, or a modal with a body of its own.
+Those rest on one small hand-rolled foundation, a focus, keyboard and outside-click hook offering two
 navigation modes, menu and dialog. It is deliberately neither a component library nor the native
 `<dialog>` element - the two modes keep Escape and focus semantics that differ on purpose, and either
-alternative would flatten that difference or add a second focus manager. Use only the host's Tailwind token classes
-and never `dangerouslySetInnerHTML`. Where the host contract can't be read from the code - slot props
-arriving at the top level, a component key that must match a C# literal byte-for-byte - leave a short
-comment.
+alternative would flatten that difference or add a second focus manager.
+
+Use only the host's Tailwind token classes and never `dangerouslySetInnerHTML`. Keep the generated
+wire types honest: a field the server may omit stays optional and is handled where it is read, rather
+than widened, asserted away with `as`, or silenced with a non-null `!` to make the build pass. A
+failed request surfaces as something the reader can act on; a `catch` that returns an empty list
+makes a broken route look like an empty library. Where the host contract can't be read from the
+code - slot props arriving at the top level, a component key that must match a C# literal
+byte-for-byte - leave a short comment.
 
 ## Correctness rules that must not regress
 

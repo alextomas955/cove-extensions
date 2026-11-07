@@ -111,41 +111,42 @@ Libraries reach millions of files. Nothing may grow with the library.
 - A journal that must persist is rows in a table the extension owns, bounded by a retention window,
   never one value under a store key.
 
+## Before you add code
+
+Ask these in order before writing a job runner, a progress poller, a dialog, a request helper, a
+cache, an authorization check, or a UI component.
+
+1. Does the host provide it? C# reaches Cove's services through DI and `FullExtensionBase`; the UI
+   reaches `@cove/runtime/components` and `@cove/runtime/api`. The per-tier rules in
+   `.claude/rules/` name what each already carries.
+2. Does a library the host already serves provide it? The import map serves
+   `@tanstack/react-query`, externalized in `shared/ui-shared/vite/host-externals.json`, so it costs
+   a bundle nothing. A dependency outside that list ships inside the bundle and needs a stated
+   benefit.
+3. Does it belong in `shared/`? Only with one named responsibility and a second extension that can
+   use it unchanged, now or in work already planned. One caller is not a framework.
+
+## Scope and new abstractions
+
+- A new abstraction says, in the change that adds it, why it exists, what host, library or shared
+  code was considered, and what code it replaces. No answer to the third means it is speculative.
+- No one-line wrapper, no pass-through service, no interface one class implements with no boundary
+  behind it, no helper extracted only so a test can reach it.
+- A structure rule names a kind of module. It does not require that every kind exist. Where a
+  separate store, hook, interface or file makes the code harder to read, keep it in one place.
+- Do not clean up around a feature. Report an unrelated defect and fix it in its own change.
+
 ## Code shape
 
 - Dependencies point toward models and to shared code, never the other way and never to a sibling
   feature. `eslint.config.mjs` enforces the sibling rule for UI code.
   `website/docs/contributing/authoring-patterns.md` carries the responsibilities to place a module
-  by.
-- C#: capability slices at the project root beside foundation folders (`Api/`, `Contracts/`,
-  `Options/`). One rich capability may layer by domain instead, as Renamer's `Engine/`, `Planner/`,
-  `Execution/` do. Name folders for what the code does, never for an entity.
-- UI: feature slices directly under `src/` beside `index.ts`, `wire/`, `common/`. No `features/`
-  folder and no `hooks/` folder. A sub-concern used by one slice nests under it.
-- The filename suffix tells the kind: `*Logic.ts` pure, `*Store.ts` infrastructure, `use*.ts` data
-  hook, `*.tsx` view. In C#: `*Guard` and `*Projector` domain, `*Port` infrastructure, `*Contracts`
-  wire. Add a suffix only for a kind the set lacks. No `ui/`, `lib/`, or `model/` folders inside a
-  slice.
+  by. `.claude/rules/csharp.md` and `.claude/rules/typescript.md` carry the per-tier shape rules.
+- Name folders for what the code does, never for an entity.
 - Repo-level `shared/` is for code every extension can use unchanged. Code shared inside one
-  extension goes in that extension's `common/ui` or `common/lib`, never in `shared/`. Check whether
-  the host already provides a module before adding one to `shared/`.
-- A `*Logic.ts` module imports only its relative siblings, so it runs with no environment and no
-  mocks. ESLint enforces this.
-- A partial class file is named for the one thing it holds, and holds only that. A job body lives
-  with the work it runs, never with the endpoint that enqueues it.
+  extension goes in that extension's `common/ui` or `common/lib`, never in `shared/`.
 - An interface member with no production caller is deleted, not kept for symmetry. A seam that only
   a test double implements is not a boundary.
-- Renamer's data port exists because production takes no runtime dependency on Cove.Core entities.
-  An interface here is a dependency inversion of that kind, not a test seam.
-
-## UI conventions
-
-- Named exports only. The one default export is `defineExtension` in `index.ts`.
-- Data access goes through a `use*` hook beside its `*Store.ts`, never a raw request in `useEffect`.
-- Overlays use the menu or dialog mode of the focus and keyboard hook in `shared/ui-shared`. No
-  overlay library. No native `<dialog>`: `showModal()` makes the host page inert, covers the host's
-  own overlays, and can let a repeated Escape close it while the page is blocking a close.
-- Host Tailwind token classes only. No `dangerouslySetInnerHTML`.
 
 ## Wire contract
 
@@ -161,18 +162,13 @@ Libraries reach millions of files. Nothing may grow with the library.
 - `npm run generate:wire` turns that document into the gitignored `src/wire/api.ts`. Consume it
   with `import type`.
 - Never hand-write a TypeScript wire type. A wrong one type-checks and reads `undefined` at runtime.
-  Where a type cannot be generated, record the values in a test whose expected value you copied
-  from the server, not computed from the module under test.
 
 ## Tests
 
-- A test mirrors its source folder. A group that tests no single source unit gets a folder of its
-  own instead: test support, the wire document, cross-cutting invariants, concurrency, e2e.
 - An extension has one backend test project. It references Cove's own source unconditionally, so the
   suite needs a checkout and refuses to build without one rather than running a smaller set.
-- The cove-absent CI leg builds and publishes the extension and runs no tests. It proves the shipped
-  assembly compiles against the published Cove packages alone. The containerized e2e job is the
-  safety gate.
+- The cove-absent CI leg builds and publishes the extension and runs no tests: it proves the shipped
+  assembly compiles against the published Cove packages alone. The e2e job is the safety gate.
 - A red e2e is usually the Cove container dying, not the UI. Search the job log for "is not
   running" before debugging the test.
 
