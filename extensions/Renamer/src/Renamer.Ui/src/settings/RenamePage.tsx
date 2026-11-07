@@ -132,7 +132,6 @@ export function RenamePage() {
     setDryRunOpen,
     renamingLibrary,
     runLibraryFeedback,
-    undoRefreshKey,
     renameProgress,
     renameLibrary,
   } = useRenameLibrary();
@@ -254,7 +253,7 @@ export function RenamePage() {
 
       <AdvancedSection options={options} set={set} />
 
-      <UndoSection refreshKey={undoRefreshKey} />
+      <UndoSection />
 
       {/* The bar and the dialog are both fixed at the same layer, and this one is the later sibling,
           so with the dialog open the bar paints over it and its buttons stay mouse-reachable. The

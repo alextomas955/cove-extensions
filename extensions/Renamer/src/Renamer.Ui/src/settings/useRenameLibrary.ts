@@ -4,6 +4,7 @@
  * job progress, and the key that tells the undo footer to re-read after a rename.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type {
@@ -19,6 +20,7 @@ import {
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
 import { api } from "../common/lib/extension";
+import { LAST_BATCH_KEY } from "./useLastBatch";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
 
@@ -33,18 +35,15 @@ export interface UseRenameLibrary {
   setDryRunOpen: (open: boolean) => void;
   renamingLibrary: boolean;
   runLibraryFeedback: RunLibraryFeedback;
-  undoRefreshKey: number;
   renameProgress: RenameProgress | null;
   renameLibrary: () => Promise<void>;
 }
 
 export function useRenameLibrary(): UseRenameLibrary {
+  const queryClient = useQueryClient();
   const [dryRunOpen, setDryRunOpen] = useState(false);
   const [renamingLibrary, setRenamingLibrary] = useState(false);
   const [runLibraryFeedback, setRunLibraryFeedback] = useState<RunLibraryFeedback>(null);
-  // Bumped on every in-panel rename success so UndoSection re-reads /last-batch (both the panel
-  // button and the Dry Run modal's "Rename all" flow through renameLibrary below).
-  const [undoRefreshKey, setUndoRefreshKey] = useState(0);
   // Live rename-job progress, threaded from the single pollJob into the modal.
   // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
   // sample while it runs.
@@ -114,7 +113,8 @@ export function useRenameLibrary(): UseRenameLibrary {
       // Composed by a pure module, not here: the banner is what the user reads after a destructive
       // operation, so its wording is a claim a test can hold and a hook cannot show.
       setRunLibraryFeedback(buildRenameLibraryResult(summary));
-      setUndoRefreshKey((k) => k + 1);
+      // The rename changed what an undo would put back, whoever is rendering that line.
+      void queryClient.invalidateQueries({ queryKey: LAST_BATCH_KEY });
     } catch (err) {
       if (mounted.current) {
         const text = errorText(err);
@@ -132,14 +132,13 @@ export function useRenameLibrary(): UseRenameLibrary {
         setRenameProgress(null);
       }
     }
-  }, [runPoll]);
+  }, [queryClient, runPoll]);
 
   return {
     dryRunOpen,
     setDryRunOpen,
     renamingLibrary,
     runLibraryFeedback,
-    undoRefreshKey,
     renameProgress,
     renameLibrary,
   };

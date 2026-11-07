@@ -5,6 +5,7 @@
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { waitFor } from "../common/lib/flushRender";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
@@ -62,7 +63,12 @@ async function undoAndReadFeedback(): Promise<string> {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(UndoSection, { refreshKey: 0 }));
+  // Standing in for the host's client, which Cove mounts above every extension surface. Retries off
+  // so a failed read is one read, and the assertions below describe the response this test scripted.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root.render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(UndoSection)),
+  );
 
   const button = (matches: (text: string) => boolean) =>
     [...container.querySelectorAll("button")].find((b) => matches(b.textContent));

@@ -51,7 +51,6 @@ vi.mock("./useRenameLibrary", () => ({
     setDryRunOpen: () => undefined,
     renamingLibrary: false,
     runLibraryFeedback: null,
-    undoRefreshKey: 0,
     renameProgress: null,
     renameLibrary: () => Promise.resolve(),
   }),

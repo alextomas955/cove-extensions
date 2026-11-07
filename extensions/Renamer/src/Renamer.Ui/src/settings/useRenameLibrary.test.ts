@@ -6,10 +6,12 @@
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { waitFor } from "../common/lib/flushRender";
 
 import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
+import { LAST_BATCH_KEY } from "./useLastBatch";
 import type {
   LibraryRenameEnqueued,
   LibraryRenameSummaryView,
@@ -73,7 +75,9 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-// Mount the hook and hand back its latest return value plus a teardown.
+// Mount the hook under a client of its own, standing in for the host's. The cache is seeded with a
+// fresh last-batch entry, so "the undo line re-reads after a rename" is observable as that entry
+// going stale - which is what the hook asks the client for.
 async function mountHook() {
   let latest: UseRenameLibrary | null = null;
   function Probe() {
@@ -81,10 +85,15 @@ async function mountHook() {
     return null;
   }
 
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  queryClient.setQueryData(LAST_BATCH_KEY, { hasBatch: false });
+
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(Probe));
+  root.render(createElement(QueryClientProvider, { client: queryClient }, createElement(Probe)));
   await waitFor("the probe to render", () => latest !== null);
 
   return {
@@ -92,6 +101,8 @@ async function mountHook() {
       expect(latest, "the probe never rendered").not.toBeNull();
       return latest as unknown as UseRenameLibrary;
     },
+    /** Whether the last-batch entry has been marked for re-reading. */
+    lastBatchStale: () => queryClient.getQueryState(LAST_BATCH_KEY)?.isInvalidated === true,
     unmount: () => {
       root.unmount();
       container.remove();
@@ -157,7 +168,7 @@ test("a completed job still resolves through the same poll", async () => {
     kind: "success",
     text: "Rename finished. 3 files renamed, 1 skipped.",
   });
-  expect(hook.current.undoRefreshKey).toBe(1);
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
   // The rename POST, exactly one job read, then the job's own counts. No scan runs first. The paths
   // are written out rather than built from the route helper the code under test uses.
   expect(host.reads).toEqual([
@@ -180,7 +191,7 @@ test("a completed job whose counts cannot be read is not reported as a rename th
   expect(feedback?.kind).toBe("success");
   expect(feedback?.text).toContain("Rename finished.");
   expect(feedback?.text).not.toContain("Nothing was changed");
-  expect(hook.current.undoRefreshKey).toBe(1);
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
 
   hook.unmount();
 }, 30_000);
