@@ -16,7 +16,15 @@ export function createTestQueryClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
-/** Wraps a tree in a client of its own, for a test that renders query hooks but never inspects the cache. */
-export function withQueryClient(children: ReactNode): ReactElement {
-  return createElement(QueryClientProvider, { client: createTestQueryClient() }, children);
+/**
+ * Wraps a tree in a client, for a test that renders query hooks but never inspects the cache.
+ *
+ * A test that re-renders has to pass the same `client` each time. Letting this mint one per call
+ * would give each render a cache of its own, and a walk already loaded would start again.
+ */
+export function withQueryClient(
+  children: ReactNode,
+  client: QueryClient = createTestQueryClient(),
+): ReactElement {
+  return createElement(QueryClientProvider, { client }, children);
 }

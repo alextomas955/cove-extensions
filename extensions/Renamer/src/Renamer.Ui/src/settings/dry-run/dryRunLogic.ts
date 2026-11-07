@@ -246,3 +246,14 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   if (smoothedRate === null || smoothedRate <= 0 || rateCount < ETA_MIN_RATES) return null;
   return (1 - p) / smoothedRate;
 }
+
+/**
+ * The identity of one walk over the dry run's rows. A different query or bucket is a different walk,
+ * not a subset of the loaded one - the server re-plans from the start of the library for it - so the
+ * rows under the old pair are dropped. The query is trimmed and lower-cased to match the server's own
+ * normalization, so a stray space or a case flip does not throw away rows the same request would
+ * return.
+ */
+export function walkKey(query: string, bucket: DryRunFilter): string {
+  return `${bucket} ${query.trim().toLowerCase()}`;
+}

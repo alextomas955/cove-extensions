@@ -8,6 +8,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { waitFor } from "../../common/lib/flushRender";
+import { createTestQueryClient, withQueryClient } from "../../common/lib/testQueryClient";
 
 import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
@@ -139,14 +140,20 @@ function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
+  // One client for the whole mount: a fresh one per render would give each re-render an empty cache
+  // and restart a walk the test has already loaded.
+  const queryClient = createTestQueryClient();
   const render = (props: { options: RenamerOptions; dirty: boolean }) => {
     root.render(
-      createElement(DryRunModal, {
-        ...props,
-        onClose: () => undefined,
-        onRenameAll: () => undefined,
-        renaming: false,
-      }),
+      withQueryClient(
+        createElement(DryRunModal, {
+          ...props,
+          onClose: () => undefined,
+          onRenameAll: () => undefined,
+          renaming: false,
+        }),
+        queryClient,
+      ),
     );
   };
   render({ options: someOptions(), dirty });

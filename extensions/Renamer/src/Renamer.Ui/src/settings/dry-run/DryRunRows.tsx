@@ -150,7 +150,7 @@ export function DryRunRows({
   /** How many rows the scan counted in this bucket, for the footer's denominator. */
   bucketTotal: number;
 }>) {
-  const { rows, loadMore, loading, complete, examined, error } = useScanRows(
+  const { rows, loadMore, loading, complete, examined, pagesLoaded, error } = useScanRows(
     optionsBlob,
     enabled,
     query,
@@ -174,11 +174,11 @@ export function DryRunRows({
   // virtualizer handed back, so the next page is requested before the user reaches the end.
   const targetRows = lastVisible + PREFETCH_ROWS + 1;
   // Whether another page is wanted is shouldContinueWalk's decision; this effect is only its wiring.
-  // The in-flight flag is the dependency that makes the re-evaluation reliable: a page can land
+  // The landed-page count is the dependency that makes the re-evaluation reliable: a page can land
   // carrying no rows at all, leaving both the row count and the last visible index identical, and that
-  // page is precisely the one whose successor still has to be requested. The flag flips on every
-  // request this client issues, so the trigger cannot go quiet. Overlapping calls are deduplicated in
-  // the store, so a condition holding across consecutive scroll frames costs one request.
+  // page is precisely the one whose successor still has to be requested. The count moves for every
+  // page whatever it held, so the trigger cannot go quiet. Overlapping calls collapse inside the
+  // query, so a condition holding across consecutive scroll frames costs one request.
   useEffect(() => {
     if (
       shouldContinueWalk({
@@ -190,7 +190,7 @@ export function DryRunRows({
       })
     )
       loadMore();
-  }, [rows.length, targetRows, complete, loading, error, loadMore]);
+  }, [rows.length, targetRows, complete, loading, pagesLoaded, error, loadMore]);
 
   const searching = query.trim() !== "";
 
