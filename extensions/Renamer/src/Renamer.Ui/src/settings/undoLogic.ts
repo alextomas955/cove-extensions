@@ -9,12 +9,6 @@
 
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
-/**
- * How long the server keeps a batch, in milliseconds: a copy of `CoveRevertJournal.RetentionWindow`,
- * which `RetentionWindowPinTests.RetentionWindow_IsSevenDays` pins to the same seven days.
- */
-export const RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
 // .NET ticks are 100 ns since 0001-01-01. The epoch offset in ticks exceeds the safe-integer range as
 // a literal, so it is built from two safe factors.
 const EPOCH_OFFSET_MS = 62135596800000;
@@ -86,7 +80,9 @@ export function buildUndoStatus(
   const restored = original - remaining - unrestorable;
 
   const writtenAtMs = ticksToEpochMs(summary.writtenAtUtcTicks);
-  const expiresAtMs = writtenAtMs + RETENTION_WINDOW_MS;
+  // Stated by the server, not derived here. The retention window is the purge's rule, and a copy of it
+  // in this file would print a date the sweep had stopped honouring.
+  const expiresAtMs = ticksToEpochMs(summary.expiresAtUtcTicks);
   const expired = now >= expiresAtMs;
 
   const parts: string[] = [];

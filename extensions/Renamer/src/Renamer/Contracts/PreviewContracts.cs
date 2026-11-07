@@ -121,12 +121,22 @@ public sealed record UndoEntryError(int FileId, string OldPath, string NewPath, 
 /// <c>RemainingCount</c> is derived server-side, so remaining plus restored plus unrestorable equals
 /// it. With no batch, <c>HasBatch</c> is false and the other fields are zero or false.
 /// </remarks>
+/// <summary>What the undo footer renders: one rename's counts, when it happened, and until when it
+/// can be undone.</summary>
+/// <remarks>
+/// <c>ExpiresAtUtcTicks</c> is stated rather than derived by the reader, because the retention
+/// window is the purge's rule and a second copy of it would drift from the one that deletes rows.
+/// It is measured from <c>WrittenAtUtcTicks</c>, the earliest batch the operation opened: the purge
+/// keys on each batch's own timestamp, so that is the moment after which the operation can no longer
+/// be restored whole. Both are zero when <c>HasBatch</c> is false.
+/// </remarks>
 public sealed record LastBatchSummary(
     bool HasBatch,
     int Count,
     int RemainingCount,
     int UnrestorableCount,
     long WrittenAtUtcTicks,
+    long ExpiresAtUtcTicks,
     bool Consumed);
 
 

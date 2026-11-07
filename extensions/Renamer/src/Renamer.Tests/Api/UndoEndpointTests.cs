@@ -266,6 +266,46 @@ public sealed class UndoEndpointTests
         }
     }
 
+    // The moment the panel prints is the moment the purge acts on, checked against the purge itself
+    // rather than against a copy of the window. A second declaration of seven days - in the panel, or
+    // in a test asserting a literal - would pass while disagreeing with the sweep that deletes rows.
+    [Fact]
+    public async Task LastBatch_AdvertisesTheExpiryThePurgeActuallyEnforces()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
+
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, new CapturingEventBus());
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
+
+            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(summary.ExpiresAtUtcTicks > summary.WrittenAtUtcTicks);
+
+            var expiresAt = new DateTime(summary.ExpiresAtUtcTicks, DateTimeKind.Utc);
+
+            // At the advertised moment the batch is still there: the sweep drops what opened strictly
+            // before the cutoff, so the panel withholding the button here is early rather than wrong.
+            await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt);
+            Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
+
+            // One tick past it, the rows are gone - which is what the advertised moment promised.
+            await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt.AddTicks(1));
+            Assert.False(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Undo_OfATextBatch_IsAllowedForACallerHoldingOnlyTextsWrite()
     {

@@ -712,6 +712,7 @@
           "remainingCount",
           "unrestorableCount",
           "writtenAtUtcTicks",
+          "expiresAtUtcTicks",
           "consumed"
         ],
         "type": "object",
@@ -732,6 +733,10 @@
             "format": "int32"
           },
           "writtenAtUtcTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expiresAtUtcTicks": {
             "type": "integer",
             "format": "int64"
           },

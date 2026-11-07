@@ -1,15 +1,14 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { buildUndoFeedback, buildUndoStatus, RETENTION_WINDOW_MS } from "./undoLogic";
+import { buildUndoFeedback, buildUndoStatus } from "./undoLogic";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
-// The window in milliseconds, transcribed by hand rather than read from the module, and the same
-// number `Renamer.Tests/Execution/Journal/RetentionWindowPinTests.cs` transcribes on the server side
-// in `RetentionWindow_IsSevenDays`. Three hand-written copies of one constant is the price of it
-// having no wire field; an expectation computed from `RETENTION_WINDOW_MS` would agree with it however
-// far it drifted from the server.
-const SEVEN_DAYS_MS = 604_800_000;
+// The gap this fixture puts between a batch opening and expiring. It is test data, not a copy of the
+// server's retention window: the response states the expiry, and nothing here computes it. Seven days
+// only so the two moments fall in different years below, which is what makes the rendered date
+// readable as the expiry rather than the open timestamp.
+const FIXTURE_WINDOW_MS = 604_800_000;
 
 // .NET ticks are 100ns since 0001-01-01; the offset to the Unix epoch in milliseconds.
 const TICKS_AT_EPOCH = 62135596800000 * 10000;
@@ -19,9 +18,11 @@ function ticksFor(epochMs: number): number {
 }
 
 // A batch that opened at `writtenMs`, with the three figures the server guarantees sum to `count`.
+// The expiry is supplied, as the response supplies it, rather than worked out from the open moment.
 function summary(
   writtenMs: number,
   counts: { count: number; remainingCount: number; unrestorableCount?: number },
+  expiresMs: number = writtenMs + FIXTURE_WINDOW_MS,
 ): LastBatchSummary {
   const unrestorableCount = counts.unrestorableCount ?? 0;
   return {
@@ -30,6 +31,7 @@ function summary(
     remainingCount: counts.remainingCount,
     unrestorableCount,
     writtenAtUtcTicks: ticksFor(writtenMs),
+    expiresAtUtcTicks: ticksFor(expiresMs),
     consumed: counts.remainingCount === 0,
   };
 }
@@ -66,10 +68,6 @@ function expiryClause(line: string): string {
   return parts[parts.length - 1];
 }
 
-test("RETENTION_WINDOW_MS is the seven days the server keeps a batch for", () => {
-  assert.equal(RETENTION_WINDOW_MS, SEVEN_DAYS_MS);
-});
-
 test("no batch and a fully settled batch both offer nothing", () => {
   const empty: LastBatchSummary = {
     hasBatch: false,
@@ -77,6 +75,7 @@ test("no batch and a fully settled batch both offer nothing", () => {
     remainingCount: 0,
     unrestorableCount: 0,
     writtenAtUtcTicks: 0,
+    expiresAtUtcTicks: 0,
     consumed: false,
   };
   assert.equal(buildUndoStatus(empty, WRITTEN_MS), null);
@@ -97,7 +96,7 @@ test("an untouched batch states its size, its age and its expiry date", () => {
   assert.equal(lineBeforeExpiry(status.line), "12 items renamed · just now");
   assert.equal(status.remaining, 12);
   assert.equal(status.expired, false);
-  assert.equal(Math.round(status.expiresAtMs), WRITTEN_MS + SEVEN_DAYS_MS);
+  assert.equal(Math.round(status.expiresAtMs), WRITTEN_MS + FIXTURE_WINDOW_MS);
   // The date shown is the expiry, not the open timestamp: the two fall in different years here.
   assert.ok(expiryClause(status.line).startsWith("undo available until "));
   assert.ok(expiryClause(status.line).includes("2027"));
@@ -157,7 +156,7 @@ test("the age clause names how long ago the batch opened", () => {
 test("past the window the line says so and the batch is marked expired", () => {
   const status = buildUndoStatus(
     summary(WRITTEN_MS, { count: 12, remainingCount: 12 }),
-    WRITTEN_MS + SEVEN_DAYS_MS,
+    WRITTEN_MS + FIXTURE_WINDOW_MS,
   );
   assert.ok(status);
   assert.equal(status.expired, true);
@@ -169,7 +168,7 @@ test("past the window the line says so and the batch is marked expired", () => {
 test("the last millisecond inside the window is not expired", () => {
   const status = buildUndoStatus(
     summary(WRITTEN_MS, { count: 12, remainingCount: 12 }),
-    WRITTEN_MS + SEVEN_DAYS_MS - 1,
+    WRITTEN_MS + FIXTURE_WINDOW_MS - 1,
   );
   assert.ok(status);
   assert.equal(status.expired, false);
@@ -280,4 +279,32 @@ test("a stranded companion rides on a partial undo too", () => {
     feedback.text,
     "Undo finished with problems: 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
   );
+});
+
+// The expiry is whatever the server said, not seven days after the open moment. If the panel went
+// back to deriving it, this fixture - whose expiry is deliberately nowhere near the open timestamp
+// plus any window - would be ignored and the assertion would read the derived date instead.
+test("the expiry shown is the one the response carried, not one worked out here", () => {
+  const serverExpiryMs = WRITTEN_MS + 3 * 60 * 60 * 1000;
+
+  const status = buildUndoStatus(
+    summary(WRITTEN_MS, { count: 4, remainingCount: 4 }, serverExpiryMs),
+    WRITTEN_MS,
+  );
+
+  assert.ok(status);
+  assert.equal(Math.round(status.expiresAtMs), serverExpiryMs);
+  assert.equal(status.expired, false);
+});
+
+test("a batch the server says has already expired is expired, whatever its age", () => {
+  // Opened a moment ago, yet past its stated expiry: only the server's own moment decides.
+  const status = buildUndoStatus(
+    summary(WRITTEN_MS, { count: 4, remainingCount: 4 }, WRITTEN_MS - 1),
+    WRITTEN_MS,
+  );
+
+  assert.ok(status);
+  assert.equal(status.expired, true);
+  assert.equal(expiryClause(status.line), "undo expired");
 });

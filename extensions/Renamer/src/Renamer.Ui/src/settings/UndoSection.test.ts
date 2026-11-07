@@ -36,6 +36,8 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
         remainingCount: 4,
         unrestorableCount: 0,
         writtenAtUtcTicks: Date.now() * 10000 + 621355968000000000,
+        // A week out, as the server states it: the panel prints this and derives nothing.
+        expiresAtUtcTicks: (Date.now() + 604_800_000) * 10000 + 621355968000000000,
         consumed: false,
       } satisfies LastBatchSummary);
     }

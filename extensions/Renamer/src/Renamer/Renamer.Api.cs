@@ -552,6 +552,11 @@ public sealed partial class Renamer
             RemainingCount: summary?.Remaining ?? 0,
             UnrestorableCount: summary?.UnrestorableCount ?? 0,
             WrittenAtUtcTicks: summary?.OpenedAtUtcTicks ?? 0,
+            // Read from the constant the purge measures against, so the moment the panel prints and the
+            // moment the rows go are the same rule rather than two copies of it.
+            ExpiresAtUtcTicks: summary is null
+                ? 0
+                : summary.Value.OpenedAtUtcTicks + CoveRevertJournal.RetentionWindow.Ticks,
             Consumed: summary is not null && summary.Value.Remaining == 0));
     }
 
