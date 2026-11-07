@@ -79,7 +79,7 @@ public sealed class ScanAggregatorTests
             aggregator.Fold(RenamerFileKind.Video, Plan(RenamerFileKind.Video, item.FileId, item), sizes);
         }
 
-        var actual = Assert.Single(aggregator.ToSummary(0L).Kinds).BlastRadius;
+        var actual = Assert.Single(aggregator.ToSummary("run", "user:1", 0L).Kinds).BlastRadius;
 
         Assert.Equal(expected.TotalCount, actual.TotalCount);
         Assert.Equal(expected.SameVolumeCount, actual.SameVolumeCount);
@@ -111,7 +111,7 @@ public sealed class ScanAggregatorTests
             }
         }
 
-        var summary = aggregator.ToSummary(0L);
+        var summary = aggregator.ToSummary("run", "user:1", 0L);
 
         Assert.Equal(3, summary.Kinds.Count);
         foreach (var kind in summary.Kinds)
@@ -134,7 +134,7 @@ public sealed class ScanAggregatorTests
             RenamerFileKind.Image, Plan(RenamerFileKind.Image, 1, WithStatus(1, RenamerStatus.NoOp)),
             new Dictionary<int, long>());
 
-        var summary = aggregator.ToSummary(0L);
+        var summary = aggregator.ToSummary("run", "user:1", 0L);
 
         Assert.Equal(RenamerFileKind.Image, Assert.Single(summary.Kinds).Kind);
         Assert.DoesNotContain(summary.Kinds, k => k.Kind == RenamerFileKind.Video);
@@ -159,7 +159,7 @@ public sealed class ScanAggregatorTests
                 new Dictionary<int, long> { [fileId] = bytes });
         }
 
-        var kind = Assert.Single(aggregator.ToSummary(0L).Kinds);
+        var kind = Assert.Single(aggregator.ToSummary("run", "user:1", 0L).Kinds);
 
         Assert.True(kind.VolumePairsTruncated);
         Assert.Equal(ScanSummary.MaxVolumePairsPerKind, kind.BlastRadius.VolumePairs.Count);
@@ -190,7 +190,7 @@ public sealed class ScanAggregatorTests
             }
 
             return System.Text.Json.JsonSerializer.Serialize(
-                aggregator.ToSummary(0L), PreviewContracts.PreviewResponseJsonOptions);
+                aggregator.ToSummary("run", "user:1", 0L), PreviewContracts.PreviewResponseJsonOptions);
         }
 
         string small = Summarize(10);
@@ -229,7 +229,7 @@ public sealed class ScanAggregatorTests
             RenamerFileKind.Video,
             Plan(RenamerFileKind.Video, 3, Acting(3, OnVol("C", "c.mkv"), OnVol("C", overName))), sizes);
 
-        var blastRadius = Assert.Single(aggregator.ToSummary(0L).Kinds).BlastRadius;
+        var blastRadius = Assert.Single(aggregator.ToSummary("run", "user:1", 0L).Kinds).BlastRadius;
 
         // One of three: the count is a strict subset of the cross-volume moves, which are themselves a
         // subset of the acting items. Asserting all three distinguishes a working counter from one that
@@ -255,7 +255,7 @@ public sealed class ScanAggregatorTests
         FoldOne(RenamerFileKind.Image, 3, overName);
         FoldOne(RenamerFileKind.Audio, 4, fitsName);
 
-        var summary = aggregator.ToSummary(0L);
+        var summary = aggregator.ToSummary("run", "user:1", 0L);
         int PerKind(RenamerFileKind kind) => summary.Kinds
             .Single(k => k.Kind == kind).BlastRadius.InFlightPathOverflowCount;
 

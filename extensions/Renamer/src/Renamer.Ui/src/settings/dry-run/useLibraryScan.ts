@@ -1,17 +1,17 @@
 /**
  * Runs one library scan and reports where it is: POSTs scan-library on mount, polls the host's job
- * until it reaches a verdict, then reads the scan's bounded summary. The caller gets three values and
- * owns none of the lifecycle.
+ * until it reaches a verdict, then reads the scan's bounded summary by the run id the POST returned.
+ * The caller gets three values and owns none of the lifecycle.
  *
  * Only one scan ever runs per mount. The rows are a separate read (see useScanRows), keyed off the
  * same options blob, so a summary and its rows always describe the same dry run.
  */
 import { useEffect, useRef, useState } from "react";
-import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { ApiError, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type {
-  JobEnqueued,
   RenamerJobStatus,
+  ScanEnqueued,
   ScanLibraryRequest,
   ScanSummaryView,
 } from "../../wire/api";
@@ -28,6 +28,12 @@ import {
 
 const SCAN_LIBRARY_PATH = api("scan-library");
 const LAST_SCAN_PATH = api("last-scan");
+
+// Only the latest scan's figures are kept, and they are served to the caller that ran it alone. So a
+// scan that finished after this one leaves nothing for this one to read, and the reason the figures
+// are gone is worth saying rather than showing a bare 404.
+const SUPERSEDED =
+  "Another library scan finished after this one, so its results replaced yours. Run the dry run again.";
 
 // Memory cap on the ETA sample buffer (a scan is only tens of polls; the EWMA recency-weights, so
 // this bounds retained samples without affecting the estimate).
@@ -96,6 +102,9 @@ function usePollJob(
  */
 export function useLibraryScan(optionsBlob: string): LibraryScan {
   const [jobId, setJobId] = useState<string | null>(null);
+  // The run the POST minted. Read in the poll handler's first-render closure, so it is a ref rather
+  // than state (see usePollJob).
+  const runId = useRef<string | null>(null);
   const [summary, setSummary] = useState<ScanSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The latest running-scan sample the bar renders, already reduced to display values. Null until
@@ -124,11 +133,12 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
     // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
     samples.current = [];
     maxPercent.current = 0;
-    requestJson<JobEnqueued>(SCAN_LIBRARY_PATH, {
+    requestJson<ScanEnqueued>(SCAN_LIBRARY_PATH, {
       method: "POST",
       body: JSON.stringify({ options: optionsBlob } satisfies ScanLibraryRequest),
     })
       .then((res) => {
+        runId.current = res.runId;
         setJobId(res.jobId);
       })
       .catch((err: unknown) => {
@@ -144,12 +154,12 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         setError(failure);
         return;
       }
-      requestJson<ScanSummaryView>(LAST_SCAN_PATH)
+      requestJson<ScanSummaryView>(`${LAST_SCAN_PATH}/${encodeURIComponent(runId.current ?? "")}`)
         .then((res) => {
           setSummary(res);
         })
         .catch((err: unknown) => {
-          setError(errorText(err));
+          setError(err instanceof ApiError && err.status === 404 ? SUPERSEDED : errorText(err));
         });
     },
     (job) => {

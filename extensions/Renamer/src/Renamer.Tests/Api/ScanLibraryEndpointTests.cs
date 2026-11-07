@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
@@ -50,6 +51,14 @@ public sealed class ScanLibraryEndpointTests
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
+    private const string RunId = "scan-under-test";
+
+    // The run the enqueue would have minted, carrying the owner key the host mints for this caller.
+    // The readback matches on both, so a test that stores under one caller and reads as another reads
+    // 404.
+    private static ScanRun RunFor(CovePrincipal? caller) => new(RunId, JobOwner.FromPrincipal(caller)?.Key);
+
+
     private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
@@ -84,9 +93,10 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
+            var caller = Caller(Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
             await ext.RunScanLibraryJobAsync(
-                Caller(Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead),
-                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null, progress, default);
+                caller, [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null,
+                RunFor(caller), progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             Assert.False(string.IsNullOrEmpty(json));
@@ -150,8 +160,9 @@ public sealed class ScanLibraryEndpointTests
 
             var progress = new FakeJobProgress();
             // Caller holds videos.read but not images.read - only Video is in the captured readable set.
+            var caller = Caller(Permissions.VideosRead);
             await ext.RunScanLibraryJobAsync(
-                Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
+                caller, [RenamerFileKind.Video], null, RunFor(caller), progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions)!;
@@ -192,10 +203,11 @@ public sealed class ScanLibraryEndpointTests
             // file already has, so only a job that received the body counts it as unchanged.
             var body = new global::Renamer.Api.ScanLibraryRequest(
                 JsonSerializer.Serialize(new RenamerOptions { FilenameTemplate = "raw" }, RenamerOptions.JsonOptions));
-            Assert.Equal(202, StatusOf(ext.ScanLibraryEnqueue(body, principal, jobs)));
+            var accepted = ext.ScanLibraryEnqueue(body, principal, jobs);
+            Assert.Equal(202, StatusOf(accepted));
             await jobs.RunTheOnlyJobAsync();
 
-            var summary = await ReadSummaryAsync(ext, principal);
+            var summary = await ReadSummaryAsync(ext, principal, EnqueuedRunId(accepted));
             Assert.Equal(1, summary.TotalFiles);
             Assert.Equal(1, summary.NoChange);
             Assert.Equal(0, summary.WillChange);
@@ -229,8 +241,9 @@ public sealed class ScanLibraryEndpointTests
             var overrideOptions = new RenamerOptions { FilenameTemplate = "DRYRUN - $title" };
 
             var progress = new FakeJobProgress();
+            var caller = Caller(Permissions.VideosRead);
             await ext.RunScanLibraryJobAsync(
-                Caller(Permissions.VideosRead), [RenamerFileKind.Video], overrideOptions, progress, default);
+                caller, [RenamerFileKind.Video], overrideOptions, RunFor(caller), progress, default);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var summary = await ReadSummaryAsync(ext, principal);
@@ -294,18 +307,23 @@ public sealed class ScanLibraryEndpointTests
         var (ext, _) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        var result = await ext.ScanLibraryResultAsync(principal, default);
+        var result = await ext.ScanLibraryResultAsync(RunId, principal, default);
 
         Assert.IsType<NotFound>(Unwrap(result));
     }
 
     // Invokes the readback and unwraps the merged view.
     private static async Task<global::Renamer.Contracts.ScanSummaryView> ReadSummaryAsync(
-        global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
+        global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal, string runId = RunId)
     {
-        var result = await ext.ScanLibraryResultAsync(principal, default);
+        var result = await ext.ScanLibraryResultAsync(runId, principal, default);
         return Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
     }
+
+    // The run id the enqueue minted, which is the only handle its caller has on the figures.
+    private static string EnqueuedRunId(IResult accepted) =>
+        Assert.IsType<global::Renamer.Contracts.ScanEnqueued>(
+            Assert.IsType<IValueHttpResult>(Unwrap(accepted), exactMatch: false).Value).RunId;
 
     // Invokes the page query and unwraps the page.
     private static async Task<global::Renamer.Contracts.ScanRowsPage> ReadRowsAsync(
@@ -326,19 +344,26 @@ public sealed class ScanLibraryEndpointTests
                 files, files, 0, 0, [], ConfirmLevel.Light, InFlightPathOverflowCount: 0),
             VolumePairsTruncated: false);
 
-    private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
+    // Stores an aggregate as the run these tests read back, owned by the principal they read it as.
+    private static Task StoreSummaryAsync(
+        FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
+        => StoreSummaryAsAsync(store, RunFor(Caller()), kinds);
+
+    private static Task StoreSummaryAsAsync(
+        FakeStore store, ScanRun run, params global::Renamer.Contracts.ScanKindSummary[] kinds)
         => store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
             JsonSerializer.Serialize(
                 new global::Renamer.Contracts.ScanSummary(
-                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, 42L, kinds),
+                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey,
+                    42L, kinds),
                 global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
 
     [Fact]
     public async Task ScanLibraryResultAsync_VideoOnlyCaller_ReturnsOnlyVideoFigures_NotImageOrAudio()
     {
-        // A higher-permission user's scan persisted Video+Image+Audio figures under the fixed key. A
-        // video-only caller reading it back must not receive the image/audio counts (the cross-kind leak).
+        // The caller's own scan spanned Video+Image+Audio. Reading it back after losing every kind but
+        // video must not return the image or audio counts.
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
             MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
@@ -374,22 +399,61 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
+    public async Task ScanLibraryResultAsync_AScanThatCompletedAfterTheCallers_Reads404()
+    {
+        var (ext, store) = await NewExtensionAsync();
+
+        await StoreSummaryAsAsync(
+            store, new ScanRun("a-later-scan", JobOwner.FromPrincipal(Caller())?.Key),
+            MakeKind(RenamerFileKind.Video, 9, RenamerStatus.Rename));
+
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    [Fact]
+    public async Task ScanLibraryResultAsync_AScanRunByAnotherPrincipal_Reads404()
+    {
+        var (ext, store) = await NewExtensionAsync();
+
+        await StoreSummaryAsAsync(
+            store, new ScanRun(RunId, "user:999"),
+            MakeKind(RenamerFileKind.Video, 9, RenamerStatus.Rename));
+
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    [Fact]
+    public async Task ScanLibraryEnqueue_ReturnsARunIdPerEnqueue()
+    {
+        var (ext, _) = await NewExtensionAsync();
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+        var first = EnqueuedRunId(ext.ScanLibraryEnqueue(null, principal, new RecordingJobService()));
+        var second = EnqueuedRunId(ext.ScanLibraryEnqueue(null, principal, new RecordingJobService()));
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
     public async Task ScanLibraryResultAsync_UnparseableOrUnknownSchema_Reads404_NotA500()
     {
         var (ext, store) = await NewExtensionAsync();
 
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+            RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
 
         await store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
             JsonSerializer.Serialize(
                 new global::Renamer.Contracts.ScanSummary(
-                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
+                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, RunId,
+                    JobOwner.FromPrincipal(Caller())?.Key, 0L, []),
                 global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+            RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
     }
 
     [Fact]
@@ -397,18 +461,19 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+        var run = RunFor(Caller());
         string current = JsonSerializer.Serialize(
             new global::Renamer.Contracts.ScanSummary(
-                global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, 42L,
+                global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey, 42L,
                 [MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename)]),
             global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current);
-        Assert.IsNotType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(principal, default)));
+        Assert.IsNotType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, principal, default)));
 
         Assert.Contains("\"rename\"", current);
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current.Replace("\"rename\"", "\"renamer\""));
 
-        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(principal, default)));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, principal, default)));
     }
 
     [Fact]
@@ -435,8 +500,9 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
+            var caller = Caller(Permissions.VideosRead);
             await ext.RunScanLibraryJobAsync(
-                Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
+                caller, [RenamerFileKind.Video], null, RunFor(caller), progress, default);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var view = await ReadSummaryAsync(ext, principal);

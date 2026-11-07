@@ -22,6 +22,8 @@ public sealed class ScanSummaryViewTests
 
     private static readonly ScanSummary ThreeKinds = new(
         ScanSummary.CurrentSchemaVersion,
+        RunId: "view-run",
+        OwnerKey: null,
         CompletedAtUtcTicks: 1,
         Kinds:
         [
@@ -68,6 +70,8 @@ public sealed class ScanSummaryViewTests
     {
         var summary = new ScanSummary(
             ScanSummary.CurrentSchemaVersion,
+            RunId: "view-run",
+            OwnerKey: null,
             CompletedAtUtcTicks: 1,
             Kinds:
             [

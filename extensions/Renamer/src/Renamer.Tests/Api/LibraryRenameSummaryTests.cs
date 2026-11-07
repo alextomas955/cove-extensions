@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Events;
+using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +19,10 @@ namespace Renamer.Tests.Api;
 public sealed class LibraryRenameSummaryTests
 {
     private const string RunId = "run-under-test";
+
+    // The owner key the host mints for the principal these tests act as. A stored run carries it, and
+    // the readback 404s without a match.
+    private static readonly string? OwnerKey = JobOwner.FromPrincipal(VideoReader.Current)?.Key;
 
     // The catch that keeps a completed run completed when its counts cannot be stored.
     private const int SummaryNotStoredEvent = 1075;
@@ -78,7 +83,7 @@ public sealed class LibraryRenameSummaryTests
     private static Task RunLibraryAsync(global::Renamer.Renamer ext) =>
         ext.RunRenamerLibraryJobAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite).Current,
-            [RenamerFileKind.Video], new FakeJobProgress(), default, runId: RunId);
+            [RenamerFileKind.Video], new FakeJobProgress(), default, runId: RunId, ownerKey: OwnerKey);
 
     [Fact]
     public async Task AWholeLibraryRun_ReportsWhatItRenamed_AndWhatThePlannerSkipped()
@@ -115,7 +120,7 @@ public sealed class LibraryRenameSummaryTests
         {
             var (ext, store) = await NewExtensionAsync(conn);
             await StoreAsync(store, new LibraryRenameSummary(
-                LibraryRenameSummary.CurrentSchemaVersion, "a-later-run", 0,
+                LibraryRenameSummary.CurrentSchemaVersion, "a-later-run", OwnerKey, 0,
                 [new LibraryRenameKindTally(RenamerFileKind.Video, 9, 0, 0, StoppedForSpace: false)]));
 
             Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
@@ -161,6 +166,7 @@ public sealed class LibraryRenameSummaryTests
             await StoreAsync(store, new LibraryRenameSummary(
                 LibraryRenameSummary.CurrentSchemaVersion,
                 RunId,
+                OwnerKey,
                 42,
                 [
                     new LibraryRenameKindTally(RenamerFileKind.Video, 5, 2, 1, StoppedForSpace: true),
@@ -197,7 +203,29 @@ public sealed class LibraryRenameSummaryTests
             await store.SetAsync(global::Renamer.Renamer.LastLibraryRenameSummaryKey, "{not json");
             Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
 
-            await StoreAsync(store, new LibraryRenameSummary(99, RunId, 0, []));
+            await StoreAsync(store, new LibraryRenameSummary(99, RunId, OwnerKey, 0, []));
+            Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    // The counts cover only the entities the running caller could write, so holding the run id is not
+    // enough to read them.
+    [Fact]
+    public async Task ARunStartedByAnotherPrincipal_ReadsAsNotFound()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (ext, store) = await NewExtensionAsync(conn);
+            await StoreAsync(store, new LibraryRenameSummary(
+                LibraryRenameSummary.CurrentSchemaVersion, RunId, "user:999", 0,
+                [new LibraryRenameKindTally(RenamerFileKind.Video, 9, 0, 0, StoppedForSpace: false)]));
+
             Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
         }
         finally

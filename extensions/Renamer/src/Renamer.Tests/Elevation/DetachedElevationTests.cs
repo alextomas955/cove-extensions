@@ -1,5 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
@@ -140,7 +141,9 @@ public sealed class DetachedElevationTests
         // An empty library still loads the id list, which is the command this case observes; a seeded
         // one would add the planner's reads without changing what is being asserted.
         await ext.RunScanLibraryJobAsync(
-            library.Principals.Current, [RenamerFileKind.Video], null, new FakeJobProgress(), default);
+            library.Principals.Current, [RenamerFileKind.Video], null,
+            new ScanRun("elevation-run", JobOwner.FromPrincipal(library.Principals.Current)?.Key),
+            new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library, prior);
     }

@@ -23,20 +23,33 @@ public sealed record ScanKindSummary(
     PreviewSummary BlastRadius,
     bool VolumePairsTruncated);
 
+/// <summary>What <c>POST /scan-library</c> returns: the job to poll and the run to read back.</summary>
+/// <remarks>
+/// <c>RunId</c> is what <c>/last-scan/{runId}</c> takes, so a caller reads its own scan's figures and
+/// never those of a scan that completed after it.
+/// </remarks>
+public sealed record ScanEnqueued(string JobId, string RunId);
+
 /// <summary>What a completed whole-library scan persists: per-kind counts and blast radius.</summary>
 /// <remarks>
 /// Nothing per file is stored. The value's size is a function of the kind count, the
 /// <see cref="RenamerStatus"/> member count and <see cref="MaxVolumePairsPerKind"/>, never of the
-/// library size. <c>Kinds</c> holds one entry per kind that had at least one entity.
+/// library size. <c>Kinds</c> holds one entry per kind that had at least one entity. One value is
+/// kept, the latest scan's; <c>RunId</c> says which scan that is, and <c>OwnerKey</c> which caller
+/// ran it. The figures cover only the entities that caller could read, so the readback serves them
+/// to that caller alone; null is the key of a principal the host gives no owner, which is one
+/// identity, not "anyone".
 /// </remarks>
 public sealed record ScanSummary(
     int SchemaVersion,
+    string RunId,
+    string? OwnerKey,
     long CompletedAtUtcTicks,
     IReadOnlyList<ScanKindSummary> Kinds)
 {
     // The readback compares this stamp and 404s on a value it does not recognise, so a later reshape
     // of the record degrades to "no scan yet" instead of throwing on an old stored value.
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     // The per-kind volume-pair itemisation is the one part of this record that would grow with the
     // library's shape, so it is capped. The cap tops the list only: CrossVolumeCount and
@@ -70,8 +83,8 @@ public sealed record ScanSummary(
 }
 
 /// <summary>
-/// What <c>/last-scan</c> returns: the stored <see cref="ScanSummary"/> merged down to the kinds the
-/// calling principal may read.
+/// What <c>/last-scan/{runId}</c> returns: the stored <see cref="ScanSummary"/> merged down to the
+/// kinds the calling principal may read.
 /// </summary>
 /// <remarks>
 /// Every count covers only <c>Kinds</c>, which names the kinds the figures cover so the UI does not

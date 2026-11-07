@@ -181,15 +181,18 @@ Minimal-API endpoints the frontend calls, mounted under
   Cove's log.
 - `GET /last-batch` - a paths-free summary of the most recent rename for the undo panel, totalled over
   every batch that rename opened.
-- `POST /scan-library` - enqueues the whole-library dry run.
-- `GET /last-scan` - the last dry run's summary: per-status counts and the move summary, merged down
-  to the kinds the caller may read.
+- `POST /scan-library` - enqueues the whole-library dry run, and returns the run id its figures are
+  read back by.
+- `GET /last-scan/{runId}` - one dry run's summary: per-status counts and the move summary, merged
+  down to the kinds the caller may read. Only the latest scan is kept, so an earlier scan reads as 404. The figures cover the entities the caller who ran the scan could read, so another caller reads
+  404 as well, whatever kinds they hold.
 - `POST /scan-rows` - one page of that dry run's rows, planned on demand, with an optional path search
   and status-bucket filter.
 - `POST /renamer-library` - enqueues the whole-library rename job.
 - `GET /last-library-rename/{runId}` - one whole-library rename's counts: renamed, skipped, failed,
   and the kinds that stopped for lack of space, summed over the kinds the caller may read. `runId`
-  is what `POST /renamer-library` returned. Only the latest run is kept, so an earlier run reads as 404.
+  is what `POST /renamer-library` returned. Only the latest run is kept, so an earlier run reads as
+  404, and so does a run another caller started.
 - `GET /library-paths` - Cove's configured library paths. Every destination root is chosen from this
   list rather than typed, so a rule holds a reference to a folder Cove owns instead of a copy of its
   path.

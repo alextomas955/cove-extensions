@@ -70,7 +70,7 @@ public sealed class ScanAggregateScaleTests
         await ext.RunScanCoreAsync(
             port, RenamableKinds.All, options ?? new RenamerOptions { FilenameTemplate = "$title" },
             AllowAll,
-            new FakeJobProgress(), default);
+            new ScanRun("scale-run", null), new FakeJobProgress(), default);
 
         // Read the raw stored string: parsing is exactly what would hide growth, and the byte length is
         // the thing that broke.

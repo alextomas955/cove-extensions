@@ -41,7 +41,7 @@ public sealed partial class Renamer
     private string UndoRoute => RouteBase + "/undo";
     private string LastBatchRoute => RouteBase + "/last-batch";
     private string ScanLibraryRoute => RouteBase + "/scan-library";
-    private string LastScanRoute => RouteBase + "/last-scan";
+    private string LastScanRoute => RouteBase + "/last-scan/{runId}";
     private string LastLibraryRenameRoute => RouteBase + "/last-library-rename/{runId}";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
@@ -54,10 +54,11 @@ public sealed partial class Renamer
     // delete it; nothing reads it.
     internal const string LastScanResultKey = "last-scan-result";
 
-    // The fixed store key the whole-library scan's bounded aggregate lives under.
+    // The fixed store key the whole-library scan's bounded aggregate lives under. One value, the
+    // latest scan's, carrying the run id and owner key the readback matches on.
     internal const string LastScanSummaryKey = "last-scan-summary";
 
-    // The fixed store key the last whole-library rename's per-kind counts live under.
+    // The fixed store key the last whole-library rename's per-kind counts live under, on the same terms.
     internal const string LastLibraryRenameSummaryKey = "last-library-rename-summary";
 
     // Upper bound on how many ids a single /preview or /renamer request may carry. Preview runs the planner
@@ -186,7 +187,8 @@ public sealed partial class Renamer
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(LastScanRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct))
+            (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => ScanLibraryResultAsync(runId, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(ScanRowsRoute,
@@ -562,6 +564,16 @@ public sealed partial class Renamer
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
+    // Who a stored whole-library result belongs to, in the host's own spelling: "user:{id}" or
+    // "token:{id}". The host answers null for an anonymous or System principal, and for a user it can
+    // name neither way. Null is one identity rather than a wildcard: on an instance with
+    // authentication off every caller is that identity, and there is only one user to confuse.
+    private static string? OwnerKeyOf(ICurrentPrincipalAccessor principal)
+        => JobOwner.FromPrincipal(principal.Current)?.Key;
+
+    private static bool IsOwnedBy(string? ownerKey, ICurrentPrincipalAccessor principal)
+        => string.Equals(ownerKey, OwnerKeyOf(principal), StringComparison.Ordinal);
+
     // Enqueues the whole-library scan. The optional body carries the caller's current options for a
     // dry run on unsaved edits; with no body it scans the saved options. It takes no caller-supplied
     // id array, since the candidate ids are server-derived per kind inside the job, so
@@ -571,10 +583,13 @@ public sealed partial class Renamer
     // closure: the detached job cannot re-resolve the principal, and this is how it applies the same
     // per-kind skip a partial-permission caller sees from a preview. A copy of the principal itself
     // is captured beside them, because holding a kind's read permission does not grant read access to
-    // every entity of that kind and the job authorizes each candidate it derives. The summary is
-    // persisted under a fixed key, because the id Enqueue mints is not available to the job body
-    // before Enqueue returns.
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+    // every entity of that kind and the job authorizes each candidate it derives.
+    //
+    // The run id is minted here rather than taken from Enqueue, whose id is not available to the job
+    // body before it returns, and it is what the caller reads the figures back by. The owner key is
+    // captured with it: the aggregate covers only the entities this caller could read, so it is this
+    // caller's to read back and nobody else's.
+    internal Results<Accepted<ScanEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
         ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
@@ -588,14 +603,16 @@ public sealed partial class Renamer
 
         var readableKinds = HeldKinds(principal, write: false);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
+        var run = new ScanRun(Guid.NewGuid().ToString("N"), OwnerKeyOf(principal));
 
         var jobId = jobs.Enqueue(
             OwnJobType("scan-library"),
             $"[{Name}] Scan library",
-            (coreProgress, ct) => RunScanLibraryJobAsync(caller, readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunScanLibraryJobAsync(
+                caller, readableKinds, overrideOptions, run, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
+        return TypedResults.Accepted((string?)null, new ScanEnqueued(jobId, run.RunId));
     }
 
     // Returns null when the blob is absent, blank or unparseable, so a corrupt override falls back
@@ -619,18 +636,20 @@ public sealed partial class Renamer
         }
     }
 
-    // Reads back the last completed scan's aggregate, or 404 when none has completed. There is no
-    // per-jobId tracking, so a 404 also covers an unknown job id; the panel only asks whether the
-    // scan it started is done.
+    // Reads back one whole-library scan's aggregate, or 404 when the stored scan is not runId or was
+    // not run by this caller. Only the latest scan is kept, so a scan that completed after the
+    // caller's reads as 404 rather than as the caller's own figures.
     //
-    // The aggregate is written under a fixed key by whoever last ran the scan, capturing their
-    // readable kinds, so a higher-permission scan can hold figures a video-only reader may not see.
-    // The merge keeps only the kinds the current caller can read.
+    // The owner match is what keeps the figures honest. The scan authorizes every candidate against
+    // the principal that started it, so the aggregate describes that principal's reach: two callers
+    // holding videos.read can still be granted different videos, and a kind filter alone cannot tell
+    // them apart. Summing per kind over the caller's readable kinds stays, because a run of the
+    // caller's own may still span kinds they have since lost.
     //
     // A blob that will not parse, or one stamped with an unrecognised schema version, reads as "no
     // scan yet", so a future shape change costs the user one dry run and not a 500.
     internal async Task<Results<Ok<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
-        ICurrentPrincipalAccessor principal, CancellationToken ct)
+        string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -653,7 +672,10 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        if (summary is null || summary.SchemaVersion != ScanSummary.CurrentSchemaVersion)
+        if (summary is null
+            || summary.SchemaVersion != ScanSummary.CurrentSchemaVersion
+            || !string.Equals(summary.RunId, runId, StringComparison.Ordinal)
+            || !IsOwnedBy(summary.OwnerKey, principal))
         {
             return TypedResults.NotFound();
         }
@@ -662,11 +684,11 @@ public sealed partial class Renamer
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
     }
 
-    // Reads back one whole-library rename's counts, or 404 when the stored run is not runId. Only the
-    // latest run is kept, so a run that completed after the caller's reads as 404 rather than as the
-    // caller's own counts. As with /last-scan, the counts are stored per kind and summed over only the
-    // kinds the caller may read, and a blob that will not parse or carries an unknown schema version
-    // reads as 404 too.
+    // Reads back one whole-library rename's counts, or 404 when the stored run is not runId or was not
+    // run by this caller. Only the latest run is kept, so a run that completed after the caller's reads
+    // as 404 rather than as the caller's own counts. As with /last-scan, the counts are stored per kind
+    // and summed over only the kinds the caller may read, and a blob that will not parse or carries an
+    // unknown schema version reads as 404 too.
     internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenCode>> LibraryRenameResultAsync(
         string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
@@ -693,7 +715,8 @@ public sealed partial class Renamer
 
         if (summary is null
             || summary.SchemaVersion != LibraryRenameSummary.CurrentSchemaVersion
-            || !string.Equals(summary.RunId, runId, StringComparison.Ordinal))
+            || !string.Equals(summary.RunId, runId, StringComparison.Ordinal)
+            || !IsOwnedBy(summary.OwnerKey, principal))
         {
             return TypedResults.NotFound();
         }
@@ -769,12 +792,13 @@ public sealed partial class Renamer
         var writableKinds = HeldKinds(principal, write: true);
         var caller = EntityAccessGuard.Snapshot(principal.Current);
         var runId = Guid.NewGuid().ToString("N");
+        var ownerKey = OwnerKeyOf(principal);
 
         var jobId = jobs.Enqueue(
             OwnJobType("renamer-library"),
             $"[{Name}] Rename library",
             (coreProgress, ct) => RunRenamerLibraryJobAsync(
-                caller, writableKinds, new HostProgress(coreProgress), ct, runId: runId),
+                caller, writableKinds, new HostProgress(coreProgress), ct, runId: runId, ownerKey: ownerKey),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new LibraryRenameEnqueued(jobId, runId));

@@ -93,7 +93,7 @@ public sealed class ScanAggregator
     // RenamerStatus declaration order, so two scans of an unchanged library produce the same string. The
     // confirm level is computed over the untruncated pair tallies: topping the itemisation must never
     // soften the confirm a move earns.
-    public ScanSummary ToSummary(long completedAtUtcTicks)
+    public ScanSummary ToSummary(string runId, string? ownerKey, long completedAtUtcTicks)
     {
         var statuses = Enum.GetValues<RenamerStatus>();
 
@@ -129,6 +129,7 @@ public sealed class ScanAggregator
             })
             .ToList();
 
-        return new ScanSummary(ScanSummary.CurrentSchemaVersion, completedAtUtcTicks, kinds);
+        return new ScanSummary(
+            ScanSummary.CurrentSchemaVersion, runId, ownerKey, completedAtUtcTicks, kinds);
     }
 }

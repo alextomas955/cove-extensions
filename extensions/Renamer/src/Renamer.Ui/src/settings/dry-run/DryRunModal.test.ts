@@ -15,31 +15,52 @@ import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
 // The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
+const RUN_ID = "run-under-test";
+
 const host = vi.hoisted(() => ({
   pages: [] as unknown[],
   rowReads: 0,
   // Past this the endpoint never answers, so a runaway walk fails a count instead of hanging.
   readCap: 40,
+  // The run the enqueue hands back. A test sets it to a run the store no longer holds.
+  scanRunId: "run-under-test",
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (path: string) => {
-    if (path.endsWith("/scan-library")) return Promise.resolve({ jobId: "scan-under-test" });
-    if (path.endsWith("/last-scan")) return Promise.resolve(summary());
-    if (path.endsWith("/scan-rows")) {
-      const page =
-        host.rowReads < host.pages.length
-          ? host.pages[host.rowReads]
-          : host.pages[host.pages.length - 1];
-      host.rowReads += 1;
-      if (host.rowReads > host.readCap) return new Promise(() => undefined);
-      return page === null ? Promise.reject(new Error("500 boom")) : Promise.resolve(page);
+vi.mock("@cove-extensions/ui-shared/extensionRequest", () => {
+  class ApiError extends Error {
+    constructor(
+      readonly status: number,
+      message: string,
+    ) {
+      super(message);
     }
-    return Promise.reject(new Error(`unscripted path ${path}`));
-  },
-}));
+  }
+  return {
+    ApiError,
+    errorText: (err: unknown) => String(err),
+    requestJson: (path: string) => {
+      if (path.endsWith("/scan-library"))
+        return Promise.resolve({ jobId: "scan-under-test", runId: host.scanRunId });
+      // Only one scan's figures are kept, and only for the caller that ran it. Any other run id is
+      // the 404 the server answers once a later scan has replaced them.
+      if (path.includes("/last-scan/")) {
+        return path.endsWith(`/last-scan/${RUN_ID}`)
+          ? Promise.resolve(summary())
+          : Promise.reject(new ApiError(404, "Not Found"));
+      }
+      if (path.endsWith("/scan-rows")) {
+        const page =
+          host.rowReads < host.pages.length
+            ? host.pages[host.rowReads]
+            : host.pages[host.pages.length - 1];
+        host.rowReads += 1;
+        if (host.rowReads > host.readCap) return new Promise(() => undefined);
+        return page === null ? Promise.reject(new Error("500 boom")) : Promise.resolve(page);
+      }
+      return Promise.reject(new Error(`unscripted path ${path}`));
+    },
+  };
+});
 
 // The scan job's completion is not what is under test, so the poll resolves at once with the verdict
 // the modal reads before it requests the summary.
@@ -145,6 +166,7 @@ function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
 beforeEach(() => {
   host.pages.length = 0;
   host.rowReads = 0;
+  host.scanRunId = RUN_ID;
 });
 
 // The most reads the script below can honestly need. Two requests reach the endpoint on their own
@@ -240,5 +262,20 @@ test("discarding the edits behind the modal does not make its stale rows renamab
 
   expect(modal.renameButton()?.disabled).toBe(true);
   expect(modal.text()).toContain("changed after these rows were scanned");
+  modal.unmount();
+}, 30_000);
+
+test("a scan whose figures a later scan replaced says so instead of showing another scan's", async () => {
+  // The store keeps one scan's figures, served to the caller that ran it. This run's id no longer
+  // matches what it holds, which is what the server answers 404 for.
+  host.scanRunId = "a-run-the-store-no-longer-holds";
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal();
+  await waitFor("the modal to report the replaced scan", () =>
+    modal.text().includes("replaced yours"),
+  );
+
+  expect(modal.text()).toContain("Run the dry run again.");
   modal.unmount();
 }, 30_000);
