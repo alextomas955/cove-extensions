@@ -421,6 +421,7 @@ public sealed partial class ScanAndIdentify
         // in the record rather than reading as a stage the run has not reached.
         RunStage.Scan => RunStageState.Starting,
         RunStage.Fingerprints when !options.BackfillFingerprints => RunStageState.Skipped,
+        RunStage.Images when !options.GeneratesImages => RunStageState.Skipped,
         _ => RunStageState.Pending,
     };
 

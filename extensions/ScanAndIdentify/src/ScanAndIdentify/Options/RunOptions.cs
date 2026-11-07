@@ -46,6 +46,13 @@ public sealed record RunOptions
     /// <summary>Mark a video organized once identify has matched it.</summary>
     public bool MarkOrganized { get; init; }
 
+    /// <summary>Whether the images pass has anything to generate.</summary>
+    /// <remarks>
+    /// Internal, so it stays off the options document the routes answer and a caller writes back.
+    /// </remarks>
+    internal bool GeneratesImages
+        => Thumbnails || Previews || Sprites || VrStereo || ImageThumbnails || GalleryThumbnails;
+
     /// <summary>Serializer settings shared by save and load, so the round-trip is symmetric.</summary>
     /// <remarks>
     /// No naming policy, so the stored blob carries this record's own PascalCase spelling, which is

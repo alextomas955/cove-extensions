@@ -73,6 +73,9 @@ do not start. Open the page again and the run picks up from where it got to.
 With **Fill in missing fingerprints** off, the fingerprint pass reads **skipped** and identify starts
 straight after the scan.
 
+With all six switches under **Images and previews** off, the image pass reads **skipped** and the run
+ends after identify.
+
 ## Stop a run
 
 In the **Run** card, select **Cancel**. Cove stops the pass that is working and the run ends there.

@@ -47,6 +47,32 @@ public sealed class RunEndpointTests
         Assert.Equal(backfill, run.Options.BackfillFingerprints);
     }
 
+    [Theory]
+    [InlineData(nameof(RunOptions.Thumbnails), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.Previews), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.Sprites), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.VrStereo), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.ImageThumbnails), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.GalleryThumbnails), RunStageState.Pending)]
+    [InlineData(null, RunStageState.Skipped)]
+    public async Task Claim_WritesTheImagesStageFromTheSixGenerateSwitches(
+        string? theOneLeftOn, RunStageState expected)
+    {
+        var options = new RunOptions
+        {
+            Thumbnails = theOneLeftOn == nameof(RunOptions.Thumbnails),
+            Previews = theOneLeftOn == nameof(RunOptions.Previews),
+            Sprites = theOneLeftOn == nameof(RunOptions.Sprites),
+            VrStereo = theOneLeftOn == nameof(RunOptions.VrStereo),
+            ImageThumbnails = theOneLeftOn == nameof(RunOptions.ImageThumbnails),
+            GalleryThumbnails = theOneLeftOn == nameof(RunOptions.GalleryThumbnails),
+        };
+
+        var (_, _, run) = await ClaimedAsync(new RecordingJobService(), options);
+
+        Assert.Equal(expected, StageOf(run, RunStage.Images).State);
+    }
+
     [Fact]
     public async Task Claim_Refuses_WhileTheFirstRunHasNotEnded()
     {
