@@ -4,8 +4,8 @@
  *
  * It previews the selection and confirms. Cancel, or a selection with nothing to rename, returns
  * `{ cancelled: true }`, which the host treats as no action. OK posts /renamer and returns `{}`.
- * Request errors reach the host's error alert, except the SDK's parse error on the empty 200 /renamer
- * answers with, which is success.
+ * /renamer answers a bodyless 202, so there is nothing to read from it; any failure of either
+ * request reaches the host's error alert rather than being reported as a rename that started.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
