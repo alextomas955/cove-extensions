@@ -37,7 +37,7 @@ const fetchThroughHost: typeof fetch = async (input, init) => {
 
 // `location` is typed as always present, and in a browser it is. A test in the node environment has
 // none, and only the parseability of this value matters, so the absence is read at runtime.
-const ORIGIN = typeof location === "undefined" ? "http://extension.invalid" : location.origin;
+const ORIGIN = typeof location === "undefined" ? "https://extension.invalid" : location.origin;
 
 export const createClientConfig: CreateClientConfig = (config) => ({
   ...config,

@@ -17,7 +17,7 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
   `rename-action/`. Extension-local shared code is `common/`.
 - The settings panel loads and saves through `GET`/`PUT /options`, never through Cove's extension
   data store. The backend owns the defaults, the stored PascalCase spelling and the one-time
-  conversions; `settings/options.ts` derives its types from the generated `wire/api.ts` and holds
+  conversions; `settings/options.ts` derives its types from the generated `wire/` and holds
   only what the panel decides for itself.
 
 ## Build and deploy

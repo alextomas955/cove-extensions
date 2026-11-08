@@ -159,8 +159,12 @@ cache, an authorization check, or a UI component.
   absent from the wire document.
 - A test emits `wire/openapi.json` from the shipped endpoint registrations and fails when the
   committed copy differs. Set `COVE_WIRE_DOC_UPDATE=1` for one test run to rewrite it.
-- `npm run generate:wire` turns that document into the gitignored `src/wire/api.ts`. Consume it
-  with `import type`.
+- `npm run generate:wire` turns that document into the gitignored `src/wire/`: the types, the
+  client, one function per operation and the TanStack Query helpers over them. Consume the types
+  with `import type`, and reach a route through the generated function or query helper.
+- Each UI supplies `src/common/lib/wireClient.ts`, which binds the host's `extensionFetch` into
+  that client. The generator refuses an extension without one, because a client on the global
+  `fetch` answers 401 for every request.
 - Never hand-write a TypeScript wire type. A wrong one type-checks and reads `undefined` at runtime.
 
 ## Tests

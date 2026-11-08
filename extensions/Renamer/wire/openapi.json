@@ -122,7 +122,7 @@
           "Renamer"
         ],
         "summary": "Preview sample names for unsaved settings",
-        "description": "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body previews the saved settings.",
+        "description": "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body, or one naming no settings, previews the defaults rather than what is stored.",
         "operationId": "RenamerPreviewSample",
         "requestBody": {
           "content": {
@@ -177,7 +177,7 @@
           "Renamer"
         ],
         "summary": "Undo the last rename batch",
-        "description": "Moves the files of the most recent batch back to the names they had. Answers with counts on every arm, including a refusal, so a caller never has to infer what happened.",
+        "description": "Moves the files of the most recent batch back to the names they had. Every arm it answers carries counts, including the one where there was nothing to undo, so a caller never has to infer what happened. A caller the permission gate refuses is the exception: that answers 403 with no counts.",
         "operationId": "RenamerUndo",
         "responses": {
           "200": {
@@ -1834,12 +1834,15 @@
     "securitySchemes": {
       "coveBearer": {
         "type": "http",
-        "description": "Issued by the Cove host and attached by its own authenticated fetch. Every route below requires it; a caller without one is refused by the host before the extension is reached.",
+        "description": "Issued by the Cove host and attached by its own authenticated fetch. Required only where the host has authentication turned on, which is not its default; where it is on, a caller without one is refused by the host before the extension is reached.",
         "scheme": "bearer"
       }
     }
   },
   "security": [
+    {
+      "coveBearer": [ ]
+    },
     { }
   ],
   "tags": [

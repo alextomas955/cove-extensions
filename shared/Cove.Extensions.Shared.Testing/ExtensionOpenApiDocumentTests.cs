@@ -79,9 +79,9 @@ public abstract class ExtensionOpenApiDocumentTests
                 // here would be one this document cannot know.
                 document.Servers = [new OpenApiServer { Url = "/", Description = "The Cove host." }];
 
-                // The routes are authenticated and nothing in the paths says so, which leaves a reader
-                // and a generated client to read every 403 as arbitrary. The host attaches the bearer
-                // token; an extension never sees or issues one.
+                // Nothing in the paths says how a caller authenticates, which leaves a reader and a
+                // generated client to read every 403 as arbitrary. The host attaches the bearer token;
+                // an extension never sees or issues one.
                 document.Components ??= new OpenApiComponents();
                 document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>(
                     StringComparer.Ordinal);
@@ -90,16 +90,22 @@ public abstract class ExtensionOpenApiDocumentTests
                     Type = SecuritySchemeType.Http,
                     Scheme = "bearer",
                     Description =
-                        "Issued by the Cove host and attached by its own authenticated fetch. Every "
-                        + "route below requires it; a caller without one is refused by the host "
+                        "Issued by the Cove host and attached by its own authenticated fetch. "
+                        + "Required only where the host has authentication turned on, which is not "
+                        + "its default; where it is on, a caller without one is refused by the host "
                         + "before the extension is reached.",
                 };
+                // Two alternatives, because the host's own authentication is a setting and is off by
+                // default. Listing only the bearer would declare a credential mandatory on a
+                // deployment that accepts none; listing only the empty requirement would tell a
+                // generated client it never needs one. Either is accepted, which is what is true.
                 document.Security =
                 [
                     new OpenApiSecurityRequirement
                     {
-                        [new OpenApiSecuritySchemeReference(BearerScheme)] = [],
+                        [new OpenApiSecuritySchemeReference(BearerScheme, document)] = [],
                     },
+                    new OpenApiSecurityRequirement(),
                 ];
                 return Task.CompletedTask;
             }));
@@ -147,6 +153,17 @@ public abstract class ExtensionOpenApiDocumentTests
             .ToList();
 
         Assert.Empty(withoutResponseSchema);
+
+        // Both alternatives, by name. An empty requirement object is valid OpenAPI and means the
+        // routes are reachable anonymously, which is one of the two arms here - and is also what a
+        // scheme reference that failed to resolve serializes to. Asserting the count alone would not
+        // tell those apart, so the bearer arm is checked by the scheme it names.
+        var security = document.Security ?? [];
+        Assert.Equal(2, security.Count);
+        Assert.Equal(
+            [BearerScheme],
+            security[0].Keys.Select(key => key.Reference?.Id).ToList());
+        Assert.Empty(security[1]);
 
         var writer = new StringWriter();
         document.SerializeAsV31(new OpenApiJsonWriter(writer));

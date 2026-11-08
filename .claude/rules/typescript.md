@@ -28,7 +28,8 @@ components for the dialog shell around them, and do not collapse the first into 
 
 `@cove/runtime/api` has `extensionFetch`, the host's authenticated same-origin fetch. A bare
 `fetch`, and the SDK's own `request`, carry no credential, so every call answers 401 on an instance
-with auth enabled. Reach it through `@cove-extensions/ui-shared/extensionRequest`.
+with auth enabled. Nothing reaches it directly: `common/lib/wireClient.ts` binds it into the
+generated client once, and every request goes through that client.
 
 The host import map serves `@tanstack/react-query` and `shared/ui-shared/vite/host-externals.json`
 externalizes it, so it adds nothing to a bundle, and the host mounts the `QueryClientProvider` above

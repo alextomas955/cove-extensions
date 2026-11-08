@@ -178,7 +178,7 @@ public sealed partial class Renamer
             .WithName("RenamerPreviewSample")
             .WithSummary("Preview sample names for unsaved settings")
             .WithDescription(
-                "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body previews the saved settings.");
+                "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body, or one naming no settings, previews the defaults rather than what is stored.");
 
         // /undo takes no request body: it operates on "the last batch", and binding no body avoids
         // the host's enum-converter 400 trap.
@@ -189,7 +189,7 @@ public sealed partial class Renamer
             .WithName("RenamerUndo")
             .WithSummary("Undo the last rename batch")
             .WithDescription(
-                "Moves the files of the most recent batch back to the names they had. Answers with counts on every arm, including a refusal, so a caller never has to infer what happened.");
+                "Moves the files of the most recent batch back to the names they had. Every arm it answers carries counts, including the one where there was nothing to undo, so a caller never has to infer what happened. A caller the permission gate refuses is the exception: that answers 403 with no counts.");
 
         endpoints.MapGet(LastBatchRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
