@@ -152,6 +152,13 @@ public abstract class ExtensionOpenApiDocumentTests
     // The catalog is the one place an extension's directory is written down. The walk up to it beats a
     // counted-out "..": the test assembly's depth below the repo root varies with configuration and
     // target framework.
+    /// <summary>The committed wire document's path for <paramref name="extensionId"/>.</summary>
+    /// <remarks>
+    /// Exposed so a test can assert a live response against the contract the TypeScript types are
+    /// generated from, rather than against the C# type both sides already derive from.
+    /// </remarks>
+    public static string CommittedDocumentPath(string extensionId) => ResolveDocumentPath(extensionId).Absolute;
+
     private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
