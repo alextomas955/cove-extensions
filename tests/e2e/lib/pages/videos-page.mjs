@@ -46,8 +46,10 @@ export class VideosPage {
   }
 
   /**
-   * Locates a video card by its currently-displayed filename. Each card is a link ("Open video
-   * <filename>") whose accessible name carries the filename directly. `has:` alone is not enough
+   * Locates a video card by its currently-displayed filename. Each card carries a link named "Open
+   * video <title>", and Cove falls back to the filename only for a video that has none - so this
+   * finds a card by filename for the untitled videos a seed creates, and a titled one has to be
+   * found by its title instead. `has:` alone is not enough
    * to pick the tightest-scoped container when multiple cards are on the page (a worker-shared
    * instance can have leftover seeded videos from other tests) - it can match an ancestor `div`
    * that wraps more than one card, yielding a "Select item" button per card inside it. `.last()`
