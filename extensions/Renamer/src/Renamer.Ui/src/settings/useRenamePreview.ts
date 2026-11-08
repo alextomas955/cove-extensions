@@ -13,9 +13,9 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { type RenamerOptions } from "./options";
 import { decideSettledPreview } from "./previewRequestLogic";
 import type { PreviewSampleRequest, PreviewSampleResult } from "../wire/api";
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 
-const PREVIEW_PATH = api("preview-sample");
+const PREVIEW_PATH = routes.RenamerPreviewSample();
 const PREVIEW_DEBOUNCE_MS = 250;
 
 export interface UseRenamePreview {

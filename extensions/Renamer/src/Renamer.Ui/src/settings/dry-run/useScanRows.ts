@@ -13,10 +13,10 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanCursor, ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
-import { api } from "../../common/lib/extension";
+import { routes } from "../../wire/routes";
 import { bucketWireValue, walkKey, type DryRunFilter } from "./dryRunLogic";
 
-const SCAN_ROWS_PATH = api("scan-rows");
+const SCAN_ROWS_PATH = routes.RenamerGetScanRows();
 
 interface UseScanRows {
   rows: ScanRow[];

@@ -12,7 +12,7 @@ import type {
   ScanLibraryRequest,
   ScanSummaryView,
 } from "../../wire/api";
-import { api } from "../../common/lib/extension";
+import { routes } from "../../wire/routes";
 import { JobUnresponsiveError } from "../jobPollLogic";
 import { pollJob } from "../jobStatusStore";
 import {
@@ -23,8 +23,7 @@ import {
   type ProgressSample,
 } from "./dryRunLogic";
 
-const SCAN_LIBRARY_PATH = api("scan-library");
-const LAST_SCAN_PATH = api("last-scan");
+const SCAN_LIBRARY_PATH = routes.RenamerScanLibrary();
 
 // Only the latest scan's figures are kept, so a scan that finished after this one leaves nothing
 // here to read and the summary read answers 404.
@@ -139,7 +138,7 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         setError(failure);
         return;
       }
-      requestJson<ScanSummaryView>(`${LAST_SCAN_PATH}/${encodeURIComponent(runId.current ?? "")}`)
+      requestJson<ScanSummaryView>(routes.RenamerGetScanResult({ runId: runId.current ?? "" }))
         .then((res) => {
           setSummary(res);
         })

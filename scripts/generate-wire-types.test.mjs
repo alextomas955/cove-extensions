@@ -17,7 +17,7 @@ const EXT_PATH = "extensions/" + NAME;
 const UI_PATH = EXT_PATH + "/src/" + NAME + ".Ui";
 const DOC_PATH = EXT_PATH + "/wire/openapi.json"; // derived, never declared in the catalog
 
-function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
+function fixtureRoot({ entry = {}, writeDocument = true, paths = {} } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "generate-wire-types-"));
   const catalogEntry = {
     name: NAME,
@@ -33,7 +33,7 @@ function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
   );
   if (writeDocument) {
     fs.mkdirSync(path.join(root, EXT_PATH, "wire"), { recursive: true });
-    fs.writeFileSync(path.join(root, DOC_PATH), JSON.stringify({ openapi: "3.1.1", paths: {} }));
+    fs.writeFileSync(path.join(root, DOC_PATH), JSON.stringify({ openapi: "3.1.1", paths }));
   }
   return root;
 }
@@ -135,6 +135,67 @@ test("--extension scopes the run to one entry, and an unknown id is a failure", 
     assert.equal(miss.ok, false);
     assert.equal(missed.calls.length, 0);
     assert.match(miss.failures[0], /no catalog entry matches id\/name: com\.example\.absent/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("each named operation becomes a callable, and a path parameter is named and encoded", async () => {
+  const root = fixtureRoot({
+    paths: {
+      "/api/extensions/com.example.fixture/options": {
+        get: { operationId: "FixtureGetOptions" },
+      },
+      "/api/extensions/com.example.fixture/job-status/{jobId}": {
+        get: {
+          operationId: "FixtureGetJobStatus",
+          parameters: [{ name: "jobId", in: "path", schema: { type: "string" } }],
+        },
+      },
+    },
+  });
+  try {
+    const { generate } = recordingGenerate();
+    const { log } = silent();
+
+    const result = await generateWireTypes({ root, generate, log });
+    assert.deepEqual(result.failures, []);
+
+    const routes = fs.readFileSync(path.join(root, UI_PATH, "src", "wire", "routes.ts"), "utf8");
+
+    // The emitted source, not merely that a file appeared: a route whose template lost its prefix or
+    // its parameter still writes a module that compiles.
+    assert.match(
+      routes,
+      /FixtureGetOptions: \(\): string => `\/extensions\/com\.example\.fixture\/options`/,
+    );
+    assert.match(
+      routes,
+      /FixtureGetJobStatus: \(p: \{ jobId: string \}\): string => `\/extensions\/com\.example\.fixture\/job-status\/\$\{encodeURIComponent\(String\(p\.jobId\)\)\}`/,
+    );
+    // The request helpers add it, so a route carrying it would address /api/api/...
+    assert.doesNotMatch(routes, /`\/api\//);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an operation with no operationId is reported rather than skipped quietly", async () => {
+  const root = fixtureRoot({
+    paths: { "/api/extensions/com.example.fixture/undo": { post: {} } },
+  });
+  try {
+    const { generate } = recordingGenerate();
+    const { log } = silent();
+
+    const result = await generateWireTypes({ root, generate, log });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.length, 1);
+    assert.match(
+      result.failures[0],
+      /UNNAMED: com\.example\.fixture declares POST \/api\/extensions\/com\.example\.fixture\/undo/,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

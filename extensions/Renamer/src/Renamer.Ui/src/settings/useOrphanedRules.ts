@@ -12,10 +12,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import type { OrphanedRulesView } from "../wire/api";
 
-const ORPHANED_RULES_PATH = api("orphaned-rules");
+const ORPHANED_RULES_PATH = routes.RenamerGetOrphanedRules();
 
 /** Rule keys whose entity is gone, as sets for a per-row lookup. */
 interface OrphanedRules {

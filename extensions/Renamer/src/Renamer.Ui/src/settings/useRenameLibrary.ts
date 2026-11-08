@@ -19,10 +19,10 @@ import {
   buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import { LAST_BATCH_KEY } from "./useLastBatch";
 
-const RENAME_LIBRARY_PATH = api("renamer-library");
+const RENAME_LIBRARY_PATH = routes.RenamerRenameLibrary();
 
 export type RunLibraryFeedback =
   { kind: "success"; text: string } | { kind: "error"; text: string } | null;
@@ -101,7 +101,7 @@ export function useRenameLibrary(): UseRenameLibrary {
       // The job has completed, so a failed read of its counts must not land in the catch below,
       // which reports the library as untouched.
       const summary = await requestJson<LibraryRenameSummaryView>(
-        `${api("last-library-rename")}/${encodeURIComponent(runId)}`,
+        routes.RenamerGetLibraryRenameResult({ runId }),
       ).catch(() => null);
 
       if (!mounted.current) return;

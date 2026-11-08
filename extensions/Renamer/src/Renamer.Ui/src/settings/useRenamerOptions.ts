@@ -15,9 +15,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { request, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { OptionsView, RenamerOptions, MultiValueOptions } from "./options";
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 
-const OPTIONS_PATH = api("options");
+const READ_OPTIONS_PATH = routes.RenamerGetOptions();
+const SAVE_OPTIONS_PATH = routes.RenamerSaveOptions();
 const OPTIONS_KEY = ["renamer", "options"] as const;
 
 const SAVED_FLASH_MS = 3000;
@@ -48,7 +49,7 @@ export function useRenamerOptions(): UseRenamerOptions {
 
   const query = useQuery({
     queryKey: OPTIONS_KEY,
-    queryFn: ({ signal }) => requestJson<OptionsView>(OPTIONS_PATH, { signal }),
+    queryFn: ({ signal }) => requestJson<OptionsView>(READ_OPTIONS_PATH, { signal }),
   });
 
   const [draft, setDraft] = useState<RenamerOptions | null>(null);
@@ -90,7 +91,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     setSaving(true);
     setSaveError(null);
     try {
-      await request(OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
+      await request(SAVE_OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
       // The draft goes only once the re-read has landed, and only while it still holds what was
       // sent. Dropping it first falls back to the response still in the cache, which is the
       // document from before this save, so the panel would show the old values for a round trip.

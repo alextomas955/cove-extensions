@@ -188,6 +188,11 @@ Between the two sits `wire/openapi.json`, committed. A test emits it from the sh
 registrations and fails when the committed copy no longer matches, so the document cannot go stale
 without a red build, and the TypeScript is a pure function of it.
 
+The same run emits `src/wire/routes.ts` beside the types: one callable per operation, named by its
+`operationId`, so no call site writes a route out by hand. A route taking a path parameter takes it
+as a named argument and encodes it. The paths carry no `/api` prefix, because the request helpers
+add it.
+
 Every route carries a `.WithName()`, which is both its ASP.NET endpoint name and its `operationId`
 in that document. Endpoint names must be unique across the host process, which every installed
 extension shares, so prefix each with the extension's own name: `RenamerGetOptions`, not

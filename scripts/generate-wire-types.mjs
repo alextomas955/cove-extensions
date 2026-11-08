@@ -21,7 +21,67 @@ const GENERATOR_PLUGINS = ["@hey-api/typescript"];
 // Repo-relative and POSIX-spelled: path.join normalizes the separator, and the same string spells
 // the message a reader has to match against the catalog.
 const OUTPUT_SUBPATH = "src/wire/api.ts";
+const ROUTES_SUBPATH = "src/wire/routes.ts";
 const DOCUMENT_SUBPATH = "wire/openapi.json";
+
+// The request helpers prepend it, and `extensionFetch` refuses a path outside it, so a route that
+// carried it would address `/api/api/...`.
+const REQUEST_PREFIX = "/api";
+
+/** The TypeScript a path parameter's declared schema binds to. */
+function parameterType(schema) {
+  return schema?.type === "integer" || schema?.type === "number" ? "number" : "string";
+}
+
+/**
+ * Emits one callable per operation, keyed by the `operationId` the backend declares.
+ *
+ * A function rather than a string because three routes take a path parameter: naming and encoding it
+ * here is what keeps the template in the one module generated from the document. An operation with
+ * no `operationId` is skipped by name, because the alternative is a key derived from the method and
+ * path that silently renames itself whenever a route moves.
+ */
+function routesModule(document) {
+  const lines = [];
+  const skipped = [];
+
+  for (const [route, methods] of Object.entries(document.paths ?? {})) {
+    for (const [method, operation] of Object.entries(methods)) {
+      const id = operation?.operationId;
+      if (!id) {
+        skipped.push(`${method.toUpperCase()} ${route}`);
+        continue;
+      }
+
+      const pathParams = (operation.parameters ?? []).filter((p) => p.in === "path");
+      const signature = pathParams.length
+        ? `p: { ${pathParams.map((p) => `${p.name}: ${parameterType(p.schema)}`).join("; ")} }`
+        : "";
+
+      let template = route.startsWith(REQUEST_PREFIX) ? route.slice(REQUEST_PREFIX.length) : route;
+      for (const p of pathParams) {
+        template = template.replace(`{${p.name}}`, `\${encodeURIComponent(String(p.${p.name}))}`);
+      }
+
+      lines.push(`  ${id}: (${signature}): string => \`${template}\`,`);
+    }
+  }
+
+  return {
+    skipped,
+    source: [
+      "// Generated from the committed OpenAPI document. Do not edit.",
+      "//",
+      "// One callable per operation, named by its operationId, so no call site writes a route out by",
+      `// hand. The paths carry no ${REQUEST_PREFIX} prefix: the request helpers add it.`,
+      "",
+      "export const routes = {",
+      ...lines,
+      "} as const;",
+      "",
+    ].join("\n"),
+  };
+}
 
 /**
  * The real document-to-types step.
@@ -102,7 +162,22 @@ export async function generateWireTypes({
     }
 
     await generate({ documentPath, outputPath, plugins: GENERATOR_PLUGINS, entry });
-    generated.push({ id: entry.id, documentPath, outputPath });
+
+    // After the types, never before: the generator empties the directory it writes into.
+    const routesPath = path.join(absoluteRoot, entry.uiPath, ROUTES_SUBPATH);
+    const routes = routesModule(readJson(documentPath));
+    fs.mkdirSync(path.dirname(routesPath), { recursive: true });
+    fs.writeFileSync(routesPath, routes.source);
+
+    // An unnamed operation is reachable only by a hand-written path, which is what this module
+    // exists to remove, so it is named here rather than left to be noticed at the call site.
+    for (const operation of routes.skipped) {
+      failures.push(
+        `UNNAMED: ${entry.id} declares ${operation} with no operationId, so no route is generated for it.`,
+      );
+    }
+
+    generated.push({ id: entry.id, documentPath, outputPath, routesPath });
   }
 
   // Reports what it examined, not only what it did: a run that inspected zero input and exited 0

@@ -15,7 +15,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { requestJson, ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 import {
   buildUndoFeedback,
@@ -24,8 +24,8 @@ import {
   type UndoFeedback,
 } from "./undoLogic";
 
-const LAST_BATCH_PATH = api("last-batch");
-const UNDO_PATH = api("undo");
+const LAST_BATCH_PATH = routes.RenamerGetLastBatch();
+const UNDO_PATH = routes.RenamerUndo();
 
 /** The cache key the summary lives under. Exported so a rename elsewhere can invalidate it. */
 export const LAST_BATCH_KEY = ["renamer", "last-batch"] as const;

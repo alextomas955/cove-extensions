@@ -12,10 +12,10 @@ import { useQuery } from "@tanstack/react-query";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { LibraryPathsView } from "../wire/api";
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import type { LibraryPathsState } from "./options";
 
-const LIBRARY_PATHS_PATH = api("library-paths");
+const LIBRARY_PATHS_PATH = routes.RenamerGetLibraryPaths();
 
 export function useLibraryPaths(): LibraryPathsState {
   const query = useQuery({

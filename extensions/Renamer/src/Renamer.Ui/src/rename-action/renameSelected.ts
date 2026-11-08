@@ -11,7 +11,7 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import { buildConfirmSummary } from "./confirmSummaryLogic";
 import type { PreviewResponse, RenamerRequest } from "../wire/api";
 
@@ -24,7 +24,7 @@ export async function renameSelected(
     entityIds: payload.entityIds,
   } satisfies RenamerRequest;
 
-  const response = await requestJson<PreviewResponse>(api("preview"), {
+  const response = await requestJson<PreviewResponse>(routes.RenamerPreview(), {
     method: "POST",
     body: JSON.stringify(requestBody),
   });
@@ -39,7 +39,7 @@ export async function renameSelected(
     return { cancelled: true };
   }
 
-  await postAction(api("renamer"), requestBody);
+  await postAction(routes.RenamerRenameSelected(), requestBody);
 
   return {};
 }

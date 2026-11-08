@@ -63,7 +63,8 @@ repeated Escape close it while the page is blocking a close.
 
 - Named exports only. The one default export is `defineExtension` in `index.ts`.
 - Wire types come from the generated `src/wire/api.ts`, consumed with `import type`. Never
-  hand-write one. Where a type cannot be generated, pin the values in a test whose expected value
+  hand-write one. Routes come from the generated `src/wire/routes.ts` beside it, one callable per
+  operation: `routes.RenamerGetOptions()`, never a path assembled from string fragments. Where a type cannot be generated, pin the values in a test whose expected value
   you copied from the server rather than computed from the module under test.
 - A value the server may omit is optional in the type and handled where it is read. Do not widen a
   type, assert with `as`, add a non-null `!`, or disable a rule to make a build pass. Where a

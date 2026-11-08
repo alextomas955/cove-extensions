@@ -15,7 +15,7 @@
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { api } from "../common/lib/extension";
+import { routes } from "../wire/routes";
 import type { RenamerJobStatus } from "../wire/api";
 
 import {
@@ -75,7 +75,7 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
     };
 
     function read() {
-      requestJson<RenamerJobStatus>(api(`job-status/${jobId}`))
+      requestJson<RenamerJobStatus>(routes.RenamerGetJobStatus({ jobId }))
         .then((job) => {
           if (settled) return;
           const now = Date.now();
