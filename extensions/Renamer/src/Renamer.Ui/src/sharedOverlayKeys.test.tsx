@@ -1,18 +1,14 @@
 // @vitest-environment jsdom
 // This test of a shared hook lives in the consuming package because `react` resolves only here.
 // The overlay hook's dialog mode on a bare panel, so nothing but the hook decides what a key does.
-// jsdom runs no default action for Tab, so the only focus move a test sees is the one the trap makes.
-import { test, expect, vi } from "vitest";
-import { act, useRef } from "react";
-import { createRoot } from "react-dom/client";
+import { test, expect, vi, afterEach } from "vitest";
+import { useRef, useState } from "react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { useOverlayKeys } from "@cove-extensions/ui-shared";
+import { TagListInput, useOverlayKeys } from "@cove-extensions/ui-shared";
 
-// `act` refuses to run without it, and React reads it off the global rather than from an import.
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean;
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+afterEach(cleanup);
 
 function Panel(props: Readonly<{ enabled: boolean; onClose: () => void }>) {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,46 +33,34 @@ function mount() {
   opener.focus();
 
   const onClose = vi.fn();
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  // Committed inside `act`, so a key pressed after it reads this render's `enabled`.
-  const render = (enabled: boolean) => {
-    act(() => {
-      root.render(<Panel enabled={enabled} onClose={onClose} />);
-    });
-  };
-  render(true);
+  const view = render(<Panel enabled onClose={onClose} />);
 
-  const named = (label: string) => {
-    const found = [...container.querySelectorAll("button")].find((b) => b.textContent === label);
-    if (!found) throw new Error(`no ${label} button`);
-    return found;
+  // A host-page key handler, reading each key the panel left for it. Registered after the panel so
+  // it runs second: for `nav: "dialog"` the hook listens on the document in the bubble phase, so a
+  // listener registered before the overlay opened would see the key ahead of it.
+  const unhandledAtHostPage = vi.fn();
+  const listener = (e: KeyboardEvent) => {
+    if (!e.defaultPrevented) unhandledAtHostPage(e.key);
   };
+  document.addEventListener("keydown", listener);
 
   return {
     opener,
     onClose,
-    named,
-    setEnabled: render,
+    unhandledAtHostPage,
+    named: (label: string) => screen.getByRole("button", { name: label }),
+    setEnabled: (enabled: boolean) => {
+      view.rerender(<Panel enabled={enabled} onClose={onClose} />);
+    },
     // Returns what holds focus once the panel is gone, read before the opener is removed.
     unmount: () => {
-      act(() => {
-        root.unmount();
-      });
+      view.unmount();
       const focused = document.activeElement;
-      container.remove();
+      document.removeEventListener("keydown", listener);
       opener.remove();
       return focused;
     },
   };
-}
-
-// Presses a key where focus is, as a browser would, and reports whether the hook suppressed it.
-function press(key: string, shiftKey = false): boolean {
-  const event = new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true });
-  (document.activeElement ?? document.body).dispatchEvent(event);
-  return event.defaultPrevented;
 }
 
 test("opening focuses the first control, and closing hands focus back to the opener", () => {
@@ -86,59 +70,109 @@ test("opening focuses the first control, and closing hands focus back to the ope
   expect(view.unmount()).toBe(view.opener);
 });
 
-test("Tab from the last control wraps to the first, and Shift+Tab from the first wraps to the last", () => {
+test("Tab from the last control wraps to the first, and Shift+Tab from the first wraps to the last", async () => {
+  const user = userEvent.setup();
   const view = mount();
 
   view.named("Last").focus();
-  expect(press("Tab"), "the trap let Tab leave the panel").toBe(true);
+  await user.tab();
   expect(document.activeElement).toBe(view.named("First"));
 
-  expect(press("Tab", true), "the trap let Shift+Tab leave the panel").toBe(true);
+  await user.tab({ shift: true });
   expect(document.activeElement).toBe(view.named("Last"));
 
   view.unmount();
 });
 
-test("Tab between two controls inside the panel is left to the browser", () => {
+test("Tab between two controls inside the panel is left to the browser", async () => {
+  const user = userEvent.setup();
   const view = mount();
 
   view.named("Middle").focus();
-  expect(press("Tab")).toBe(false);
-  expect(document.activeElement).toBe(view.named("Middle"));
+  await user.tab();
+
+  // The browser's own move, which runs only because the trap left the key alone.
+  expect(document.activeElement).toBe(view.named("Last"));
 
   view.unmount();
 });
 
-test("Escape closes, and the key does not reach the host page", () => {
+test("Escape closes, and is marked handled so the host page leaves it alone", async () => {
+  const user = userEvent.setup();
   const view = mount();
 
-  expect(press("Escape"), "Escape leaked to the host page").toBe(true);
+  await user.keyboard("{Escape}");
+
   expect(view.onClose).toHaveBeenCalledTimes(1);
+  expect(view.unhandledAtHostPage).not.toHaveBeenCalled();
 
   view.unmount();
 });
 
-test("while suspended Escape closes nothing, and the Tab trap keeps running", () => {
+test("while suspended Escape closes nothing, and the Tab trap keeps running", async () => {
+  const user = userEvent.setup();
   const view = mount();
   view.setEnabled(false);
 
-  press("Escape");
+  await user.keyboard("{Escape}");
   expect(view.onClose, "a suspended panel closed").not.toHaveBeenCalled();
+  // The key the suspended panel left unhandled, which is the positive control for the assertion
+  // above: without it, an Escape that never reached the panel at all would read the same.
+  expect(view.unhandledAtHostPage).toHaveBeenCalledWith("Escape");
 
   view.named("Last").focus();
-  expect(press("Tab")).toBe(true);
+  await user.tab();
   expect(document.activeElement).toBe(view.named("First"));
 
   view.unmount();
 });
 
-test("Escape closes again as soon as the panel is re-enabled", () => {
+test("Escape closes again as soon as the panel is re-enabled", async () => {
+  const user = userEvent.setup();
   const view = mount();
   view.setEnabled(false);
   view.setEnabled(true);
 
-  press("Escape");
+  await user.keyboard("{Escape}");
+
   expect(view.onClose).toHaveBeenCalledTimes(1);
 
   view.unmount();
+});
+
+// A dialog holding a control with an Escape of its own. `TagListInput` is the one in the shared
+// package: Escape there puts its suggestion list away without closing anything around it.
+function PanelWithCombobox(props: Readonly<{ onClose: () => void }>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [values, setValues] = useState<string[]>([]);
+  useOverlayKeys(ref, { nav: "dialog", onClose: props.onClose, closeOnOutsideClick: false });
+  return (
+    <div ref={ref}>
+      <TagListInput
+        values={values}
+        onChange={setValues}
+        suggestions={["title", "studio"]}
+        ariaLabel="Tokens"
+      />
+    </div>
+  );
+}
+
+test("an Escape a control inside the dialog handled does not also close the dialog", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  render(<PanelWithCombobox onClose={onClose} />);
+
+  await user.type(screen.getByRole("combobox", { name: "Tokens" }), "ti");
+  expect(screen.getAllByRole("option")).toHaveLength(1);
+
+  await user.keyboard("{Escape}");
+
+  expect(screen.queryAllByRole("option"), "the list did not take the Escape").toEqual([]);
+  expect(onClose, "one Escape both closed the list and closed the dialog").not.toHaveBeenCalled();
+
+  // With nothing left inside to handle it, the next Escape is the dialog's. Without this the
+  // assertion above would also hold for a dialog that stopped closing on Escape altogether.
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledTimes(1);
 });

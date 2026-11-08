@@ -4,36 +4,34 @@ import { test as base, expect } from "@playwright/test";
 import { startHarness } from "./harness.mjs";
 import { createApiClient } from "./apiClient.mjs";
 
-// Re-exported so a spec has one import site for everything the fixtures module offers.
 export { createApiClient };
 
 /**
- * Per-test fixtures giving a test its own Cove instance with `extension` already installed, torn down
- * after the test: `isolatedHarness`, and `baseUrl` pointed at that instance.
+ * Per-test fixtures giving a test its own Cove instance with `extension` already installed, at the
+ * cost of a container boot per test.
  *
- * Use them for a test that changes a global extension setting, or the extension's installed state. The
- * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
- * silently alters its behaviour. This costs a container boot per test.
+ * Use them for a test that changes a global extension setting, or the extension's installed state.
+ * The worker-scoped `harness` is shared, so such a change leaks into every other test in that
+ * worker and silently alters its behaviour.
  *
- * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the worker
- * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
- * reported against a host the test never drove.
+ * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the
+ * worker default, `page` would boot the worker's own instance just to navigate to it, and a failure
+ * would be reported against a host the test never drove.
  */
 export function isolatedHarnessFixtures(extension) {
   return {
     isolatedHarness: [
       async ({}, use, testInfo) => {
-        // The container pair exists from startHarness() onward, so every later step belongs inside the
-        // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance and
-        // a Postgres instance until Ryuk reaps them.
+        // A bootstrap or install failure outside the try would unwind past stop() and strand a Cove
+        // container and a Postgres container until Ryuk reaps them.
         const isolatedHarness = await startHarness();
         try {
           isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
           await isolatedHarness.installExtension(extension);
           await use(isolatedHarness);
         } finally {
-          // Repeated here for a test that drives this instance without a `page`, which is the fixture
-          // that otherwise reports an unreachable host.
+          // Repeated here for a test that drives this instance without a `page`, which is the
+          // fixture that otherwise reports an unreachable host.
           await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
           await isolatedHarness.stop();
         }
@@ -47,16 +45,13 @@ export function isolatedHarnessFixtures(extension) {
 }
 
 export const test = base.extend({
-  // Worker-scoped, because the install it names is done once per worker by the `harness` fixture
-  // below. A test-scoped option cannot be read from a worker fixture, and the install is worth far
-  // more there: it restarts the container, which every test in the worker would otherwise pay for.
-  // The scope also keeps Playwright from putting two extensions' files in one worker, since it
-  // reuses a worker only across files whose worker fixtures match.
+  // Worker-scoped, because a test-scoped option cannot be read from the worker-scoped `harness`
+  // fixture that installs it. The scope also keeps Playwright from putting two extensions' files in
+  // one worker, since it reuses a worker only across files whose worker fixtures match.
   extension: [undefined, { scope: "worker", option: true }],
 
-  // Auto so it applies to every test, and dependency-free so the runner sets it up before the
-  // fixtures that boot containers. What it records is the start of the budget a page object has to
-  // finish inside.
+  // Records the start of the budget a page object has to finish inside. Dependency-free so the
+  // runner sets it up before the fixtures that boot containers.
   testClock: [
     async ({}, use) => {
       testStartedAt.set(test.info(), Date.now());
@@ -68,17 +63,11 @@ export const test = base.extend({
   harness: [
     async ({ extension }, use) => {
       const harness = await startHarness();
-      // Inside the try for the reason isolatedHarnessFixtures states: a bootstrap or install failure
-      // must not strand the containers startHarness() already brought up.
       try {
-        // Cove's frontend hard-gates the entire app behind a first-run setup wizard until an owner
-        // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
-        // once per instance; an API-only file pays nothing it would notice.
         harness.owner = await harness.bootstrapOwner();
-        // Installed here rather than per test: the install copies the package in and restarts Cove,
-        // which every test in the worker would otherwise pay for. It is also nothing a test can undo
-        // on its own - the specs that add, remove or toggle an install take `isolatedHarnessFixtures`
-        // and a container of their own instead.
+        // Installed once per worker, because the install restarts Cove and is nothing a test can
+        // undo on its own. A spec that adds, removes or toggles an install takes
+        // `isolatedHarnessFixtures` and a container of its own instead.
         if (extension) {
           await harness.installExtension(extension);
         }
@@ -91,31 +80,25 @@ export const test = base.extend({
   ],
 
   // Read per test, never held across tests: `restart()` can republish the container on a new host
-  // port, so a value captured once at worker startup would address nothing for every test after the
-  // restart that moved it.
+  // port, so a value captured once at worker startup addresses nothing after a restart moves it.
   baseUrl: async ({ harness }, use) => {
     await use(harness.baseUrl);
   },
 
   page: async ({ page, baseUrl }, use, testInfo) => {
-    // Two independent gates hide the real app behind the first-run wizard (App.tsx
-    // `showSetupWizard`). `ownerMissing` is closed by the `harness` fixture's bootstrapOwner().
-    // `needsSetup` the host may raise for its own reasons on a container whose library is empty, and
-    // it is gated on `!setupDismissed` - a plain `useState` seeded from
-    // `sessionStorage.getItem("cove-setup-dismissed")`. Seeding that key here lands it before the
-    // app's first render, so no wizard button has to exist or work, and the reason the host raised
-    // the gate does not matter.
+    // Two independent gates hide the real app behind Cove's first-run wizard. `bootstrapOwner()`
+    // closes the missing-owner one. The other the host may raise for its own reasons on a container
+    // whose library is empty, and it is suppressed only by `sessionStorage` key
+    // `cove-setup-dismissed`, which an init script lands before the app's first render.
     await page.addInitScript(() => {
       sessionStorage.setItem("cove-setup-dismissed", "true");
     });
-    // A page that renders nothing looks identical from a locator: no heading, no input, no request.
-    // The browser knows why and nothing was asking it, so every such failure has read "(no headings
-    // rendered)" and stopped there. These three say whether a script threw, a bundle 404'd, or the
-    // app simply had not painted yet, which are three different defects.
-    // Counted by text rather than collected, because the noisiest problems repeat. A host whose
-    // SignalR hub is not answering yet emits the same negotiation failure a dozen times while it
-    // retries, and a list would spend its whole cap on those and drop the one distinct error that
-    // says what actually broke.
+    // A page that renders nothing looks identical from a locator, so these three listeners say
+    // whether a script threw, a bundle 404'd, or the app simply had not painted yet.
+    //
+    // Counted by text rather than collected, because the noisiest problems repeat: a host whose
+    // SignalR hub is not answering yet emits the same negotiation failure while it retries, and a
+    // list would spend its whole cap on those.
     const browserProblems = new Map();
     const noteProblem = (text) => {
       const seen = browserProblems.get(text);
@@ -137,10 +120,9 @@ export const test = base.extend({
     await page.goto(baseUrl);
     await use(page);
 
-    // A host that died mid-run serves nothing, so every spec still to come times out against a page
-    // that renders no content and reports itself as a panel that never opened. That reads as a UI
-    // defect and sends the reader to the extension, which is the wrong place. Ask the host whether it
-    // is still there and say so, once, on the failure that noticed.
+    // A host that died mid-run serves nothing, so every spec still to come fails as a panel that
+    // never opened. That reads as a UI defect and sends the reader to the extension, which is the
+    // wrong place.
     if (testInfo.status !== testInfo.expectedStatus) {
       // The host the page is on, not the one it opened: a spec that restarts its instance may have
       // been republished on another port, and `baseUrl` was read before that.
@@ -157,9 +139,6 @@ export const test = base.extend({
     }
   },
 
-  // Both are read through the handle as getters, for the reason createApiClient documents: a restart
-  // re-mints the token and can republish the container on a different host port.
-  //
   // `baseUrl` is depended on but not read. It is the fixture that installs the extension, so a
   // client handed out ahead of it would address an instance without the extension.
   api: async ({ harness, baseUrl: _baseUrl }, use) => {
@@ -180,12 +159,9 @@ const testStartedAt = new WeakMap();
 const DIAGNOSTIC_RESERVE_MS = 15_000;
 
 /**
- * `budgetMs`, reduced to what the test has left.
- *
- * A page object's budget has to cover a cold container, and a test that has already spent most of
- * its own budget cannot give it that. A fixed budget larger than the remainder does not extend the
- * test; it just guarantees the runner stops the test first, and a generic timeout names none of the
- * causes the page object would have.
+ * `budgetMs`, reduced to what the test has left. A fixed budget larger than the remainder does not
+ * extend the test; it guarantees the runner stops the test first, and a generic timeout names none
+ * of the causes the page object would have.
  *
  * Falls back to `budgetMs` when there is no clock to read (a page object used outside these
  * fixtures) or the runner has timeouts disabled.
@@ -209,8 +185,8 @@ export function remainingVisitBudgetMs(budgetMs) {
 // a spec that has already failed.
 const HOST_LIVENESS_TIMEOUT_MS = 5_000;
 
-// A page that fails in a loop can emit thousands of console errors, and a failure message nobody can
-// read is not a diagnosis. The cap counts distinct problems, so a repeat never costs a slot.
+// A page that fails in a loop can emit thousands of console errors. The cap counts distinct
+// problems, so a repeat never costs a slot.
 const BROWSER_PROBLEM_CAP = 20;
 
 /** Records the host's liveness on a failing test, and says nothing on a passing one. */
@@ -223,11 +199,9 @@ async function noteHostIfUnreachable(baseUrl, testInfo, label) {
 }
 
 /**
- * Returns a sentence naming the host as unreachable, or null when it answers.
- *
- * Deliberately probes over HTTP rather than asking Docker: what matters to a failing spec is whether
- * the host answered it, and that question has the same answer whether the container was killed, the
- * port went away, or the process inside stopped listening.
+ * Returns a sentence naming the host as unreachable, or null when it answers. Probed over HTTP
+ * rather than through Docker: the answer is the same whether the container was killed, the port
+ * went away, or the process inside stopped listening.
  */
 async function describeHostIfUnreachable(baseUrl) {
   try {
@@ -242,11 +216,9 @@ async function describeHostIfUnreachable(baseUrl) {
 }
 
 /**
- * The headings a page is currently showing, for a page object's own failure message.
- *
- * A wait that ends with nothing found cannot say whether the page showed the wrong thing or nothing
- * at all, and those are different defects. Never throws: it runs only on a path that is already
- * failing, and an error here would replace a real diagnosis with this helper's own stack.
+ * The headings a page is currently showing, so a page object's failure message can tell showing the
+ * wrong thing from showing nothing. Never throws: it runs only on a path that is already failing,
+ * and an error here would replace a real diagnosis with this helper's own stack.
  */
 export async function describeRenderedPage(page, { limit = 6 } = {}) {
   try {
@@ -259,8 +231,8 @@ export async function describeRenderedPage(page, { limit = 6 } = {}) {
 }
 
 /**
- * Signs in through Cove's own login form, the way a user does, so the host frontend populates its
- * own auth store and every later request the app makes carries a real credential.
+ * Signs in through Cove's own login form, so the host frontend populates its auth store and every
+ * later request the app makes carries a real credential.
  *
  * There is nothing to navigate to: the auth gate renders the login form in place of the app, as a
  * render branch rather than a route, so the page only has to be on the base URL already. Defaults

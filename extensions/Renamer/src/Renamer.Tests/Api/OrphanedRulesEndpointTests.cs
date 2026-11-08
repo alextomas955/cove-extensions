@@ -16,7 +16,7 @@ namespace Renamer.Tests.Api;
 public sealed class OrphanedRulesEndpointTests
 {
     // Builds the extension over the seeded connection, so the handler's own elevated scope resolves
-    // a context on the same database - the wiring ScanLibraryEndpointTests uses.
+    // a context on the same database.
     private static async Task<global::Renamer.Renamer> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions options, CommandCountingInterceptor? interceptor = null)
     {

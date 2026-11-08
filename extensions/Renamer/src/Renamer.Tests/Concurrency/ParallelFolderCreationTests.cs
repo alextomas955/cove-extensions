@@ -30,9 +30,8 @@ public sealed class ParallelFolderCreationTests
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
 
-            // Every item targets one folder the database does not hold yet, and same-volume workers run
-            // unbounded. Cove's unique index on the folder path turns a racing check-then-act create into
-            // a failed save, so a race shows as a file that did not land, not as a second folder row.
+            // Every item targets one folder the database does not hold yet, and the batch resolves
+            // each distinct destination once before the parallel execution.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",

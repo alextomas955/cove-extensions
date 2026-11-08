@@ -35,7 +35,7 @@ public sealed class CaptionFilenameGuardTests
                 .Select(c => c.Id).SingleAsync();
 
             File.WriteAllText(Path.Combine(dir.Root, "src", "clip.mkv"), "video");
-            // The file "src/../escape.srt" names. An unguarded sidecar move takes it to
+            // The file that "src/../escape.srt" names. An unguarded sidecar move takes it to
             // "dst/nested/../escape.srt" - a third directory, outside both the source and the target.
             string outside = Path.Combine(dir.Root, "escape.srt");
             File.WriteAllText(outside, "not mine to move");
@@ -45,7 +45,6 @@ public sealed class CaptionFilenameGuardTests
                 MovePlan(videoId, fileId, srcFolder, "clip.mkv", dstFolder, "My Film.mkv"),
                 new RenamerOptions(), default);
 
-            // The primary is never failed by a rejected caption.
             var moved = Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "nested", "My Film.mkv")), "primary still moves");
@@ -54,7 +53,6 @@ public sealed class CaptionFilenameGuardTests
             Assert.Equal("not mine to move", File.ReadAllText(outside));
             Assert.False(File.Exists(wouldEscapeTo), "no sidecar may be written outside the source and target folders");
 
-            // The rejection is reported rather than silent.
             Assert.NotNull(moved.Reason);
             Assert.Contains("../escape.srt", moved.Reason);
 

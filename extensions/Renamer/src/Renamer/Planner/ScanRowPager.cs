@@ -19,8 +19,6 @@ namespace Renamer.Planner;
 public sealed class ScanRowPager(
     RenamerPlanner planner, IRenamerDataPort port, IReadOnlyCollection<string>? mountPoints = null)
 {
-    // A page the UI virtualises comfortably: enough rows that scrolling rarely waits on a request, few
-    // enough that one request stays a small response and a short planning burst.
     public const int DefaultTake = 100;
 
     // The response-size ceiling. Without it a caller-supplied take could ask for the whole library in one

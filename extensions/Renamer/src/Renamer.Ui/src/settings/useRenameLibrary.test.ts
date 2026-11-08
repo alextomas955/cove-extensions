@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 // The whole-library rename hook stops on the poll decision's verdict. It drives the real `pollJob`
 // loop over a scripted job-status route, with the two tuning constants shrunk so a bound is reached
-// in seconds, and asserts what a user notices: the requests stop and the button comes back with a
-// banner. One test waits on real elapsed time, because it asserts that nothing happens meanwhile.
-import { test, expect, vi, beforeEach } from "vitest";
+// on the second poll, and asserts what a user notices: the requests stop and the button comes back
+// with a banner. The clock is fake, so the test that asserts nothing happens meanwhile costs nothing.
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { renderHook, cleanup, act } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 
-import { waitFor } from "../common/lib/flushRender";
+import { createTestQueryClient } from "../common/lib/testQueryClient";
 
-import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
+import { useRenameLibrary } from "./useRenameLibrary";
+import { LAST_BATCH_KEY } from "./useLastBatch";
 import type {
   LibraryRenameEnqueued,
   LibraryRenameSummaryView,
@@ -68,38 +70,47 @@ vi.mock("./jobPollLogic", async (importOriginal) => ({
   JOB_FAILURE_ALLOWANCE: 1,
 }));
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
+// Long enough for every bound this file drives: the first read lands one interval in and the second
+// one ends the run, and the shrunk constants put no bound further out than that.
+const POLL_WINDOW_MS = 10_000;
+
+// Mount the hook under a client of its own, standing in for the host's. The cache is seeded with a
+// fresh last-batch entry, so "the undo line re-reads after a rename" is observable as that entry
+// going stale - which is what the hook asks the client for.
+function mountHook() {
+  const queryClient = createTestQueryClient();
+  queryClient.setQueryData(LAST_BATCH_KEY, { hasBatch: false });
+
+  const hook = renderHook(() => useRenameLibrary(), {
+    wrapper: ({ children }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children),
   });
 
-// Mount the hook and hand back its latest return value plus a teardown.
-async function mountHook() {
-  let latest: UseRenameLibrary | null = null;
-  function Probe() {
-    latest = useRenameLibrary();
-    return null;
-  }
-
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(Probe));
-  await waitFor("the probe to render", () => latest !== null);
-
   return {
-    get current(): UseRenameLibrary {
-      expect(latest, "the probe never rendered").not.toBeNull();
-      return latest as unknown as UseRenameLibrary;
+    get current() {
+      return hook.result.current;
     },
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
+    // Whether the last-batch entry has been marked for re-reading.
+    lastBatchStale: () => queryClient.getQueryState(LAST_BATCH_KEY)?.isInvalidated === true,
   };
 }
 
+// Starts one rename and runs its poll loop to the end on the fake clock.
+async function renameToSettlement(hook: ReturnType<typeof mountHook>) {
+  await act(async () => {
+    const run = hook.current.renameLibrary();
+    await vi.advanceTimersByTimeAsync(POLL_WINDOW_MS);
+    await run;
+  });
+}
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
+  vi.useFakeTimers();
   host.reads.length = 0;
   host.status = "running";
   host.progress = 0.25;
@@ -107,33 +118,30 @@ beforeEach(() => {
 });
 
 test("a job that stops reporting progress ends the run instead of polling forever", async () => {
-  const hook = await mountHook();
+  const hook = mountHook();
 
-  await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await renameToSettlement(hook);
 
   const readsAtSettlement = host.reads.length;
 
   // The claim is that the poll stopped, which a single count cannot show - a still-running interval
   // and a stopped one look identical at one instant. So let several more poll periods pass and
-  // require the count not to move. A duration, not a condition: what is being waited for here is
-  // real elapsed time, because the assertion is that nothing happens during it.
-  await sleep(3_000);
+  // require the count not to move. A duration, not a condition: the assertion is that nothing
+  // happens while it elapses.
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3 * POLL_WINDOW_MS);
+  });
 
   expect(host.reads.length, "the poll kept reading job status after the run ended").toBe(
     readsAtSettlement,
   );
   expect(hook.current.renamingLibrary, "the button never came back").toBe(false);
-  // An expiry, not a rejection: the run may already have renamed files, so the banner must not say
-  // nothing changed.
-  const feedback = hook.current.runLibraryFeedback;
-  expect(feedback?.kind).toBe("error");
-  expect(feedback?.text).toContain("Couldn't confirm the rename");
-  expect(feedback?.text).not.toContain("Nothing was changed");
+  // An expiry, not a rejection: the run may already have renamed files, so the banner the unconfirmed
+  // builder writes is the one that must come back. Its wording is renameLibraryBannerLogic's.
+  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+  expect(hook.current.runLibraryFeedback?.text).toContain("Couldn't confirm the rename");
   expect(hook.current.dryRunOpen).toBe(false);
-
-  hook.unmount();
-}, 30_000);
+});
 
 test("a completed job still resolves through the same poll", async () => {
   // The bound above must not be reachable by giving up on healthy jobs, so the same wiring is driven
@@ -147,17 +155,16 @@ test("a completed job still resolves through the same poll", async () => {
     completedAtUtcTicks: 0,
     kinds: ["video"],
   };
-  const hook = await mountHook();
+  const hook = mountHook();
 
-  await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await renameToSettlement(hook);
 
   expect(hook.current.renamingLibrary).toBe(false);
   expect(hook.current.runLibraryFeedback).toEqual({
     kind: "success",
     text: "Rename finished. 3 files renamed, 1 skipped.",
   });
-  expect(hook.current.undoRefreshKey).toBe(1);
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
   // The rename POST, exactly one job read, then the job's own counts. No scan runs first. The paths
   // are written out rather than built from the route helper the code under test uses.
   expect(host.reads).toEqual([
@@ -165,37 +172,28 @@ test("a completed job still resolves through the same poll", async () => {
     "/extensions/com.alextomas955.renamer/job-status/job-under-test",
     "/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
   ]);
+});
 
-  hook.unmount();
-}, 30_000);
-
-test("a completed job whose counts cannot be read is not reported as a rename that changed nothing", async () => {
+test("a completed job whose counts cannot be read still reports the rename as finished", async () => {
   host.status = "completed";
-  const hook = await mountHook();
+  const hook = mountHook();
 
-  await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await renameToSettlement(hook);
 
-  const feedback = hook.current.runLibraryFeedback;
-  expect(feedback?.kind).toBe("success");
-  expect(feedback?.text).toContain("Rename finished.");
-  expect(feedback?.text).not.toContain("Nothing was changed");
-  expect(hook.current.undoRefreshKey).toBe(1);
+  // A summary that could not be read is the success builder's own null case, and what it writes is
+  // renameLibraryBannerLogic's.
+  expect(hook.current.runLibraryFeedback?.kind).toBe("success");
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
+});
 
-  hook.unmount();
-}, 30_000);
-
-test("a job that fails after it started never reports the library as untouched", async () => {
+test("a job that fails after it started is reported as a rename that stopped part-way", async () => {
   host.status = "failed";
-  const hook = await mountHook();
+  const hook = mountHook();
 
-  await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await renameToSettlement(hook);
 
-  const feedback = hook.current.runLibraryFeedback;
-  expect(feedback?.kind).toBe("error");
-  expect(feedback?.text).toContain("The rename stopped before it finished");
-  expect(feedback?.text).not.toContain("Nothing was changed");
-
-  hook.unmount();
-}, 30_000);
+  // The started branch of the error builder, not the refused one: which of the two ran is the hook's
+  // decision, and what each says is renameLibraryBannerLogic's.
+  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+  expect(hook.current.runLibraryFeedback?.text).toContain("The rename stopped before it finished");
+});

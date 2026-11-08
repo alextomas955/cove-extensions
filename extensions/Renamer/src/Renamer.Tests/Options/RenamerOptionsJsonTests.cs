@@ -10,14 +10,13 @@ public sealed class RenamerOptionsJsonTests
     public void DurationFormat_Default_SerializesWithEscapedBackslashes_AndIsValidJson()
     {
         // The default DurationFormat is a TimeSpan format whose literal value contains backslashes
-        // (hh\-mm\-ss). The serializer must escape each backslash so the stored blob is valid JSON a
-        // strict reader (the settings panel) can parse back. A lone backslash here is what made the
-        // panel fail with "Bad escaped character in JSON".
+        // (hh\-mm\-ss). The serializer escapes each one so the stored blob is valid JSON a strict
+        // reader can parse back; a lone backslash makes the settings panel fail on "Bad escaped
+        // character in JSON".
         var json = JsonSerializer.Serialize(new RenamerOptions(), RenamerOptions.JsonOptions);
 
-        Assert.Contains(@"""DurationFormat"":""hh\\-mm\\-ss""", json); // escaped, not a lone backslash
+        Assert.Contains(@"""DurationFormat"":""hh\\-mm\\-ss""", json);
 
-        // It must also re-parse and round-trip the exact value.
         using var parsed = JsonDocument.Parse(json); // throws if the blob is not valid JSON
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
         Assert.Equal(@"hh\-mm\-ss", reloaded!.DurationFormat);
@@ -95,7 +94,6 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void UnknownProperty_IsIgnored_OnLoad()
     {
-        // forward-compat: a future field that this version does not know about.
         const string json =
             """{"FilenameTemplate":"$studio - $title","Case":"Title","UnknownFutureField":42}""";
 

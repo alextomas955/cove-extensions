@@ -22,6 +22,8 @@ public sealed class ScanSummaryViewTests
 
     private static readonly ScanSummary ThreeKinds = new(
         ScanSummary.CurrentSchemaVersion,
+        RunId: "view-run",
+        OwnerKey: null,
         CompletedAtUtcTicks: 1,
         Kinds:
         [
@@ -42,7 +44,6 @@ public sealed class ScanSummaryViewTests
     [Fact]
     public void OverflowCount_LeavesOutTheKindsTheCallerCannotRead()
     {
-        // A video-only reader must not receive image figures.
         var videoOnly = ScanSummaryView.From(ThreeKinds, [RenamerFileKind.Video]);
 
         Assert.Equal(1, videoOnly.BlastRadius.InFlightPathOverflowCount);
@@ -68,6 +69,8 @@ public sealed class ScanSummaryViewTests
     {
         var summary = new ScanSummary(
             ScanSummary.CurrentSchemaVersion,
+            RunId: "view-run",
+            OwnerKey: null,
             CompletedAtUtcTicks: 1,
             Kinds:
             [

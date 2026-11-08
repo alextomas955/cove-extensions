@@ -6,7 +6,6 @@ namespace Renamer.Engine;
 // Rules key off the canonical Tokens names, case-insensitively.
 public static class FieldRewriter
 {
-    // Order: literal find/replace, then the studio-name squeeze, then the leading-article strip.
     public static string RewriteScalar(string tokenName, string value, RenamerOptions o)
     {
         // Find and Replace are literal, not regex. A rule with an empty Find is skipped so a stored
@@ -30,7 +29,6 @@ public static class FieldRewriter
             value = value.Replace(" ", string.Empty);
         }
 
-        // At most one leading article is stripped, and only from $title.
         if (o.StripLeadingArticles
             && string.Equals(tokenName, Tokens.Title, StringComparison.OrdinalIgnoreCase))
         {
@@ -53,8 +51,6 @@ public static class FieldRewriter
         return performers.Where(p => !NameIsWholeWordInTitle(p, resolvedTitle)).ToList();
     }
 
-    // Filtering records keeps per-position semantics: when two performers share a name, only the
-    // matching positions drop and surviving duplicates stay in order.
     public static IReadOnlyList<RenamerPerformer> DropPerformersInTitle(
         IReadOnlyList<RenamerPerformer> performers, string resolvedTitle, RenamerOptions o)
     {
@@ -121,8 +117,8 @@ public static class FieldRewriter
         return result;
     }
 
-    // The char after the article must be whitespace, so "Theatre" is left alone. Stops at the first
-    // match.
+    // At most one article is stripped: the scan stops at the first match. The char after the article
+    // must be whitespace, so "Theatre" is left alone.
     private static string StripLeadingArticle(string value, List<string> articles)
     {
         foreach (var article in articles)

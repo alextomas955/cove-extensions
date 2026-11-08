@@ -1,7 +1,6 @@
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
-using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
@@ -17,8 +16,6 @@ public sealed class CoveDataPortRoutingFieldsTests
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
 
-            // A two-level studio chain: grandparent ← parent ← direct. The Video belongs to the direct
-            // studio; the parent (index 0 of the walk) is the immediate parent of the direct studio.
             var grandparent = new Studio { Name = "Grand Network" };
             db.Set<Studio>().Add(grandparent);
             await db.SaveChangesAsync();
@@ -31,7 +28,6 @@ public sealed class CoveDataPortRoutingFieldsTests
             db.Set<Studio>().Add(direct);
             await db.SaveChangesAsync();
 
-            // Attach the direct studio to the seeded video and give the file a known non-zero size.
             var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
             video.StudioId = direct.Id;
             var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId);
@@ -51,11 +47,9 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotEmpty(entity.ParentStudios!);
             Assert.Equal(parent.Id, entity.ParentStudios![0].Id);
             Assert.Equal(parent.Name, entity.ParentStudios[0].Name);
-            // The grandparent follows the parent (bounded eager walk hydrated it).
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
             Assert.Equal(grandparent.Name, entity.ParentStudios[1].Name);
 
-            // Projected bytes for the free-space sum surface from BaseFileEntity.Size.
             Assert.Equal(4096, entity.Files[0].SizeBytes);
         }
         finally
@@ -68,9 +62,9 @@ public sealed class CoveDataPortRoutingFieldsTests
     [Fact]
     public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InJoinOrder()
     {
-        // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,
-        // every tag rule would silently stop matching with no error anywhere - so prove it against a
-        // real entity graph rather than against the fake port the resolver tests use.
+        // Proved against a real entity graph rather than against the fake port the resolver tests
+        // use: a projection that came back empty or misordered would stop every tag rule matching,
+        // with no error anywhere.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -143,7 +137,7 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntities_ReturnsDtos_FieldForFieldEqualToPerIdSingleLoad()
+    public async Task LoadEntities_MapsEachEntityWithItsOwnFileAndStudioChain()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -179,12 +173,23 @@ public sealed class CoveDataPortRoutingFieldsTests
             var byId = batch.ToDictionary(e => e.EntityId);
             Assert.Equal(3, batch.Count);
 
-            foreach (var id in ids)
+            // Compared against the seed, not against LoadEntityAsync: the two reads share the per-kind
+            // query and its mapper, so a differential agrees with itself however either one maps. What
+            // only the batch path can get wrong is associating a collection with the wrong root, which
+            // is why each entity's own file and studio chain are named here.
+            for (int n = 1; n <= 3; n++)
             {
-                var single = await port.LoadEntityAsync(RenamerFileKind.Video, id);
-                Assert.NotNull(single);
-                Assert.True(byId.TryGetValue(id, out var batched));
-                AssertEntityEqual(single!, batched);
+                Assert.True(byId.TryGetValue(ids[n - 1], out var batched));
+                Assert.Equal($"Clip {n}", batched.Title);
+                Assert.Equal(direct.Id, batched.StudioId);
+                Assert.Equal(
+                    [(parent.Id, "Parent Label"), (grandparent.Id, "Grand Network")],
+                    batched.ParentStudios ?? []);
+
+                var file = Assert.Single(batched.Files);
+                Assert.Equal($"clip{n}.mkv", file.Basename);
+                Assert.Equal($"media/incoming/{n}", file.ParentFolderPath);
+                Assert.Equal(1000 + n, file.SizeBytes);
             }
         }
         finally
@@ -195,31 +200,20 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntities_EmptyIds_ReturnsEmpty()
+    public async Task LoadEntities_AKindWithNoQuery_ReadsNothing_EvenForAnIdThatExists()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, []);
-            Assert.Empty(result);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
+            // The id names a real row, so a kind wrongly routed to the video query would return it.
+            // Against an empty database the absence is unfalsifiable.
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/loose", basename: "clip.mkv", title: "A Film");
 
-    [Fact]
-    public async Task LoadEntities_Gallery_ReturnsEmpty()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3]);
-            Assert.Empty(result);
+
+            Assert.NotEmpty(await port.LoadEntitiesAsync(RenamerFileKind.Video, [videoId]));
+            Assert.Empty(await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [videoId]));
         }
         finally
         {
@@ -249,51 +243,6 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
-    private static void AssertEntityEqual(RenamerEntity expected, RenamerEntity actual)
-    {
-        Assert.Equal(expected.EntityId, actual.EntityId);
-        Assert.Equal(expected.Kind, actual.Kind);
-        Assert.Equal(expected.Title, actual.Title);
-        Assert.Equal(expected.Code, actual.Code);
-        Assert.Equal(expected.StudioName, actual.StudioName);
-        Assert.Equal(expected.Date, actual.Date);
-        Assert.Equal(expected.Organized, actual.Organized);
-        Assert.Equal(expected.StudioId, actual.StudioId);
-        Assert.Equal(expected.Director, actual.Director);
-        Assert.Equal(expected.Performers, actual.Performers);
-
-        var expectedParents = expected.ParentStudios ?? [];
-        var actualParents = actual.ParentStudios ?? [];
-        Assert.Equal(expectedParents, actualParents);
-
-        // The names are derived from these pairs, so pinning the pairs pins both.
-        Assert.Equal(expected.TagRefs, actual.TagRefs);
-
-        // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
-        // compares by reference - two field-identical files from distinct loads are never record-equal.
-        // Compare the files field-by-field (and captions element-wise) instead.
-        Assert.Equal(expected.Files.Count, actual.Files.Count);
-        for (int f = 0; f < expected.Files.Count; f++)
-        {
-            var ef = expected.Files[f];
-            var af = actual.Files[f];
-            Assert.Equal(ef.FileId, af.FileId);
-            Assert.Equal(ef.Kind, af.Kind);
-            Assert.Equal(ef.Basename, af.Basename);
-            Assert.Equal(ef.ParentFolderId, af.ParentFolderId);
-            Assert.Equal(ef.ParentFolderPath, af.ParentFolderPath);
-            Assert.Equal(ef.Format, af.Format);
-            Assert.Equal(ef.Width, af.Width);
-            Assert.Equal(ef.Height, af.Height);
-            Assert.Equal(ef.Duration, af.Duration);
-            Assert.Equal(ef.VideoCodec, af.VideoCodec);
-            Assert.Equal(ef.AudioCodec, af.AudioCodec);
-            Assert.Equal(ef.FrameRate, af.FrameRate);
-            Assert.Equal(ef.SizeBytes, af.SizeBytes);
-            Assert.Equal(ef.BitRate, af.BitRate);
-            Assert.Equal(ef.Captions ?? [], af.Captions ?? []);
-        }
-    }
 
     [Fact]
     public async Task LoadEntity_NoStudio_YieldsNullId_EmptyParentChain_AndDoesNotThrow()
@@ -307,12 +256,11 @@ public sealed class CoveDataPortRoutingFieldsTests
 
             var port = new CoveRenamerDataPort(db);
 
-            // classify-not-throw: a missing studio must never raise.
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
             Assert.Null(entity!.StudioId);
-            Assert.True(entity.ParentStudios is null || entity.ParentStudios.Count == 0);
+            Assert.Empty(entity.ParentStudios!);
         }
         finally
         {

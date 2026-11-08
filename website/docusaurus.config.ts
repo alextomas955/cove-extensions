@@ -2,44 +2,34 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
-
 const config: Config = {
   title: "Cove Extensions",
   tagline: "Community extensions for Cove by alextomas955. Not an official Cove project.",
   favicon: "img/favicon.svg",
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    v4: true,
   },
 
-  // GH-Pages project-subpath values - locked verbatim from content-strategy.md / context.md.
-  url: "https://alextomas955.github.io", // domain ONLY - never put the subpath here
-  baseUrl: "/cove-extensions/", // subpath, leading AND trailing slash
+  // The GitHub Pages project-subpath split.
+  url: "https://alextomas955.github.io", // the domain only, never the subpath
+  baseUrl: "/cove-extensions/", // the subpath, with a leading and a trailing slash
 
-  // GitHub pages deployment config.
   organizationName: "alextomas955",
   projectName: "cove-extensions",
   trailingSlash: false, // set explicitly - do not leave undefined
 
-  onBrokenLinks: "throw", // scaffold default - keep it; catches dead links in the stub tree
+  onBrokenLinks: "throw",
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
   },
 
-  // Parse `.md` as CommonMark and reserve MDX for `.mdx`. Docusaurus 3 defaults to `mdx`, which
-  // parses every `.md` as MDX - so an HTML comment or a bare `<Word>` anywhere in a sourced file
-  // fails the build. That is a live hazard here rather than a hypothetical one: this site sources
-  // each extension's own `docs/` folder, and one of those pages imports the extension's
-  // `CHANGELOG.md` - a file whose primary reader is GitHub, where `{/* */}` would render as
-  // literal text and an HTML comment is the only correct way to hide a note. Under `detect` the
-  // changelog stays valid CommonMark for GitHub and still builds here.
+  // Parse `.md` as CommonMark and reserve MDX for `.mdx`. The Docusaurus default parses every `.md`
+  // as MDX, so an HTML comment or a bare `<Word>` anywhere in a sourced file fails the build. This
+  // site sources each extension's own `docs/` folder, including a `CHANGELOG.md` whose primary reader
+  // is GitHub, where an HTML comment is the only way to hide a note.
   markdown: {
     format: "detect",
   },
@@ -52,7 +42,7 @@ const config: Config = {
           routeBasePath: "/", // the docs plugin owns the site root
           sidebarPath: "./sidebars.ts",
         },
-        blog: false, // no blog plugin
+        blog: false,
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -60,11 +50,10 @@ const config: Config = {
     ],
   ],
 
-  // Each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
-  // instance per extension sources that folder so there is a single doc source (no site copy to
-  // drift from). The preset above keeps the default instance id at routeBasePath '/' - giving only
-  // these extra instances custom ids is what avoids docusaurus#211 (which trips when every docs
-  // instance carries a custom id). routeBasePath prefixes stay distinct across instances.
+  // Each extension owns its docs under extensions/<Name>/docs, and one plugin-content-docs instance
+  // per extension sources that folder, so there is no site copy to drift from. The preset above keeps
+  // the default instance at routeBasePath '/' with no custom id: giving every docs instance a custom
+  // id trips docusaurus#211. routeBasePath prefixes stay distinct across instances.
   plugins: [
     [
       "@docusaurus/plugin-content-docs",
@@ -84,9 +73,8 @@ const config: Config = {
     ],
   ],
 
-  // Offline local search (no Algolia, no network at query time). Registered as a theme;
-  // the classic theme then renders its built-in navbar search box automatically. Audited OK:
-  // @easyops-cn org, MIT, Docusaurus 3.x-compatible. Stock styling.
+  // Offline local search: no Algolia and no network at query time. Registered as a theme, so the
+  // classic theme renders its built-in navbar search box.
   themes: [
     [
       "@easyops-cn/docusaurus-search-local",

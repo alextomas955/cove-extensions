@@ -18,8 +18,10 @@ public sealed class RevertJournalRetentionTests
     // Just inside the window: everything opened at Opened still survives.
     private static DateTime JustInside => Opened + CoveRevertJournal.RetentionWindow - TimeSpan.FromHours(1);
 
-    [Fact]
-    public async Task ABatchOutsideTheWindow_GoesWholeWhenTheNextBatchOpens()
+    [Theory]
+    [MemberData(nameof(MomentsTheNextBatchOpens))]
+    public async Task TheOlderBatchIsPurgedOnlyWhenTheNextBatchOpensOutsideTheWindow(
+        DateTime now, int survivingBatches, int survivingRows)
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
@@ -28,31 +30,24 @@ public sealed class RevertJournalRetentionTests
         await SeedBatchAsync(db, "run-old", Opened, rows: 3);
 
         // Opening the next batch is the only trigger - no timer, no scheduler, no second call site.
-        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustOutside);
+        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, now);
 
-        Assert.Empty(await BatchRunIdsAsync(db, "run-old"));
-        Assert.Empty(await RowRunIdsAsync(db, "run-old"));
+        Assert.Equal(survivingBatches, (await BatchRunIdsAsync(db, "run-old")).Count);
+        Assert.Equal(survivingRows, (await RowRunIdsAsync(db, "run-old")).Count);
 
         // The batch that did the purging is untouched by it.
         Assert.Single(await BatchRunIdsAsync(db, "run-new"));
     }
 
-    [Fact]
-    public async Task ABatchOneHourInsideTheWindow_SurvivesTheNextBatchOpening()
+    public static TheoryData<DateTime, int, int> MomentsTheNextBatchOpens() => new()
     {
-        // Opening a batch must not replace the stored journal: one background auto-rename would
-        // otherwise destroy the undo record of a deliberate 500-file run.
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
+        // Past the window: the older batch goes whole, its batch row and all of its rows.
+        { JustOutside, 0, 0 },
 
-        await SeedBatchAsync(db, "run-old", Opened, rows: 3);
-
-        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustInside);
-
-        Assert.Single(await BatchRunIdsAsync(db, "run-old"));
-        Assert.Equal(3, (await RowRunIdsAsync(db, "run-old")).Count);
-    }
+        // One hour inside the window: opening a batch must not replace the stored journal, or one
+        // background auto-rename would destroy the undo record of a deliberate 500-file run.
+        { JustInside, 1, 3 },
+    };
 
     [Fact]
     public async Task APartiallyRestoredBatchOutsideTheWindow_LosesItsRemainingRowsAndItsBatchRow()

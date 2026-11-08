@@ -33,10 +33,8 @@ public sealed class TransportHost : IAsyncDisposable
     // (so a parameterised route reads /job-status/{jobId}, not a request path).
     public IReadOnlyList<(string Method, string Pattern)> MountedRoutes { get; }
 
-    // Every endpoint the extension mounted, carrying the metadata its registration attached.
     public IReadOnlyList<RouteEndpoint> Endpoints { get; }
 
-    // How many jobs the handlers enqueued.
     public int EnqueuedJobs => _jobs.Enqueued.Count;
 
     private TransportHost(
@@ -58,9 +56,6 @@ public sealed class TransportHost : IAsyncDisposable
                 .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))];
     }
 
-    // Boots a server serving the extension's routes as the given principal. principal: The
-    // principal every in-handler permission check reads. store: The extension store, or null for an
-    // empty FakeStore.
     public static async Task<TransportHost> BootAsync(
         ICurrentPrincipalAccessor principal, IExtensionStore? store = null)
     {
@@ -83,8 +78,8 @@ public sealed class TransportHost : IAsyncDisposable
         ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
 
         var app = builder.Build();
-        // Initialized the way the host does: the undo endpoints resolve a scope of their own now,
-        // so a handler reached without this throws before it can answer.
+        // Initialized the way the host does: the undo endpoints resolve a scope of their own, so a
+        // handler reached without this throws before it can answer.
         await ext.InitializeAsync(app.Services);
         ext.MapEndpoints(app);
         await app.StartAsync();

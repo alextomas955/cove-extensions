@@ -4,14 +4,9 @@
  * same rename-trigger callback the panel-level "Rename all files" button calls - this modal never
  * talks to the rename-library endpoint through a separate code path.
  *
- * It composes three pieces and holds only what they share: {@link useLibraryScan} runs the scan,
- * {@link ScanProgress} shows it running, and {@link DryRunRows} owns the table and its own row walk.
- * What stays here is the dialog shell, the filter controls, and the two reasons a rename is refused.
- *
- * Prop contract: the modal is self-contained - it enqueues its own scan on mount and manages its own
- * job-polling lifecycle. The parent only supplies `onClose` and `onRenameAll` (the shared rename
- * handler) plus whether a rename triggered from elsewhere is in flight, so the footer button's
- * disabled/spinner state matches the panel-level button exactly.
+ * The modal enqueues its own scan and polls its own job. The parent supplies only `onClose`,
+ * `onRenameAll` and whether a rename started elsewhere is in flight, so the footer button's disabled
+ * and spinner state matches the panel-level button.
  */
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
@@ -53,7 +48,7 @@ export function DryRunModal({
   renaming,
   renameProgress,
 }: Readonly<{
-  /** The panel's CURRENT (possibly unsaved) options - sent so the scan previews unsaved edits. */
+  /** The panel's current options, saved or not, so the scan previews unsaved edits. */
   options: RenamerOptions;
   /**
    * Whether the panel holds edits that are not saved. The rename runs the saved options, so a dry
@@ -61,14 +56,13 @@ export function DryRunModal({
    */
   dirty: boolean;
   onClose: () => void;
-  /** The SHARED rename-trigger handler - also called by the panel-level button. */
+  /** The rename-trigger handler the panel-level button also calls. */
   onRenameAll: () => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
   /**
-   * Live rename-job progress from the panel's single existing poll. Absent (panel-direct path, or
-   * before the first sample) falls back to the button spinner. The modal creates no poller of its
-   * own for the rename job.
+   * Live rename-job progress from the panel's existing poll; absent before the first sample, which
+   * falls back to the button spinner. The modal starts no poller of its own for the rename job.
    */
   renameProgress?: RenameProgress | null;
 }>) {
@@ -87,7 +81,6 @@ export function DryRunModal({
 
   const scan = useLibraryScan(scanOptionsBlob);
 
-  // Hold the keystrokes back from the server (see SEARCH_DEBOUNCE_MS).
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(search);
@@ -97,8 +90,8 @@ export function DryRunModal({
     };
   }, [search]);
 
-  // Counts come from the aggregate, so the segment labels do not move when the filter changes - they
-  // describe the whole scan, not the rows that happen to be loaded.
+  // Counts come from the scan's aggregate, so the segment labels describe the whole scan and do not
+  // move when the filter changes or as rows load.
   const counts = scan.summary ? summaryCounts(scan.summary) : null;
 
   return (
@@ -123,10 +116,6 @@ export function DryRunModal({
             </p>
           ) : (
             <>
-              {/* Segmented filter: isolate "what's actually happening" from the noise. Counts are
-                  from the scan's own aggregate, so they stay put when the filter changes, and they
-                  are the only place the modal states them. `All` always renders - the row exists
-                  only once something was scanned. */}
               <div id={DESC_ID} className="mb-4 flex flex-wrap gap-2">
                 {SEGMENTS.map((seg) => {
                   const n = bucketTotal(counts, seg.key);
@@ -230,7 +219,6 @@ export function DryRunModal({
   );
 }
 
-/** The search field's prompt, naming how many rows the selected segment holds. */
 function filterPlaceholder(rows: number): string {
   return `Filter ${rows} row${rows === 1 ? "" : "s"}`;
 }

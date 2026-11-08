@@ -1,19 +1,13 @@
-// The browser half of a multi-select "Rename selected": a rename driven from the grid with more than
-// one card selected must reach every selected item, not just the first.
+// A rename driven from the grid with more than one card selected must reach every selected item.
 //
-// The API half already exists (PreviewEndpointTests.PreviewAsync_WithSeveralEntityIds_ReturnsAnItemForEveryOne),
-// and its own note records that the browser side had a single selectCard call and no multi-select
-// helper. This is that missing half.
-//
-// Two shape rules, both load-bearing rather than stylistic:
+// Two shape rules:
 //
 // - It runs on its own instance, so the grid holds only what this spec seeded. The worker-shared
 //   harness accumulates videos from sibling specs, and a grid of unknown contents makes "the first
 //   three cards" a different set on every run.
 // - Every assertion is a count, never a displayed filename. selectFirstCards is position-based
-//   precisely because a name-scoped selection is ordering-dependent on a shared grid, so asserting on
-//   names would hand that dependence straight back. Even the dialog assertion reads the count the
-//   confirm text quotes, not the examples it lists.
+//   because a name-scoped selection is ordering-dependent on a shared grid, and asserting on names
+//   would hand that dependence back.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
 import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
@@ -41,9 +35,9 @@ test(
     const container = isolatedHarness.container;
     const api = clientFor(isolatedHarness);
 
-    // A literal in the template guarantees every planned name differs from the current one whatever the
-    // fixture's own metadata resolves to, so "did this item's path change" stays a question about the
-    // batch's reach rather than about what the seeded media happens to carry.
+    // A literal in the template makes every planned name differ from the current one whatever the
+    // fixture's metadata resolves to, so "did this item's path change" stays a question about the
+    // batch's reach.
     const options = await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
       JSON.stringify({ FilenameTemplate: "$title [multi]" }),
@@ -66,9 +60,9 @@ test(
     }
     const originalPathById = new Map(videos.map((v) => [v.id, v.files[0].path]));
 
-    // A title each, because Cove leaves a scanned item's Title null on purpose and the template above
-    // renders $title behind a required-field gate - so without one every card would be a gated skip and
-    // the count below would read as a multi-select failure rather than as the missing metadata it is.
+    // A title each, because Cove leaves a scanned item's Title null and the template above renders
+    // $title behind a required-field gate. Without one every card is a gated skip, which reads as a
+    // multi-select failure rather than as missing metadata.
     for (const [i, video] of videos.entries()) {
       const update = await api.put(`/api/videos/${video.id}`, { Title: `Multi ${stamp} ${i}` });
       expect(update.ok, `setting the title returned ${update.status}: ${update.text}`).toBe(true);
@@ -77,15 +71,13 @@ test(
     const videosPage = new VideosPage(page, baseUrl);
     await videosPage.goto();
 
-    // Wait for the grid to hold every seeded card before selecting. selectFirstCards clamps to what is
-    // present when it counts, so without this the count assertion below would be racing the grid's
-    // client-side fetch instead of testing multi-select.
+    // selectFirstCards clamps to what is present when it counts, so without this the count below
+    // races the grid's client-side fetch instead of testing multi-select.
     await expect(videosPage.selectItemButtons).toHaveCount(SELECTED, { timeout: 15_000 });
 
     const selected = await videosPage.selectFirstCards(SELECTED);
-    // Asserted before the rename is triggered, and this is the assertion that makes the rest mean
-    // anything: selectFirstCards clamps with Math.min(count, available), so a grid holding one card
-    // would otherwise let this spec pass having proved nothing about multi-select.
+    // The clamp means a grid holding one card would otherwise let this spec pass having proved
+    // nothing about multi-select.
     expect(
       selected,
       `asked for ${SELECTED} cards and the grid only had ${selected} to select - nothing below would be about multi-select`,
@@ -93,16 +85,15 @@ test(
 
     const messages = await videosPage.renameSelected();
 
-    // The count the confirm gate quotes, not the example names it lists beneath it. The header reads
-    // "N selected items" only when every selected item will actually change, so this also rules out a
+    // The count the confirm gate quotes, not the example names it lists beneath it. The header
+    // reads "N selected items" only when every selected item will change, so this also rules out a
     // partially-skipped batch reading as a full one.
     expect(
       messages.join("\n"),
       `the confirm gate did not offer to rename all ${SELECTED} selected items`,
     ).toContain(`Rename ${SELECTED} selected items?`);
 
-    // The outcome, per entity id: as many stored paths changed as cards were selected. Polled because a
-    // settled job does not guarantee the next read reflects its write (see poll.mjs).
+    // Polled because a settled job does not guarantee the next read reflects its write.
     const changedPaths = () =>
       Promise.all(
         videos.map(async (v) => {
@@ -116,9 +107,8 @@ test(
     });
     expect(changed.length, "fewer items were renamed than were selected").toBe(selected);
 
-    // And the disk agrees, still counted rather than named: every new path is a real file, and no
-    // original path survives. A DB-only rename and a copy that left the source behind both pass the
-    // count above and fail here.
+    // A DB-only rename and a copy that left the source behind both pass the count above and fail
+    // here.
     const onDisk = await Promise.all(changed.map((path) => container.exec(["test", "-f", path])));
     expect(
       onDisk.filter((probe) => probe.exitCode === 0).length,

@@ -37,7 +37,6 @@ public sealed class CrossVolumeUndoTests
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
 
-            // Disk: file back at old byte-for-byte, gone from new, no in-flight copy anywhere.
             Assert.True(File.Exists(oldFull), "file restored to old (cross) path");
             Assert.Equal(original, File.ReadAllText(oldFull));
             Assert.False(File.Exists(newFull), "new path gone after a verified cross undo");
@@ -85,14 +84,11 @@ public sealed class CrossVolumeUndoTests
             var replayer = new UndoReplayer(port, undoBus, cross: faultMover);
             var result = await replayer.RevertAsync(batch, default);
 
-            // The reverse move reports VerifyFailed, a reported skip, never Undone.
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
             Assert.Equal(UndoStopReason.ReverseMoveVerifyFailed, Assert.Single(result.Skipped).Stop);
             Assert.Empty(undoBus.Published);
 
-            // centerpiece: the file is not lost - the new copy survives byte-for-byte, and the old slot
-            // is not half-written (no promoted file, no leftover in-flight copy).
             Assert.True(File.Exists(newFull), "the NEW copy MUST survive a failed copy-back verify");
             Assert.Equal(original, File.ReadAllText(newFull));
             Assert.False(File.Exists(oldFull), "the OLD slot must not be half-written");
@@ -134,7 +130,6 @@ public sealed class CrossVolumeUndoTests
             Assert.Single(result.Failed);
             Assert.Empty(undoBus.Published);
 
-            // The file is rolled back to new across the volume (copy-back) with original bytes; old empty.
             Assert.True(File.Exists(newFull), "reverse save throw must roll the file back to NEW across the volume");
             Assert.Equal(original, File.ReadAllText(newFull));
             Assert.False(File.Exists(oldFull), "old slot must not hold the file after a cross rollback");
@@ -180,7 +175,6 @@ public sealed class CrossVolumeUndoTests
             Assert.Equal(UndoStopReason.OriginalDirectoryUnavailable, Assert.Single(result.Skipped).Stop);
             Assert.Empty(undoBus.Published);
 
-            // The file is not lost - it stays at new byte-for-byte.
             Assert.True(File.Exists(newFull), "an offline OLD drive must leave the file at NEW");
             Assert.Equal(original, File.ReadAllText(newFull));
         }
@@ -193,8 +187,6 @@ public sealed class CrossVolumeUndoTests
 
     // Seeds the DB so the file currently sits at new ("My Film.mkv" under newRoot) and builds a
     // RevertBatch whose single row records OldPath under oldRoot.
-    // The old folder is pre-seeded too so the reverse save's recomputed Path resolves to the old
-    // path. Returns the live port, the batch, and (videoId, fileId).
     private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
         SeedReverseBatchAsync(DbContext db, string oldRoot, string newRoot, string oldFull, string newFull)
     {
@@ -210,7 +202,6 @@ public sealed class CrossVolumeUndoTests
         db.Set<Cove.Core.Entities.Folder>().Add(oldFolderRow);
         await db.SaveChangesAsync();
 
-        // Seed the file at its current (new) location: the new folder + the renamed basename.
         var (_, videoId, fileId) =
             await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film");
 

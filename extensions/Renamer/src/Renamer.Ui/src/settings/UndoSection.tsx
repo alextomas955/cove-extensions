@@ -13,8 +13,6 @@ import { useLastBatch } from "./useLastBatch";
 
 type UndoStatus = ReturnType<typeof buildUndoStatus>;
 
-// What the footer shows beside the extension id, in precedence order: the check in flight, the check
-// failing, an undoable rename, then an expired one or none.
 function UndoStatusRow({
   loading,
   summaryError,
@@ -83,15 +81,8 @@ function UndoStatusRow({
   );
 }
 
-export function UndoSection({ refreshKey }: Readonly<{ refreshKey: number }>) {
-  const {
-    summary,
-    loadedAtMs,
-    loading,
-    error: summaryError,
-    reload,
-    undo,
-  } = useLastBatch(refreshKey);
+export function UndoSection() {
+  const { summary, loadedAtMs, loading, error: summaryError, reload, undo } = useLastBatch();
   const [confirming, setConfirming] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [feedback, setFeedback] = useState<UndoFeedback | null>(null);
@@ -124,7 +115,7 @@ export function UndoSection({ refreshKey }: Readonly<{ refreshKey: number }>) {
         <UndoStatusRow
           loading={loading}
           summaryError={summaryError}
-          onRetry={() => void reload()}
+          onRetry={reload}
           status={status}
           hasUndoable={hasUndoable}
           feedback={feedback}

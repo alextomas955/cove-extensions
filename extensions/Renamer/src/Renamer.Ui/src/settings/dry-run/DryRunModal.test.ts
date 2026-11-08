@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 // The row walk follows a page that carried no rows. `/scan-rows` answers with a scripted sequence in
 // which a zero-row page carries a live cursor, and the test reads the footer, where a user learns
-// whether the walk is finished. The scan-job poller resolves at once. One test waits on real elapsed
-// time, because it asserts that a stopped walk stays stopped.
-import { test, expect, vi, beforeEach } from "vitest";
+// whether the walk is finished.
+//
+// The clock is fake throughout. Each wait is `vi.waitFor`, which moves that clock: Testing Library's
+// own `findBy*` detects a fake clock only under Jest, so here it would wait on a clock nothing
+// advances.
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup, act } from "@testing-library/react";
 
-import { waitFor } from "../../common/lib/flushRender";
+import { createTestQueryClient, withQueryClient } from "../../common/lib/testQueryClient";
 
 import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
@@ -15,31 +18,52 @@ import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
 // The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
+const RUN_ID = "run-under-test";
+
 const host = vi.hoisted(() => ({
   pages: [] as unknown[],
   rowReads: 0,
   // Past this the endpoint never answers, so a runaway walk fails a count instead of hanging.
   readCap: 40,
+  // The run the enqueue hands back. A test sets it to a run the store no longer holds.
+  scanRunId: "run-under-test",
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (path: string) => {
-    if (path.endsWith("/scan-library")) return Promise.resolve({ jobId: "scan-under-test" });
-    if (path.endsWith("/last-scan")) return Promise.resolve(summary());
-    if (path.endsWith("/scan-rows")) {
-      const page =
-        host.rowReads < host.pages.length
-          ? host.pages[host.rowReads]
-          : host.pages[host.pages.length - 1];
-      host.rowReads += 1;
-      if (host.rowReads > host.readCap) return new Promise(() => undefined);
-      return page === null ? Promise.reject(new Error("500 boom")) : Promise.resolve(page);
+vi.mock("@cove-extensions/ui-shared/extensionRequest", () => {
+  class ApiError extends Error {
+    constructor(
+      readonly status: number,
+      message: string,
+    ) {
+      super(message);
     }
-    return Promise.reject(new Error(`unscripted path ${path}`));
-  },
-}));
+  }
+  return {
+    ApiError,
+    errorText: (err: unknown) => String(err),
+    requestJson: (path: string) => {
+      if (path.endsWith("/scan-library"))
+        return Promise.resolve({ jobId: "scan-under-test", runId: host.scanRunId });
+      // Only one scan's figures are kept, and only for the caller that ran it. Any other run id is
+      // the 404 the server answers once a later scan has replaced them.
+      if (path.includes("/last-scan/")) {
+        return path.endsWith(`/last-scan/${RUN_ID}`)
+          ? Promise.resolve(summary())
+          : Promise.reject(new ApiError(404, "Not Found"));
+      }
+      if (path.endsWith("/scan-rows")) {
+        const page =
+          host.rowReads < host.pages.length
+            ? host.pages[host.rowReads]
+            : host.pages[host.pages.length - 1];
+        host.rowReads += 1;
+        if (host.rowReads > host.readCap) return new Promise(() => undefined);
+        return page === null ? Promise.reject(new Error("500 boom")) : Promise.resolve(page);
+      }
+      return Promise.reject(new Error(`unscripted path ${path}`));
+    },
+  };
+});
 
 // The scan job's completion is not what is under test, so the poll resolves at once with the verdict
 // the modal reads before it requests the summary.
@@ -50,16 +74,8 @@ vi.mock("../jobStatusStore", () => ({
   }),
 }));
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-// Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended.
-function walkFinished(modal: { text: () => string }): boolean {
-  const text = modal.text();
-  return text.includes("in scan order") && !text.includes("rows loaded");
-}
+// The footer a finished walk leaves: no running count, and no "loaded" clause.
+const WALK_FINISHED = /^All \d+ rows, in scan order$/;
 
 function row(fileId: number): ScanRow {
   return {
@@ -115,42 +131,46 @@ function summary(): ScanSummaryView {
 }
 
 function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  const render = (props: { options: RenamerOptions; dirty: boolean }) => {
-    root.render(
+  // One client for the whole mount: a fresh one per render would give each re-render an empty cache
+  // and restart a walk the test has already loaded.
+  const queryClient = createTestQueryClient();
+  const tree = (props: { options: RenamerOptions; dirty: boolean }) =>
+    withQueryClient(
       createElement(DryRunModal, {
         ...props,
         onClose: () => undefined,
         onRenameAll: () => undefined,
         renaming: false,
       }),
+      queryClient,
     );
-  };
-  render({ options: someOptions(), dirty });
+
+  const { container, rerender } = render(tree({ options: someOptions(), dirty }));
 
   return {
-    render,
-    text: () => container.textContent,
-    renameButton: () =>
-      [...container.querySelectorAll("button")].find((b) => b.textContent.startsWith("Rename ")),
-    unmount: () => {
-      root.unmount();
-      container.remove();
+    render: (props: { options: RenamerOptions; dirty: boolean }) => {
+      rerender(tree(props));
     },
+    text: () => container.textContent,
+    renameButton: () => screen.getByRole<HTMLButtonElement>("button", { name: /^Rename / }),
   };
 }
 
-beforeEach(() => {
-  host.pages.length = 0;
-  host.rowReads = 0;
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
 });
 
-// The most reads the script below can honestly need. Two requests reach the endpoint on their own
-// account - the walk's primed first page and the continuation's one follow-up - and whichever of them
-// meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
-// leaves this behind immediately.
+beforeEach(() => {
+  vi.useFakeTimers();
+  host.pages.length = 0;
+  host.rowReads = 0;
+  host.scanRunId = RUN_ID;
+});
+
+// The most reads the script below can need. Two requests reach the endpoint on their own account,
+// the walk's primed first page and the continuation's one follow-up, and whichever meets the
+// failure ends the walk. A retry loop would pass this count at once.
 const MOST_READS_A_FAILING_WALK_NEEDS = 4;
 
 test("the walk follows a page that carried no rows and reaches the end of the library", async () => {
@@ -166,7 +186,7 @@ test("the walk follows a page that carried no rows and reaches the end of the li
   const modal = mountModal();
   // The finished footer, which is the unfinished one without its "loaded" clause. The unfinished form
   // is on screen from the first render, so waiting for the shared half alone would return at once.
-  await waitFor("the walk to reach the end of the library", () => walkFinished(modal));
+  await vi.waitFor(() => screen.getByText(WALK_FINISHED));
 
   expect(modal.text(), "the walk stopped before the end of the library").toContain(
     "All 5 rows, in scan order",
@@ -174,8 +194,7 @@ test("the walk follows a page that carried no rows and reaches the end of the li
   // The unfinished form and the count it carried are what a walk that stopped early would leave.
   expect(modal.text()).not.toContain("rows loaded");
   expect(modal.text()).not.toContain("items so far");
-  modal.unmount();
-}, 30_000);
+});
 
 test("a failed page stops the walk instead of reissuing the same request without end", async () => {
   // A zero-row page continues the walk, and then the endpoint fails: that leaves the cursor live with
@@ -183,9 +202,7 @@ test("a failed page stops the walk instead of reissuing the same request without
   host.pages.push(budgetStopped([], 500), null);
 
   const modal = mountModal();
-  await waitFor("the walk to report the failure", () =>
-    modal.text().includes("Couldn't load more rows"),
-  );
+  await vi.waitFor(() => screen.getByText(/Couldn.t load more rows/));
   const readsAtRest = host.rowReads;
   expect(readsAtRest, "the walk kept reissuing a failing request").toBeLessThanOrEqual(
     MOST_READS_A_FAILING_WALK_NEEDS,
@@ -193,12 +210,14 @@ test("a failed page stops the walk instead of reissuing the same request without
 
   // One count cannot show that a walk stopped: a live one and a stopped one look alike at an instant,
   // so let several more settle periods pass and require the count not to move. A duration, not a
-  // condition: the assertion is that nothing happens while it elapses.
-  await sleep(1_000);
+  // condition: the assertion is that nothing happens while it elapses. Inside `act`, so a render a
+  // resumed walk would need lands within the window rather than after the assertion.
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
   expect(host.rowReads, "the walk resumed on its own after the failure").toBe(readsAtRest);
   expect(modal.text()).toContain("Couldn't load more rows");
-  modal.unmount();
-}, 30_000);
+});
 
 test("a dry run of unsaved settings will not start the rename", async () => {
   // The scan previews what is on screen; the rename runs what is saved. With a kind excluded but not
@@ -206,23 +225,21 @@ test("a dry run of unsaved settings will not start the rename", async () => {
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal({ dirty: true });
-  await waitFor("the rows to load", () => walkFinished(modal));
+  await vi.waitFor(() => screen.getByText(WALK_FINISHED));
 
-  expect(modal.renameButton()?.disabled).toBe(true);
+  expect(modal.renameButton().disabled).toBe(true);
   expect(modal.text()).toContain("Previewing unsaved settings. Renaming uses the saved ones.");
-  modal.unmount();
-}, 30_000);
+});
 
 test("a dry run of saved settings starts the rename", async () => {
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal();
-  await waitFor("the rows to load", () => walkFinished(modal));
+  await vi.waitFor(() => screen.getByText(WALK_FINISHED));
 
-  expect(modal.renameButton()?.disabled).toBe(false);
+  expect(modal.renameButton().disabled).toBe(false);
   expect(modal.text()).not.toContain("Previewing unsaved settings");
-  modal.unmount();
-}, 30_000);
+});
 
 test("discarding the edits behind the modal does not make its stale rows renamable", async () => {
   // Discard clears `dirty` and puts the saved settings back, while these rows still describe the
@@ -230,15 +247,24 @@ test("discarding the edits behind the modal does not make its stale rows renamab
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal({ dirty: true });
-  await waitFor("the rows to load", () => walkFinished(modal));
-  expect(modal.renameButton()?.disabled).toBe(true);
+  await vi.waitFor(() => screen.getByText(WALK_FINISHED));
+  expect(modal.renameButton().disabled).toBe(true);
 
   modal.render({ options: { ...someOptions(), filenameTemplate: "$title" }, dirty: false });
-  await waitFor("the discard to be reflected", () =>
-    modal.text().includes("changed after these rows were scanned"),
-  );
+  await vi.waitFor(() => screen.getByText(/changed after these rows were scanned/));
 
-  expect(modal.renameButton()?.disabled).toBe(true);
+  expect(modal.renameButton().disabled).toBe(true);
   expect(modal.text()).toContain("changed after these rows were scanned");
-  modal.unmount();
-}, 30_000);
+});
+
+test("a scan whose figures a later scan replaced says so instead of showing another scan's", async () => {
+  // The store keeps one scan's figures, served to the caller that ran it. This run's id no longer
+  // matches what it holds, which is what the server answers 404 for.
+  host.scanRunId = "a-run-the-store-no-longer-holds";
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal();
+  await vi.waitFor(() => screen.getByText(/replaced yours/));
+
+  expect(modal.text()).toContain("Run the dry run again.");
+});

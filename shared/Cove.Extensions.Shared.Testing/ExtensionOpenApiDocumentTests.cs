@@ -71,8 +71,8 @@ public abstract class ExtensionOpenApiDocumentTests
 
         // Strict, not the Web default: the Web default also accepts numbers written as strings, which
         // the generator reports as an integer-or-string union on every numeric field. The server only
-        // ever writes a JSON number. This overstates the request side, where the host does still accept
-        // the looser form, and a client that never sends it is the outcome worth having.
+        // ever writes a JSON number. It overstates the request side, where the host still accepts the
+        // looser form.
         builder.Services.ConfigureHttpJsonOptions(
             options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
@@ -104,8 +104,7 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.Equal(routes.Count, operations.Count);
 
         // Every mounted route must also say what it returns. The Assert.NotEmpty above rules out the
-        // empty document that would otherwise satisfy this by having nothing to disagree about. No
-        // allowlist of documented routes: that is the shape that lets a gate lose a route in silence.
+        // empty document that would otherwise satisfy this by having nothing to disagree about.
         var withoutResponseSchema = operations
             .Where(entry => entry.Operation.Responses?.Values
                 .Any(response => response.Content is { Count: > 0 }) != true)
@@ -130,9 +129,6 @@ public abstract class ExtensionOpenApiDocumentTests
             return;
         }
 
-        // This test is the gate. Writing here and diffing in a later CI step would split the two: a
-        // developer's `dotnet test` reports success while silently dirtying the working tree, and the
-        // separate step cannot tell an unchanged-because-correct document from one whose emit never ran.
         Assert.True(
             File.Exists(path),
             $"No committed wire document at {relativePath}. Re-run with {UpdateVariable}=1 to write it.");
@@ -142,16 +138,23 @@ public abstract class ExtensionOpenApiDocumentTests
 
     // A StringWriter takes its line breaks from Environment.NewLine, which would otherwise leave the
     // Windows and Linux runs each rewriting what the other committed. The non-empty precondition comes
-    // first because a rewrite that read no input at all produces a clean-looking result.
+    // first because a rewrite that read no input produces a clean-looking result.
     private static string NormalizeForCommit(string serialized)
     {
         Assert.NotEmpty(serialized);
         return serialized.ReplaceLineEndings("\n");
     }
 
-    // The catalog is the one place an extension's directory is written down. The walk up to it beats a
-    // counted-out "..": the test assembly's depth below the repo root varies with configuration and
-    // target framework.
+    /// <summary>The committed wire document's path for <paramref name="extensionId"/>.</summary>
+    /// <remarks>
+    /// Exposed so a test can assert a live response against the contract the TypeScript types are
+    /// generated from, rather than against the C# type both sides already derive from.
+    /// </remarks>
+    public static string CommittedDocumentPath(string extensionId) => ResolveDocumentPath(extensionId).Absolute;
+
+    // The catalog is the one place an extension's directory is written down, and it is walked up to
+    // rather than reached by a counted-out "..": the test assembly's depth below the repo root varies
+    // with configuration and target framework.
     private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

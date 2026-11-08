@@ -57,12 +57,7 @@ export async function storedOptions(api) {
   return blob ? JSON.parse(blob) : undefined;
 }
 
-/**
- * Runs one SQL statement in the harness's database container and returns its unaligned output.
- *
- * The statement travels as an environment variable, so it can hold quotes with no escaping rule, and
- * the credentials come from the container's own environment rather than a copy of the compose file.
- */
+/** Runs one SQL statement in the harness's database container and returns its unaligned output. */
 export async function queryDb(harness, sql) {
   const result = await harness.execDb(
     ["sh", "-c", 'psql -v ON_ERROR_STOP=1 -tAX -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$SQL"'],

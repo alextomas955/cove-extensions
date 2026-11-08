@@ -1,7 +1,6 @@
-// The host entity selector the panel uses for id-keyed tag rules, asserted against a real host because
-// nothing local can: the extension declares the host component's props in an ambient .d.ts, so a
-// type-check only confirms the call sites agree with that transcription - it would agree just as
-// happily with a wrong one. The one-time conversion of a name-keyed blob is options-migration.spec.mjs.
+// The host entity selector the panel uses for id-keyed tag rules. The extension declares the host
+// component's props in an ambient .d.ts, so a type-check confirms only that the call sites agree
+// with that transcription, and would agree as happily with a wrong one.
 import { test, expect, pollUntil, storedOptions } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
@@ -48,9 +47,11 @@ test("the host tag selector stores the picked tag's id and renders its name back
   await result.click();
 
   // Scoped to the add row rather than to the page: every destination on this panel draws the same
-  // two controls, so an unscoped lookup would reach whichever one happens to render first.
-  const addRow = page.getByRole("button", { name: /Add tag rule/i }).locator("xpath=..");
-  await addRow.locator("select").selectOption("/data");
+  // two controls, so an unscoped lookup would reach whichever one happens to render first. The row
+  // is named after the button that commits it, so the scope is a query rather than a hop upward.
+  const addRow = page.getByRole("group", { name: "Add tag rule", exact: true });
+  // Named, not just scoped: the tag search box in the same row is a combobox too.
+  await addRow.getByRole("combobox", { name: "Under", exact: true }).selectOption("/data");
   await addRow.getByPlaceholder("$studio/$year").fill("routed");
   await page.getByRole("button", { name: /Add tag rule/i }).click();
   await settings.save();

@@ -14,36 +14,28 @@ public sealed class CollisionTests
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
-    [Fact]
-    public async Task FirstCandidateTaken_SuffixApplied()
+    [Theory]
+    [InlineData(0, "My Film (1).mkv")]
+    [InlineData(1, "My Film (2).mkv")]
+    public async Task ATakenCandidate_AdvancesToTheNextFreeSuffix(
+        int occupiedSuffixes, string expectedBasename)
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // "My Film.mkv" is taken by some other file (id 99) in folder 5 → suffix to " (1)".
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
+        for (int n = 1; n <= occupiedSuffixes; n++)
+        {
+            port.SeedOccupied(5, $"My Film ({n}).mkv", 99 - n);
+        }
         var planner = new RenamerPlanner(port);
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Rename, item.Status);
-        Assert.Equal("My Film (1).mkv", item.NewBasename);
-        Assert.EndsWith("My Film (1).mkv", item.NewFullPath);
+        Assert.Equal(expectedBasename, item.NewBasename);
+        Assert.EndsWith(expectedBasename, item.NewFullPath);
         Assert.True(item.Suffixed);
-    }
-
-    [Fact]
-    public async Task SecondCandidateAlsoTaken_NextSuffix()
-    {
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(File(1, "raw.mkv")));
-        port.SeedOccupied(5, "My Film.mkv", 99);
-        port.SeedOccupied(5, "My Film (1).mkv", 98);
-        var planner = new RenamerPlanner(port);
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
-
-        Assert.Equal("My Film (2).mkv", Assert.Single(plan.Items).NewBasename);
     }
 
     [Fact]

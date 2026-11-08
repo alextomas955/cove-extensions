@@ -55,16 +55,10 @@ public class ResolutionLabelTests
     [InlineData(143, 136)]
     [InlineData(136, 136)]
     [InlineData(100, 100)]
-    public void FromDimensions_TooSmallForAnyLabel_ReturnsEmpty(int width, int height)
-    {
-        Assert.Equal(string.Empty, ResolutionLabel.FromDimensions(width, height));
-    }
-
-    [Theory]
     [InlineData(0, 1080)]
     [InlineData(1920, 0)]
     [InlineData(-1, -1)]
-    public void FromDimensions_NonPositiveDimension_ReturnsEmpty(int width, int height)
+    public void FromDimensions_ReturnsEmpty(int width, int height)
     {
         Assert.Equal(string.Empty, ResolutionLabel.FromDimensions(width, height));
     }

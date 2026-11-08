@@ -1,28 +1,20 @@
 // Not in the barrel: this module reaches the host runtime and the SDK's error class through
 // `./extensionRequest`, and keeping it behind the `./postAction` subpath is what lets a consumer
 // import the barrel without taking either.
-import { request, ApiError } from "./extensionRequest";
+import { request } from "./extensionRequest";
 
 /**
- * POST an extension route. Contract: a real {@link ApiError} is rethrown (the host's onError alert
- * shows it); an empty 2xx response body resolves `{}` as success, as does any other non-ApiError
- * raised after a 2xx. Background-job routes answer with a real body, which is returned as-is.
+ * POST an extension route, resolving the parsed response body, or `undefined` for the bodyless 2xx
+ * that a fire-and-forget route answers with. `request` rather than `requestJson`, because an empty
+ * body is such a route's success and not its failure.
+ *
+ * Nothing is caught. A non-ok status, a network or cancellation failure and a malformed 2xx body all
+ * reach the caller, where the host's onError alert reads them; resolving a value for any of them
+ * would report an action the server never accepted as done.
  */
-export async function postAction<T extends object = Record<string, never>>(
+export function postAction<T extends object = Record<string, never>>(
   path: string,
   body?: unknown,
-): Promise<T | Record<string, never>> {
-  try {
-    // The coalesce is load-bearing, not defensive: the /renamer response is the bodyless 2xx that
-    // `request` resolves `undefined` for, so this is the live path here. `request` rather than
-    // `requestJson` for exactly that reason: an empty body is this route's success, not its failure.
-    const res = await request<T>(path, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    return res ?? {};
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    return {};
-  }
+): Promise<T | undefined> {
+  return request<T>(path, { method: "POST", body: JSON.stringify(body) });
 }

@@ -1,10 +1,6 @@
 /**
- * FilenameSection - the "Filename & folder" card and its two blocks, "Filename" and "Where files
- * go": presets, the filename/folder template inputs with their at-caret token insertion, inline
- * template validation, and the token legend. Presentational only - every edit flows up through the
- * `set`/`insertToken` callbacks the panel threads in from useRenamerOptions. Owns the `col-span-2`
- * grid cell (with the bad-blob recovery banner) so the card sits beside the sticky live-preview
- * column.
+ * The "Filename & folder" card. It owns the `col-span-2` grid cell, so the card sits beside the
+ * sticky live-preview column.
  */
 import type { SetOption } from "./useRenamerOptions";
 import type { Ref, RefObject } from "react";
@@ -24,12 +20,6 @@ import { TokenLegend } from "./TokenLegend";
 import { TemplateAdvisories } from "./templateAdvisories";
 import { PRESETS } from "./presets";
 
-/**
- * One-click starter templates. Each chip sets FilenameTemplate via the parent's
- * set() path so `dirty` flips and the existing debounced live preview re-renders - no toast, no
- * confirm. Chips reuse the legend-chip class (prose labels drop font-mono). Every preset label is a
- * React text node (auto-escaped); the templates come from the static PRESETS list.
- */
 function PresetRow({ onApply }: Readonly<{ onApply: (filenameTemplate: string) => void }>) {
   return (
     <div>

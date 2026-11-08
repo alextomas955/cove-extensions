@@ -1,35 +1,26 @@
 import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
 
-// Page Object for the Renamer settings panel at /settings/renamer.
 const SETTINGS_PATH = "/settings/renamer";
 
-// The budget for the whole visit, however many navigations it takes.
-//
-// One clock rather than a fresh one per navigation, because what has to hold is that this file's own
-// error arrives before the per-test timeout: a wait that outlives the test reports Playwright's
-// generic timeout instead, which names none of the causes below.
-//
-// It has to cover a slow response on the panel's critical path - the extension bundle the host serves,
-// and the settings blob the panel reads - on a cold container under a loaded CI runner. Neither is
-// broken when it is slow, and neither raises any of the signals below, so waiting is the only
-// instrument that helps.
+// The budget for the whole visit, however many navigations it takes. One clock rather than a fresh
+// one per navigation, so that this file's own error arrives before the per-test timeout, which
+// names none of the causes below. It has to cover the extension bundle and the settings blob
+// arriving slowly on a cold container under a loaded CI runner.
 const PANEL_VISIT_BUDGET_MS = 120_000;
 
-// How many times the host may answer with a recoverable signal before the page is called unreachable.
-// A signal is proof the wait was not for something that will never arrive, so it earns another
-// navigation - but not more time, because the host can keep giving the same answer and an unbounded
-// retry turns a permanent failure into a hung test.
+// How many times the host may answer with a recoverable signal before the page is called
+// unreachable. A signal earns another navigation but no more time: the host can keep giving the
+// same answer, and an unbounded retry turns a permanent failure into a hung test.
 const MAX_RECOVERIES = 3;
 
 // The host renders its settings page from a lazily-imported chunk. When that fetch fails the host
-// catches it and paints this sentence instead of the page, so the route stays correct and no locator
-// will ever resolve. It is transient, and a fresh navigation refetches the chunk.
+// catches it and paints this sentence instead of the page, so the route stays correct and no
+// locator will ever resolve. It is transient, and a fresh navigation refetches the chunk.
 const CHUNK_FAILURE_TEXT = /Failed to fetch dynamically imported module/;
 
 // How many times one navigation may lose the transport before it is reported as a failed visit. A
 // runner can change its network under an in-flight request (`net::ERR_NETWORK_CHANGED`), which is
-// neither the host nor the panel: nothing has answered yet, so there is nothing to diagnose and the
-// only useful response is to ask again immediately.
+// neither the host nor the panel: nothing has answered yet, so there is nothing to diagnose.
 const NAVIGATION_ATTEMPTS = 3;
 
 export class RenamerSettingsPage {
@@ -48,32 +39,29 @@ export class RenamerSettingsPage {
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
-    // The whole-library run's success banner - the poll target that proves the rename job settled,
-    // not the correctness proof (disk and DB state are asserted separately). Matched on the opening
-    // sentence alone, so a spec's own seeding decides nothing about the locator.
+    // The whole-library run's success banner: a poll target that says the rename job settled, never
+    // a correctness proof. Matched on the opening sentence alone, so a spec's own seeding decides
+    // nothing about the locator.
     this.renameAllFeedback = page.getByText(/Rename finished\./);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button - dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), not a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
-    // The panel's own sentence for "there is nothing to put back" - the branch that replaces the whole
-    // status-line-plus-button row, so it is what a withheld control looks like to a user.
+    // The branch that replaces the whole status-line-plus-button row, so it is what a withheld undo
+    // control looks like to a user.
     this.noRenameToUndoText = page.getByText("No rename to undo.");
-    // Always-visible switch under the flat "Run & automation" section (the settings redesign
-    // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
+    // Always visible: the switch sits directly under "Run & automation", with no sub-section header
+    // to expand first.
     this.autoRenameOnUpdateSwitch = page.getByRole("switch", { name: "Auto-rename on update" });
-    // The "Dry run" button opens the whole-library preview modal.
     this.dryRunButton = page.getByRole("button", { name: "Dry run" });
-    // DryRunModal's shell: role="dialog" aria-labelledby the "Dry run" title.
     this.dryRunDialog = page.getByRole("dialog", { name: "Dry run" });
-    // The modal footer's "Rename N files" button - enabled only once the scan lands with a will-change count.
+    // Enabled only once the scan lands with a will-change count.
     this.dryRunRenameButton = this.dryRunDialog.getByRole("button", {
       name: /^Rename \d+ files?$/,
     });
     this.dryRunCloseButton = this.dryRunDialog.getByRole("button", { name: "Close" });
   }
 
-  /** Opens the panel and returns once it has rendered. */
   async goto() {
     await this.#navigate(() => this.page.goto(this.panelUrl));
     await this.waitForPanel();
@@ -82,8 +70,7 @@ export class RenamerSettingsPage {
   /**
    * Runs one navigation, retrying it while the transport itself fails, and reports whether it
    * landed. A lost transport is not an answer from the host, so it is not a signal the visit can
-   * count; the caller's budget still bounds the visit, and {@link waitForPanel} names the failures in
-   * its own error rather than letting one escape from here.
+   * count, and {@link waitForPanel} names it in its own error rather than letting one escape here.
    */
   async #navigate(navigate) {
     for (let attempt = 1; ; attempt++) {
@@ -97,29 +84,22 @@ export class RenamerSettingsPage {
   }
 
   /**
-   * Waits for the panel, re-navigating for as long as the host keeps resolving the route away from it.
-   *
-   * Two host behaviours put the panel permanently out of reach, and waiting longer fixes neither.
+   * Waits for the panel, re-navigating for as long as the host keeps resolving the route away from
+   * it. Two host behaviours put the panel permanently out of reach, and waiting longer fixes
+   * neither. Each raises a signal, and a fresh navigation recovers both.
    *
    * `/settings/renamer` is not one of the host's own routes. The host carries the unknown key only
    * until it finishes loading extensions, then resolves it against the settings tabs that load
    * produced. A load that failed produces none, and the host answers by switching to its first
-   * built-in tab and rewriting the address to match. Nothing after that rewrite can reach the panel,
-   * because the address no longer names the extension.
+   * built-in tab and rewriting the address to match. Nothing after that rewrite reaches the panel.
    *
-   * Separately, the host imports its settings page as a chunk, and a failed fetch leaves it painting
-   * {@link CHUNK_FAILURE_TEXT} on the correct route indefinitely.
+   * Separately, the host imports its settings page as a chunk, and a failed fetch leaves it
+   * painting {@link CHUNK_FAILURE_TEXT} on the correct route indefinitely.
    *
-   * Each is a signal rather than a timeout, and a fresh navigation recovers both.
-   *
-   * Everything else is the host being slow rather than wrong, and it looks identical from here: the
-   * route stays correct, no signal fires, and no locator has anything to match yet. There is nothing
-   * to wait on in that state, so the budget is the whole instrument.
+   * A host that is merely slow looks identical from here - correct route, no signal, no locator
+   * matching yet - so the budget is the only instrument for it.
    */
   async waitForPanel() {
-    // Bounded by what the test has left. The budget above is what a cold container needs; a test
-    // with less than that remaining cannot be given it, and a wait that outlives the test reports
-    // the runner's generic timeout in place of the message below.
     const budgetMs = remainingVisitBudgetMs(PANEL_VISIT_BUDGET_MS);
     const deadline = Date.now() + budgetMs;
     let discards = 0;
@@ -211,11 +191,9 @@ export class RenamerSettingsPage {
 
   /**
    * Clicks "Rename all files" and waits for the in-panel success banner. Saves first when the panel
-   * is dirty: the button is disabled while there are unsaved edits (disabled={dirty || …}), because
-   * a real whole-library rename must run the saved rules, not the in-flight ones - so a caller that
-   * just edited the template must persist before the button is clickable, mirroring the panel's own
-   * renameLibrary flow. The success banner only gates the poll (the scan + rename job pair settling);
-   * it is never the correctness assertion - the caller proves disk+DB state itself.
+   * is dirty, because the panel disables the button while there are unsaved edits: a whole-library
+   * rename runs the saved rules, not the in-flight ones. The banner only says the scan and rename
+   * jobs settled; the caller proves disk and DB state itself.
    */
   async renameAll() {
     if (await this.unsavedChangesIndicator.isVisible()) {
@@ -225,10 +203,7 @@ export class RenamerSettingsPage {
     await this.renameAllFeedback.waitFor({ state: "visible", timeout: 60_000 });
   }
 
-  /**
-   * Enables the "Auto-rename on update" switch and returns without saving - call save() after,
-   * same as any other edit. The switch is always visible in the flat "Run & automation" section.
-   */
+  /** Enables the "Auto-rename on update" switch without saving - call save() after. */
   async enableAutoRenameOnUpdate() {
     await this.autoRenameOnUpdateSwitch.waitFor({ state: "visible", timeout: 10_000 });
     const isChecked = await this.autoRenameOnUpdateSwitch.getAttribute("aria-checked");
@@ -238,21 +213,18 @@ export class RenamerSettingsPage {
   }
 
   async save() {
-    // The panel draws its save bar only while it holds unsaved edits, so the button is absent rather
-    // than disabled when there is nothing to save. Waiting for it here bounds that case: a click
-    // alone takes no timeout of its own and would spend the whole test on a control that is never
-    // coming.
+    // The panel draws its save bar only while it holds unsaved edits, so the button is absent
+    // rather than disabled when there is nothing to save. A click alone takes no timeout of its
+    // own, so it would spend the whole test on a control that is never coming.
     await this.saveChangesButton.waitFor({ state: "visible", timeout: 10_000 });
     await this.saveChangesButton.click();
     await this.unsavedChangesIndicator.waitFor({ state: "hidden", timeout: 10_000 });
   }
 
   /**
-   * Leaves the panel holding {@link template}, saved.
-   *
-   * Reads the field before editing it because the settings are per-instance and a worker's instance
-   * is shared: a sibling spec may already have saved this value, and re-entering it produces no edit,
-   * no save bar and nothing to save.
+   * Leaves the panel holding {@link template}, saved. Reads the field first because a worker's
+   * instance is shared: a sibling spec may already have saved this value, and re-entering it
+   * produces no edit, no save bar and nothing to save.
    */
   async ensureFilenameTemplate(template) {
     if ((await this.filenameTemplateInput.inputValue()) === template) return;
@@ -266,18 +238,21 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
-  /** The video live-preview card's full text, used to assert the debounced preview updated. */
+  /**
+   * The video live-preview card. Each preview card is named after the sample it shows, so this is
+   * that sample's card rather than whatever element happens to hold the word.
+   */
   liveVideoSampleCard() {
-    return this.page.getByText("Video", { exact: true }).locator("..");
+    return this.page.getByRole("group", { name: "Video", exact: true });
   }
 
   /**
    * Waits until the panel has settled on its "No rename to undo." branch.
    *
-   * A caller asserting that the undo control is withheld must wait on this sentence first, never on the
-   * control's absence alone: the section renders a "Checking for a recent rename…" spinner until its
-   * /last-batch fetch resolves, and the control is absent throughout that window too - so an immediate
-   * absence check passes on a panel that has not yet decided.
+   * A caller asserting that the undo control is withheld waits on this sentence, never on the
+   * control's absence alone: the section renders a "Checking for a recent rename…" spinner until
+   * its /last-batch fetch resolves, and the control is absent throughout that window too, so an
+   * immediate absence check passes on a panel that has not yet decided.
    */
   async waitForNoRenameToUndo() {
     await this.noRenameToUndoText.waitFor({ state: "visible", timeout: 30_000 });

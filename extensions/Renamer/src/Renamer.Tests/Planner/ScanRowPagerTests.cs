@@ -13,7 +13,6 @@ public sealed class ScanRowPagerTests
 
     private static readonly RenamerOptions Options = new() { FilenameTemplate = "$title" };
 
-    // Seeds ids of kind, each with filesPer files.
     private static void Seed(
         FakeRenamerDataPort port, RenamerFileKind kind, IReadOnlyList<int> ids, int filesPer = 1)
     {
@@ -88,8 +87,7 @@ public sealed class ScanRowPagerTests
         var port = new FakeRenamerDataPort();
         Seed(port, RenamerFileKind.Video, [1, 2, 3]);
 
-        // The old path holds "raw2-0.mkv"; the rendered new path holds "Title2.mkv". Both sides of the
-        // row must be searchable, and the query must trim and ignore case.
+        // The old path holds "raw2-0.mkv"; the rendered new path holds "Title2.mkv".
         var byOldPath = await WalkAsync(port, [RenamerFileKind.Video], take: 50, query: "  RAW2-0  ");
         var byNewName = await WalkAsync(port, [RenamerFileKind.Video], take: 50, query: "title3");
 
@@ -198,10 +196,6 @@ public sealed class ScanRowPagerTests
         Assert.Equal(ScanRowPager.DefaultTake, defaulted.Rows.Count);
         Assert.Equal(ScanRowPager.DefaultTake, negative.Rows.Count);
     }
-
-    // The in-flight overflow flag, as a page reads it.
-    // pure: a fake port, string-only path math and a synthetic mount table. No disk, no DB, and no
-    // dependence on the runner's own volumes.
 
     // Volume identity is per-platform: the path root on Windows, the enclosing mount point on Unix. Both
     // spellings are four characters, which is what lets one arithmetic land on the same absolute length on

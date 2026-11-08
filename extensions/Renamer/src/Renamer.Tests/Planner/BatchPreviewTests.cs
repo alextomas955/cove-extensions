@@ -28,7 +28,6 @@ public sealed class BatchPreviewTests
     private static string NameForPathLength(int total) =>
         new string('n', total - OnVolPrefixLength - ".mkv".Length) + ".mkv";
 
-    // A minimal acting item: only the fields the aggregate reads (FileId, paths, status, target volume).
     private static RenamerPlanItem Item(
         int fileId, string oldPath, string newPath, RenamerStatus status, string targetVolume) =>
         new(fileId, oldPath, newPath, status, NewBasename: "x", TargetFolderPath: "x",
@@ -128,72 +127,46 @@ public sealed class BatchPreviewTests
         Assert.Equal(2, summary.TotalCount);
         Assert.Equal(1, summary.SameVolumeCount);
         Assert.Equal(1, summary.CrossVolumeCount);
-        // The 9 GiB same-volume move is not counted; only the 1 GiB cross-volume move.
         Assert.Equal(1L << 30, summary.CrossVolumeBytes);
         var pair = Assert.Single(summary.VolumePairs);
         Assert.Equal(1L << 30, pair.Bytes);
     }
 
-    [Fact]
-    public void ModestCrossVolumeMove_IsStandard()
+    // Every item moves off volume C, dealt round-robin across destVolumes.
+    [Theory]
+    [MemberData(nameof(CrossVolumeBatches))]
+    public void CrossVolumeBatch_ConfirmLevel_RisesOnItemCount_Bytes_OrDestinationVolumeCount(
+        int itemCount, long bytesPerItem, string[] destVolumes, ConfirmLevel expected)
     {
-        // A handful of items, a few GiB, one destination volume → Standard (not Light, not Heavy).
-        var items = new[]
-        {
-            Item(1, OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), RenamerStatus.Move, RootOf("D")),
-            Item(2, OnVol("C", "b.mkv"), OnVol("D", "b.mkv"), RenamerStatus.Move, RootOf("D")),
-        };
-        var sizes = new Dictionary<int, long> { [1] = 1L << 30, [2] = 1L << 30 };
-
-        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
-
-        Assert.Equal(ConfirmLevel.Standard, summary.ConfirmLevel);
-    }
-
-    [Fact]
-    public void LargeByItemCount_IsHeavy()
-    {
-        // >= 50 cross-volume items → Heavy by item count alone (tiny bytes, one volume).
-        var items = Enumerable.Range(1, 50)
-            .Select(i => Item(i, OnVol("C", $"f{i}.mkv"), OnVol("D", $"f{i}.mkv"), RenamerStatus.Move, RootOf("D")))
+        var items = Enumerable.Range(1, itemCount)
+            .Select(i =>
+            {
+                var dest = destVolumes[(i - 1) % destVolumes.Length];
+                return Item(
+                    i, OnVol("C", $"f{i}.mkv"), OnVol(dest, $"f{i}.mkv"), RenamerStatus.Move, RootOf(dest));
+            })
             .ToArray();
-        var sizes = items.ToDictionary(i => i.FileId, _ => 1L);
+        var sizes = items.ToDictionary(i => i.FileId, _ => bytesPerItem);
 
         var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
-        Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
+        Assert.Equal(expected, summary.ConfirmLevel);
     }
 
-    [Fact]
-    public void LargeByBytes_IsHeavy()
+    public static TheoryData<int, long, string[], ConfirmLevel> CrossVolumeBatches() => new()
     {
-        // A single cross-volume move of >= 10 GiB → Heavy by byte total.
-        var items = new[]
-        {
-            Item(1, OnVol("C", "huge.mkv"), OnVol("D", "huge.mkv"), RenamerStatus.Move, RootOf("D")),
-        };
-        var sizes = new Dictionary<int, long> { [1] = 10L << 30 };
+        // A handful of items, a few GiB, one destination volume: neither Light nor Heavy.
+        { 2, 1L << 30, ["D"], ConfirmLevel.Standard },
 
-        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
+        // >= 50 cross-volume items is Heavy on the item count alone, at a byte per item.
+        { 50, 1L, ["D"], ConfirmLevel.Heavy },
 
-        Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
-    }
+        // >= 10 GiB in a single cross-volume move is Heavy on the byte total.
+        { 1, 10L << 30, ["D"], ConfirmLevel.Heavy },
 
-    [Fact]
-    public void MultipleDistinctDestinationVolumes_IsHeavy()
-    {
-        // Two small cross-volume moves to two different destination volumes → Heavy by volume count.
-        var items = new[]
-        {
-            Item(1, OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), RenamerStatus.Move, RootOf("D")),
-            Item(2, OnVol("C", "b.mkv"), OnVol("E", "b.mkv"), RenamerStatus.Move, RootOf("E")),
-        };
-        var sizes = new Dictionary<int, long> { [1] = 1L, [2] = 1L };
-
-        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
-
-        Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
-    }
+        // Two destination volumes is Heavy on the volume count, at a byte per item.
+        { 2, 1L, ["D", "E"], ConfirmLevel.Heavy },
+    };
 
     [Fact]
     public void CrossVolumeMove_IsFlagged_OneCharacterPastTheBudgetLessTheMintedSegment()
@@ -228,10 +201,9 @@ public sealed class BatchPreviewTests
     [Fact]
     public void SameVolumeMove_OfTheIdenticalOverBoundaryLength_IsNotFlagged()
     {
-        // The arm that decides whether the warning is trustworthy. DiskMover mints no temporary name at
-        // all - a same-volume move is one atomic rename - so an identical path length that overruns when
-        // copied across drives is perfectly fine in place. A warning here would fire on a correct plan,
-        // and most plans are same-volume.
+        // DiskMover mints no temporary name for a same-volume move - it is one atomic rename - so a
+        // path length that overruns when copied across drives is fine in place. A warning here
+        // would fire on a correct plan, and most plans are same-volume.
         string overLength = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
 
         var sameVolume = Item(

@@ -1,15 +1,11 @@
-// The undo journal's move out of the extension data store and into a table the extension owns,
-// proven on the path that can lose a user's undo: an installation that is already carrying a stored
-// journal when the new code loads.
+// The undo journal's move out of the extension data store and into a table the extension owns, on
+// the path that can lose a user's undo: an installation already carrying a stored journal when the
+// new code loads. A fresh install has nothing to migrate, so it passes either way. And because the
+// migration deletes its own source, "it ran twice" is not an error anyone would see - it is a
+// duplicate batch that silently outranks the real one.
 //
-// Why this and not the happy path. A fresh install has nothing to migrate, so it passes whether the
-// migration works or not; the case that discriminates is an upgrade. And because the migration
-// deletes its own source, "it ran twice" is not an error anyone would see - it is a duplicate batch
-// that quietly outranks the real one. Both halves are asserted here.
-//
-// Uses its own harness per test. It restarts the container (the only way to reach an initialize-time
-// path) and it empties the shared journal tables, either of which would corrupt a sibling spec
-// running against the same worker instance.
+// Its own harness per test: it restarts the container and empties the shared journal tables, either
+// of which would corrupt a sibling spec running against the same worker instance.
 import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import {
   test as base,
@@ -37,8 +33,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   const harness = isolatedHarness;
   const api = clientFor(harness);
 
-  // A real rename, so the ids, the on-disk move and the recorded old path are the host's own rather
-  // than values this test invented and could get subtly wrong.
+  // A real rename, so the ids, the on-disk move and the recorded old path are the host's own.
   const video = await seedVideo({
     container: harness.container,
     baseUrl: harness.baseUrl,
@@ -46,9 +41,8 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   });
   const originalPath = video.files[0].path;
 
-  // A "$title"-only template over a safe title keeps the rename deterministic and independent of
-  // date/resolution metadata. Without a title the template renders empty and the rename is a no-op,
-  // which would leave nothing journalled to migrate.
+  // Without a title the "$title" template renders empty and the rename is a no-op, which would
+  // leave nothing journalled to migrate.
   expect((await api.put(`/api/videos/${video.id}`, { Title: "Journal Migration Test" })).ok).toBe(
     true,
   );
@@ -91,19 +85,18 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   // A restart is the only way into an initialize-time path: it does not run again while the host is up.
   await harness.restart();
 
-  // (1) The stored journal landed in the table, whole.
   expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
   expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("1");
 
-  // (2) Both legacy keys are gone. This is what stops an oversized leftover breaking every settings
-  // read for the extension, and it is also the migration's own idempotency marker.
+  // Both legacy keys gone is what stops an oversized leftover breaking every settings read for the
+  // extension, and it is also the migration's own idempotency marker.
   const stored = await api.get(`${ROUTE}/data`);
   expect(stored.ok).toBe(true);
   expect(Object.keys(stored.json ?? {})).not.toContain("revertlog");
   expect(Object.keys(stored.json ?? {})).not.toContain("journal-schema");
 
-  // (3) The migrated batch is a real undo, not just rows in a table: the panel is offered it, and
-  // running it puts the file back where the stored journal said it came from.
+  // The migrated batch has to be a real undo rather than rows in a table: the panel is offered it,
+  // and running it puts the file back where the stored journal said it came from.
   const summary = await api.get(`${ROUTE}/last-batch`);
   expect(summary.ok).toBe(true);
   expect(summary.json.hasBatch).toBe(true);
@@ -123,9 +116,8 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   expect((await harness.container.exec(["test", "-f", originalPath])).exitCode).toBe(0);
   expect((await harness.container.exec(["test", "-f", renamedPath])).exitCode).not.toBe(0);
 
-  // (4) A second load does not migrate again. There is nothing left to read, so a re-run would have
-  // to invent a batch - and a duplicate batch outranks the real one silently, which is why this is
-  // asserted on the table rather than inferred from the keys being gone.
+  // A second load must not migrate again. Asserted on the table rather than inferred from the keys
+  // being gone, because a duplicate batch outranks the real one silently.
   await harness.restart();
   expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_batches")).toBe("1");
   expect(await queryDb(harness, "SELECT count(*) FROM renamer_revert_rows")).toBe("0");

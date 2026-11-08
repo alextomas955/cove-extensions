@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { test } from "vitest";
+import { test, afterEach } from "vitest";
 import assert from "node:assert/strict";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../../common/lib/flushRender";
+import { render, cleanup } from "@testing-library/react";
 
 import { badgesFor, type Badgeable } from "./warningBadgeLogic";
 import { WarningBadges } from "./WarningBadge";
@@ -89,14 +87,15 @@ test("a status this bundle was never built for is surfaced, not hidden and not t
   assert.deepEqual(badgesFor(unknown), [{ label: "Unrecognised status", variant: "amber" }]);
 });
 
+afterEach(cleanup);
+
 // What `WarningBadges` puts on screen for `item`: the text of each pill in order, and whether it
-// rendered anything at all.
-async function renderBadges(item: Badgeable): Promise<{ labels: string[]; empty: boolean }> {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement("div", { "data-probe": "" }, createElement(WarningBadges, { item })));
-  await waitFor("the row to render", () => container.querySelector("[data-probe]") !== null);
+// rendered anything at all. A pill carries no role of its own, so they are read off the probe the
+// component is mounted inside rather than queried.
+function renderBadges(item: Badgeable): { labels: string[]; empty: boolean } {
+  const { container, unmount } = render(
+    createElement("div", { "data-probe": "" }, createElement(WarningBadges, { item })),
+  );
 
   const probe = container.querySelector("[data-probe]");
   const pills = probe?.firstElementChild?.children ?? [];
@@ -104,20 +103,19 @@ async function renderBadges(item: Badgeable): Promise<{ labels: string[]; empty:
     labels: [...pills].map((pill) => pill.textContent.trim()),
     empty: probe?.childNodes.length === 0,
   };
-  root.unmount();
-  container.remove();
+  unmount();
   return result;
 }
 
-test("WarningBadges renders exactly the labels this module derives", async () => {
+test("WarningBadges renders exactly the labels this module derives", () => {
   for (const status of Object.keys(EXPECTED_LABEL) as RenamerStatus[]) {
     const item = row(status, { suffixed: true, sanitized: true });
-    assert.deepEqual((await renderBadges(item)).labels, labels(item), status);
+    assert.deepEqual(renderBadges(item).labels, labels(item), status);
   }
 });
 
-test("a row with nothing to warn about renders no pill at all", async () => {
-  assert.equal((await renderBadges(row("rename"))).empty, true);
+test("a row with nothing to warn about renders no pill at all", () => {
+  assert.equal(renderBadges(row("rename")).empty, true);
 });
 
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {

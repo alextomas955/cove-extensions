@@ -2,11 +2,9 @@
 // What the preview pane shows after a preview request failed. The hook keeps the last good preview on
 // a failed refresh, so a failed first request leaves `preview` null with the error set: a settled
 // outcome, not a wait.
-import { test, expect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
+import { render, cleanup } from "@testing-library/react";
 
 import { LivePreviewPane } from "./LivePreviewPane";
 import type { PreviewSampleResult } from "../wire/api";
@@ -22,16 +20,11 @@ const SAMPLE: PreviewSampleResult[] = [
   },
 ];
 
-async function renderPane(preview: PreviewSampleResult[] | null, previewError: boolean) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(LivePreviewPane, { preview, previewError }));
-  await waitFor("the pane to render", () => container.childElementCount > 0);
+afterEach(cleanup);
 
-  const text = container.textContent;
-  root.unmount();
-  container.remove();
+function renderPane(preview: PreviewSampleResult[] | null, previewError: boolean) {
+  const text = render(createElement(LivePreviewPane, { preview, previewError })).container
+    .textContent;
   return {
     text,
     // The spinner and its caption render together, so the caption stands for both.
@@ -40,32 +33,32 @@ async function renderPane(preview: PreviewSampleResult[] | null, previewError: b
   };
 }
 
-test("a failed first preview says so and does not leave a spinner running under the error", async () => {
+test("a failed first preview says so and does not leave a spinner running under the error", () => {
   // Nothing further is in flight, so a spinner here would promise a render that never arrives.
-  const pane = await renderPane(null, true);
+  const pane = renderPane(null, true);
 
   expect(pane.waiting).toBe(false);
   expect(pane.text).toMatch(/preview unavailable/i);
 });
 
-test("a preview still on its way keeps the spinner", async () => {
+test("a preview still on its way keeps the spinner", () => {
   // No failure reported yet and no rows: the request genuinely is in flight, which is the one state
   // the spinner is for.
-  const pane = await renderPane(null, false);
+  const pane = renderPane(null, false);
 
   expect(pane.waiting).toBe(true);
 });
 
-test("a failed refresh over a good preview keeps the rows and drops the spinner", async () => {
-  const pane = await renderPane(SAMPLE, true);
+test("a failed refresh over a good preview keeps the rows and drops the spinner", () => {
+  const pane = renderPane(SAMPLE, true);
 
   expect(pane.showsRows).toBe(true);
   expect(pane.waiting).toBe(false);
   expect(pane.text).toMatch(/preview unavailable/i);
 });
 
-test("a healthy preview shows its rows and nothing else", async () => {
-  const pane = await renderPane(SAMPLE, false);
+test("a healthy preview shows its rows and nothing else", () => {
+  const pane = renderPane(SAMPLE, false);
 
   expect(pane.showsRows).toBe(true);
   expect(pane.waiting).toBe(false);

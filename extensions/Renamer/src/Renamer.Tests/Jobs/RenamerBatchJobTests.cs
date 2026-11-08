@@ -10,13 +10,11 @@ namespace Renamer.Tests.Jobs;
 
 public sealed class RenamerBatchJobTests
 {
-    // Wires the extension's captured seams (_scopeFactory, _eventBus, Store) from a DI provider
-    // that registers the base DbContext scoped over the test's shared in-memory SQLite connection,
-    // so each CreateAsyncScope() (including the per-worker scopes the parallel batch opens)
-    // resolves a distinct context over the same database. A singleton registration would hand every
-    // parallel worker the one seeded context - a DbContext is not thread-safe, so concurrent
-    // workers on it throw/corrupt. The seed/assert context (db) shares the connection, so rows the
-    // workers save are visible to the test's read-backs.
+    // The base DbContext is registered scoped over the test's shared in-memory SQLite connection, so
+    // each scope - including the per-worker scopes the parallel batch opens - resolves a distinct
+    // context over the same database. A singleton registration would hand every parallel worker the
+    // one seeded context, and a DbContext is not thread-safe. The seed and assert context shares the
+    // connection, so rows the workers save are visible to the test's read-backs.
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync(SqliteConnection conn, IEventBus bus)
     {
         var services = new ServiceCollection();
@@ -96,7 +94,6 @@ public sealed class RenamerBatchJobTests
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [v1, video2.Id], progress, default);
 
-            // The file is untouched and neither row moved, so nothing renamed the file the other claims.
             Assert.True(File.Exists(Path.Combine(dir.Root, "a.mkv")));
             Assert.Equal("bytes", File.ReadAllText(Path.Combine(dir.Root, "a.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));

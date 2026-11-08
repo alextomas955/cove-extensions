@@ -1,31 +1,17 @@
-// The revert journal, proven against a real host on real Postgres - the one tier that can.
+// The revert journal, against a real host on real Postgres.
 //
-// Every other tier in this repository proves the SQL string or the port behind it. None of them
-// proves that the host runs the migration, and that gap is not academic: a failed extension
-// migration is a host log line and nothing more (ExtensionManager breaks out of its loop and never
-// rethrows), so an extension can load, enable, and answer every request with no table behind it.
-// "The extension is enabled" is therefore not evidence. The table is asserted here, in the database
-// itself, through the harness's execDb handle.
+// A failed extension migration is a host log line and nothing more: the host breaks out of its loop
+// and never rethrows, so an extension can load, enable, and answer every request with no table
+// behind it. "The extension is enabled" is therefore not evidence, and the tables are asserted in
+// the database itself through the harness's execDb handle. The same silence covers the driver:
+// Npgsql refusing the multi-statement migration string would look identical.
 //
-// Two things are settled here by running them:
+// Uninstall deletes only the extension's directory, and nothing anywhere deletes a migration
+// receipt, so a reinstall meets a stale table plus a receipt that makes the host skip the
+// migration, and has to reuse a table it did not create. That path runs at the end.
 //
-//   * Whether the database driver executes a multi-statement migration string in one command the way
-//     the command-line client did. If Npgsql refused it, the failure would be
-//     silent in the way described above, so the first assertion below checks it.
-//   * Whether an uninstall/reinstall round trip still loads. Uninstall deletes only the extension's
-//     directory, and nothing anywhere deletes a migration receipt, so a reinstall meets a stale table
-//     and a receipt that makes the host skip the migration. The extension must then reuse a table it
-//     did not just create. That path is exercised at the end.
-//
-// Beyond those: a rename that carries a caption and a neighbour file, an undo that brings all three
-// home, and a partial undo that can be retried and acts only on what is left. The panel's own gate
-// over that partial batch is read in a browser in the same test body - whether the destructive
-// control is offered is decided by whether the batch still has work, and only the pair of states
-// distinguishes a gate keyed on that from one keyed on the batch merely existing.
-//
-// Its own instance per test, not the worker-shared harness: this file renames, undoes, uninstalls and
-// reinstalls, all of which are instance-global. On a shared instance the accumulated media also makes
-// ordering flaky, which is the recorded reason the isolated fixture exists.
+// Its own instance per test: this file renames, undoes, uninstalls and reinstalls, all of which are
+// instance-global, and accumulated media on a shared instance makes ordering unpredictable.
 import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import {
   test as base,
@@ -90,10 +76,6 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const api = clientFor(isolatedHarness);
   const stamp = Date.now();
 
-  // ── 1. The host applied the migration ──────────────────────────────────────────────────────────
-  //
-  // Asserted against the database, not against the extension being enabled - see the header. This is
-  // also the only place the driver's handling of the multi-statement migration string is exercised.
   expect(
     await countJournalTables(isolatedHarness),
     "the host did not create both journal tables - an extension migration that fails is only a host log line, so the extension is enabled either way",
@@ -103,9 +85,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     `the host recorded no receipt for ${MIGRATION_NAME}`,
   ).toBe("1");
 
-  // ── 2. A rename carrying two kinds of sidecar, and an undo that brings both back ────────────────
-  //
-  // Two kinds, because Renamer moves them by two different mechanisms and only one of them has a
+  // Two kinds of sidecar, because Renamer moves them by two different mechanisms and only one has a
   // database row: a caption Cove tracks (.srt, discovered at import) and a configured same-stem
   // neighbour (.nfo, disk only).
   const setOptions = await api.put(
@@ -133,8 +113,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   });
   const primaryOriginalPath = primary.files[0].path;
 
-  // Nothing below is meaningful if the fixtures did not arrive. A run that renamed nothing would
-  // still exit successfully while inspecting zero input, which is a defect here, not a pass.
+  // A run that renamed nothing exits successfully, so the seeds are checked before anything reads
+  // them back.
   expect(
     await fileExists(container, primaryOriginalPath),
     `seeded media missing: ${primaryOriginalPath}`,
@@ -192,8 +172,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "the neighbour's original path still holds a file",
   ).toBe(false);
 
-  // Polled, never read once: the record behind a completed job is not guaranteed read-your-writes on
-  // the very next request, which is the recorded reason these helpers exist.
+  // Polled, never read once: the record behind a completed job is not guaranteed read-your-writes
+  // on the very next request.
   const afterRename = await pollUntil(
     () => api.get(`/api/videos/${primary.id}`).then((r) => r.json),
     (v) => v.files[0].captions[0]?.filename === `${primaryTitle}.srt`,
@@ -237,8 +217,6 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "the caption file came back but its database row still names the renamed file",
   ).toEqual([`${primaryStem}.srt`]);
 
-  // ── 3. A partial undo, and a retry that acts only on what is left ───────────────────────────────
-  //
   // Two files in one batch, then one of the two original slots is occupied so its restore stops for
   // a reason the world can clear. A retryable stop must leave its row in the journal.
   const pairNames = [`undo-restore-a-${stamp}.mp4`, `undo-restore-b-${stamp}.mp4`];
@@ -291,9 +269,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const partialUndo = await api.post(`${ROUTE}/undo`);
   expect(partialUndo.status, `undo failed: ${partialUndo.text}`).toBe(200);
   expect(partialUndo.json.undone, "the unobstructed file should have come back").toBe(1);
-  // Summed across the two channels rather than read as "failed or skipped", so there is no shape this
-  // can pass in two different ways. The counters are what the response promises to total; the samples
-  // beside them are capped, so one file stopping has to show in both.
+  // Summed across the two channels rather than read as "failed or skipped", so there is no shape
+  // this can pass in two different ways.
   expect(
     partialUndo.json.failedCount + partialUndo.json.skippedCount,
     "exactly one file should have stopped",
@@ -315,11 +292,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   ).toBe(2);
   expect(afterPartial.json.consumed, "a batch with work left is not spent").toBe(false);
 
-  // ── The same partial batch, read the way the user reads it ──────────────────────────────────────
-  //
-  // The gate, on the state the undo above arranged: a batch some of whose files are already back, and
-  // one of whose files is still outstanding. The control acts on what is left, so it must still be
-  // offered here; the withheld case is asserted after the retry, and only the pair distinguishes a
+  // The panel's gate, on a batch some of whose files are back and one of whose files is still
+  // outstanding. The withheld case is asserted after the retry, and only the pair distinguishes a
   // gate keyed on the outstanding work from one keyed on the batch merely existing.
   const settingsPage = new RenamerSettingsPage(page, isolatedHarness.baseUrl);
   await settingsPage.goto();
@@ -332,7 +306,6 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "the undo is offered but disabled on a batch that still has work to put back",
   ).toBeEnabled();
 
-  // Clear the obstruction and retry. The second attempt must act on the remainder only.
   await container.exec(["rm", blocked.originalPath], { user: "root" });
   expect(await fileExists(container, blocked.originalPath), "the obstruction is still there").toBe(
     false,
@@ -360,9 +333,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   );
   expect(afterRetry.count).toBe(2);
 
-  // The gate's other half, now that the batch has nothing left. Read through the panel's own sentence
-  // rather than through the control's absence alone; the page object states why an absence check on
-  // its own is a green for the wrong reason.
+  // Read through the panel's own sentence rather than through the control's absence alone; the page
+  // object states why an absence check on its own is a green for the wrong reason.
   await settingsPage.goto();
   await settingsPage.waitForNoRenameToUndo();
   await expect(
@@ -370,10 +342,6 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "a fully restored batch is still offering its undo - the gate is keying on the batch existing rather than on it having work left",
   ).toHaveCount(0);
 
-  // ── 4. Uninstall, reinstall, and journal a rename on the table that survived ────────────────────
-  //
-  // The receipt makes the host skip the migration on the way back in, so the reinstalled extension
-  // has to reuse a table it did not just create.
   const uninstall = await api.post("/api/extensions/registry/uninstall", {
     ExtensionId: EXTENSION_ID,
     UninstallDependents: false,
@@ -434,8 +402,7 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     originalPath: revenantOriginalPath,
   });
 
-  // The rename is recorded in the surviving table, not merely reported as done. Exactly one row,
-  // because every earlier batch's rows were deleted as their files were restored.
+  // Exactly one row, because every earlier batch's rows were deleted as their files were restored.
   const journalledRows = await pollUntil(
     () => queryDb(isolatedHarness, "SELECT count(*) FROM renamer_revert_rows"),
     (count) => count === "1",

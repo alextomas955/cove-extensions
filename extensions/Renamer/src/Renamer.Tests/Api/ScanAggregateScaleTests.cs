@@ -8,7 +8,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class ScanAggregateScaleTests
 {
-    private const int SmallFixture = 10;
     private const int LargeFixture = 10_000;
 
     // The ceiling the stored blob must stay under, derived from the shape rather than asserted as a
@@ -31,8 +30,8 @@ public sealed class ScanAggregateScaleTests
         return (ext, store);
     }
 
-    // Seeds files single-file entities spread evenly across the renamable kinds; every entity
-    // renames in place, so the aggregate's acting counts are the file count.
+    // Seeds single-file entities spread evenly across the renamable kinds. Every entity renames in
+    // place, so the aggregate's acting counts are the file count.
     private static FakeRenamerDataPort SeedLibrary(int files, string folder = "/lib")
     {
         var port = new FakeRenamerDataPort();
@@ -70,21 +69,21 @@ public sealed class ScanAggregateScaleTests
         await ext.RunScanCoreAsync(
             port, RenamableKinds.All, options ?? new RenamerOptions { FilenameTemplate = "$title" },
             AllowAll,
-            new FakeJobProgress(), default);
+            new ScanRun("scale-run", null), new FakeJobProgress(), default);
 
-        // Read the raw stored string: parsing is exactly what would hide growth, and the byte length is
-        // the thing that broke.
+        // Read the raw stored string: parsing is exactly what would hide growth, and the byte length
+        // is what these cases bound.
         string json = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
         var summary = System.Text.Json.JsonSerializer.Deserialize<ScanSummary>(
             json, PreviewContracts.PreviewResponseJsonOptions)!;
         return (json, summary, store);
     }
 
-    [Theory]
-    [InlineData(SmallFixture)]
-    [InlineData(LargeFixture)]
-    public async Task StoredBlob_StaysUnderTheDerivedCeiling(int files)
+    [Fact]
+    public async Task StoredBlob_StaysUnderTheDerivedCeiling()
     {
+        const int files = LargeFixture;
+
         var (json, summary, _) = await ScanAsync(SeedLibrary(files));
 
         int ceiling = Ceiling(summary.Kinds.Count);

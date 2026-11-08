@@ -1,17 +1,15 @@
 #!/usr/bin/env node
 // Asserts the Vite externals list names every module the host's import map serves.
 //
-// A specifier the rollup config does not externalize is bundled instead of resolved against the
-// host at runtime. For `react` that means a second React in the page and hook identity breaking
-// inside the extension's own tree, and the build reports nothing: an external is a name match, so a
-// spelling nobody listed simply compiles. Cove serves each module under a canonical
-// `@cove/runtime/*` name and most of them under a bare alias too, so a list covering one spelling
-// leaves the other open.
+// A specifier the rollup config does not externalize is bundled instead of resolved against the host
+// at runtime. For `react` that means a second React in the page and hook identity breaking inside the
+// extension's own tree, and the build reports nothing: an external is a name match, so a spelling
+// nobody listed simply compiles. Cove serves each module under a canonical `@cove/runtime/*` name and
+// most of them under a bare alias too, so a list covering one spelling leaves the other open.
 //
-// Cove's `ui/scripts/extension-runtime-contract.ts` is the source those names come from, and it is
-// committed, so this reads it rather than mirroring it. With no checkout the check skips loudly,
-// the same way check-host-imports does; ci.yml's ui-verify job sets COVE_REPO, which turns the skip
-// into a failure.
+// Cove's `ui/scripts/extension-runtime-contract.ts` is where those names come from, so this reads it
+// rather than mirroring it. With no checkout the check skips loudly; ci.yml's ui-verify job sets
+// COVE_REPO, which turns the skip into a failure.
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";

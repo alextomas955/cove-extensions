@@ -24,7 +24,6 @@ public sealed class DiskMoverTests
             Assert.NotNull(result.Reason);
         }
 
-        // The source survives at its old path; the destination was never created.
         Assert.True(File.Exists(old), "locked source must remain at its old path");
         Assert.False(File.Exists(dest), "no destination must be created when the source is locked");
         Assert.Equal("data", File.ReadAllText(old));
@@ -60,7 +59,6 @@ public sealed class DiskMoverTests
         // present, which is what separates this case from the locked-source one above.
         Assert.False(result.Moved);
         Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
-        // The pre-existing destination is left untouched (never clobbered) and the source survives.
         Assert.Equal("original", File.ReadAllText(dest));
         Assert.True(File.Exists(old));
         Assert.Equal("new", File.ReadAllText(old));

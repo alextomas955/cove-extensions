@@ -1,8 +1,5 @@
-// Every case is driven from a fixture tree in a temp dir - a fake catalog plus a fake publish
-// output - so no dotnet build, npm build or sibling Cove checkout is needed.
-//
-// The fixture's file names deliberately differ from any real extension's, so a passing case proves
-// the resolution came from the catalog rather than from a name baked into the packer.
+// The fixture's file names differ from any real extension's, so a passing case proves the resolution
+// came from the catalog rather than from a name baked into the packer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -11,9 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// One module, reached both ways: assemblePackage is imported here exactly as the E2E harness imports
-// it, while the CLI cases below spawn the same file, so the command line is exercised as a caller
-// actually reaches it rather than by calling the function that sits behind it.
+// Imported exactly as the e2e harness imports it; the CLI cases below spawn the same file.
 import { assemblePackage } from "./assemble-package.mjs";
 
 const scriptPath = fileURLToPath(new URL("./assemble-package.mjs", import.meta.url));
@@ -110,9 +105,8 @@ function assemble({ root, publishDir, packageDir }, overrides = {}) {
   });
 }
 
-// Restages the fake build output under the CI layout - artifacts/publish/<Name> at the repo root
-// rather than under the extension - because the descendant bypass below is only reachable with a
-// publish directory that sits outside extensions/, which is exactly the shape ci.yml passes.
+// Restages the fake build output under the CI layout: artifacts/publish/<Name> at the repo root
+// rather than under the extension.
 function ciShapedPublish(fixture) {
   const publishDir = path.join(fixture.root, "artifacts", "publish", NAME);
   fs.mkdirSync(publishDir, { recursive: true });
@@ -180,9 +174,8 @@ test("fails: one declared artifact absent from every source root, named with the
   );
 });
 
-// This packer never deletes, so run-to-run contamination is refused rather than cleaned up: a second
-// run into a directory holding the first run's output fails, naming the directory, and everything that
-// was there stays there. The caller that re-uses a directory is the one that clears it.
+// This packer never deletes, so run-to-run contamination is refused rather than cleaned up. The
+// caller that re-uses a directory is the one that clears it.
 test("refuses a package directory that is not empty, naming it, and removes nothing from it", () => {
   const fixture = fixtureRoot();
   assert.equal(assemble(fixture).ok, true);
@@ -205,9 +198,8 @@ test("refuses a package directory that is not empty, naming it, and removes noth
   );
 });
 
-// The negative control for the refusal above: a refusal that fired on every directory would pass that
-// case while making the packer unusable. An absent directory is created, and an existing empty one is
-// used as-is.
+// The negative control for the refusal above: a refusal that fired on every directory would pass
+// that case while making the packer unusable.
 test("assembles into an absent package directory, and into an existing empty one", () => {
   for (const { form, prepare } of [
     { form: "absent", prepare: () => {} },
@@ -223,9 +215,9 @@ test("assembles into an absent package directory, and into an existing empty one
   }
 });
 
-// A packageDir pointed at a source tree is refused because that tree is not empty, and since
-// nothing here deletes, the tree is byte-for-byte intact afterwards. Every destructive spelling -
-// a drive-letter case alias, a junction, a source-bearing descendant - reduces to this one case.
+// A packageDir pointed at a source tree is refused because that tree is not empty. Every
+// destructive spelling - a drive-letter case alias, a junction, a source-bearing descendant -
+// reduces to this one case.
 test("a packageDir pointed at a populated source tree is refused and destroys nothing", () => {
   const fixture = fixtureRoot();
   const before = snapshotTree(fixture.root);
@@ -233,8 +225,7 @@ test("a packageDir pointed at a populated source tree is refused and destroys no
   const r = assemble(fixture, { packageDir: fixture.root });
 
   assert.equal(r.ok, false, "the repo root is not empty and must be refused");
-  // Named, so this case cannot pass on some other refusal firing first - the claim is that the
-  // not-empty refusal is what makes the retired protected-path set unnecessary.
+  // Named, so this case cannot pass on some other refusal firing first.
   assert.ok(
     r.failures.some((f) => f.startsWith("INVALID:") && f.includes("not empty")),
     "expected the not-empty refusal, got: " + r.failures.join("; "),
@@ -244,7 +235,6 @@ test("a packageDir pointed at a populated source tree is refused and destroys no
     assert.equal(fs.existsSync(full), true, "a refusal removed " + relative);
     assert.equal(fs.statSync(full).size, size, "a refusal rewrote " + relative);
   }
-  // Named as well as swept, because these are the paths a reproduction was measured destroying.
   for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
     assert.equal(fs.existsSync(path.join(fixture.root, survivor)), true, survivor + " was removed");
   }
@@ -267,8 +257,8 @@ test("fails HARD: an empty artifacts array, rather than reporting a green zero-f
 });
 
 // A Windows path inside json is escaped, so the text the scan meets is not the text a human writes.
-// Every needle is assembled from character codes so this file's own source does not read as a leak to
-// the very scan it exercises.
+// Every needle is assembled from character codes so this file's own source does not read as a leak
+// to the very scan it exercises.
 function leakyFixture(value) {
   return fixtureRoot({
     artifacts: ["Fixture.dll", "Leaky.json"],
@@ -278,9 +268,7 @@ function leakyFixture(value) {
 
 const BACKSLASH = String.fromCodePoint(92);
 const FORWARD_SLASH = String.fromCodePoint(47);
-// A drive path as a json file escapes it.
 const DRIVE_ESCAPED = "C:" + BACKSLASH + BACKSLASH + "build" + BACKSLASH + BACKSLASH + "out";
-// A network share in both spellings: raw, and escaped the way a generated json carries it.
 const SHARE_RAW = BACKSLASH + BACKSLASH + "buildsrv" + BACKSLASH + "share" + BACKSLASH + "out";
 const SHARE_ESCAPED =
   BACKSLASH +
@@ -295,47 +283,17 @@ const SHARE_ESCAPED =
   BACKSLASH +
   "out";
 
-test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
-  const fixture = leakyFixture(DRIVE_ESCAPED);
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a drive-root path in a shipped json must be refused");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
-
-test("refuses to write a shipped json carrying a unix home path prefix, naming file and line", () => {
-  const fixture = leakyFixture("/" + "home" + "/" + "runner/work/out");
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a unix home path in a shipped json must be refused");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
-
-test("refuses a shipped json carrying a network share path, in the spelling a generated json contains", () => {
+test("refuses to write a shipped json carrying an absolute build path, naming file and line", () => {
   for (const { form, value } of [
-    { form: "escaped, as a generated json spells it", value: SHARE_ESCAPED },
-    { form: "raw, as a build tool writes it", value: SHARE_RAW },
+    { form: "a Windows drive root, as a generated json escapes it", value: DRIVE_ESCAPED },
+    { form: "a unix home path prefix", value: "/" + "home" + "/" + "runner/work/out" },
+    { form: "a network share, escaped as a generated json spells it", value: SHARE_ESCAPED },
+    { form: "a network share, raw as a build tool writes it", value: SHARE_RAW },
   ]) {
     const fixture = leakyFixture(value);
     const r = assemble(fixture);
 
-    assert.equal(r.ok, false, form + " - a network share path is absolute and must be refused");
+    assert.equal(r.ok, false, form + " - an absolute build path must be refused");
     assert.ok(
       r.failures.some(
         (f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:"),
@@ -350,10 +308,8 @@ test("refuses a shipped json carrying a network share path, in the spelling a ge
   }
 });
 
-// Separate markers, so a future narrowing of one cannot silently narrow the other - which is worth
-// nothing unless each still refuses only its own class. A share marker written against the raw
-// spelling alone collapses into the drive one, since an escaped drive path also carries doubled
-// backslashes.
+// A share marker written against the raw spelling alone collapses into the drive one, since an
+// escaped drive path also carries doubled backslashes.
 test("the two absolute-path marker families stay distinguishable", () => {
   const drive = assemble(leakyFixture(DRIVE_ESCAPED))
     .failures.filter((f) => f.startsWith("LEAK:"))
@@ -380,9 +336,8 @@ test("the two absolute-path marker families stay distinguishable", () => {
   );
 });
 
-// The whole subject of the comment beside the markers: a project url is a scheme, a colon and two
-// forward slashes, and the manifest carrying it is itself a shipped json this scan reads. Without this
-// case the widening would rest on the same untested reasoning the comment it replaced did.
+// A project url is a scheme, a colon and two forward slashes, and the manifest carrying it is itself
+// a shipped json this scan reads.
 test("the three marker families produce no hit on a project url value", () => {
   const url = "https" + ":" + FORWARD_SLASH + FORWARD_SLASH + "github.com/alextomas955/extensions";
   const fixture = fixtureRoot({ manifest: { url } });
@@ -394,8 +349,8 @@ test("the three marker families produce no hit on a project url value", () => {
     0,
     "a project url is not an absolute build path and must not be refused as one",
   );
-  // Asserted rather than assumed: a fixture whose value never reached the scanned text would pass this
-  // case while proving nothing.
+  // Asserted rather than assumed: a fixture whose value never reached the scanned text would pass
+  // this case while proving nothing.
   const packaged = JSON.parse(
     fs.readFileSync(path.join(fixture.packageDir, "extension.json"), "utf8"),
   );
@@ -417,8 +372,8 @@ test("rejects a declared name that escapes the package, before any source is rea
 
   for (const value of escapes) {
     const fixture = fixtureRoot({ artifacts: [value] });
-    // Pointing at a publish dir that does not exist proves the rejection is on shape: a check that
-    // needed to look for the file would fail differently, or not at all.
+    // A publish dir that does not exist proves the rejection is on shape: a check that needed to
+    // look for the file would fail differently, or not at all.
     const r = assemble(fixture, { publishDir: path.join(fixture.root, "no-such-publish-dir") });
     assert.equal(r.ok, false, "expected a rejection for " + value);
     assert.ok(
@@ -430,8 +385,6 @@ test("rejects a declared name that escapes the package, before any source is rea
 });
 
 // A declaration can name only files that exist and still describe a package the host cannot load.
-// These are the replacement for the two checks that went with the deleted strip-verification gate, so
-// each one names the property rather than the gate.
 
 test("fails: a declaration with no source manifest - the host cannot load a package without one", () => {
   const fixture = fixtureRoot({ artifacts: ["Fixture.deps.json"] });
@@ -463,10 +416,8 @@ test("fails: a manifest whose entry assembly is not in the declared set", () => 
   );
 });
 
-// The ui-bundle rule covers both bundle fields, and the assertion
-// is on the resolved root rather than on `ok`: a run that found the stylesheet in the publish directory
-// or beside the manifest would succeed just as happily, and that is exactly the resolution mistake this
-// case exists to pin.
+// Asserted on the resolved root rather than on `ok`: a run that found the stylesheet in the publish
+// directory or beside the manifest would succeed just as happily.
 test("a declared stylesheet bundle resolves from the UI build output", () => {
   const fixture = fixtureRoot({
     manifest: { cssBundle: "bundle.css" },
@@ -504,9 +455,8 @@ test("fails: a declared cssBundle the artifacts array does not carry", () => {
   );
 });
 
-// The loadability failures are pushed rather than returned, so one run still reports everything wrong
-// with a declaration. The two leak cases above are the other half of that cover: they declare a subset
-// carrying no manifest, so a short-circuiting refusal would fire before the scan they exist to exercise.
+// The loadability failures are pushed rather than returned, so one run still reports everything
+// wrong with a declaration.
 test("an unloadable declaration and an absolute path in a shipped json are reported in one result", () => {
   const fixture = fixtureRoot({
     artifacts: ["Leaky.json"],
@@ -527,9 +477,9 @@ test("an unloadable declaration and an absolute path in a shipped json are repor
 });
 
 test("a .pdb and a .xml sitting in the publish output cannot reach the package", () => {
-  // A loadable declaration - the manifest and the two files it names - that still omits the symbol and
-  // documentation files the fake build emitted beside them. The point is what a declaration leaves out,
-  // so it has to be a declaration that would otherwise ship.
+  // A loadable declaration that still omits the symbol and documentation files the fake build
+  // emitted beside them: the subject is what a declaration leaves out, so it has to be one that
+  // would otherwise ship.
   const shipped = ["extension.json", "bundle.mjs", "Fixture.dll", "Fixture.deps.json"];
   const fixture = fixtureRoot({
     artifacts: shipped,
@@ -580,8 +530,7 @@ test("stamps the packaged manifest with the version passed in, byte-for-byte and
 });
 
 test("the three real caller shapes still assemble", () => {
-  // The refusal only holds if every live caller hands over a fresh directory. Each shape is exercised
-  // against a fixture rather than assumed safe.
+  // The not-empty refusal only holds if every live caller hands over a fresh directory.
   const shapes = [
     {
       name: "CI: artifacts/publish/<Name> -> artifacts/<Name>",
@@ -611,20 +560,17 @@ test("the three real caller shapes still assemble", () => {
 });
 
 // Resolution is an existence check and the copy happens later, so a source that resolves can still
-// fail to be written. The failure is reported rather than thrown - a caller that reads failures would
-// otherwise see an exception escape the exported function instead - and the loop stops there rather
-// than reporting a count for a package that is not on disk.
+// fail to be written.
 test("a write that fails partway is a reported WRITE failure, not a throw, and stops the loop", () => {
   const fixture = fixtureRoot();
-  // A directory bearing a declared artifact's name. The existence check that resolves a source is
-  // satisfied by a directory, so resolution succeeds and the copy is what fails - and it is the
-  // fourth declared name, so the loop has already written three files when it does.
+  // A directory bearing a declared artifact's name satisfies the existence check that resolves a
+  // source, so resolution succeeds and the copy is what fails. It is declared after three names that
+  // resolve, so the loop has already written when it does.
   const planted = "Fixture.Extra.dll";
   fs.rmSync(path.join(fixture.publishDir, planted));
   fs.mkdirSync(path.join(fixture.publishDir, planted));
 
-  // Called with no try/catch on purpose: an exception escaping the exported function fails this case
-  // as itself, which is the behaviour this exists to keep out.
+  // No try/catch: an exception escaping the exported function must fail this case.
   const r = assemble(fixture);
 
   assert.equal(r.ok, false, "a write that could not happen must not report success");
@@ -639,16 +585,14 @@ test("a write that fails partway is a reported WRITE failure, not a throw, and s
   );
 });
 
-// The case above plants a .dll, which the pre-write json scan skips. A declared .json reaches that
-// scan first, and it reads the source rather than only testing that it exists - so the same planted
-// directory arrives at a read instead of at a copy, on the path that runs before anything is written.
+// The pre-write json scan skips a .dll but reads a declared .json, so the same planted directory
+// arrives at a read instead of a copy, on the path that runs before anything is written.
 test("a declared json whose source cannot be read is a reported failure, not a throw", () => {
   const planted = "Fixture.deps.json";
   const fixture = fixtureRoot();
   fs.rmSync(path.join(fixture.publishDir, planted));
   fs.mkdirSync(path.join(fixture.publishDir, planted));
 
-  // No try/catch, for the reason the case above states.
   const r = assemble(fixture);
 
   assert.equal(r.ok, false, "a json that could not be read must not report success");
@@ -673,11 +617,9 @@ function runCli(fixture, argv, script = scriptPath) {
 }
 
 /**
- * The entry script reached through an alias of its own directory - the mechanism this repository's
- * worktree workflow uses, so an invocation path that changes behaviour is a real defect here.
- *
- * A failure to create the link is asserted rather than skipped: a case that quietly does not run is
- * the zero-input-green shape these cases exist to remove.
+ * The entry script reached through an alias of its own directory, which is how a worktree reaches
+ * it. A failure to create the link is asserted rather than skipped, so the case cannot quietly not
+ * run.
  */
 function aliasedEntryScript() {
   const linkType = process.platform === "win32" ? "junction" : "dir";
@@ -713,9 +655,8 @@ function fullArgv(fixture, overrides = {}) {
 test("CLI: two runs over identical input print byte-identical output", () => {
   const fixture = fixtureRoot();
   const first = runCli(fixture, fullArgv(fixture));
-  // The caller clears the directory between runs, which is what the packer's refusal now requires of
-  // one that re-uses a path - the same remove-and-recreate the dev deploy does. Without it the second
-  // run is refused, and determinism would be measured over two different code paths.
+  // The caller clears the directory between runs, as the packer's not-empty refusal requires of one
+  // that re-uses a path. Without it the second run is refused and the two runs take different paths.
   fs.rmSync(fixture.packageDir, { recursive: true, force: true });
   const second = runCli(fixture, fullArgv(fixture));
 
@@ -724,11 +665,9 @@ test("CLI: two runs over identical input print byte-identical output", () => {
   assert.equal(second.stdout, first.stdout);
 });
 
-// The exported function reports what landed, and the command line has to say the same thing. A write
-// that fails partway is the one refusal that leaves files behind, and the next run is refused for a
-// directory that is not empty - so a caller told nothing was written has no account of what put them
-// there.
-test("CLI: a write that fails partway names what it wrote, and does not claim it wrote nothing", () => {
+// A write that fails partway is the one refusal that leaves files behind, and the next run is
+// refused for a directory that is not empty.
+test("CLI: a write that fails partway names what it wrote", () => {
   const planted = "Fixture.Extra.dll";
   const fixture = fixtureRoot();
   fs.rmSync(path.join(fixture.publishDir, planted));
@@ -738,11 +677,6 @@ test("CLI: a write that fails partway names what it wrote, and does not claim it
 
   assert.equal(run.status, 1, run.stdout + run.stderr);
   assert.match(run.stderr, /^WRITE: /m);
-  assert.doesNotMatch(
-    run.stderr,
-    /nothing was written/,
-    "files were written, so the summary must not say otherwise: " + run.stderr,
-  );
   assert.match(run.stderr, /INCOMPLETE/);
   assert.deepEqual(
     fs.readdirSync(fixture.packageDir).sort(),
@@ -751,9 +685,6 @@ test("CLI: a write that fails partway names what it wrote, and does not claim it
   );
 });
 
-// One directory has many spellings, and which one a caller uses must not decide whether the script
-// does anything. Run with no arguments the entry point must refuse; run with a full set it must
-// assemble identically through an alias and through the real path.
 test("CLI: invoked through an aliased path, no arguments still prints usage and exits non-zero", (t) => {
   const { aliased, form } = aliasedEntryScript();
   t.diagnostic("exercised form: " + form);

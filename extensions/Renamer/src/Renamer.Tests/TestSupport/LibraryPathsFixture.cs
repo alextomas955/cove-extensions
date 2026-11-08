@@ -11,7 +11,6 @@ internal static class LibraryPathsFixture
         this IServiceCollection services, params string[] paths)
         => services.AddSingleton(Config(paths));
 
-    // A configuration declaring paths as Cove's library paths.
     internal static CoveConfiguration Config(params string[] paths)
         => new() { CovePaths = [.. paths.Select(p => new CovePath { Path = p })] };
 }

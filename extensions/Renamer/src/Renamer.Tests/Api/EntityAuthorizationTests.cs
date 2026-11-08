@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -12,6 +14,38 @@ namespace Renamer.Tests.Api;
 public sealed class EntityAuthorizationTests
 {
     private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
+
+    private const string RunId = "scan-under-test";
+
+    // The run the enqueue would have minted, carrying the owner key the host mints for this caller.
+    // The readback matches on both, so a scan stored under one caller reads as 404 for another.
+    private static ScanRun RunFor(CovePrincipal? caller) => new(RunId, JobOwner.FromPrincipal(caller)?.Key);
+
+    // A second signed-in user holding the same permissions. JobOwner keys on the user id, so this is
+    // what makes two callers distinguishable at all.
+    private static FakePrincipalAccessor SecondUser(params string[] permissions)
+    {
+        var accessor = new FakePrincipalAccessor();
+        accessor.Set(new CovePrincipal
+        {
+            UserId = 2,
+            Username = "second-user",
+            Kind = PrincipalKind.User,
+            Roles = new HashSet<string>(),
+            Permissions = new HashSet<string>(permissions),
+        });
+        return accessor;
+    }
+
+    private static FakePrincipalAccessor AccessorFor(CovePrincipal principal)
+    {
+        var accessor = new FakePrincipalAccessor();
+        accessor.Set(principal);
+        return accessor;
+    }
+
+    private static int EntitiesIn(IResult result) =>
+        Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!.TotalEntities;
 
     [Fact]
     public async Task RenamerEnqueue_OneUnwritableId_Returns403_AndEnqueuesNothing()
@@ -169,8 +203,9 @@ public sealed class EntityAuthorizationTests
 
         var (ext, store) = await LoadedExtensionAsync(library);
 
+        var caller = Caller(Permissions.VideosRead);
         await ext.RunScanLibraryJobAsync(
-            Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, new FakeJobProgress(), default);
+            caller, [RenamerFileKind.Video], null, RunFor(caller), new FakeJobProgress(), default);
 
         var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
         var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
@@ -182,5 +217,36 @@ public sealed class EntityAuthorizationTests
         Assert.All(
             library.Authorization.Asked,
             ask => Assert.Equal(Permissions.VideosRead, ask.Permission));
+    }
+
+    // Holding videos.read says nothing about which videos, and the scan shapes its aggregate by the
+    // entities the principal that started it could reach. Two callers holding the same kind therefore
+    // produce different figures, which a kind filter cannot tell apart.
+    [Fact]
+    public async Task AScanIsReadBackOnlyByTheCallerWhoRanIt_NotByAnotherHoldingTheSameKind()
+    {
+        using var dir = new TempDir();
+        await using var library = await LibraryDatabase.CreateAsync();
+        var (_, secondId) = await SeedTwoVideosAsync(library, dir);
+        var (ext, _) = await LoadedExtensionAsync(library);
+
+        var wide = Caller(Permissions.VideosRead);
+        var narrow = SecondUser(Permissions.VideosRead);
+
+        await ext.RunScanLibraryJobAsync(
+            wide, [RenamerFileKind.Video], null, RunFor(wide), new FakeJobProgress(), default);
+
+        Assert.Equal(2, EntitiesIn(await ext.ScanLibraryResultAsync(RunId, AccessorFor(wide), default)));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, narrow, default)));
+
+        // The same run id scanned by the narrower caller reaches one video, not two, and overwrites the
+        // stored value - so the first caller's own read is now a 404 rather than the second's figures.
+        library.Authorization.Denied.Add((EntityKinds.Video, secondId));
+        await ext.RunScanLibraryJobAsync(
+            narrow.Current, [RenamerFileKind.Video], null, RunFor(narrow.Current), new FakeJobProgress(),
+            default);
+
+        Assert.Equal(1, EntitiesIn(await ext.ScanLibraryResultAsync(RunId, narrow, default)));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, AccessorFor(wide), default)));
     }
 }

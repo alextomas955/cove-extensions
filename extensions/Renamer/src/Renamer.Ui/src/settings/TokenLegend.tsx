@@ -1,16 +1,24 @@
 /**
- * Always-visible token reference. Clicking a chip inserts `$token` at the caret of the
- * last-focused template input (filename or folder - the panel passes the active ref). A chip is
- * tinted when either template already uses its token.
+ * Always-visible token reference. A chip inserts its token at the caret of the last-focused template
+ * input, and is tinted when either template already uses it.
  */
 import { Chip } from "@cove-extensions/ui-shared";
 
 import { templateUsesToken } from "./templateLogic";
 import { TOKENS, type TokenEntry } from "./tokens";
 
-/** Tooltip copy for an optional chip - names the exact wrapped string it inserts. */
 function optionalTooltip(t: TokenEntry): string {
   return `Inserts ${t.insert}, an optional group that disappears when empty.`;
+}
+
+/**
+ * A chip inserts its token whether or not the templates already use it, so it is not a toggle and
+ * carries no pressed state. The tint is the only thing saying a token is in use, and a tint reaches
+ * nobody who cannot see it, so `title`, the chip's accessible description, carries the same fact.
+ */
+function describe(t: TokenEntry, used: boolean): string {
+  const base = t.kind === "optional" ? optionalTooltip(t) : t.label;
+  return used ? `${base} Already in your template.` : base;
 }
 
 export function TokenLegend({
@@ -29,20 +37,23 @@ export function TokenLegend({
         empty.
       </p>
       <div className="flex flex-wrap gap-1">
-        {TOKENS.map((t) => (
-          <Chip
-            key={t.token}
-            selected={templateUsesToken(t.token, filenameTemplate, folderTemplate)}
-            mono
-            title={t.kind === "optional" ? optionalTooltip(t) : t.label}
-            onClick={() => {
-              onInsert(t.insert);
-            }}
-          >
-            {t.token}
-            {t.kind === "optional" ? <span className="ml-1 text-muted">{"{ }"}</span> : null}
-          </Chip>
-        ))}
+        {TOKENS.map((t) => {
+          const used = templateUsesToken(t.token, filenameTemplate, folderTemplate);
+          return (
+            <Chip
+              key={t.token}
+              selected={used}
+              mono
+              title={describe(t, used)}
+              onClick={() => {
+                onInsert(t.insert);
+              }}
+            >
+              {t.token}
+              {t.kind === "optional" ? <span className="ml-1 text-muted">{"{ }"}</span> : null}
+            </Chip>
+          );
+        })}
       </div>
     </div>
   );

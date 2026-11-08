@@ -1,7 +1,3 @@
-/**
- * A row's warning badges, derived from its `status` and its advisory flags (`suffixed`, `sanitized`,
- * `inFlightPathOverflow`).
- */
 import type { RenamerStatus } from "../../wire/api";
 import { classifyItem, inFlightOverflowLabel } from "./dryRunLogic";
 
@@ -13,7 +9,7 @@ export interface Badge {
   readonly variant: Variant;
 }
 
-/** What a badge is derived from. Structural, so a `/scan-rows` row fits it. */
+/** Structural, so a `/scan-rows` row fits it as well as a preview item. */
 export interface Badgeable {
   status: RenamerStatus;
   suffixed: boolean;
@@ -26,7 +22,6 @@ export interface Badgeable {
  * status the server grows fails this build until it is given a decision here.
  */
 const STATUS_BADGES: Record<RenamerStatus, Badge | null> = {
-  // The acting statuses earn no badge of their own; the advisory flags qualify them instead.
   rename: null,
   move: null,
   noOp: { label: "No change needed", variant: "gray" },
@@ -47,14 +42,13 @@ const STATUS_BADGES: Record<RenamerStatus, Badge | null> = {
   skipPermissionDenied: { label: "Permission denied", variant: "amber" },
   // Red: the copy read back different, so the destination or the transport is suspect.
   skipVerifyFailed: { label: "Copy did not verify", variant: "red" },
-  // Gray: a clean stop on shutdown is not a defect.
   skipCancelled: { label: "Cancelled", variant: "gray" },
   // Assigned at move time, after every row is built, so no row carries it.
   skipNoSpace: null,
 };
 
-// A status the running server grew after this bundle shipped is still counted as attention, so it is
-// labelled rather than left bare. The widened lookup is what lets the miss be expressed at all.
+// A status the running server grew after this bundle shipped still reads as attention, labelled
+// rather than left bare.
 const UNKNOWN_STATUS: Badge = { label: "Unrecognised status", variant: "amber" };
 
 function statusBadge(status: string): Badge | null {
@@ -63,9 +57,8 @@ function statusBadge(status: string): Badge | null {
 }
 
 /**
- * Map an item to its badges, one per warning kind. An acting row also reads its suffixed and sanitized
- * advisories; a skipped row ran nothing, so neither applies. An in-flight path overflow is red on any
- * row the server set it on, because that move cannot complete.
+ * One badge per warning kind. Only an acting row reads the suffixed and sanitized advisories, since a
+ * skipped row ran nothing.
  */
 export function badgesFor(item: Badgeable): Badge[] {
   const badges: Badge[] = [];

@@ -2,31 +2,27 @@
  * The Dry Run table's row data layer: the only place that requests `/scan-rows`.
  *
  * Rows are read a page at a time rather than as one array, because the array is the whole library and
- * a large library's would not fit in the tab. Changing `query` or `bucket` starts a fresh walk from the
- * beginning of the library - the server re-plans for the new filter, so a filtered view is not a subset
- * of what is already loaded.
+ * a large library's would not fit in the tab. Each page carries the cursor the next one resumes from,
+ * which is what `getNextPageParam` hands back, and a page with no cursor ends the walk.
+ *
+ * `walkKey` is part of the query key, so changing the query or the bucket drops the rows under the
+ * old filter and a page still in flight for it can never append to the new one.
  */
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
+import type { ScanCursor, ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
 import { api } from "../../common/lib/extension";
-import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
-import {
-  createScanRowsStore,
-  walkKey,
-  type ScanRowsStore,
-  type ScanRowsWalk,
-} from "./scanRowsStore";
+import { bucketWireValue, walkKey, type DryRunFilter } from "./dryRunLogic";
 
 const SCAN_ROWS_PATH = api("scan-rows");
 
 interface UseScanRows {
   rows: ScanRow[];
-  /** Requests the next page. Safe to call on every scroll frame - overlapping calls collapse into one. */
+  /** Requests the next page. Safe to call on every scroll frame; overlapping calls collapse. */
   loadMore: () => void;
   loading: boolean;
-  /** True once the walk has reached the end of the library; no further page exists. */
   complete: boolean;
   /**
    * The last page stopped on the server's per-request entity budget. More of the library is
@@ -35,14 +31,18 @@ interface UseScanRows {
   budgetExhausted: boolean;
   /** Entities the server has planned across this walk, which is what the budget is spent on. */
   examined: number;
+  /**
+   * Pages that have landed. It changes on every one of them, including a page that carried no rows,
+   * which is what lets a caller re-evaluate whether to ask for another.
+   */
+  pagesLoaded: number;
   error: string | null;
 }
 
 /**
  * @param optionsBlob The stringified options the scan was enqueued with, captured once at modal open.
  * @param enabled False until the scan job completes; no page is requested before there is a scan.
- * @param query The path search, sent verbatim - the server reproduces the client's old matching rules.
- * @param bucket The active status filter.
+ * @param query The path search, sent verbatim; the server owns the matching rules.
  */
 export function useScanRows(
   optionsBlob: string,
@@ -50,59 +50,55 @@ export function useScanRows(
   query: string,
   bucket: DryRunFilter,
 ): UseScanRows {
-  const key = walkKey(query, bucket);
-  // One store per hook lifetime. A lazy useState initializer rather than a useMemo, because a memo is a
-  // cache React may legitimately discard and re-running this factory would reset a walk mid-scroll.
-  const [store] = useState<ScanRowsStore>(() => createScanRowsStore(key));
-  const walk: ScanRowsWalk = useSyncExternalStore(store.subscribe, store.getSnapshot);
-
-  const load = useCallback(
-    (walkTarget: string) => {
-      if (!store.begin(walkTarget)) return;
-      const cursor = store.getSnapshot().cursor;
+  const walk = useInfiniteQuery({
+    queryKey: ["renamer", "scan-rows", walkKey(query, bucket), optionsBlob],
+    enabled,
+    initialPageParam: null as ScanCursor | null,
+    queryFn: ({ pageParam, signal }) =>
       requestJson<ScanRowsPage>(SCAN_ROWS_PATH, {
         method: "POST",
         body: JSON.stringify({
           options: optionsBlob,
-          kind: cursor?.kind ?? null,
-          afterEntityId: cursor?.afterEntityId ?? null,
+          kind: pageParam?.kind ?? null,
+          afterEntityId: pageParam?.afterEntityId ?? null,
           take: null,
           query,
           bucket: bucketWireValue(bucket),
         } satisfies ScanRowsRequest),
-      })
-        .then((page) => {
-          store.append(walkTarget, page);
-        })
-        .catch((err: unknown) => {
-          store.fail(walkTarget, errorText(err));
-        });
-    },
-    [store, optionsBlob, query, bucket],
-  );
+        signal,
+      }),
+    // A page with no cursor is the end of the last readable kind.
+    getNextPageParam: (last) => last.next,
+    // A retry would issue a second read against a cursor the user has not asked to advance, and the
+    // table already reports the failure and offers the retry itself.
+    retry: false,
+    // The loaded rows are library-sized, so they are dropped when the modal closes rather than held
+    // for the rest of the session. The walk is re-read from the start if it is opened again.
+    gcTime: 0,
+  });
 
-  // The first page of each walk. `primed` is what makes it exactly one request per walk: a first page
-  // can legitimately come back with no rows and a live cursor, so keying off `rows.length` would fire
-  // again on every render until the walk ended.
-  const primed = useRef<string | null>(null);
-  useEffect(() => {
-    store.retarget(key);
-    if (!enabled || primed.current === key) return;
-    primed.current = key;
-    load(key);
-  }, [store, key, enabled, load]);
-
+  // `fetchNextPage` already collapses overlapping calls, which is what lets a virtualizer firing its
+  // end-reached condition on consecutive frames issue one request. `cancelRefetch` has to be off to
+  // get that: left at its default it aborts the page in flight and starts it again.
+  const { fetchNextPage } = walk;
   const loadMore = useCallback(() => {
-    load(walkKey(query, bucket));
-  }, [load, query, bucket]);
+    void fetchNextPage({ cancelRefetch: false });
+  }, [fetchNextPage]);
+
+  const pages = walk.data?.pages;
 
   return {
-    rows: walk.rows,
+    rows: pages?.flatMap((page) => page.rows) ?? [],
     loadMore,
-    loading: walk.loading,
-    complete: walk.complete,
-    budgetExhausted: walk.budgetExhausted,
-    examined: walk.examined,
-    error: walk.error,
+    loading: walk.isFetching,
+    // Before the first page lands there is no cursor and no end either, so completeness is only a fact
+    // once a page has answered.
+    complete: pages !== undefined && !walk.hasNextPage,
+    budgetExhausted: pages?.at(-1)?.budgetExhausted ?? false,
+    examined: pages?.reduce((total, page) => total + page.entitiesExamined, 0) ?? 0,
+    pagesLoaded: pages?.length ?? 0,
+    // The rows already loaded stay: they were served and are still true, and discarding them would
+    // punish the user for a failure on the page after the one they are reading.
+    error: walk.error === null ? null : errorText(walk.error),
   };
 }

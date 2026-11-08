@@ -6,7 +6,6 @@ namespace Renamer.Tests.Execution.Journal;
 
 public sealed class JournalBlobMigrationTests
 {
-    // A hand-written header: run R1, opened 3 Aug 2026 10:00 UTC, video, still replayable.
     private static readonly DateTime HeaderOpened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
     private static string Header(string runId = "R1", string kind = "Video", string status = "open") =>
@@ -111,7 +110,6 @@ public sealed class JournalBlobMigrationTests
         Assert.NotNull(batch);
         Assert.Equal(rows, batch.Rows.Count);
 
-        // Every row arrived exactly once, with its own sequence number.
         Assert.Equal(rows, batch.Rows.Select(r => r.FileId).Distinct().Count());
         Assert.Equal(rows, batch.Rows.Select(r => r.Seq).Distinct().Count());
         Assert.Contains(batch.Rows, r => r.FileId == 5000);

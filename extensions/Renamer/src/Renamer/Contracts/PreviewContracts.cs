@@ -113,13 +113,20 @@ public sealed record UndoEntryWarning(int FileId, string Detail);
 public sealed record UndoEntryError(int FileId, string OldPath, string NewPath, string Reason);
 
 
-/// <summary>The JSON shape the <c>/last-batch</c> endpoint returns, for the undo panel.</summary>
+/// <summary>
+/// The JSON shape the <c>/last-batch</c> endpoint returns: one rename's counts, when it happened,
+/// and until when it can be undone.
+/// </summary>
 /// <remarks>
 /// Counts only: never a path, never a kind, never a per-file collection, which is what lets the
 /// endpoint keep its coarse any-renamer-read gate and keeps the response size independent of the
 /// library. <c>Count</c> is what the batch journalled and is never decremented as files are restored;
 /// <c>RemainingCount</c> is derived server-side, so remaining plus restored plus unrestorable equals
-/// it. With no batch, <c>HasBatch</c> is false and the other fields are zero or false.
+/// it. <c>ExpiresAtUtcTicks</c> is stated rather than derived by the reader, because a second copy of
+/// the retention window would drift from the one the purge deletes rows by. It is measured from
+/// <c>WrittenAtUtcTicks</c>, the earliest batch the operation opened: the purge keys on each batch's
+/// own timestamp, so that is the moment after which the operation can no longer be restored whole.
+/// With no batch, <c>HasBatch</c> is false and the other fields are zero or false.
 /// </remarks>
 public sealed record LastBatchSummary(
     bool HasBatch,
@@ -127,6 +134,7 @@ public sealed record LastBatchSummary(
     int RemainingCount,
     int UnrestorableCount,
     long WrittenAtUtcTicks,
+    long ExpiresAtUtcTicks,
     bool Consumed);
 
 

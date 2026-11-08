@@ -37,8 +37,7 @@ async function send(path: string, options: RequestInit): Promise<{ status: numbe
   }
 
   // A 204's body is null and reads as "", the same as the bodyless 200 the host answers its
-  // extension-data put with: one empty-body case for the two functions below to decide over, not a
-  // status test each would have to repeat.
+  // extension-data put with, so both arrive at the callers below as one empty-body case.
   return { status: res.status, body: await res.text() };
 }
 
@@ -53,10 +52,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 
 /**
- * Request an extension route that must answer with a JSON body: identical signature and `/api`
- * prefixing to {@link request}, and the same {@link ApiError} raised for a non-ok response.
- *
- * An empty body raises {@link ApiError} too, rather than resolving a value the declared type forbids.
+ * Request an extension route that must answer with a JSON body. An empty body raises
+ * {@link ApiError}, rather than resolving a value the declared type forbids.
  */
 export async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const { status, body } = await send(path, options);

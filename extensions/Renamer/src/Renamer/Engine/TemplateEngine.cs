@@ -27,10 +27,6 @@ public static class Tokens
     public const string Ext = "ext";
 }
 
-// Renders in a fixed order: resolve the tokens, render each template collapsing a {} group whose tokens
-// are all empty, apply the case and transliteration transforms, sanitize each path segment, resolve
-// the extension, then fit the length.
-//
 // The engine is pure: no Path, File or database access. Path-traversal confinement ('..',
 // absolute paths) belongs to the executor, because the engine never sees the library root.
 public static class TemplateEngine
@@ -43,8 +39,7 @@ public static class TemplateEngine
         IReadOnlyList<(int Id, string Name)>? tags = null)
         => RenderWithDropped(tokens, multiValues, options, performers, tags).result;
 
-    // Also returns the DropOrder fields the length reducer dropped to make the name fit, as
-    // reported by LengthReducer itself. Render delegates here, so there is one rendering path.
+    // Also returns the DropOrder fields the length reducer dropped to make the name fit.
     public static (RenamerResult result, IReadOnlyList<string> dropped) RenderWithDropped(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -66,7 +61,6 @@ public static class TemplateEngine
 
         return LengthReducer.Fit(
             folder, filename, ext, options,
-            // Re-render with the cumulative set of dropped fields forced empty.
             droppedFields =>
             {
                 var reduced = new Dictionary<string, string>(resolved, StringComparer.OrdinalIgnoreCase);
@@ -81,9 +75,6 @@ public static class TemplateEngine
             });
     }
 
-    // Copies the caller's scalar tokens, overrides $performers and $tags with the joined
-    // multi-value resolution, derives $resolution from the dimension tokens when present, and renders
-    // $height as its label.
     private static Dictionary<string, string> BuildResolvedMap(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -114,8 +105,6 @@ public static class TemplateEngine
 
             if (performerRecords is not null)
             {
-                // Filtering the records preserves per-position multiplicity, so when two performers
-                // share a name only the matching positions drop and a surviving duplicate is kept.
                 var survivors = FieldRewriter.DropPerformersInTitle(performerRecords, resolvedTitle, options);
                 map[Tokens.Performers] = MultiValue.Resolve(survivors, options.Performers);
             }
@@ -145,8 +134,7 @@ public static class TemplateEngine
         // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
         // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
         // is an absent one. With either missing the token stays out of the map, so its group drops.
-        // The dimensions read here are the ones Cove stored: a field rewrite on $width or $height is
-        // presentation, and a label derived from a rewritten dimension would contradict Cove's badge.
+        // The dimensions read here are the ones Cove stored, before any field rewrite.
         if (!map.ContainsKey(Tokens.Resolution)
             && map.TryGetValue(Tokens.Width, out var w)
             && int.TryParse(w, out var width)
@@ -200,9 +188,8 @@ public static class TemplateEngine
     // The tokens that render a resolution label, and so replace a title's own trailing tag.
     private static readonly string[] LabelTokens = [Tokens.Resolution, Tokens.Height];
 
-    // Template syntax has one parser, so a grammar change moves rendering and de-duplication
-    // together. Segment.Text carries the bare token name. DropOrder is user-supplied text and the
-    // resolved map is case-insensitive, so both membership tests ignore case too.
+    // DropOrder is user-supplied text and the resolved map is case-insensitive, so both membership
+    // tests ignore case too.
     private static bool WritesLabel(
         List<Segment> segs,
         IReadOnlyDictionary<string, string> resolved,
@@ -232,7 +219,6 @@ public static class TemplateEngine
             }
         }
 
-        // A progressive-scan tag the fixed list does not carry, such as "[368p]".
         if (trimmed.EndsWith(']') && TryStripTrailingNumericResTag(trimmed, out var stripped))
         {
             return stripped.TrimEnd();
@@ -289,8 +275,6 @@ public static class TemplateEngine
         return Resolve(resolved, field);
     }
 
-    // Reports whether the sanitize step changes the rendered filename, by running the same render,
-    // transform and clean steps the engine uses.
     public static bool WouldSanitizeFilename(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -458,12 +442,10 @@ public static class TemplateEngine
             }
             else if (seg.Kind == SegKind.GroupOpen)
             {
-                // A nested group renders inside this one.
                 i = RenderGroup(segs, i, resolved, suppressExt, inner);
             }
         }
 
-        // The span drops with its inner literals only when the group had tokens and all were empty.
         bool drop = sawToken && !anyTokenNonEmpty;
         if (!drop)
         {
@@ -485,7 +467,6 @@ public static class TemplateEngine
         return Resolve(resolved, name);
     }
 
-    // Order: punctuation normalization, then ASCII transliteration, then the case transform.
     private static string ApplyTransforms(string s, RenamerOptions options)
     {
         // Punctuation normalization runs first so a folded straight double-quote still reaches the
@@ -503,7 +484,6 @@ public static class TemplateEngine
         return Sanitizer.ApplyCase(s, options.Case);
     }
 
-    // Normalizes a raw extension token, with or without a leading dot, to the leading-dot form.
     private static string NormalizeExt(string ext)
     {
         if (string.IsNullOrEmpty(ext))

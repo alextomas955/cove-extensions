@@ -67,7 +67,8 @@ public sealed class UndoSidecarRestoreTests
                 db, "caption-run", videoId, new RenamerOptions { FilenameTemplate = "$title" },
                 betweenRenameAndUndo: async () => afterRename = await ReadCaptionFilenameAsync(db, captionId));
 
-            // A round trip that never wrote in either direction also ends on the original name.
+            // The positive control: without it, a round trip that never wrote in either direction
+            // would also end on the original name.
             Assert.Equal("My Film.en.vtt", afterRename);
 
             Assert.Equal(1, run.Undone);
@@ -119,13 +120,11 @@ public sealed class UndoSidecarRestoreTests
             Assert.Equal(fileId, warning.FileId);
             Assert.Contains("clip.srt", warning.Detail, StringComparison.Ordinal);
 
-            // The media file is back and its row agrees - which is exactly what undo promises.
             Assert.True(File.Exists(Path.Combine(dir.Root, "clip.mkv")));
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("clip.mkv", basename);
             Assert.Equal(folderPath + "/clip.mkv", path);
 
-            // And the occupant was never clobbered; the stranded sidecar stayed at its renamed name.
             Assert.Equal("someone else's subs", File.ReadAllText(Path.Combine(dir.Root, "clip.srt")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.srt")), "the stranded sidecar stays where it is");
         }

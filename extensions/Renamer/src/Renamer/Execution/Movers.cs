@@ -13,9 +13,7 @@ public sealed record MoveResult(
     IReadOnlyList<string> Warnings,
     string? Reason);
 
-// Picks the tier for a move. A same-volume move is DiskMover's atomic rename; a cross-volume move is
-// CrossVolumeMover's copy, verify, promote and delete-source-last. A rollback goes back through the
-// tier that moved the file.
+// Picks the tier for a move. A rollback goes back through the tier that moved the file.
 internal static class Movers
 {
     public static async Task<MoveResult> MoveAsync(

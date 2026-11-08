@@ -11,6 +11,23 @@ paths:
 Test names carry the intent. Comments here follow `.claude/rules/comments.md`: a test needs one
 only for a platform dependency or a non-obvious fixture fact.
 
+## A source file is not owed a test file
+
+A test mirrors its source folder, so a test is easy to find from its subject. A group that tests no
+single source unit gets a folder of its own instead: test support, the wire document, cross-cutting
+invariants, concurrency, e2e.
+
+Mirroring places a test; it does not require one per module. Group tests around behavior and the
+failure modes that matter. A module with no behavior of its own is covered through its caller.
+
+Never extract a helper so a test can reach it. That moves the seam rather than testing the thing,
+and it leaves production code shaped by the test. Drive the view, the handler or the endpoint.
+
+A UI component test uses React Testing Library and `user-event`. `render` and every `user` action
+run inside `act`, so a test that flushes or polls is working around a missing query, not a timing
+problem. Query by role and accessible name. Never mount a root by hand and never write a wait
+helper.
+
 ## An assertion that cannot fail is worse than no assertion
 
 Before writing an assertion, name what would have to break for it to go red. If nothing can, delete

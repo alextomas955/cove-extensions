@@ -91,7 +91,7 @@ public static class EmptySourceFolderCleaner
             && string.Equals(
                 NormalizeSlash(nativeDir).TrimEnd('/'),
                 NormalizeSlash(root).TrimEnd('/'),
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+                PathsIgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
     // Null when the link state cannot be read, which the caller treats as a link.

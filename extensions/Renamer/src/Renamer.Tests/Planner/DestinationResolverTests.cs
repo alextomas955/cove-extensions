@@ -18,11 +18,10 @@ public sealed class DestinationResolverTests
         int? studioId = null,
         IReadOnlyList<(int Id, string Name)>? parentStudios = null,
         IReadOnlyList<(int Id, string Name)>? tags = null,
-        string? studioName = null,
         string parentFolderPath = "media/in")
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
-            StudioName: studioName, Date: null, Organized: organized,
+            StudioName: null, Date: null, Organized: organized,
             Performers: [], TagRefs: tags ?? [],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, parentFolderPath)],
             StudioId: studioId, ParentStudios: parentStudios);
@@ -113,43 +112,24 @@ public sealed class DestinationResolverTests
         Assert.Equal("Tag:first", r.MatchedRule);
     }
 
-    [Fact]
-    public void DirectStudio_OutranksAncestorStudio()
+    // The entity's own studio is 42 and its ancestors are 7 then 3, nearest first. Each row gives a
+    // rule to two of those three ids, so the winner names the precedence: a direct match outranks an
+    // ancestor, and among ancestors the nearest one wins.
+    [Theory]
+    [InlineData(42, 7, "S:42", "Studio:42(direct)")]
+    [InlineData(7, 3, "S:7", "Studio:7(ancestor)")]
+    public void WithinStudioCategory_DirectOutranksAncestor_AndTheNearestAncestorWins(
+        int firstRuledId, int secondRuledId, string expectedRoot, string expectedRule)
     {
-        var e = Entity(studioId: 42, parentStudios: [(7, "Parent")]);
-        var lk = Lookups(studios: RootsById((42, "S:42"), (7, "S:7")));
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:42", r.Destination?.Root);
-        Assert.Equal("Studio:42(direct)", r.MatchedRule);
-    }
-
-    [Fact]
-    public void AncestorOnly_TakesNearestAncestor()
-    {
-        // ParentStudios is nearest-first.
         var e = Entity(studioId: 42, parentStudios: [(7, "Near"), (3, "Far")]);
-        var lk = Lookups(studios: RootsById((7, "S:7"), (3, "S:3")));
+        var lk = Lookups(studios: RootsById(
+            (firstRuledId, $"S:{firstRuledId}"), (secondRuledId, $"S:{secondRuledId}")));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:7", r.Destination?.Root);
-        Assert.Equal("Studio:7(ancestor)", r.MatchedRule);
-    }
-
-    [Fact]
-    public void TwoNameVariantsOfOneStudioId_ResolveToOneDestination()
-    {
-        var lk = Lookups(studios: RootsById((42, "S:42")));
-
-        var a = Entity(studioId: 42, studioName: "Reality Kings", parentFolderPath: "x");
-        var b = Entity(studioId: 42, studioName: "RealityKings", parentFolderPath: "y");
-
-        Assert.Equal("S:42", DestinationResolver.Resolve(a, new RenamerOptions(), lk).Destination?.Root);
-        Assert.Equal("S:42", DestinationResolver.Resolve(b, new RenamerOptions(), lk).Destination?.Root);
+        Assert.Equal(expectedRoot, r.Destination?.Root);
+        Assert.Equal(expectedRule, r.MatchedRule);
     }
 
     [Fact]
@@ -162,6 +142,9 @@ public sealed class DestinationResolverTests
 
         Assert.Equal(RouteCategory.Tag, r.Category);
         Assert.Equal("T:anime", r.Destination?.Root);
+        // The rule is keyed on the id while the label reads the name the tag carries now, so a
+        // name-keyed lookup would have missed the rule entirely.
+        Assert.Equal("Tag:ANIME renamed", r.MatchedRule);
     }
 
     [Fact]
@@ -190,8 +173,15 @@ public sealed class DestinationResolverTests
 
         var r = DestinationResolver.Resolve(Entity(parentFolderPath: "media/raw"), options, lk);
 
-        bool caseInsensitivePlatform = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
-        Assert.Equal(caseInsensitivePlatform, r.Category == RouteCategory.SourcePath);
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+        {
+            Assert.Equal(RouteCategory.SourcePath, r.Category);
+            Assert.Equal("P:exact", r.Destination?.Root);
+        }
+        else
+        {
+            Assert.Equal(RouteCategory.Unmatched, r.Category);
+        }
     }
 
     [Fact]
@@ -255,125 +245,89 @@ public sealed class DestinationResolverTests
         Assert.Null(r.Destination);
     }
 
-    [Fact]
-    public void ExcludeByTag_Exact_ReturnsExcluded()
+    [Theory]
+    [MemberData(nameof(ExcludedEntities))]
+    public void AMatchedExcludeRule_ReturnsExcluded_AndNamesTheRule(
+        RenamerEntity entity, RouteLookups lookups, string expectedRule)
     {
-        var e = Entity(tags: [(Anime, "anime")]);
-        var lk = Lookups(excludeTags: new HashSet<int> { Anime });
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+        var r = DestinationResolver.Resolve(entity, new RenamerOptions(), lookups);
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Tag:anime", r.MatchedRule);
+        Assert.Equal(expectedRule, r.MatchedRule);
         Assert.Null(r.Destination);
     }
 
-    [Fact]
-    public void ExcludeByTag_SurvivesARename_AndTheReasonShowsTheNewName()
+    public static TheoryData<RenamerEntity, RouteLookups, string> ExcludedEntities() => new()
     {
-        // The reason reads the entity's tag name, so it follows a rename instead of showing the bare id.
-        var e = Entity(tags: [(11, "Japanese Animation")]);
-        var lk = Lookups(excludeTags: new HashSet<int> { 11 });
+        {
+            Entity(tags: [(Anime, "anime")]),
+            Lookups(excludeTags: new HashSet<int> { Anime }),
+            "Exclude:Tag:anime"
+        },
+        {
+            // The reason reads the entity's tag name, so it follows a rename instead of showing the
+            // bare id.
+            Entity(tags: [(11, "Japanese Animation")]),
+            Lookups(excludeTags: new HashSet<int> { 11 }),
+            "Exclude:Tag:Japanese Animation"
+        },
+        {
+            Entity(studioId: 42),
+            Lookups(excludeStudios: new HashSet<int> { 42 }),
+            "Exclude:Studio:42(direct)"
+        },
+        {
+            Entity(studioId: 42, parentStudios: [(7, "Parent")]),
+            Lookups(excludeStudios: new HashSet<int> { 7 }),
+            "Exclude:Studio:7(ancestor)"
+        },
+        {
+            Entity(parentFolderPath: "media/protected"),
+            Lookups(excludePathsExact: PathSet("media/protected")),
+            "Exclude:Path:exact"
+        },
+        {
+            // A trailing slash on the stored path normalizes onto the same rule key.
+            Entity(parentFolderPath: "media/protected/"),
+            Lookups(excludePathsExact: PathSet("media/protected")),
+            "Exclude:Path:exact"
+        },
+        {
+            Entity(parentFolderPath: "media/keep/2024"),
+            Lookups(excludePathRegex: [Pattern(@"^media/keep/\d+$")]),
+            "Exclude:Path:regex"
+        },
+    };
 
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Tag:Japanese Animation", r.MatchedRule);
-        Assert.Null(r.Destination);
-    }
-
-    [Fact]
-    public void ExcludeByStudio_DirectId_ReturnsExcluded()
+    [Theory]
+    [MemberData(nameof(ExcludedEntitiesWithACompetingRoute))]
+    public void AnExcludeRule_BeatsTheRouteThatWouldOtherwiseMatch(
+        RenamerEntity entity, RenamerOptions options, RouteLookups lookups)
     {
-        var e = Entity(studioId: 42);
-        var lk = Lookups(excludeStudios: new HashSet<int> { 42 });
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Studio:42(direct)", r.MatchedRule);
-    }
-
-    [Fact]
-    public void ExcludeByStudio_AncestorId_ReturnsExcluded()
-    {
-        var e = Entity(studioId: 42, parentStudios: [(7, "Parent")]);
-        var lk = Lookups(excludeStudios: new HashSet<int> { 7 });
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Studio:7(ancestor)", r.MatchedRule);
-    }
-
-    [Fact]
-    public void ExcludeByPath_Exact_ReturnsExcluded()
-    {
-        var e = Entity(parentFolderPath: "media/protected");
-        var lk = Lookups(excludePathsExact: PathSet("media/protected"));
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Path:exact", r.MatchedRule);
-    }
-
-    [Fact]
-    public void ExcludeByPath_Exact_TrailingSlashNormalized()
-    {
-        var e = Entity(parentFolderPath: "media/protected/");
-        var lk = Lookups(excludePathsExact: PathSet("media/protected"));
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+        var r = DestinationResolver.Resolve(entity, options, lookups);
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
     }
 
-    [Fact]
-    public void ExcludeByPath_Regex_ReturnsExcluded()
+    public static TheoryData<RenamerEntity, RenamerOptions, RouteLookups> ExcludedEntitiesWithACompetingRoute() => new()
     {
-        var e = Entity(parentFolderPath: "media/keep/2024");
-        var lk = Lookups(excludePathRegex: [Pattern(@"^media/keep/\d+$")]);
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-        Assert.Equal("Exclude:Path:regex", r.MatchedRule);
-    }
-
-    [Fact]
-    public void Exclude_BeatsAMatchingTagRoute()
-    {
-        var e = Entity(tags: [(Anime, "anime")]);
-        var lk = Lookups(tags: RootsById((Anime, "T:anime")), excludeTags: new HashSet<int> { Anime });
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-    }
-
-    [Fact]
-    public void Exclude_BeatsAMatchingStudioRoute()
-    {
-        var e = Entity(studioId: 42);
-        var lk = Lookups(studios: RootsById((42, "S:42")), excludeStudios: new HashSet<int> { 42 });
-
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-    }
-
-    [Fact]
-    public void Exclude_BeatsUnorganized()
-    {
-        var e = Entity(organized: false, tags: [(Anime, "anime")]);
-        var o = new RenamerOptions { UnorganizedDestination = new Destination { Root = "U:dest" } };
-        var lk = Lookups(excludeTags: new HashSet<int> { Anime });
-
-        var r = DestinationResolver.Resolve(e, o, lk);
-
-        Assert.Equal(RouteCategory.Excluded, r.Category);
-    }
+        {
+            Entity(tags: [(Anime, "anime")]),
+            new RenamerOptions(),
+            Lookups(tags: RootsById((Anime, "T:anime")), excludeTags: new HashSet<int> { Anime })
+        },
+        {
+            Entity(studioId: 42),
+            new RenamerOptions(),
+            Lookups(studios: RootsById((42, "S:42")), excludeStudios: new HashSet<int> { 42 })
+        },
+        {
+            // Unorganized outranks every routing category, and still loses to an exclude.
+            Entity(organized: false, tags: [(Anime, "anime")]),
+            new RenamerOptions { UnorganizedDestination = new Destination { Root = "U:dest" } },
+            Lookups(excludeTags: new HashSet<int> { Anime })
+        },
+    };
 
     [Fact]
     public void NoExcludeMatch_FallsThroughToRoutingUnchanged()

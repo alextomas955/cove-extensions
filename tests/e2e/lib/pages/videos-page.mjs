@@ -1,6 +1,5 @@
-// Shared Page Object for Cove's /videos grid, consumed by every extension's e2e specs. The core
-// (goto / cardByFilename / selectCard) is extension-agnostic; "Rename selected" is Renamer's own
-// affordance and lives here so a second extension can add its own beside it.
+// Shared Page Object for Cove's /videos grid. The core is extension-agnostic; "Rename selected" is
+// Renamer's own affordance and lives here so a second extension can add its own beside it.
 import { expect } from "@cove-extensions/e2e";
 
 // The host imports each route's page as a lazily-fetched chunk. When that fetch fails it catches the
@@ -16,22 +15,21 @@ export class VideosPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
-    // Renamer: the bulk "Rename selected" action button.
     this.renameSelectedButton = page.getByRole("button", { name: "Rename selected" });
   }
 
   /**
    * Opens the grid, re-navigating while the host answers with a failed chunk fetch.
    *
-   * limit worth stating: the check reads the page once the network is idle, which is where the host's
-   * error boundary has already painted for a rejection raised during load. An error appearing after
-   * that point is not caught here, and shows up as a card locator that never resolves.
+   * The check reads the page once the network is idle, which is where the host's error boundary has
+   * already painted for a rejection raised during load. An error appearing after that point is not
+   * caught here, and shows up as a card locator that never resolves.
    */
   async goto() {
     for (let attempt = 0; ; attempt += 1) {
       await this.page.goto(`${this.baseUrl}/videos`);
-      // The grid's content loads via a client-side fetch after navigation - waiting for the network
-      // to go idle (not just the initial HTML load) avoids reading the DOM before cards render.
+      // The grid's contents arrive from a client-side fetch, so the initial HTML load says nothing
+      // about whether any card has rendered.
       await this.page.waitForLoadState("networkidle");
 
       const failed = await this.page.getByText(CHUNK_FAILURE_TEXT).isVisible();
@@ -46,13 +44,13 @@ export class VideosPage {
   }
 
   /**
-   * Locates a video card by its currently-displayed filename. Each card is a link ("Open video
-   * <filename>") whose accessible name carries the filename directly. `has:` alone is not enough
-   * to pick the tightest-scoped container when multiple cards are on the page (a worker-shared
-   * instance can have leftover seeded videos from other tests) - it can match an ancestor `div`
-   * that wraps more than one card, yielding a "Select item" button per card inside it. `.last()`
-   * (innermost/deepest matching `div` in DOM order for a `has:` filter walking up from the link)
-   * plus asserting exactly one match is what actually scopes to a single card.
+   * Locates a video card by its currently-displayed filename. Each card carries a link named "Open
+   * video <title>", and Cove falls back to the filename only for a video that has none, so this
+   * finds the untitled videos a seed creates and a titled one has to be found by its title instead.
+   *
+   * `has:` alone can match an ancestor `div` wrapping several cards, which on a worker-shared
+   * instance holding other tests' media yields one "Select item" button per card inside it.
+   * `.last()` is the innermost matching `div`, which is the card itself.
    */
   cardByFilename(filename) {
     return this.page
@@ -70,9 +68,9 @@ export class VideosPage {
 
   /**
    * Clicks "Rename selected" and accepts the confirm() preview dialog it raises. The rename then
-   * runs as a job surfaced in the Job Drawer, so the host suppresses the queued-success alert
-   * (suppressSuccessAlert) - there is no second dialog. Returns the accepted dialog message(s) so a
-   * test can assert on the preview text; the rename outcome itself is verified by polling the API/disk.
+   * runs as a job in the host's Job Drawer, and the host suppresses the queued-success alert, so
+   * there is no second dialog. Returns the accepted dialog message(s); the rename outcome itself is
+   * proven by polling the API and disk.
    */
   async renameSelected() {
     const messages = [];
@@ -88,8 +86,6 @@ export class VideosPage {
     this.page.on("dialog", handler);
     try {
       await this.renameSelectedButton.click();
-      // Only the before-disk confirm() gate fires; wait for it to be accepted (a fixed sleep was
-      // flaky under CI load), then let the caller poll the API/disk for the job's result.
       await Promise.race([
         confirmSeen,
         this.page.waitForTimeout(10_000).then(() => {
@@ -103,20 +99,17 @@ export class VideosPage {
   }
 
   /**
-   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can wait for the
-   * grid to hold the number of cards it seeded before selecting - the grid's contents arrive from a
-   * client-side fetch, so a count taken too early is a count of however much had rendered.
+   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can wait for
+   * the grid to hold the number of cards it seeded: the contents arrive from a client-side fetch,
+   * so a count taken too early is a count of however much had rendered.
    */
   get selectItemButtons() {
     return this.page.getByRole("button", { name: "Select item" });
   }
 
   /**
-   * Selects the first {@link count} grid cards by their "Select item" buttons - robust to whether a card's
-   * accessible name shows the title or the filename (the batch tests only need some selection, not a
-   * specific card).
-   *
-   * Returns the number of cards actually clicked, clamped to what the grid held.
+   * Selects the first {@link count} grid cards, whatever their accessible names show. Returns the
+   * number of cards actually clicked, clamped to what the grid held.
    */
   async selectFirstCards(count = 1) {
     const selectButtons = this.selectItemButtons;

@@ -53,7 +53,6 @@ public sealed class RevertDeltaTests
     {
         // Same bytes for "no sidecars" and for "written before deltas existed" - one state, not two.
         Assert.Equal("", RevertDelta.Empty.Serialize());
-        Assert.Equal("", new RevertDelta([], []).Serialize());
 
         Assert.False(RevertDelta.TryParse("", out var fromEmpty));
         Assert.Empty(fromEmpty.Sidecars);
@@ -64,31 +63,25 @@ public sealed class RevertDeltaTests
         Assert.Empty(fromNull.Captions);
     }
 
-    [Fact]
-    public void APathHoldingTheFormatsOwnSeparators_SurvivesBothDirections()
+    [Theory]
+    // A pipe, a backslash and a newline are all legal in a filename on the platforms Cove runs, so
+    // an unescaped one would split a single path across two fields - and undo would then move a
+    // file to a path that never existed.
+    [InlineData(
+        @"s|/media/a\pb/c\\d/e\nf.srt|/media/out/My Film.srt",
+        "/media/a|b/c\\d/e\nf.srt",
+        "/media/out/My Film.srt")]
+    [InlineData(
+        "s|/média/Amélie - 2001/clip.srt|/média/Amélie - 2001/Amélie.srt",
+        "/média/Amélie - 2001/clip.srt",
+        "/média/Amélie - 2001/Amélie.srt")]
+    public void APathHoldingTheFormatsOwnSeparatorsOrNonAscii_SurvivesBothDirections(
+        string stored, string expectedFrom, string expectedTo)
     {
-        // A pipe, a backslash and a newline are all legal in a filename on the platforms Cove runs, so
-        // an unescaped one would split a single path across two fields - and undo would then move a
-        // file to a path that never existed.
-        const string stored = @"s|/media/a\pb/c\\d/e\nf.srt|/media/out/My Film.srt";
-
         Assert.True(RevertDelta.TryParse(stored, out var delta));
         var sidecar = Assert.Single(delta.Sidecars);
-        Assert.Equal("/media/a|b/c\\d/e\nf.srt", sidecar.FromPath);
-        Assert.Equal("/media/out/My Film.srt", sidecar.ToPath);
-
-        Assert.Equal(stored, new RevertDelta([sidecar], []).Serialize());
-    }
-
-    [Fact]
-    public void ANonAsciiPath_SurvivesBothDirections()
-    {
-        const string stored = "s|/média/Amélie - 2001/clip.srt|/média/Amélie - 2001/Amélie.srt";
-
-        Assert.True(RevertDelta.TryParse(stored, out var delta));
-        var sidecar = Assert.Single(delta.Sidecars);
-        Assert.Equal("/média/Amélie - 2001/clip.srt", sidecar.FromPath);
-        Assert.Equal("/média/Amélie - 2001/Amélie.srt", sidecar.ToPath);
+        Assert.Equal(expectedFrom, sidecar.FromPath);
+        Assert.Equal(expectedTo, sidecar.ToPath);
 
         Assert.Equal(stored, new RevertDelta([sidecar], []).Serialize());
     }

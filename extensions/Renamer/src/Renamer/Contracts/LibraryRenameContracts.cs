@@ -17,18 +17,21 @@ public sealed record LibraryRenameKindTally(
 /// <summary>What a completed whole-library rename persists: its run id and per-kind file counts.</summary>
 /// <remarks>
 /// Nothing per file is stored, so the value's size depends on the kind count alone. One value is kept,
-/// the latest run's, and <c>RunId</c> says which run that is. The figures stay split per kind so the
-/// readback can drop the kinds the caller may not see. <c>Kinds</c> holds one entry per kind that had
-/// at least one entity.
+/// the latest run's; <c>RunId</c> says which run that is, and <c>OwnerKey</c> which caller ran it. The
+/// counts cover only the entities that caller could write, so the readback serves them to that caller
+/// alone; null is the key of a principal the host gives no owner, which is one identity, not "anyone".
+/// The figures stay split per kind so the readback can drop the kinds the caller may not see.
+/// <c>Kinds</c> holds one entry per kind that had at least one entity.
 /// </remarks>
 public sealed record LibraryRenameSummary(
     int SchemaVersion,
     string RunId,
+    string? OwnerKey,
     long CompletedAtUtcTicks,
     IReadOnlyList<LibraryRenameKindTally> Kinds)
 {
     // The readback 404s on a stamp it does not recognise, so a later reshape reads as "no run yet".
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 }
 
 /// <summary>What <c>POST /renamer-library</c> returns: the job to poll and the run to read back.</summary>

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // The page's own decisions over the hooks it composes: what a failed first load shows, and when the
 // save bar is on screen. The data hooks and the two request-owning views stand in.
-import { test, expect, vi, beforeEach } from "vitest";
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { waitFor } from "../common/lib/flushRender";
 import type { UseRenamerOptions } from "./useRenamerOptions";
 import type { UseRenameLibrary } from "./useRenameLibrary";
 import type { UseRenamePreview } from "./useRenamePreview";
@@ -51,7 +51,6 @@ vi.mock("./useRenameLibrary", () => ({
     setDryRunOpen: () => undefined,
     renamingLibrary: false,
     runLibraryFeedback: null,
-    undoRefreshKey: 0,
     renameProgress: null,
     renameLibrary: () => Promise.resolve(),
   }),
@@ -67,26 +66,13 @@ vi.mock("./dry-run/DryRunModal", () => ({ DryRunModal: () => null }));
 
 const { RenamePage } = await import("./RenamePage");
 
-async function renderPage(ready: (host: HTMLElement) => boolean) {
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  root.render(createElement(RenamePage));
-  await waitFor("the page to render", () => ready(host));
-
+function renderPage() {
+  const { container } = render(createElement(RenamePage));
   return {
-    host,
-    saveButton: () =>
-      [...host.querySelectorAll("button")].find((b) => b.textContent === "Save changes"),
-    unmount: () => {
-      root.unmount();
-      host.remove();
-    },
+    text: () => container.textContent,
+    saveButton: () => screen.queryByRole("button", { name: "Save changes" }),
   };
 }
-
-// The Live preview card renders whenever options have loaded, so its heading marks a settled page.
-const loaded = (host: HTMLElement) => host.textContent.includes("Live preview");
 
 beforeEach(() => {
   page.load.mockClear();
@@ -95,45 +81,43 @@ beforeEach(() => {
   page.dryRunOpen = false;
 });
 
+afterEach(cleanup);
+
 test("a failed first load shows the error and a Retry that loads again, not a spinner", async () => {
+  const user = userEvent.setup();
   page.loadError = "500 boom";
-  const view = await renderPage((host) => host.textContent.includes("500 boom"));
+  const view = renderPage();
 
-  expect(view.host.textContent).not.toContain("Loading settings");
+  expect(view.text()).toContain("500 boom");
+  expect(view.text()).not.toContain("Loading settings");
 
-  const retry = [...view.host.querySelectorAll("button")].find((b) => b.textContent === "Retry");
-  retry?.click();
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+
   expect(page.load).toHaveBeenCalledTimes(1);
-
-  view.unmount();
 });
 
-test("unsaved edits put the save bar on screen", async () => {
+test("unsaved edits put the save bar on screen", () => {
   page.dirty = true;
-  const view = await renderPage(loaded);
+  const view = renderPage();
 
-  expect(view.saveButton()).toBeDefined();
-  expect(view.host.textContent).toContain("Unsaved changes");
-
-  view.unmount();
+  expect(view.saveButton()).not.toBeNull();
+  expect(view.text()).toContain("Unsaved changes");
 });
 
-test("the save bar steps aside while the dry run is open, even with unsaved edits", async () => {
+test("the save bar steps aside while the dry run is open, even with unsaved edits", () => {
   // The bar is the later sibling at the dialog's layer, so on screen it would paint over the modal.
   page.dirty = true;
   page.dryRunOpen = true;
-  const view = await renderPage(loaded);
+  const view = renderPage();
 
-  expect(view.saveButton()).toBeUndefined();
-  expect(view.host.textContent).not.toContain("Unsaved changes");
-
-  view.unmount();
+  expect(view.saveButton()).toBeNull();
+  expect(view.text()).not.toContain("Unsaved changes");
 });
 
-test("a page with nothing edited shows no save bar", async () => {
-  const view = await renderPage(loaded);
+test("a page with nothing edited shows no save bar", () => {
+  const view = renderPage();
 
-  expect(view.saveButton()).toBeUndefined();
-
-  view.unmount();
+  // The Live preview card renders whenever options have loaded, so its heading marks a settled page.
+  expect(view.text()).toContain("Live preview");
+  expect(view.saveButton()).toBeNull();
 });

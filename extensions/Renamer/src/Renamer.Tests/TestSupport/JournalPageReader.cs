@@ -2,22 +2,20 @@ using Renamer.Execution;
 
 namespace Renamer.Tests.TestSupport;
 
-// Pages a whole batch out of an IRevertJournal into one list, for tests that want to assert over
-// all of it at once. this is where materializing a whole batch lives now, and deliberately not on
-// the port: a production read that returned all of a batch would tie memory to whatever the cap on
-// a batch is at the time, while here the fixtures have a known, small size and a call site that can
-// never reach production. It pages through the same public reads an undo uses, so a cursor bug
-// shows up here too rather than being papered over by a shortcut.
+// Pages a whole batch out of an IRevertJournal into one list, for tests that assert over all of it
+// at once. It lives here and deliberately not on the port: a production read that returned all of a
+// batch would tie memory to the batch size, while the fixtures here are small and this call site
+// can never reach production. It pages through the same public reads an undo uses, so a cursor bug
+// shows up here too.
 public static class JournalPageReader
 {
     // A small default page size, so a helper call crosses a page boundary on ordinary fixtures.
     public const int TestPageSize = 64;
 
     // The newest batch of the operation an undo would act on, with every row it still holds, or
-    // null when that operation has no batch with rows left. Null-for-nothing-replayable is the
-    // shape assertions about "nothing left to offer" are written against: the undo target itself
-    // falls back to a settled operation so its aggregate stays readable, which is a question about
-    // the aggregate, not about the rows.
+    // null when that operation has no batch with rows left. The undo target itself falls back to a
+    // settled operation so its aggregate stays readable, which is a question about the aggregate
+    // rather than about the rows.
     public static async Task<RevertBatch?> ReadWholeUndoTargetAsync(
         IRevertJournal journal, int pageSize = TestPageSize, CancellationToken ct = default)
     {

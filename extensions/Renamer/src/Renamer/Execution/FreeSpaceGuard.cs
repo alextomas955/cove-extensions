@@ -2,12 +2,8 @@ using Renamer.Planner;
 
 namespace Renamer.Execution;
 
-// The cross-drive free-space decision. It sums the projected file bytes per destination volume and
-// reports the volumes whose need, the summed bytes plus a headroom margin, exceeds their available
-// free space, so the batch loop can refuse per volume instead of filling a disk.
-//
-// The only disk touch is the injected free-space probe; everything else is VolumeClassifier string
-// math, so the guard is testable with no second drive.
+// The cross-drive free-space decision, so the batch loop can refuse per volume instead of filling a
+// disk.
 //
 // Same-volume moves are excluded from every sum, because an in-place rename consumes no extra space
 // and a same-drive-only batch must never be refused.
@@ -22,8 +18,6 @@ public static class FreeSpaceGuard
     //
     // A malformed or rootless new path groups under its VolumeClassifier key, which may be empty; the
     // method never throws on path content.
-    //
-    // The moves are decoupled from the planner's plan item so the guard needs no file-id-to-size lookup.
     public static IReadOnlyList<(string Volume, long Needed, long Available)> Shortfall(
         IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves,
         long headroomBytes,

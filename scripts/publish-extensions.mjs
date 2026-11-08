@@ -43,11 +43,10 @@ function run(command, args, cwd, label) {
 }
 
 // npm ships as a .cmd shim on Windows and Node refuses to spawn one without a shell, so npm is always
-// run as `node <npm-cli.js>` - which needs no shell on any platform and assumes no binary on path.
-// npm_execpath is npm's own answer and is set whenever npm started this process, which is every run
-// through the `pretest` hook; the two filesystem candidates cover a direct `node scripts/…` invocation
-// and differ only in where each platform's Node installation puts npm. No candidate resolving is a hard
-// failure naming all of them, never a UI build quietly skipped.
+// run as `node <npm-cli.js>`, which needs no shell and no binary on path. npm_execpath is npm's own
+// answer and is set whenever npm started this process; the two filesystem candidates cover a direct
+// `node scripts/…` invocation and differ only in where each platform's Node puts npm. No candidate
+// resolving is a hard failure naming all of them, never a UI build quietly skipped.
 function resolveNpmCli() {
   const nodeDir = path.dirname(process.execPath);
   const candidates = [
@@ -135,8 +134,8 @@ function main() {
   const entries = readCatalogEntries();
   const selected = entries.filter((entry) => entry.e2ePath && entry.e2eProject);
 
-  // Printed on every run, pass or fail: a step whose only output is its exit status cannot be told apart
-  // from one that examined nothing.
+  // Printed on every run, pass or fail: a step whose only output is its exit status cannot be told
+  // apart from one that examined nothing.
   console.log(
     `publish-extensions: examined ${entries.length} catalog entries, of which ${selected.length} declared both e2ePath and e2eProject.`,
   );
@@ -152,8 +151,8 @@ function main() {
 
   for (const entry of selected) {
     const label = entry.name ?? entry.id ?? "(catalog entry with no name or id)";
-    // Stops at the first failure rather than carrying on, so the reported outcome describes every
-    // extension named above it and none below.
+    // Stops at the first failure, so the reported outcome describes every extension named above it
+    // and none below.
     const failure = publishEntry(entry, label);
     if (failure) {
       console.error(`publish-extensions: ${label} FAILED - ${failure}`);

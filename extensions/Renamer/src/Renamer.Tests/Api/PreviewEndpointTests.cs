@@ -73,7 +73,6 @@ public sealed class PreviewEndpointTests
             Assert.Empty(summary.VolumePairs);
             Assert.Equal(ConfirmLevel.Light, summary.ConfirmLevel);
 
-            // Zero mutation: the seeded row is byte-for-byte unchanged after the preview.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);

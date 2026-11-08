@@ -3,12 +3,10 @@
 // was produced by the engine's formatter (`TimeSpan.ToString(format, InvariantCulture)`, as
 // `MetadataProjector.FormatDuration` calls it) and copied here, never derived from the module under
 // test. The whole list is pinned, so an option added with no example checked here fails too.
-import { test, expect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import assert from "node:assert/strict";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
+import { render, screen, cleanup } from "@testing-library/react";
 
 import { someOptions } from "./testOptions";
 
@@ -20,6 +18,8 @@ import {
 
 const pairs = (options: readonly { value: string; example: string }[]) =>
   options.map((o) => [o.value, o.example]);
+
+afterEach(cleanup);
 
 test("every duration example is what the engine's formatter renders for 1h 23m 45s", () => {
   assert.deepEqual(pairs(DURATION_FORMAT_OPTIONS), [
@@ -40,22 +40,8 @@ test("every date example is what the engine's formatter renders for 2026-03-12",
   ]);
 });
 
-function textNodes(container: HTMLElement, text: string): number {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let found = 0;
-  let node = walker.nextNode();
-  while (node) {
-    if ((node.nodeValue ?? "").trim() === text) found += 1;
-    node = walker.nextNode();
-  }
-  return found;
-}
-
-test("the gender order says where a gender the user left out ends up", async () => {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(
+test("the gender order says where a gender the user left out ends up", () => {
+  render(
     createElement(TokenSettingsSection, {
       // The performers group renders only for a template that uses the token.
       options: { ...someOptions(), filenameTemplate: "$performers - $title" },
@@ -64,11 +50,7 @@ test("the gender order says where a gender the user left out ends up", async () 
       insertToken: () => undefined,
     }),
   );
-  await waitFor("the token group to render", () => container.querySelector("h3") !== null);
 
-  expect(textNodes(container, "Most-preferred first. Anyone else sorts last.")).toBe(1);
-  expect(textNodes(container, "Most-preferred first.")).toBe(0);
-
-  root.unmount();
-  container.remove();
+  expect(screen.queryAllByText("Most-preferred first. Anyone else sorts last.")).toHaveLength(1);
+  expect(screen.queryAllByText("Most-preferred first.")).toHaveLength(0);
 });

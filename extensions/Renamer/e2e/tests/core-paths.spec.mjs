@@ -1,12 +1,10 @@
-// Core rename, undo and live-preview coverage driven through the real UI (Videos grid + Renamer
-// settings panel), not the REST API: "Rename selected" raises a native confirm() with the real
-// computed preview text, and "Undo last rename" opens an in-app (React) confirm modal, not a native
-// dialog. See lib/pages/ for the Page Object Model.
-// `@smoke` marks the tests spanning install -> enable -> rename -> undo, one per contract in the
-// cheapest file that carries it; the install itself is proven by the harness, which refuses to hand
-// over an instance where the extension is not enabled. `ci.yml` selects them with `--grep @smoke` on a
-// leg whose role is newest-GA and nothing else, and states there why that leg asks only this much. It
-// is a selection, never a tier: every one of these runs in the full suite too.
+// Core rename, undo and live-preview coverage driven through the UI rather than the REST API.
+// "Rename selected" raises a native confirm() carrying the real computed preview text, while "Undo
+// last rename" opens an in-app React modal, not a native dialog.
+//
+// `@smoke` marks the tests spanning install, enable, rename and undo, one per contract in the
+// cheapest file that carries it. `ci.yml` selects them with `--grep @smoke` on its newest-GA leg.
+// It is a selection, never a tier: every one of these runs in the full suite too.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
@@ -57,9 +55,8 @@ test(
     const originalFilename = video.files[0].path.split("/").pop();
     const originalPath = video.files[0].path;
 
-    // A "$title"-only template over a safe title (letters + spaces only, which the sanitizer passes
-    // through unchanged) makes the resulting name deterministic and independent of date/resolution
-    // metadata, so the exact resulting basename can be asserted, not merely "the path changed".
+    // A title of letters and spaces only passes through the sanitizer unchanged, so the exact
+    // resulting basename can be asserted rather than only "the path changed".
     const title = "Core Path Rename Test";
     const expectedBasename = `${title}.mp4`;
 

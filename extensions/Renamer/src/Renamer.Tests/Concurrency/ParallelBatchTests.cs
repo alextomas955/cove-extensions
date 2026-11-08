@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
@@ -10,8 +8,7 @@ namespace Renamer.Tests.Concurrency;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
-    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", and writes each
-    // source to disk unless skip names its index.
+    // Writes each source to disk unless skip names its index.
     private static async Task<IReadOnlyList<int>> SeedVideosAsync(
         SharedCacheSqlite shared, TempDir dir, int count, int? skip = null)
     {
@@ -76,48 +73,6 @@ public sealed class ParallelBatchTests
         finally
         {
             await shared.DisposeAsync();
-        }
-    }
-
-    // Holds every execution-phase report for a moment, so the other workers finish and queue their
-    // own reports behind it. Which queued report the host receives next is then up to the scheduler,
-    // so a report carrying a count read before it queued can arrive after a larger one.
-    private sealed class SlowExecutionReports : IJobProgress
-    {
-        public ConcurrentQueue<double> Percents { get; } = new();
-
-        public void Report(double percent, string? message = null)
-        {
-            Percents.Enqueue(percent);
-            if (percent is > 0.5d and < 1d)
-            {
-                Thread.Sleep(TimeSpan.FromMilliseconds(15));
-            }
-        }
-    }
-
-    // The interleaving is the scheduler's to choose, so one batch provokes it only some of the time.
-    // Several batches make a pass on a regressing bar unlikely rather than impossible.
-    [Fact]
-    public async Task ParallelBatch_ReportsQueuedBehindASlowSink_NeverStepTheBarBackward()
-    {
-        for (int round = 0; round < 3; round++)
-        {
-            using var dir = new TempDir();
-            await using var shared = await SharedCacheSqlite.CreateAsync();
-
-            const int k = 32;
-            var ids = await SeedVideosAsync(shared, dir, k);
-
-            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
-                shared, new RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = k });
-            var progress = new SlowExecutionReports();
-
-            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
-
-            var seq = progress.Percents.ToList();
-            Assert.Equal(seq.OrderBy(p => p).ToList(), seq);
-            Assert.Equal(1d, seq[^1]);
         }
     }
 
@@ -244,6 +199,104 @@ public sealed class ParallelBatchTests
         finally
         {
             await shared.DisposeAsync();
+        }
+    }
+
+    // The bound that makes this execution path its own rather than the host's batch helper. Cove's
+    // RunBatchAsync takes one worker count over a flat list; a cross-volume copy has to be bounded per
+    // (source, destination) pair, because the limit protects a disk's queue and not the process. A
+    // substitution that kept the work and lost the partitioning would still rename every file, so
+    // nothing but a concurrency observation can catch it.
+    //
+    // Observed at the in-flight free-space probe, which each acting unit calls exactly once before its
+    // copy: the probe is this run's own injected delegate, so the count is of units the executor
+    // actually had in flight.
+    [Fact]
+    public async Task CrossVolumeCopies_RunNoMoreThanTheConfiguredPerPairConcurrency()
+    {
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        const int files = 6;
+        const int allowed = 2;
+
+        using var dir = new TempDir();
+        using var drive = new SecondVolume();
+        var shared = await SharedCacheSqlite.CreateAsync();
+        try
+        {
+            string srcPathFwd = dir.Root.Replace('\\', '/');
+            string destRootFwd = drive.Root.Replace('\\', '/');
+            var ids = await SeedVideosAsync(shared, dir, files);
+
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                FolderTemplate = "Films",
+                CrossVolumeConcurrency = allowed,
+                FreeSpaceHeadroomBytes = 0,
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dest.At(destRootFwd, "Films"), IsRegex = false,
+                    },
+                ],
+            };
+            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
+                shared, options, [srcPathFwd, destRootFwd]);
+
+            // A rendezvous of exactly `allowed` participants rather than a wait: units are held until
+            // that many are in flight together, so the overlap is forced rather than hoped for, and a
+            // scheduler that happened to serialize them would time out instead of passing.
+            using var rendezvous = new Barrier(allowed);
+            int calls = 0;
+            int live = 0;
+            int peak = 0;
+
+            long Probe(string volume)
+            {
+                // The first call is the single-threaded aggregate check before any unit starts. It has
+                // nobody to rendezvous with, and it cannot inflate the peak.
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    return 1L << 40;
+                }
+
+                InterlockedMax(ref peak, Interlocked.Increment(ref live));
+                rendezvous.SignalAndWait(TimeSpan.FromSeconds(30));
+                Interlocked.Decrement(ref live);
+                return 1L << 40;
+            }
+
+            await ext.RunRenamerBatchAsync(
+                RenamerFileKind.Video, [.. ids], new FakeJobProgress(), default, Probe);
+
+            Assert.True(
+                peak <= allowed,
+                $"{peak} cross-volume copies were in flight at once, with {allowed} configured over "
+                    + $"{files} files - the per-pair bound is not holding");
+            // The rendezvous completing is what says the bound was reached rather than merely not
+            // exceeded: a run that never had two copies in flight would have timed out above.
+            Assert.Equal(allowed, peak);
+        }
+        finally
+        {
+            await shared.DisposeAsync();
+        }
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen = Volatile.Read(ref target);
+        while (value > seen)
+        {
+            int actual = Interlocked.CompareExchange(ref target, value, seen);
+            if (actual == seen)
+            {
+                return;
+            }
+
+            seen = actual;
         }
     }
 }

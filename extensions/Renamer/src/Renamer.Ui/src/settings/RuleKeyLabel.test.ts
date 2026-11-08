@@ -1,31 +1,43 @@
 // @vitest-environment jsdom
-import { test, expect } from "vitest";
+import { test, expect, vi, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, cleanup } from "@testing-library/react";
 
-import { waitFor } from "../common/lib/flushRender";
 import { RuleKeyLabel } from "./RuleKeyLabel";
 
-async function render(props: Parameters<typeof RuleKeyLabel>[0]): Promise<string> {
-  const host = document.createElement("div");
-  const root = createRoot(host);
-  root.render(createElement(RuleKeyLabel, props));
-  await waitFor("the label to render", () => host.textContent !== "");
-  const text = host.textContent;
-  root.unmount();
+// What the live branch hands the host, recorded instead of rendered. The wording a live entity reads
+// as is the host's own, so a test that asserted it would go red on a reworded stand-in.
+const hostNamed = vi.hoisted(() => [] as { entityType: string; value: number }[]);
+
+vi.mock("@cove/runtime/components", () => ({
+  EntityReferenceValue: ({ entityType, value }: { entityType: string; value: number }) => {
+    hostNamed.push({ entityType, value });
+    return null;
+  },
+}));
+
+afterEach(cleanup);
+
+function labelText(props: Parameters<typeof RuleKeyLabel>[0]): string {
+  const { container, unmount } = render(createElement(RuleKeyLabel, props));
+  const text = container.textContent;
+  unmount();
   return text;
 }
 
-test("a deleted entity names its kind, the id it held, and that the rule is inert", async () => {
-  expect(await render({ entityType: "studio", id: 210, orphaned: true })).toBe(
+test("a deleted entity names its kind, the id it held, and that the rule is inert", () => {
+  expect(labelText({ entityType: "studio", id: 210, orphaned: true })).toBe(
     "Deleted studio (was #210). This rule no longer applies.",
   );
-  expect(await render({ entityType: "tag", id: 7, orphaned: true })).toBe(
+  expect(labelText({ entityType: "tag", id: 7, orphaned: true })).toBe(
     "Deleted tag (was #7). This rule no longer applies.",
   );
+  expect(hostNamed, "a deleted entity was handed to the host to name").toEqual([]);
 });
 
-test("a live entity is left to the host to name", async () => {
-  // The host component's stand-in renders "entity <id>".
-  expect(await render({ entityType: "studio", id: 210, orphaned: false })).toBe("entity 210");
+test("a live entity is left to the host to name", () => {
+  const text = labelText({ entityType: "studio", id: 210, orphaned: false });
+
+  expect(hostNamed).toEqual([{ entityType: "studio", value: 210 }]);
+  expect(text).not.toContain("Deleted");
 });

@@ -67,6 +67,10 @@ export default defineConfig({
           root: sharedUiRoot,
           include: ["src/**/*.test.{ts,tsx}"],
           environment: "node",
+          // The shared request helpers reach the host runtime and the vendored SDK, exactly as the
+          // consuming bundle's own sources do, so this project resolves both the same way.
+          alias: hostRuntimeStubs,
+          server: { deps: { inline: ["@cove/extension-sdk"] } },
         },
       },
     ],

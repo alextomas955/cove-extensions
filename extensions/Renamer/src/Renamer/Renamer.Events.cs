@@ -64,9 +64,8 @@ public sealed partial class Renamer
 
                 var port = new CoveRenamerDataPort(db, _coveConfig);
 
-                // Preview, auto-renamer and batch resolve destinations identically, so a matched
-                // studio, tag or path rule relocates the edited item to its configured destination.
-                // Only the edited entity is planned, so this does not relocate the library.
+                // A matched studio, tag or path rule relocates the edited item, exactly as a preview
+                // or a batch would. Only the edited entity is planned, so this moves nothing else.
                 var lookups = RouteLookups.From(options, LogInvalidRouteRegex);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 

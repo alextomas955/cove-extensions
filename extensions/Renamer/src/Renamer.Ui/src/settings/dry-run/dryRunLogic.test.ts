@@ -20,15 +20,11 @@ import {
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
 
-// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
-// hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
-// under test passes however far the two sides drift, and a drift means a row appearing in a segment it
-// was never counted in.
-//
-// Keyed by the generated wire union rather than by `string`, so a status added on the server is a
-// compile error here instead of a table that quietly stops covering it. That does not let the two
-// agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
-// hand transcription this table exists to be.
+// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed
+// by hand from `ScanBucket.Of`, never derived from `classifyItem`, because an expectation computed
+// from the code under test passes however far the two sides drift. Keyed by the generated wire
+// union, so a status added on the server is a compile error here rather than a table that quietly
+// stops covering it.
 const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   rename: "will-change",
   move: "will-change",
@@ -57,12 +53,9 @@ test("classifyItem agrees with ScanBucket.Of on every status the server can emit
   for (const [status, bucket] of Object.entries(SERVER_BUCKETS)) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
-  // The three buckets are covered, so no arm of the map is left unexercised.
-  assert.deepEqual([...new Set(Object.values(SERVER_BUCKETS))].sort(), [
-    "attention",
-    "no-change",
-    "will-change",
-  ]);
+  // Every arm of classifyItem was reached, read off its answers rather than off the table above.
+  const reached = new Set(Object.keys(SERVER_BUCKETS).map((status) => classifyItem({ status })));
+  assert.deepEqual([...reached].sort(), ["attention", "no-change", "will-change"]);
 });
 
 test("classifyItem surfaces an unknown/future status as attention rather than hiding it", () => {
@@ -87,19 +80,19 @@ const STALLED_WALK = {
   hasError: false,
 } as const;
 
-test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+test.each([
   // The end of the library is the one honest reason to stop short of the target.
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
-});
-
-test("a walk that has covered its row target does not continue", () => {
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
-});
-
-test("a page already in flight does not continue", () => {
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
+  [
+    "a walk whose cursor has gone null does not continue, however few rows it loaded",
+    { hasMore: false },
+    false,
+  ],
+  ["a walk short of its row target continues", { loadedRows: 34 }, true],
+  ["a walk that has reached its row target does not continue", { loadedRows: 35 }, false],
+  ["a walk past its row target does not continue", { loadedRows: 36 }, false],
+  ["a page already in flight does not continue", { loading: true }, false],
+] as const)("%s", (_name, flipped, continues) => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, ...flipped }), continues);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
@@ -213,7 +206,7 @@ test("formatEta renders seconds/minutes/hours, null when there's nothing to show
 });
 
 test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plain projection", () => {
-  // Two identical-rate pairs → EWMA of a constant is that constant. 0.1/s, remaining 0.4 → 4s.
+  // Two identical-rate pairs: the EWMA of a constant is that constant, 0.1/s over a remaining 0.4.
   const warmed = etaFromSamples([
     { timeMs: 0, progress: 0.4 },
     { timeMs: 1000, progress: 0.5 },
@@ -267,10 +260,8 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
     `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`,
   );
 
-  // The confidence gate means the first fast poll (only 2 rate observations: slow seed + 1 fast) is
-  // shown, and by then the EWMA already leans toward the fast rate - so it is seconds, not minutes.
-  // slow seed ≈ 0.00139/s; fast instant 0.5/0.2=2.5/s; smoothed = 0.3*2.5 + 0.7*0.00139 ≈ 0.751/s;
-  // remaining from 0.52 ≈ 0.48/0.751 ≈ 0.6s.
+  // The first fast poll is the second rate, so it is shown, and the EWMA already leans toward the
+  // fast rate by then.
   const early = etaFromSamples([
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow seed (rate #1)
@@ -289,7 +280,7 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
     ]),
     null,
   ); // 1 rate
-  // A stalled step between doesn't count as a rate, so 3 samples with one flat gap = still 1 rate → null.
+  // A stalled step is not a rate, so three samples with one flat gap still hold only one rate.
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -298,7 +289,7 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
     ]),
     null,
   );
-  // Two real rates → shown.
+  // Two real rates, so an estimate is shown.
   assert.ok(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -308,11 +299,10 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
   );
 });
 
-// The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
+// The wire field name for the in-flight overflow flag, transcribed by hand from the
 // `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
-// serializer. Written out here rather than read from the generated wire types, because a key spelled
-// wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
-// not the type-check, not the request, not this suite if it asked the module for the name it already uses.
+// serializer. Written out rather than read from the generated types, because a key spelled wrong
+// reads `undefined`, so the badge would never render and nothing would fail.
 const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
 
 test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
@@ -321,42 +311,44 @@ test("a row the server flagged earns the overflow label, and an unflagged row ea
 });
 
 test("a row that arrives without the overflow field reads as unflagged, not as flagged", () => {
-  // Both wire shapes declare the field, so the case is not a wire that lacks one - it is how a row from a
-  // build that predates it must read. A missing field is `undefined`, and treating that as truthy would
-  // put a red pill on every row of the dry-run table.
+  // Both wire shapes declare the field, so this is the widened parameter type, not a server that
+  // omits it. An absent field is `undefined`, and treating that as truthy would put a red pill on
+  // every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });
 
-test("a finished walk states its total once, from the rows it actually loaded", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 5, total: 5, searching: false, complete: true, examined: 40 }),
+test.each([
+  [
+    "a finished walk states its total once, from the rows it actually loaded",
+    { loaded: 5, total: 5, searching: false, complete: true, examined: 40 },
     "All 5 rows, in scan order",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 5, total: 5, searching: true, complete: true, examined: 40 }),
+  ],
+  [
+    "a finished search says the rows it states are the matching ones",
+    { loaded: 5, total: 5, searching: true, complete: true, examined: 40 },
     "All 5 matching rows, in scan order",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 1, total: 1, searching: false, complete: true, examined: 40 }),
+  ],
+  [
+    "one row is one row",
+    { loaded: 1, total: 1, searching: false, complete: true, examined: 40 },
     "All 1 row, in scan order",
-  );
-});
-
-test("a finished walk prefers the rows it loaded over the count the scan predicted", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 7, total: 3, searching: false, complete: true, examined: 40 }),
+  ],
+  [
+    "a finished walk prefers the rows it loaded over the count the scan predicted",
+    { loaded: 7, total: 3, searching: false, complete: true, examined: 40 },
     "All 7 rows, in scan order",
-  );
-});
-
-test("an unfinished walk keeps the denominator and the progress clause", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 2, total: 5, searching: false, complete: false, examined: 40 }),
+  ],
+  [
+    "an unfinished walk keeps the denominator and the progress clause",
+    { loaded: 2, total: 5, searching: false, complete: false, examined: 40 },
     "2 of 5 rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 2, total: 5, searching: true, complete: false, examined: 40 }),
+  ],
+  [
+    "an unfinished search drops the denominator, which only the whole scan has",
+    { loaded: 2, total: 5, searching: true, complete: false, examined: 40 },
     "2 matching rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
-  );
+  ],
+] as const)("%s", (_name, given, text) => {
+  assert.equal(rowsFooterText(given), text);
 });

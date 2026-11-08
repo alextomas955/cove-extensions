@@ -1,18 +1,13 @@
-// Core harness lifecycle: bring up an isolated Cove instance, wait for it to be ready, install an
-// extension into it, and tear it down. This is the one entry point extension authors need -
-// everything else (compose file, install mechanics, staging) is an implementation detail behind it.
+// Brings up an isolated Cove instance, installs an extension into it, and tears it down.
 //
-// Built on Testcontainers (https://node.testcontainers.org/). Its Ryuk sidecar reaps containers,
-// networks and volumes even when the test process is killed rather than exiting gracefully, and it
-// owns port resolution and health-check waiting.
+// Testcontainers' Ryuk sidecar reaps containers, networks and volumes even when the test process is
+// killed rather than exiting gracefully, and it owns port resolution and health-check waiting.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
 import { attemptUntil } from "./poll.mjs";
-// Imported rather than re-parsed here: CI resolves the image repository and each extension's floor
-// through these same readers, and a second parse would be free to disagree with it.
 import {
   compareSemver,
   parseSemver,
@@ -25,30 +20,19 @@ import {
 const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");
 const COMPOSE_FILE = "docker-compose.yml";
 
-// A shared runner cold-starts containers more slowly than a dev machine's Docker Desktop, so the CI
-// budget is the wider one rather than local timing tuned tight.
+// A shared runner cold-starts containers more slowly than a dev machine's Docker Desktop.
 const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 
 /**
- * The Cove image an instance boots, resolved from the most specific input available.
+ * The Cove image an instance boots. The compose file holds no default, so this is the only thing
+ * that decides.
  *
- * In order: a reference the caller states outright (a locally built host, say); a complete reference
- * in `COVE_E2E_IMAGE`; a version in `COVE_E2E_TAG`, placed on the repository the build properties
- * declare; and failing all three the highest floor the catalog's extensions declare in their own
- * manifests. The compose file holds no default, so this is the only thing that decides.
- *
- * A CI leg can only supply the tag-only form, because a version leg resolves a version while the
- * repository is declared once in the build properties.
- *
- * A host below an extension's floor does not error: its version gate silently refuses to load the
- * extension, so the routes 404 and every browser spec fails against a Settings page that never gains
- * the extension's tab. The floor taken is the highest declared, since one instance serves whichever
- * extensions a run installs into it.
- *
- * Throws rather than falling back when a floor cannot be read or is not strict semver.
+ * A host below an extension's floor does not error: Cove's version gate silently refuses to load
+ * the extension, so its routes 404 and every browser spec fails against a Settings page that never
+ * gains the extension's tab.
  *
  * @param {string} [image] - an explicit complete reference, which wins over both environment forms.
- * @returns {string} a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.1.0`.
+ * @returns {string} a complete image reference.
  */
 export function resolveCoveImage(image) {
   if (image) return image;
@@ -61,11 +45,9 @@ export function resolveCoveImage(image) {
 }
 
 /**
- * The highest `minCoveVersion` declared by a catalog entry that has an e2e suite.
- *
- * Narrowed to those entries because only they are installed into an instance this harness boots. An
- * entry without a suite would otherwise raise the host every suite runs against, or fail the whole
- * tier over a manifest no spec reads.
+ * The highest `minCoveVersion` declared by a catalog entry that has an e2e suite. One instance
+ * serves whichever extensions a run installs into it. An entry without a suite would otherwise
+ * raise the host every suite runs against, or fail the whole tier over a manifest no spec reads.
  */
 function highestDeclaredFloor() {
   let highest = null;
@@ -88,16 +70,13 @@ function highestDeclaredFloor() {
 }
 
 /**
- * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
- * Every instance gets a random project name (Testcontainers) and a random host port so parallel
- * test runs never collide.
+ * Brings up an isolated Cove instance. Every instance gets a random compose project name and a
+ * random host port, so parallel test runs never collide.
  *
- * `env` is passed to the compose invocation, so it reaches any `${VAR:-default}` substitution in
- * docker-compose.yml - e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
- * real authentication.
+ * `env` reaches any `${VAR:-default}` substitution in docker-compose.yml - e.g.
+ * `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce real authentication.
  *
- * `image` is a complete reference and overrides every other source; see `resolveCoveImage` for what
- * decides when it is absent.
+ * `image` is a complete reference and overrides every other source.
  */
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
@@ -119,12 +98,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
   const started = await environment.up();
   const coveContainer = started.getContainer("cove-1");
-  // Resolved eagerly, like the Cove container above, so a service name that no longer matches fails
-  // at startup rather than part-way through whatever assertion first reached for it.
   const dbContainer = started.getContainer("db-1");
 
-  // Held by bootstrapOwner so the handle can re-authenticate itself after a restart with no help from
-  // the caller.
   let credentials = null;
 
   // `anonymous` carries no token: the endpoints that mint a credential are the ones that must not
@@ -136,10 +111,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   const anonymous = createApiClient(() => handle.baseUrl);
 
   const handle = {
-    /**
-     * The bootstrapped owner's bearer token. Undefined until `bootstrapOwner()` runs, so a consumer
-     * must apply it as a conditional header.
-     */
+    /** The bootstrapped owner's bearer token. Undefined until `bootstrapOwner()` runs. */
     token: undefined,
 
     get baseUrl() {
@@ -148,7 +120,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     get containerId() {
       return coveContainer.getId();
     },
-    /** The raw Testcontainers StartedGenericContainer, for helpers (e.g. seedVideo) that need copyFilesToContainer/exec directly. */
+    /** The raw Testcontainers container, for helpers that need copyFilesToContainer or exec. */
     get container() {
       return coveContainer;
     },
@@ -168,46 +140,37 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     /**
      * Restarts the Cove container and returns once the host can reach it again with a usable token.
      *
-     * `installExtension` needs it because a copied-in extension is only discovered on a (re)start. A
-     * spec needs it to reach anything an extension does at initialize time, which is the only way in:
-     * an initialize-time path does not run again while the host stays up.
+     * A copied-in extension is only discovered on a (re)start, and an extension's initialize-time
+     * path does not run again while the host stays up, so this is the only way to reach either.
      *
-     * `baseUrl` may change across this call. A container published on an ephemeral host port can be
+     * `baseUrl` may change across this call: a container published on an ephemeral host port can be
      * reassigned a new one, so a caller holding a previously-read `baseUrl`, or anything built from
-     * one, must re-read it. The port-binding state is refreshed in place, so the getter above is
-     * correct as soon as this resolves.
+     * one, must re-read it.
      *
-     * Returning means the host answers `/health` with 2xx, so it is serving and its database is
-     * connectable. It does not mean an extension finished initializing: a caller depending on
-     * initialize-time work must wait for that work's own observable outcome.
+     * Returning means the host answers `/health` with 2xx. It does not mean an extension finished
+     * initializing: a caller depending on initialize-time work must wait for that work's own
+     * observable outcome.
      */
     async restart() {
       await coveContainer.restart();
       await waitForHostReady(handle.baseUrl, { timeoutMs });
-      // An access token does not survive the restart, and without re-minting it every later call
-      // against an auth-enabled instance fails as an authentication error.
+      // An access token does not survive the restart.
       if (handle.token) {
         await handle.login();
       }
     },
 
-    /**
-     * Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test).
-     * `opts` carries Testcontainers' own exec options; see `execDb` for why they matter.
-     */
     exec(command, opts) {
       return coveContainer.exec(command, opts);
     },
 
     /**
      * Runs a command inside the database container - the one way to ask the database itself whether
-     * the host really created an extension's tables, rather than inferring it from the extension
-     * having loaded. A failed extension migration is a host log line and the load continues, so an
-     * extension can be enabled with no table behind it.
+     * the host really created an extension's tables. A failed extension migration is a host log
+     * line and the load continues, so an extension can be enabled with no table behind it.
      *
-     * `opts` carries the statement. Passing it through `env` lets it hold quotes with no escaping
-     * rule to get wrong, and reading the credentials from the container's own environment
-     * (`sh -c 'psql -U "$POSTGRES_USER" …'`) keeps the compose file the one place they are written.
+     * `opts` carries the statement, passed through `env` so it can hold quotes, and the credentials
+     * are read from the container's own environment (`sh -c 'psql -U "$POSTGRES_USER" …'`).
      * Omitting `opts` fails silently, because psql exits 0 on an empty statement.
      */
     execDb(command, opts) {
@@ -215,14 +178,13 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     /**
-     * Creates the first (owner) account and returns its access token. required before any
-     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the entire app
-     * behind a first-run setup wizard whenever no owner account exists, and its "Skip setup for now"
-     * button does nothing while `ownerMissing` is true.
+     * Creates the first (owner) account and returns its access token. Required before any
+     * browser-driven test: Cove's frontend hard-gates the whole app behind a first-run setup wizard
+     * whenever no owner account exists, and its "Skip setup for now" button does nothing then.
      *
-     * This is unrelated to `COVE__Auth__Enabled=false`. The auth-bypass principal used for API calls
-     * exists independently, but the UI still checks `GET /api/auth/bootstrap-status`'s `ownerExists`
-     * and refuses to render past the wizard until `POST /api/auth/bootstrap-owner` has run.
+     * `COVE__Auth__Enabled=false` does not lift that gate. The auth-bypass principal serves API
+     * calls, but the UI still reads `GET /api/auth/bootstrap-status`'s `ownerExists` and refuses to
+     * render past the wizard until `POST /api/auth/bootstrap-owner` has run.
      */
     async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
       const { response, lastError } = await postUntilSettled(
@@ -232,18 +194,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         { timeoutMs },
       );
 
-      // The host refuses a second bootstrap with a conflict, so reaching one means an owner already
-      // exists under these credentials - an attempt that completed on the server after its
-      // client-side bound expired. Signing in finishes what this call promised rather than failing
-      // over work that already succeeded.
+      // The host refuses a second bootstrap with a conflict, so a 409 means an earlier attempt
+      // completed on the server after its client-side bound expired.
       if (response?.status === 409) {
         credentials = { username, password };
         return await handle.login({ username, password });
       }
 
       if (!response?.ok) {
-        // Cove answers an unhandled exception with a bare 500 and an empty body, so the failure as
-        // thrown says nothing about its own cause. Carry the server's own log.
+        // Cove answers an unhandled exception with a bare 500 and an empty body, so the thrown
+        // failure says nothing about its own cause without the server's log.
         throw new Error(
           [
             `bootstrapOwner: POST /api/auth/bootstrap-owner did not succeed within ${timeoutMs}ms (last: ${describeAttempt(response, lastError)})`,
@@ -258,10 +218,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return response.json;
     },
 
-    /**
-     * Signs the stored owner credentials in again and replaces `token`. Needed after a container
-     * restart, which invalidates every token minted before it.
-     */
+    /** Signs the stored owner credentials in again and replaces `token`. */
     async login({ username, password } = credentials ?? {}) {
       if (!username || !password) {
         throw new Error("login: no credentials - call bootstrapOwner() first, or pass them here");
@@ -287,18 +244,15 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * its token without replacing the handle's own.
      *
      * `CoveContext` short-circuits every one of those filters to true for a principal holding the
-     * `"*"` permission, and Cove's bootstrap grants exactly that to the owner role. A spec driven
-     * with `bootstrapOwner()`'s token therefore cannot observe row-level authorization at all. The
-     * same clause treats a missing principal as bypassed, so sending no credential does not
-     * discriminate either; only a present, under-privileged user does.
+     * `"*"` permission, which Cove's bootstrap grants to the owner role, and for a missing
+     * principal. So neither `bootstrapOwner()`'s token nor an anonymous call can observe row-level
+     * authorization; only a present, under-privileged user does.
      *
      * A permission list alone will not produce one. Cove's write permissions declare the matching
      * read as implied, so a role granted `videos.write` is expanded to hold `videos.read` and reaches
      * every video read endpoint. A content rule denying read on a kind leaves the permission in place
      * while making the per-entity SQL predicate answer false, which is the case where a caller gets
      * 200 and zero rows rather than a 403 naming itself.
-     *
-     * The handle's `token` stays the owner's, which is what a caller reads the same data back with.
      *
      * @param {object} opts
      * @param {string[]} opts.permissions - Host permission keys granted to the role, verbatim; this
@@ -315,8 +269,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       permissions = [],
       denyReadEntityKinds = [],
     } = {}) {
-      // Every call below is made as the owner: creating a role, a content rule and a user require
-      // RolesWrite/UsersWrite, which at this point only the bootstrapped owner holds.
+      // Creating a role, a content rule and a user require RolesWrite/UsersWrite, which at this
+      // point only the bootstrapped owner holds.
       const asOwner = async (path, body) => {
         const res = await api.post(path, body);
         if (!res.ok) {
@@ -324,8 +278,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
             `createRestrictedUser: POST ${path} failed (${res.status}): ${res.text || "<empty body>"}`,
           );
         }
-        // The shared client reports an unparseable body as `undefined` json, which every other caller
-        // reads as "nothing returned". Here it is a failure: the rest of this helper needs the ids.
+        // The shared client reports an unparseable body as `undefined` json. Here that is a
+        // failure: the rest of this helper needs the ids.
         if (res.text && res.json === undefined) {
           throw new Error(
             `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${res.text}`,
@@ -342,9 +296,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);
 
       for (const entityKind of denyReadEntityKinds) {
-        // The vocabulary is the host's own (ContentRuleService's valid effect/scope/appliesTo sets),
-        // lowercase there and matched case-insensitively. An empty ScopeValue is normalised to `{}`,
-        // which is what a scope of "all" wants.
+        // The effect/scope/appliesTo vocabulary is the host's own, lowercase there and matched
+        // case-insensitively. An empty ScopeValue is normalised to `{}`, which a scope of "all"
+        // wants.
         await asOwner("/api/content-rules", {
           RoleId: roleId,
           EntityKind: entityKind,
@@ -381,9 +335,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 // the outcome into a refusal indistinguishable from the failure being waited out.
 const AUTH_RETRY_INTERVAL_MS = 2_000;
 
-// Generous, because an attempt that is merely slow (the host hashing a password while it also
-// migrates its schema) is one to let finish. A bound that fires anyway loses no work: the 409 path in
-// bootstrapOwner adopts an attempt the server completed after this gave up on it.
+// Wide enough to let an attempt that is merely slow finish: the host may be hashing a password
+// while it also migrates its schema. A bound that fires anyway loses no work, because
+// bootstrapOwner's 409 path adopts an attempt the server completed after this gave up on it.
 const AUTH_ATTEMPT_TIMEOUT_MS = 15_000;
 
 /** A status the host may answer while still coming up, as opposed to a verdict on the request. */
@@ -391,7 +345,6 @@ function isTransientStatus(status) {
   return status >= 500 || status === 429;
 }
 
-/** Renders whichever of the two outcomes actually happened, for an error message. */
 function describeAttempt(response, lastError) {
   if (!response) return lastError;
   return `HTTP ${response.status}: ${response.text || "<empty body>"}`;
@@ -407,9 +360,9 @@ function describeAttempt(response, lastError) {
  * inserts the Owner role itself when it is absent, so inside that window two writers race one unique
  * role name and the loser escapes as a bare 500. The role exists by the next attempt.
  *
- * Retrying rather than first waiting for the role to appear, because that is not observable from
- * here: listing roles requires a permission, an auth-enabled instance answers 401 to the anonymous
- * caller this necessarily is, and no owner yet exists to mint a token from.
+ * The role's arrival is not observable from here: listing roles requires a permission, an
+ * auth-enabled instance answers 401 to the anonymous caller this necessarily is, and no owner yet
+ * exists to mint a token from.
  */
 async function postUntilSettled(
   api,
@@ -439,9 +392,8 @@ async function postUntilSettled(
 }
 
 /**
- * Best-effort tail of a container's own log. Never throws and never hangs: a diagnostic that can fail
- * the run it is trying to explain is worse than no diagnostic, so every failure mode degrades to a
- * short note.
+ * Best-effort tail of a container's own log. Never throws and never hangs: every failure mode
+ * degrades to a short note, so a diagnostic cannot fail the run it is trying to explain.
  */
 async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
   try {
@@ -449,8 +401,8 @@ async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}
     const chunks = [];
     stream.on("data", (chunk) => chunks.push(chunk.toString()));
     await new Promise((resolve) => {
-      // Clear the timer and drop the stream on every exit path: an uncleared timer and an open
-      // stream both hold the event loop open, which reads as the suite hanging after its last test.
+      // An uncleared timer and an open stream both hold the event loop open, which reads as the
+      // suite hanging after its last test.
       const timer = setTimeout(() => done(), timeoutMs);
       function done() {
         clearTimeout(timer);
@@ -467,9 +419,8 @@ async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}
   }
 }
 
-// Reads an id the host minted, failing with the keys it actually returned rather than handing a
-// caller `undefined` to put in a URL - where it reads as a 404 about a missing entity instead of as
-// a wire-shape mismatch.
+// Fails with the keys the host returned rather than handing a caller `undefined` to put in a URL,
+// where it reads as a 404 about a missing entity instead of as a wire-shape mismatch.
 function requireId(payload, field, source) {
   const value = payload?.[field];
   if (typeof value !== "number") {
@@ -481,8 +432,7 @@ function requireId(payload, field, source) {
 }
 
 // The access token is `token`, not `accessToken`: the wrong field yields `Bearer undefined`, which
-// the host rejects exactly as it rejects no header at all. Returns the token rather than storing it,
-// so a helper minting a deliberately under-privileged one cannot overwrite the owner's.
+// the host rejects exactly as it rejects no header at all.
 function readToken(response, source) {
   if (typeof response?.token !== "string" || response.token.length === 0) {
     throw new TypeError(
@@ -493,18 +443,13 @@ function readToken(response, source) {
 }
 
 /**
- * Waits until `/health` answers 2xx from the host side, which is the host's own readiness signal: it
- * returns 503 while the database is not connectable and 200 once it is.
+ * Waits until `/health` answers 2xx from the host side. Cove returns 503 there while its database
+ * is not connectable and 200 once it is, so any-response-is-ready hands the caller a window in
+ * which a browser page's data requests all fail.
  *
  * The restart's own wait strategy is a health check, but that probe runs inside the container and
  * says nothing about the host side, where an ephemeral published port is being re-bound at the same
- * moment. A fetch that lands in that gap rejects rather than answering a status, and the first call
- * after the restart sits inside a per-test fixture, so a single rejection there fails every test in
- * the suite while naming neither the restart nor the gap.
- *
- * Across a restart the host answers 503 for a short window between accepting connections and being
- * able to serve. Treating any response as ready hands that window to the caller, and a caller that
- * then drives a browser gets a page whose data requests all fail.
+ * moment. A fetch that lands in that gap rejects rather than answering a status.
  */
 async function waitForHostReady(baseUrl, { timeoutMs, intervalMs = 500 }) {
   const { settled, note } = await attemptUntil(
@@ -535,8 +480,7 @@ async function waitForHostReady(baseUrl, { timeoutMs, intervalMs = 500 }) {
 }
 
 // Takes the token-carrying client, because `GET /api/extensions` requires a permission: under an
-// auth-enabled instance an anonymous poll answers 401 forever, and this runs inside
-// installExtension(), before any test body, so such a suite could never reach its first assertion.
+// auth-enabled instance an anonymous poll answers 401 forever, and this runs before any test body.
 //
 // The per-attempt bound covers reading the body too, not just the headers: an abort landing mid-read
 // rejects, and a rejection escaping the loop would blame the abort rather than the wait.

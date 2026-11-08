@@ -67,8 +67,6 @@ public sealed record MultiValueOptions
     /// sorts last. Empty does no gender ordering.
     /// </remarks>
     public List<string> GenderOrder { get; init; } = [];
-
-
 }
 
 /// <summary>
@@ -375,13 +373,15 @@ public sealed record RenamerOptions
     /// Per-entity-kind settings; a kind with no entry is renamed, with the global folder template and
     /// root.
     /// </summary>
-    public Dictionary<RenamerFileKind, KindOptions> Kinds { get; init; } = [];
+    public Dictionary<RenamerFileKind, KindOptions?> Kinds { get; init; } = [];
 
     /// <summary>Whether <paramref name="kind"/> is renamed at all; an unlisted kind is.</summary>
     /// <remarks>
     /// A null entry reads as unlisted. <c>{"Kinds":{"Text":null}}</c> is valid JSON that deserializes
     /// to a present key with no value, and the store's non-null restore does not reach inside a
-    /// collection, so the value survives to here.
+    /// collection, so the value survives to here and out to the wire. The value is declared nullable
+    /// for that reason: a reader that trusted the declaration would meet a null the serializer had
+    /// already written, and the generated clients take their nullability from here.
     /// </remarks>
     public bool IsKindEnabled(RenamerFileKind kind)
         => !Kinds.TryGetValue(kind, out var settings) || settings is null || settings.Enabled;
@@ -467,8 +467,6 @@ public sealed record RenamerOptions
     /// &lt;= 0 is treated as unbounded.
     /// </remarks>
     public int SameVolumeConcurrency { get; init; } = 8;
-
-
 
     /// <summary>Serializer settings shared by save and load, so the round-trip is symmetric.</summary>
     /// <remarks>

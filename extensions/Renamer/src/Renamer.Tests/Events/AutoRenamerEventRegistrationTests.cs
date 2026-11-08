@@ -21,27 +21,26 @@ public sealed class AutoRenamerEventRegistrationTests
     }
 
     [Theory]
-    [InlineData("video.updated", "video")]
-    [InlineData("image.updated", "image")]
-    public async Task AHookedKindReachesTheHandler(string eventType, string entityType)
-    {
-        var store = await DispatchAsync(eventType, entityType);
-
-        Assert.Contains(OptionsKey, store.GetKeys);
-    }
-
+    [InlineData("video.updated", "video", true)]
+    [InlineData("image.updated", "image", true)]
     // Audio and text are renamable through the manual job/API surface but are deliberately not hooked
     // to per-edit events; gallery is not renamable at all. Adding one here without meaning to would
     // give every metadata edit of that kind an unconfirmed, unpreviewed rename.
-    [Theory]
-    [InlineData("audio.updated", "audio")]
-    [InlineData("gallery.updated", "gallery")]
-    [InlineData("text.updated", "text")]
-    public async Task AnUnhookedKindReachesNothing(string eventType, string entityType)
+    [InlineData("audio.updated", "audio", false)]
+    [InlineData("gallery.updated", "gallery", false)]
+    [InlineData("text.updated", "text", false)]
+    public async Task OnlyAHookedKindReachesTheHandler(string eventType, string entityType, bool reaches)
     {
         var store = await DispatchAsync(eventType, entityType);
 
-        Assert.DoesNotContain(OptionsKey, store.GetKeys);
+        if (reaches)
+        {
+            Assert.Contains(OptionsKey, store.GetKeys);
+        }
+        else
+        {
+            Assert.DoesNotContain(OptionsKey, store.GetKeys);
+        }
     }
 
     // The hook is scoped to updates. A created/deleted event must not act: rename-on-create would

@@ -9,12 +9,10 @@ public sealed class RecordingAuthorizationService : IAuthorizationService
 {
     public List<(string Permission, string EntityKind, int EntityId)> Asked { get; } = [];
 
-    // How many batch calls were made, whatever each batch's size.
     public int BatchCalls { get; private set; }
 
     public CovePrincipal? LastPrincipal { get; private set; }
 
-    // The entities to deny; anything absent is allowed.
     public HashSet<(string EntityKind, int EntityId)> Denied { get; } = [];
 
     public Task<AuthorizationResult> AuthorizeAsync(

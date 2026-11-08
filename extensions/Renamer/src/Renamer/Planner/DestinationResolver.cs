@@ -32,32 +32,24 @@ public static class DestinationResolver
     // exact map is built and when the resolver looks a source path up.
     public static string NormalizeSourcePath(string path) => path.TrimEnd('/');
 
-    // Resolves one entity by the locked precedence.
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
-        // Excludes run first, beating every routing category including unorganized.
         if (ResolveExclusion(e, lk) is { } excluded)
         {
             return excluded;
         }
 
-        // Unorganized has its own route, ahead of the tag/studio/path cascade.
         if (!e.Organized && o.UnorganizedDestination is { } unorganized)
         {
             return new RouteResult(RouteCategory.Unorganized, "Unorganized", unorganized);
         }
 
-        // When no rule matches, the item's destination is the default, which the planner reads from the
-        // options; this resolver carries none for it, because a rule that did not match has none to
-        // carry.
         return RouteByTag(e, lk)
             ?? RouteByStudio(e, lk)
             ?? RouteBySourcePath(e, lk)
             ?? new RouteResult(RouteCategory.Unmatched, "Default", null);
     }
 
-    // Tag: first tag in entity list order whose stable id has a rule. The reason carries the name
-    // because a reason is read by a person; the match itself never uses it.
     private static RouteResult? RouteByTag(RenamerEntity e, RouteLookups lk)
     {
         foreach (var (tagId, tagName) in e.TagRefs)
@@ -71,7 +63,6 @@ public static class DestinationResolver
         return null;
     }
 
-    // Studio including parents, keyed on the stable id; a direct match outranks an ancestor.
     private static RouteResult? RouteByStudio(RenamerEntity e, RouteLookups lk)
     {
         if (e.StudioId is int direct && lk.StudioIdToDest.TryGetValue(direct, out var directDest))
@@ -94,8 +85,8 @@ public static class DestinationResolver
         return null;
     }
 
-    // Source-path: exact first, then the first matching pre-parsed regex. The entity's source path
-    // is its first file's parent folder, so a multi-file item routes by its first file's location.
+    // The entity's source path is its first file's parent folder, so a multi-file item routes by its
+    // first file's location.
     private static RouteResult? RouteBySourcePath(RenamerEntity e, RouteLookups lk)
     {
         if (e.Files.Count == 0)
@@ -105,8 +96,6 @@ public static class DestinationResolver
 
         var sourcePath = e.Files[0].ParentFolderPath;
 
-        // Normalized the same way the exact map keys were, so a stored "media/incoming/" matches a
-        // rule for "media/incoming".
         if (lk.PathExactToDest.TryGetValue(NormalizeSourcePath(sourcePath), out var exactDest))
         {
             return new RouteResult(RouteCategory.SourcePath, "SourcePath:exact", exactDest);
@@ -129,8 +118,7 @@ public static class DestinationResolver
     }
 
     // The exclude cascade: tag id, studio id (direct or any ParentStudios ancestor), then source-path,
-    // exact before regex. Returns the excluded result on the first match, or null when nothing excludes
-    // the entity. A null or empty exclude lookup means none is configured.
+    // exact before regex. A null or empty exclude lookup means none is configured.
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
         => ExcludeByTag(e, lk) ?? ExcludeByStudio(e, lk) ?? ExcludeBySourcePath(e, lk);
 
@@ -152,7 +140,6 @@ public static class DestinationResolver
         return null;
     }
 
-    // Studio exclude, keyed on the stable id; direct outranks ancestor.
     private static RouteResult? ExcludeByStudio(RenamerEntity e, RouteLookups lk)
     {
         if (lk.ExcludeStudioIds is not { Count: > 0 } excludeStudios)
@@ -167,7 +154,6 @@ public static class DestinationResolver
 
         if (e.ParentStudios is { } excludeAncestors)
         {
-            // ParentStudios is nearest-first; the first excluded ancestor wins.
             foreach (var (ancestorId, _) in excludeAncestors)
             {
                 if (excludeStudios.Contains(ancestorId))
@@ -180,7 +166,6 @@ public static class DestinationResolver
         return null;
     }
 
-    // Source-path exclude: exact first, then the first matching pre-parsed exclude regex.
     private static RouteResult? ExcludeBySourcePath(RenamerEntity e, RouteLookups lk)
     {
         if (e.Files.Count == 0

@@ -13,12 +13,10 @@ namespace Renamer.Tests.TestSupport;
 // shape (every scope gets its own pooled connection) - so the workers run genuinely in parallel.
 // One kept-open keep-alive connection holds the database alive for the fixture's lifetime; a
 // per-connection busy_timeout makes a writer that briefly contends wait rather than fail.
-// Test-support only - never packaged.
 internal sealed class SharedCacheSqlite : IAsyncDisposable
 {
     private readonly SqliteConnection _keepAlive;
 
-    // The connection string every context opens its own connection from (shared-cache, named).
     private string ConnectionString { get; }
 
     private SharedCacheSqlite(SqliteConnection keepAlive, string connectionString)
@@ -27,7 +25,6 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
         ConnectionString = connectionString;
     }
 
-    // Opens a fresh connection to the shared database with a generous busy-timeout.
     private SqliteConnection OpenConnection()
     {
         var conn = new SqliteConnection(ConnectionString);
@@ -40,9 +37,8 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
         return conn;
     }
 
-    // Builds a CoveContext over its own connection to the shared database. interceptor lets a
-    // caller count what the context executes. Every context a run resolves has to carry the same
-    // one, because the work being counted is spread over the per-worker scopes.
+    // Every context a run resolves has to carry the same interceptor, because the work being
+    // counted is spread over the per-worker scopes.
     public DbContext NewContext(IInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<CoveContext>().UseSqlite(OpenConnection());
@@ -54,8 +50,6 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
         return new CoveContext(builder.Options, principalAccessor: null);
     }
 
-    // Names a fresh shared-cache database, opens the keep-alive connection, and materializes the
-    // schema once.
     public static async Task<SharedCacheSqlite> CreateAsync()
     {
         string name = "renamer-concurrency-" + Guid.NewGuid().ToString("N");

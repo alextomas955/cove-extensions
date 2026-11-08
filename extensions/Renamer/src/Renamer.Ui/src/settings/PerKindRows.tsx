@@ -1,11 +1,6 @@
 /**
- * PerKindRows - the "Per kind" list inside the "Where files go" card: one row per renamable kind,
- * reading whether it follows the card's default destination, has a folder of its own, or is not
- * renamed at all, with the two buttons that move it between those states.
- *
- * A kind with no stored entry follows the default, so the list reads an absent entry as renamed with
- * no folder of its own. Presentational; every edit flows up through the `set` callback the panel
- * threads in from useRenamerOptions.
+ * The "Per kind" list inside the "Where files go" card. A kind with no stored entry follows the
+ * default, so the list reads an absent entry as renamed with no folder of its own.
  */
 import type { SetOption } from "./useRenamerOptions";
 import type { ReactNode } from "react";

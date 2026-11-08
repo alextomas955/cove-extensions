@@ -13,11 +13,9 @@ export function Dialog({
   onCancel,
   children,
 }: Readonly<{
-  /** id of the element that labels the dialog (the title) - wired to aria-labelledby. */
   titleId: string;
-  /** optional id of the element that describes the dialog - wired to aria-describedby. */
   describedById?: string;
-  /** while true, Esc / scrim-click / programmatic close are suppressed (operation in flight). */
+  /** While true, Escape and a scrim click are suppressed, for an operation in flight. */
   pending?: boolean;
   onCancel: () => void;
   children: ReactNode;

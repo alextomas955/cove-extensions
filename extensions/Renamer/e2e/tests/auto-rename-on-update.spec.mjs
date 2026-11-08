@@ -1,11 +1,11 @@
-// Verifies Renamer's AutoRenamerOnUpdate hook end-to-end through the real UI: enabling "Auto-
-// rename on update" in the settings panel, then editing a video's title via its real Edit tab,
-// must rename the file automatically - with no explicit "Rename selected" action from the user.
+// Renamer's auto-rename-on-update hook through the UI: with the setting on, editing a video's
+// title in its Edit tab renames the file with no "Rename selected" action from the user.
 //
-// AutoRenamerOnUpdate is a global extension setting, so the test takes `restoredOptions`.
+// The setting is global to the extension, so the test takes `restoredOptions`.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
+import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
 test("enabling Auto-rename on update and editing a title through the UI renames the file automatically", async ({
@@ -18,8 +18,8 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
   await settingsPage.enableAutoRenameOnUpdate();
-  // A "$title"-only template over a safe title makes the auto-produced name deterministic, so the
-  // exact resulting basename can be asserted rather than merely "the path changed".
+  // A title of letters and spaces only passes through the sanitizer unchanged, so the exact
+  // resulting basename can be asserted rather than only "the path changed".
   await settingsPage.setFilenameTemplate("$title");
   await settingsPage.save();
 
@@ -32,7 +32,6 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   await detailPage.openEditTab();
   await detailPage.setTitle(title);
 
-  // No "Rename selected" click anywhere in this test - the hook alone must produce the rename.
   await assertRenamedTo({
     api,
     container: harness.container,
@@ -43,9 +42,12 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   const afterEdit = await api.get(`/api/videos/${video.id}`).then((r) => r.json);
   expect(afterEdit.title).toBe(title);
 
-  // And the grid reflects it too, same as a real user would see without refreshing anything special.
-  // The grid's contents arrive from a client-side fetch after navigation, so readiness is the
-  // assertion's own retry rather than anything waited for beforehand.
-  await page.goto(`${baseUrl}/videos`);
-  await expect(page.locator("main p")).toContainText([title]);
+  // Cove names a card's link after the title and falls back to the filename only for a video that
+  // has none, so this card reads as the title once the edit above has landed.
+  const videos = new VideosPage(page, baseUrl);
+  await videos.goto();
+  await expect(
+    page.getByRole("link", { name: `Open video ${title}` }),
+    "the grid did not show the edited video",
+  ).toHaveCount(1);
 });

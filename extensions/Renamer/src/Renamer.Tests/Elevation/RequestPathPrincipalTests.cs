@@ -87,8 +87,6 @@ public sealed class RequestPathPrincipalTests
         Assert.IsType<Ok<LastBatchSummary>>(summary.Result);
     }
 
-    // Every command recorded since the last clear ran as the caller - a User - and none as System,
-    // over a non-empty recording.
     private static void AssertRanEntirelyAsTheCaller(LibraryDatabase library)
     {
         var recorded = library.CommandsExecuted.ToList();
@@ -96,7 +94,6 @@ public sealed class RequestPathPrincipalTests
         // Non-empty first: a handler that reached no database at all would satisfy every verdict below.
         Assert.NotEmpty(recorded);
         Assert.All(recorded, c => Assert.Equal(PrincipalKind.User, c.Principal));
-        Assert.DoesNotContain(PrincipalKind.System, recorded.Select(c => c.Principal));
     }
 
     // A present, unprivileged-beyond-these-keys user principal - never a null accessor.

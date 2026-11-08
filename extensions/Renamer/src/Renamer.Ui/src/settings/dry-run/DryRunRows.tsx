@@ -1,14 +1,10 @@
 /**
- * The Dry Run table: a virtualized window over the rows the walk has loaded so far, with a header, a
- * footer that says how far the walk has got, and the walk's own error.
+ * The Dry Run table: a virtualized window over the rows the walk has loaded so far. It owns the
+ * walk, and the next page is requested before the viewer reaches the end of the loaded ones.
  *
- * It owns the walk. Only the rows in view are mounted, and the next page is requested before the
- * viewer reaches the end of the loaded ones, so scrolling does not wait on a request. There is no
- * column sort: a sort needs the whole result set, and the whole result set is exactly what this view
- * does not hold. The order the pager guarantees - kind, then entity id - is stated in the footer
- * instead of implied by a header that could not honour it.
- *
- * security: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
+ * There is no column sort: a sort needs the whole result set, which is exactly what this view does
+ * not hold. The order the pager guarantees, kind then entity id, is stated in the footer instead of
+ * implied by a header that could not honour it.
  */
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -26,14 +22,13 @@ import {
   type DryRunFilter,
 } from "./dryRunLogic";
 
-// The four content columns share one grid template so the sticky header and every virtualized row
-// align. Expressed inline because `grid-template-columns` with these exact tracks is host-absent
-// (Cove's prebuilt Tailwind emits only the classes its own UI uses); an element-scoped inline style
-// renders everywhere and cannot leak onto host pages. Type | Current | New | Destination | badges.
+// The header and every virtualized row share one grid template so the columns align. It is inline
+// because `grid-template-columns` with these tracks is host-absent (Cove's prebuilt Tailwind emits
+// only the classes its own UI uses), and an element-scoped style cannot leak onto host pages.
 const GRID_TEMPLATE = {
   gridTemplateColumns: "5rem minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto",
 } as const;
-// Fixed row height the virtualizer measures against (px). Matches the py-2 + single line of text.
+// Pixel row height the virtualizer measures against. Matches py-2 plus a single line of text.
 const ROW_HEIGHT = 37;
 
 // Rows kept loaded past the last visible one, and the virtualizer's overscan. One window of slack so
@@ -82,14 +77,11 @@ function DryRunRow({
   const newName = basename(item.newFullPath);
   const targetFolder = dirname(item.newFullPath);
   const oldFolder = dirname(item.oldFullPath);
-  // A folder-only move (basename unchanged, target folder differs) would look like "no change" in
-  // the name columns - flag it explicitly so the user sees what is happening (moved, not renamed in
-  // place).
+  // A folder-only move leaves the basename alone, so the name columns would read as no change.
   const nameChanged = willChange && newName !== oldName;
   const folderMoved = willChange && targetFolder !== oldFolder;
-  // Root-relative Cove detail path for the asset (or null when the id can't resolve). Origin is
-  // prepended here, not in the pure helper, so a sub-path deployment links correctly. The href is
-  // id-derived only - never the path.
+  // The root-relative Cove detail path, built from the entity id and never from the file path. The
+  // link opens in a new tab, so the href below is absolutized with the current origin.
   const assetPath = assetHref(item.kind, item.entityId);
 
   return (
@@ -150,17 +142,15 @@ export function DryRunRows({
   /** How many rows the scan counted in this bucket, for the footer's denominator. */
   bucketTotal: number;
 }>) {
-  const { rows, loadMore, loading, complete, examined, error } = useScanRows(
+  const { rows, loadMore, loading, complete, examined, pagesLoaded, error } = useScanRows(
     optionsBlob,
     enabled,
     query,
     filter,
   );
 
-  // Virtualize the loaded window: only the rows in view are mounted. The scroll container is
-  // `scrollRef`; rows are a fixed ROW_HEIGHT, absolutely positioned via each item's translateY.
   const scrollRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns functions the React Compiler cannot memoize; this is the library's documented, supported usage and safe here (the returned virtualizer is used inline, not passed to a memoized child).
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns functions the React Compiler cannot memoize; the virtualizer is used inline here, not passed to a memoized child.
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -170,15 +160,12 @@ export function DryRunRows({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   const lastVisible = virtualRows.at(-1)?.index ?? -1;
-  // How many rows the loaded window needs to cover: one prefetch window past the last row the
-  // virtualizer handed back, so the next page is requested before the user reaches the end.
+  // One prefetch window past the last row the virtualizer handed back, so the next page is
+  // requested before the user reaches the end.
   const targetRows = lastVisible + PREFETCH_ROWS + 1;
-  // Whether another page is wanted is shouldContinueWalk's decision; this effect is only its wiring.
-  // The in-flight flag is the dependency that makes the re-evaluation reliable: a page can land
-  // carrying no rows at all, leaving both the row count and the last visible index identical, and that
-  // page is precisely the one whose successor still has to be requested. The flag flips on every
-  // request this client issues, so the trigger cannot go quiet. Overlapping calls are deduplicated in
-  // the store, so a condition holding across consecutive scroll frames costs one request.
+  // `pagesLoaded` is a dependency because a page can land carrying no rows, leaving both the row
+  // count and the last visible index unchanged, and that page is the one whose successor still has
+  // to be requested. Overlapping calls collapse inside the query.
   useEffect(() => {
     if (
       shouldContinueWalk({
@@ -190,16 +177,13 @@ export function DryRunRows({
       })
     )
       loadMore();
-  }, [rows.length, targetRows, complete, loading, error, loadMore]);
+  }, [rows.length, targetRows, complete, loading, pagesLoaded, error, loadMore]);
 
   const searching = query.trim() !== "";
 
   return (
     <>
       <div className="overflow-hidden rounded border border-border text-sm">
-        {/* Header - one grid row sharing GRID_TEMPLATE with every body row so the columns
-            line up. Plain labels: there is no sort to offer, and an affordance that cannot
-            act is worse than none. */}
         <div className="grid items-center border-b border-border bg-card" style={GRID_TEMPLATE}>
           {COLUMNS.map((label) => (
             <span
@@ -212,9 +196,6 @@ export function DryRunRows({
           <span className="px-3 py-2" />
         </div>
 
-        {/* Virtualized body over the LOADED rows: a fixed-height scroll viewport with a
-            spacer sized to the loaded count; only the rows in view are mounted and
-            positioned by translateY. */}
         <div ref={scrollRef} className="h-96 overflow-y-auto">
           {rows.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-secondary">

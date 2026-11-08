@@ -1,6 +1,5 @@
-// Zero-import: the route builder is pure string work, so it stays free of the SDK and can be
-// re-exported from the barrel without dragging a dependency along. The SDK-touching `postAction` is a
-// separate module for that reason.
+// Zero-import on purpose: the barrel re-exports this module, so an import added here would reach
+// every consumer. The SDK-touching `postAction` is a separate module for that reason.
 
 /** Host bulk-action payload (ExtensionSelectionActions.buildActionPayload). */
 export interface ActionPayload {

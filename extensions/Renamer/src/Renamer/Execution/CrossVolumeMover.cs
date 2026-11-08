@@ -67,7 +67,6 @@ public sealed class CrossVolumeMover
     {
         if (System.IO.File.Exists(sc.To))
         {
-            // Skip-not-clobber: leave the pre-existing target untouched, warn.
             warnings.Add($"sidecar target exists, skipped: {sc.To}");
             return;
         }
@@ -75,7 +74,6 @@ public sealed class CrossVolumeMover
         var scResult = await CopyVerifyPromoteDeleteAsync(sc.From, sc.To, ct).ConfigureAwait(false);
         if (!scResult.Ok)
         {
-            // A locked, racing or unverifiable sidecar is not fatal once the primary has moved.
             warnings.Add($"sidecar move failed ({scResult.Outcome}), skipped: {sc.From} -> {sc.To}: {scResult.Reason}");
             return;
         }
@@ -137,7 +135,6 @@ public sealed class CrossVolumeMover
         {
             Movers.EnsureParentDir(inFlightFull);
 
-            // Opened CreateNew, so it cannot clobber.
             var (srcSize, srcHash) = await CopyAndHashAsync(srcFull, inFlightFull, ct).ConfigureAwait(false);
 
             if (_postCopyFaultForTests is not null)
@@ -279,7 +276,7 @@ public sealed class CrossVolumeMover
     }
 
     // Best-effort copy-back for rollback, through the verified cross-volume sequence. A failure is
-    // recorded in the warnings and never thrown, matching DiskMover's SafeMoveBack.
+    // recorded in the warnings and never thrown.
     private async Task SafeCopyBackAsync(string from, string to, List<string> warnings, CancellationToken ct)
     {
         try

@@ -45,9 +45,9 @@ public sealed class RenamerExecutor
     // rename had nothing to report.
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
-    // A failed item is one whose save threw or whose saved row could not be verified. Only the first
-    // rolls the disk back; a save that committed is never reverted, so the two are told apart by the
-    // item's Reason and not by the bucket.
+    // A failed item is one whose save threw or whose saved row did not recompute to the on-disk path.
+    // Both roll the disk back; a save that committed is also written back off the file row. The item's
+    // Reason says which happened and how far the recovery got, since the bucket does not.
     //
     // It carries no copy of the journalled rows. The journal table is the durable record of what can be
     // put back, so a second in-memory list would drift from it, and it would have to be thread-safe as
@@ -179,9 +179,6 @@ public sealed class RenamerExecutor
 
         if (!move.Moved)
         {
-            // The mover's own classification decides the status, through the one mapping both tiers
-            // share: a lock, a denial, a failed verify and a clean shutdown ask an operator for
-            // different things. The lock is not forced and the batch continues.
             buckets.Skipped.Add(new ItemResult(
                 item.FileId, item.OldFullPath, newFull,
                 MoveOutcomeClassifier.StatusFor(move.Outcome), move.Reason));
@@ -200,8 +197,7 @@ public sealed class RenamerExecutor
             item, srcFile, isMove, newFull, nativeOld, nativeNew, sameVolume, movedSidecars, appliedCaptionRenames);
 
         // The save follows the disk move, and a throw from it rolls the disk back. The filename-derived
-        // title rides in the same save as the rename that produced it; MetadataProjector.DerivedTitle
-        // covers why it is recorded at all.
+        // title rides in the same save as the rename that produced it.
         var mutation = new RenamerFileMutation(
             item.FileId, candidate, isMove ? targetFolderId : null,
             appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null,
@@ -275,8 +271,6 @@ public sealed class RenamerExecutor
     {
         try
         {
-            // The Path Cove recomputed on save has to match the on-disk location just moved to, and a
-            // divergence means disk and database disagree.
             string recomputed = await _port.ApplyAndSaveAsync(mutation, ct);
             string expected = NormalizeSlash(moved.NewFull);
             if (!PathsEqual(recomputed, expected))
@@ -288,13 +282,13 @@ public sealed class RenamerExecutor
         {
             // The save failed after the move succeeded, for instance when the
             // (ParentFolderId, Basename) unique index throws a DbUpdateException. The disk goes back
-            // through the mover that moved it, so disk and database stay consistent: a same-volume move
-            // rolls back through the atomic DiskMover.Rollback, and a cross-volume move copies the bytes
-            // back and verifies them before the source is restored.
+            // through the mover that moved it, so disk and database stay consistent.
+            //
             // A best-effort rollback can fail to restore, when the old slot was re-occupied, a
             // cross-volume copy-back failed verify, or a target is locked, and it reports that in its
             // warnings. Discarding them would report a file as rolled back when it was not, leaving a
             // silent disk and database divergence.
+            //
             // The rollback runs on CancellationToken.None when the save was cancelled, because the
             // ambient token is already cancelled.
             var rollbackCt = ex is OperationCanceledException ? CancellationToken.None : ct;
@@ -344,7 +338,6 @@ public sealed class RenamerExecutor
                 + $"left naming the new one{warned}";
         }
 
-        // The file is back where it started, so the committed row is put back to match it.
         string? restoreFailure = await RestoreSavedRowAsync(
             item.FileId, item.OldFullPath, moved.SrcFile, moved.IsMove, moved.AppliedCaptionRenames, ct);
 
@@ -373,8 +366,7 @@ public sealed class RenamerExecutor
         // The journal row carries the same entity id the event below publishes, so undo reconstructs the
         // forward event from the row. Seq is 0 because the journal mints it on append.
         //
-        // The delta records what actually moved, for the reason RevertDelta gives. The row and the delta
-        // are appended at this one site, so a crash cannot leave them disagreeing.
+        // The row and its delta are appended at this one site, so a crash cannot leave them disagreeing.
         //
         // A failed append costs this item its undo entry and nothing more: the file is where the
         // database says it is.
@@ -386,8 +378,6 @@ public sealed class RenamerExecutor
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // A cancellation aborts the run without rolling a committed move back, which is why this
-            // region sits outside the rollback catch.
             postCommitWarnings.Add($"revert-log entry not written: {ex.Message}");
         }
 
@@ -644,7 +634,6 @@ public sealed class RenamerExecutor
             return ex.Message;
         }
 
-        // A restore that recomputes somewhere else has not put the row back.
         return PathsEqual(recomputed, oldFullPath)
             ? null
             : $"it recomputed to '{recomputed}', not '{NormalizeSlash(oldFullPath)}'";
@@ -658,7 +647,6 @@ public sealed class RenamerExecutor
             : captionFilename;
 
     // True when the candidate is the source file's own path: the same canonical location, differing at
-    // most by case on a case-insensitive volume. It follows the same OS-aware policy as PathsEqual and
-    // VolumeClassifier, so the disk-side self-exclusion agrees with the rest of the slice.
+    // most by case on a case-insensitive volume.
     private static bool IsSelfPath(string candidate, string sourceFullPath) => PathsEqual(candidate, sourceFullPath);
 }

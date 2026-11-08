@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 // This test of a shared component lives in the consuming package because `react` resolves only here.
 // The shared TagListInput driven as a combobox: what the box reads, which chips exist and what the
-// list offers after each way of committing a value. React writes a controlled input's committed value
-// onto its `value` attribute, so each step waits for that attribute before the next key press.
-import { test, expect, vi } from "vitest";
+// list offers after each way of committing a value.
+import { test, expect, vi, afterEach } from "vitest";
 import { createElement, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { TagListInput } from "@cove-extensions/ui-shared";
 
-import { waitFor } from "./common/lib/flushRender";
-
 const SUGGESTIONS = ["title", "studio", "performers", "resolution"];
+
+afterEach(cleanup);
 
 function Host(props: {
   onLiveChange?: (raw: string) => void;
@@ -29,259 +29,136 @@ function Host(props: {
   });
 }
 
-async function render(props: Parameters<typeof Host>[0] = {}) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(Host, props));
-  await waitFor("the combobox to render", () => container.querySelector("input") !== null);
-
-  return {
-    container,
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
-  };
-}
-
-function input(container: HTMLElement): HTMLInputElement {
-  const el = container.querySelector<HTMLInputElement>('input[role="combobox"]');
-  if (!el) throw new Error("no combobox input");
-  return el;
-}
-
-function offered(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('[role="option"]')].map((o) => o.textContent.trim());
-}
-
-function chips(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('button[aria-label^="Remove "]')].map((b) =>
-    (b.getAttribute("aria-label") ?? "").slice("Remove ".length),
-  );
-}
-
-// Types into the box. Nothing to wait for: React flushes the work an event scheduled before it
-// dispatches the next one, so the key press after this already runs a handler that has the text.
-// What the test then reads off the screen is what the test waits for.
-function type(container: HTMLElement, text: string) {
-  const el = input(container);
-  // React tracks the input's own `value` property, so assigning to it looks like no change at all.
-  // Going through the prototype's setter writes past that tracker, which is what makes the
-  // dispatched event read as typing.
-  Reflect.set(HTMLInputElement.prototype, "value", text, el);
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-// Presses a key and reports whether the component handled it, which it signals by suppressing it.
-async function press(container: HTMLElement, key: string): Promise<boolean> {
-  const el = input(container);
-  const activeBefore = el.getAttribute("aria-activedescendant");
-  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
-  el.dispatchEvent(event);
-
-  if (key === "ArrowDown" || key === "ArrowUp") {
-    await waitFor(
-      "the active option to move",
-      () => input(container).getAttribute("aria-activedescendant") !== activeBefore,
-    );
-  } else if (key === "Escape") {
-    await waitFor(
-      "the list to close",
-      () => input(container).getAttribute("aria-expanded") === "false",
-    );
-  }
-  // Enter has no one outcome to wait on - it commits an option, commits free text, or is refused -
-  // so each test waits for the one it is about.
-  return event.defaultPrevented;
-}
-
-async function focus(container: HTMLElement) {
-  input(container).focus();
-  await waitFor(
-    "the list to open",
-    () => input(container).getAttribute("aria-expanded") === "true",
-  );
-}
-
-// Picks a suggestion with the mouse, as a browser drives it: `mousedown`, then `click`. Reports
-// whether the list suppressed the `mousedown`, which is what keeps the caret in the box.
-//
-// jsdom runs no default action for `mousedown`, so the focus move a real browser performs is
-// performed here, and only when the component did not suppress the event. A browser also flushes
-// React's pending work before dispatching the click, so the blur's commit is settled first - which is
-// what turns "the box lost focus" into "the half-typed query became a chip".
-async function clickOption(container: HTMLElement, label: string): Promise<boolean> {
-  const option = [...container.querySelectorAll('[role="option"]')].find(
-    (o) => o.textContent.trim() === label,
-  );
-  if (!option) throw new Error(`no option ${label}`);
-
-  const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
-  option.dispatchEvent(down);
-  if (!down.defaultPrevented) {
-    input(container).blur();
-    await waitFor("the blur to commit what was in the box", () => chips(container).length > 0);
-  }
-  option.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  return down.defaultPrevented;
-}
-
-async function blur(container: HTMLElement) {
-  input(container).blur();
-  await waitFor(
-    "the list to close",
-    () => input(container).getAttribute("aria-expanded") === "false",
-  );
-}
+const box = () => screen.getByRole<HTMLInputElement>("combobox", { name: "Tokens" });
+const offered = () => screen.queryAllByRole("option").map((o) => o.textContent.trim());
+// The chips, read off the buttons that remove them, which is the only place a chip's value is
+// exposed to a screen reader as well as on screen.
+const chips = () =>
+  screen
+    .queryAllByRole("button", { name: /^Remove / })
+    .map((b) => (b.getAttribute("aria-label") ?? "").slice("Remove ".length));
 
 test("free text committed with Enter empties the box and offers the whole list again", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "tit");
-  await press(view.container, "Enter");
-  await waitFor("the typed text to become a chip", () => chips(view.container).length === 1);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  expect(chips(view.container)).toEqual(["tit"]);
-  expect(input(view.container).value).toBe("");
-  expect(offered(view.container)).toEqual(SUGGESTIONS);
+  await user.type(box(), "tit{Enter}");
 
-  view.unmount();
+  expect(chips()).toEqual(["tit"]);
+  expect(box().value).toBe("");
+  expect(offered()).toEqual(SUGGESTIONS);
 });
 
 test("Escape hides the list and typing on brings it back with no click away and back", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "tit");
-  await waitFor("the list to narrow to one option", () => offered(view.container).length === 1);
-  expect(offered(view.container)).toEqual(["title"]);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  await press(view.container, "Escape");
-  expect(offered(view.container)).toEqual([]);
+  await user.type(box(), "tit");
+  expect(offered()).toEqual(["title"]);
 
-  type(view.container, "titl");
-  await waitFor("the list to come back", () => offered(view.container).length === 1);
-  expect(offered(view.container)).toEqual(["title"]);
+  await user.keyboard("{Escape}");
+  expect(offered()).toEqual([]);
 
-  view.unmount();
+  await user.keyboard("l");
+  expect(offered()).toEqual(["title"]);
 });
 
 test("a value committed by leaving the field offers the whole list on the next visit", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "tit");
-  await blur(view.container);
-  await waitFor("leaving the field to commit the text", () => chips(view.container).length === 1);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  expect(chips(view.container)).toEqual(["tit"]);
+  await user.type(box(), "tit");
+  await user.tab();
 
-  await focus(view.container);
-  expect(offered(view.container)).toEqual(SUGGESTIONS);
+  expect(chips()).toEqual(["tit"]);
 
-  view.unmount();
+  await user.click(box());
+  expect(offered()).toEqual(SUGGESTIONS);
 });
 
 test("arrowing to a suggestion and pressing Enter adds that suggestion and empties the box", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "stu");
-  await press(view.container, "ArrowDown");
-  await press(view.container, "Enter");
-  await waitFor("the chosen option to become a chip", () => chips(view.container).length === 1);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  expect(chips(view.container)).toEqual(["studio"]);
-  expect(input(view.container).value).toBe("");
+  await user.type(box(), "stu{ArrowDown}{Enter}");
 
-  view.unmount();
+  expect(chips()).toEqual(["studio"]);
+  expect(box().value).toBe("");
 });
 
 test("the sidecar advisory is told the box is empty once free text commits", async () => {
+  const user = userEvent.setup();
   const onLiveChange = vi.fn<(raw: string) => void>();
-  const view = await render({ onLiveChange });
-  await focus(view.container);
-  type(view.container, "tit");
-  await press(view.container, "Enter");
-  await waitFor("the advisory to be told the box emptied", () =>
-    onLiveChange.mock.calls.some((call) => call[0] === ""),
-  );
+  render(createElement(Host, { onLiveChange }));
+
+  await user.type(box(), "tit{Enter}");
 
   expect(onLiveChange.mock.calls.at(-1)?.[0]).toBe("");
-
-  view.unmount();
 });
 
 test("Enter on spaces alone adds nothing and leaves what was typed on screen", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "   ");
-  // Nothing happens, so there is nothing to wait for. The suppressed key is what says the component
-  // saw the Enter and chose to do nothing, rather than that the assertion arrived too early.
-  const handled = await press(view.container, "Enter");
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  expect(handled, "the component never saw the Enter").toBe(true);
-  expect(chips(view.container)).toEqual([]);
-  expect(input(view.container).value).toBe("   ");
+  await user.type(box(), "   {Enter}");
 
-  view.unmount();
+  expect(chips()).toEqual([]);
+  expect(box().value).toBe("   ");
+
+  // The same Enter on a real token, which is what says the refusal above was the component's
+  // choice rather than a key that never reached it.
+  await user.clear(box());
+  await user.type(box(), "title{Enter}");
+  expect(chips()).toEqual(["title"]);
 });
 
 test("Enter on a rejected entry adds nothing and leaves the text there to correct", async () => {
-  const view = await render({ onReject: (candidate) => candidate === "nope" });
-  await focus(view.container);
-  type(view.container, "nope");
-  const handled = await press(view.container, "Enter");
+  const user = userEvent.setup();
+  render(createElement(Host, { onReject: (candidate) => candidate === "nope" }));
 
-  expect(handled, "the component never saw the Enter").toBe(true);
-  expect(chips(view.container)).toEqual([]);
-  expect(input(view.container).value).toBe("nope");
+  await user.type(box(), "nope{Enter}");
 
-  view.unmount();
+  expect(chips()).toEqual([]);
+  expect(box().value).toBe("nope");
+
+  await user.clear(box());
+  await user.type(box(), "fine{Enter}");
+  expect(chips()).toEqual(["fine"]);
 });
 
 test("a token already picked is not accepted again in a different case", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "studio");
-  await press(view.container, "Enter");
-  await waitFor("the first token to become a chip", () => chips(view.container).length === 1);
-  expect(chips(view.container)).toEqual(["studio"]);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  type(view.container, "Studio");
-  const handled = await press(view.container, "Enter");
+  await user.type(box(), "studio{Enter}");
+  expect(chips()).toEqual(["studio"]);
 
   // The rename engine resolves a token case-insensitively, so this is the token already on screen.
-  expect(handled, "the component never saw the second Enter").toBe(true);
-  expect(chips(view.container)).toEqual(["studio"]);
+  await user.type(box(), "Studio{Enter}");
 
-  view.unmount();
+  expect(chips()).toEqual(["studio"]);
 });
 
 test("a token already picked is not offered again in a different case", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "STUDIO");
-  await press(view.container, "Enter");
-  await waitFor("the token to leave the offer list", () => offered(view.container).length === 3);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  expect(offered(view.container)).toEqual(["title", "performers", "resolution"]);
+  await user.type(box(), "STUDIO{Enter}");
 
-  view.unmount();
+  expect(offered()).toEqual(["title", "performers", "resolution"]);
 });
 
 test("clicking a suggestion adds that option and not the half-typed query", async () => {
-  const view = await render();
-  await focus(view.container);
-  type(view.container, "stu");
-  await waitFor("the list to narrow to one option", () => offered(view.container).length === 1);
+  const user = userEvent.setup();
+  render(createElement(Host));
 
-  const suppressed = await clickOption(view.container, "studio");
-  await waitFor("the option to become a chip", () => chips(view.container).length > 0);
+  await user.type(box(), "stu");
+  expect(offered()).toEqual(["studio"]);
 
-  expect(suppressed, "the list let the mousedown take the caret out of the box").toBe(true);
-  // Exactly one chip, and the option's own spelling: "stu" alongside it would be the query committed
-  // by a blur the click caused.
-  expect(chips(view.container)).toEqual(["studio"]);
-  expect(input(view.container).value).toBe("");
+  await user.click(screen.getByRole("option", { name: "studio" }));
 
-  view.unmount();
+  // Exactly one chip, and the option's own spelling: "stu" alongside it would be the query
+  // committed by a blur the click caused.
+  expect(chips()).toEqual(["studio"]);
+  expect(box().value).toBe("");
 });

@@ -57,7 +57,6 @@ public sealed class InitializeAsyncTests
         await InitializeWithStoreAsync(store);
 
         Assert.Equal(setsBefore, store.SetCallCount);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
     }
 
     [Fact]

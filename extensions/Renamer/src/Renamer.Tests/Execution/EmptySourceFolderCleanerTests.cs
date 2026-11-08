@@ -127,7 +127,6 @@ public sealed class EmptySourceFolderCleanerTests
             var executor = NewExecutor(db, out _);
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            // Explicit cross-folder (same-volume) move: src/clip.mkv → dst/My Film.mkv.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
@@ -223,7 +222,6 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
-            // Undo the batch: the original directory is gone, so the restore skips - it is not recreated.
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus());
@@ -233,7 +231,6 @@ public sealed class EmptySourceFolderCleanerTests
             var skip = Assert.Single(undo.Skipped);
             Assert.Contains("original directory no longer exists", skip.Reason);
 
-            // The file is never lost: it stays at its verified destination, and the DB still agrees.
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")),
                 "the file remains at the destination - undo did not move it back, but it is not lost");
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);

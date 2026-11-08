@@ -14,10 +14,9 @@ public sealed class OptionsMigrationDestinationTests
 
     private static readonly string[] LibraryPaths = [Media, Archive];
 
-    // The stored blob a real install has: one rule under each library path, and one under none.
-    // unorganized: The unorganized route as stored. It is the one member whose empty value means
-    // "there is no route" rather than "this rule names no root of its own", so the two cases differ
-    // in exactly this member.
+    // The stored blob a real install has: one rule under each library path, and one under none. The
+    // unorganized route is the one member whose empty value means "there is no route" rather than
+    // "this rule names no root of its own", so it is the only thing the cases below vary.
     private static string Blob(string unorganized) =>
         $$"""
         {
@@ -148,7 +147,8 @@ public sealed class OptionsMigrationDestinationTests
     }
 
     [Theory]
-    [InlineData("""{ "StudioDestinations": { "101": "D:/a" } }""")]
+    // StudioDestinations is the shape AStoredValue_IsWorkForThisHalf_ExactlyWhenItIsAString already
+    // drives, so it is not repeated here.
     [InlineData("""{ "TagDestinations": { "7": "D:/a" } }""")]
     [InlineData("""{ "PathDestinations": [ { "Pattern": "D:/in", "Dest": "D:/a" } ] }""")]
     [InlineData("""{ "UnorganizedDestination": "D:/a" }""")]

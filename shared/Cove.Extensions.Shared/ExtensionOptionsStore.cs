@@ -11,11 +11,9 @@ namespace Cove.Extensions.Shared;
 /// <see cref="IExtensionStore"/>. Stores a single JSON blob under the <c>"options"</c> key.
 /// </summary>
 /// <remarks>
-/// Takes an <see cref="IExtensionStore"/> directly (not <c>FullExtensionBase.Store</c>) so it is
-/// unit-testable host-free against an in-memory fake. <see cref="IExtensionStore"/> is fully async -
-/// these methods never block on the store. Each extension supplies its own <typeparamref name="TOptions"/>
-/// model, its own <see cref="JsonSerializerOptions"/>, and a default-value factory, so serialization
-/// behavior is identical to a per-extension store.
+/// Each extension supplies its own <typeparamref name="TOptions"/> model, its own
+/// <see cref="JsonSerializerOptions"/>, and a default-value factory, so serialization behavior is
+/// identical to a per-extension store.
 /// <para>
 /// The optional <c>normalize</c> runs on a blob that bound, after the non-nullable members are
 /// restored, so an extension can replace a stored value its own model cannot honor. Such a rule
@@ -67,11 +65,10 @@ public class ExtensionOptionsStore<TOptions>(
         }
         catch (JsonException ex)
         {
-            // Loud, because this is the one place a whole stored configuration can be discarded with
+            // Loud, because this is the one place a whole stored configuration is discarded with
             // nothing observable happening: defaults are indistinguishable from a correct empty
-            // configuration at every layer above, so the symptom is settings that read as unset and a
-            // panel, an API response and an end-to-end test that all agree on the wrong answer. The blob
-            // itself is never logged - it is the user's configuration.
+            // configuration at every layer above. The blob itself is never logged - it is the user's
+            // configuration.
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
             return defaultFactory();
         }
@@ -103,8 +100,7 @@ public class ExtensionOptionsStore<TOptions>(
     /// to null and the member contradicts its own declaration; the first consumer to dereference it
     /// throws, and <see cref="LoadAsync"/> catches only <see cref="JsonException"/>. The criterion is
     /// the declared nullability, so a member whose null is a real state keeps it and a member added to
-    /// the model later is covered without an edit here - a hand-written member list is a list that
-    /// goes stale.
+    /// the model later is covered without an edit here.
     /// </remarks>
     private static void RestoreDeclaredNonNull(object loaded, object defaults, NullabilityInfoContext nullability)
     {
@@ -121,29 +117,99 @@ public class ExtensionOptionsStore<TOptions>(
             }
 
             var fallback = property.GetValue(defaults);
-            if (fallback is null)
+            if (fallback is not null)
             {
-                continue;
+                RepairMember(loaded, property, fallback, nullability);
+            }
+        }
+    }
+
+    /// <summary>Repairs one member: its own null, a nested object's, or a collection entry's.</summary>
+    private static void RepairMember(
+        object loaded, PropertyInfo property, object fallback, NullabilityInfoContext nullability)
+    {
+        var value = property.GetValue(loaded);
+        if (value is null)
+        {
+            if (property.CanWrite && nullability.Create(property).ReadState == NullabilityState.NotNull)
+            {
+                property.SetValue(loaded, fallback);
             }
 
-            var value = property.GetValue(loaded);
-            if (value is null)
+            return;
+        }
+
+        if (IsNestedOptions(property.PropertyType))
+        {
+            RestoreDeclaredNonNull(value, fallback, nullability);
+            return;
+        }
+
+        DropDeclaredNonNullEntries(value, nullability.Create(property));
+    }
+
+    /// <summary>
+    /// Drops every entry a collection holds as <c>null</c> whose element the model declares non-null.
+    /// </summary>
+    /// <remarks>
+    /// Dropped rather than replaced, because an element has no counterpart in the defaults to restore
+    /// from: a list of rules has no rule that stands for "the one that should have been here". An entry
+    /// the model allows to be null is kept, on the same criterion the members above use.
+    /// <para>
+    /// Without this a stored <c>[null]</c> survives binding and a consumer dereferences it, which is a
+    /// <c>NullReferenceException</c> rather than the <see cref="JsonException"/> <see cref="LoadAsync"/>
+    /// catches - so it surfaces wherever the list is read rather than where it was loaded.
+    /// </para>
+    /// </remarks>
+    private static void DropDeclaredNonNullEntries(object value, NullabilityInfo info)
+    {
+        if (value is IDictionary map)
+        {
+            // The value is the second argument; a null key cannot be stored at all.
+            if (DeclaredNonNull(info, index: 1))
             {
-                if (property.CanWrite && nullability.Create(property).ReadState == NullabilityState.NotNull)
-                {
-                    property.SetValue(loaded, fallback);
-                }
+                DropNullValues(map);
             }
-            else if (IsNestedOptions(property.PropertyType))
+
+            return;
+        }
+
+        // A fixed-size list is an array, which cannot be shortened in place. No options model here
+        // declares one, and rebuilding the member would be a second way to write a collection.
+        if (value is IList { IsReadOnly: false, IsFixedSize: false } list && DeclaredNonNull(info, index: 0))
+        {
+            DropNullItems(list);
+        }
+    }
+
+    private static bool DeclaredNonNull(NullabilityInfo info, int index)
+        => info.GenericTypeArguments.Length > index
+            && info.GenericTypeArguments[index].ReadState == NullabilityState.NotNull;
+
+    private static void DropNullValues(IDictionary map)
+    {
+        var nullKeys = map.Keys.Cast<object>().Where(key => map[key] is null).ToList();
+        foreach (var key in nullKeys)
+        {
+            map.Remove(key);
+        }
+    }
+
+    private static void DropNullItems(IList list)
+    {
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is null)
             {
-                RestoreDeclaredNonNull(value, fallback, nullability);
+                list.RemoveAt(i);
             }
         }
     }
 
     /// <summary>
     /// True for a member that is itself an options object - one whose own members can carry the same
-    /// null. A collection is excluded: its elements have no counterpart in the defaults to restore from.
+    /// null. A collection is excluded: its elements are handled by
+    /// <see cref="DropDeclaredNonNullEntries"/>, which has no counterpart in the defaults to restore from.
     /// </summary>
     private static bool IsNestedOptions(Type type)
         => type.IsClass && type != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(type);
@@ -151,8 +217,8 @@ public class ExtensionOptionsStore<TOptions>(
 
 /// <summary>
 /// The source-generated log message for the one failure <see cref="ExtensionOptionsStore{TOptions}"/>
-/// swallows. Non-generic and static because the generator's partial methods are declared per type and a
-/// generic owner buys nothing here - the type being loaded travels as an argument instead.
+/// swallows. Non-generic, because the generator declares its partial methods per closed type; the type
+/// being loaded travels as an argument instead.
 /// </summary>
 internal static partial class ExtensionOptionsStoreLog
 {

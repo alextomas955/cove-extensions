@@ -71,11 +71,10 @@ public sealed class ScanAggregator
 
             tally.CrossVolumeFiles++;
 
-            // Counted on the pass that already visits every file. Deriving it afterwards would mean
-            // retaining the items or planning the library a second time, and this class exists to keep
-            // the scan's cost independent of library size. The shared predicate is called so the
-            // comparison has one declaration; its status and same-volume arms are redundant at this point
-            // in the fold.
+            // Counted on the pass that already visits every file: deriving it afterwards would mean
+            // retaining the items or planning the library a second time. The shared predicate is called
+            // so the comparison has one declaration; its status and same-volume arms are redundant at
+            // this point in the fold.
             if (BatchPreview.InFlightPathOverflows(item, _fullPathMax, _mountPoints))
             {
                 tally.InFlightPathOverflowFiles++;
@@ -93,7 +92,7 @@ public sealed class ScanAggregator
     // RenamerStatus declaration order, so two scans of an unchanged library produce the same string. The
     // confirm level is computed over the untruncated pair tallies: topping the itemisation must never
     // soften the confirm a move earns.
-    public ScanSummary ToSummary(long completedAtUtcTicks)
+    public ScanSummary ToSummary(string runId, string? ownerKey, long completedAtUtcTicks)
     {
         var statuses = Enum.GetValues<RenamerStatus>();
 
@@ -129,6 +128,7 @@ public sealed class ScanAggregator
             })
             .ToList();
 
-        return new ScanSummary(ScanSummary.CurrentSchemaVersion, completedAtUtcTicks, kinds);
+        return new ScanSummary(
+            ScanSummary.CurrentSchemaVersion, runId, ownerKey, completedAtUtcTicks, kinds);
     }
 }

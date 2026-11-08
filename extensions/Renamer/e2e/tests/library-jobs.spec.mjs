@@ -20,17 +20,27 @@ test("scan-library aggregates and pages every seeded item without mutating any o
 
   const enqueue = await api.post(`${ROUTE}/scan-library`);
   expect(enqueue.status).toBe(202);
+  const { jobId, runId } = enqueue.json;
+  expect(typeof runId, `the enqueue carried no runId: ${enqueue.text}`).toBe("string");
 
-  const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
+  const job = await pollRenamerJob(api, ROUTE, jobId);
   expect(job.status.toLowerCase()).toBe("completed");
 
-  // The scan persists an aggregate, so the readback reports counts; the rows come from the page query,
-  // planned on demand.
-  const result = await api.get(`${ROUTE}/last-scan`);
+  // The scan persists an aggregate, read back by the run the enqueue minted; the rows come from the
+  // page query, planned on demand.
+  const result = await api.get(`${ROUTE}/last-scan/${runId}`);
   expect(result.status).toBe(200);
   expect(result.json.totalFiles).toBeGreaterThanOrEqual(seededFileIds.length);
   const statusTotal = result.json.statusCounts.reduce((sum, c) => sum + c.count, 0);
   expect(statusTotal).toBe(result.json.totalFiles);
+
+  // Only this run's figures are served. Another run id reads as 404 rather than as these counts, so a
+  // scan a second caller finished can never be reported as this one's.
+  const otherRun = await api.get(`${ROUTE}/last-scan/${"0".repeat(32)}`);
+  expect(
+    otherRun.status,
+    `GET last-scan for a run that was never stored answered ${otherRun.status}: ${otherRun.text}`,
+  ).toBe(404);
 
   const rows = await api.post(`${ROUTE}/scan-rows`, { Take: 500 });
   expect(rows.status).toBe(200);

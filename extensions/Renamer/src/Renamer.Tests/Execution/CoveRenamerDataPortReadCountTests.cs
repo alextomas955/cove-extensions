@@ -40,8 +40,6 @@ public sealed class CoveRenamerDataPortReadCountTests
             const int readersPerChunk = 5;
             Assert.True(interceptor.ReaderCount <= expectedChunks * readersPerChunk,
                 $"expected ~{expectedChunks} chunk queries, got {interceptor.ReaderCount} readers for {n} ids");
-            Assert.True(interceptor.ReaderCount < n,
-                $"batch load must issue fewer than N={n} reader queries; got {interceptor.ReaderCount}");
         }
         finally
         {

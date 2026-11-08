@@ -1,41 +1,47 @@
 // @vitest-environment jsdom
-// Which chips the legend tints as in use. Which names count as used is `templateUsesToken`'s, and
-// its suite owns those cases.
-import { test, expect } from "vitest";
+// Which chips report their token as already in use, and that the two ways of reporting it agree.
+// Which names count as used is `templateUsesToken`'s, and its suite owns those cases.
+import { test, expect, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
+import { render, screen, cleanup } from "@testing-library/react";
 
 import { TokenLegend } from "./TokenLegend";
 
-async function marked(filenameTemplate: string, folderTemplate: string): Promise<string[]> {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(
+// Copied from the rendered description rather than imported, so the module cannot agree with itself.
+const IN_USE = /Already in your template\./;
+
+afterEach(cleanup);
+
+function marked(filenameTemplate: string, folderTemplate: string): string[] {
+  render(
     createElement(TokenLegend, { onInsert: () => undefined, filenameTemplate, folderTemplate }),
   );
-  await waitFor("the legend chips to render", () => container.querySelector("button") !== null);
 
-  const chips = [...container.querySelectorAll("button")];
-  expect(chips.length).toBeGreaterThan(0);
-  // A legend chip inserts its token, so it is a plain button whether or not it is tinted.
+  const chips = screen.getAllByRole("button");
+  // A legend chip inserts its token whether or not a template holds it, so it is a plain button and
+  // never reports a pressed state.
   expect(chips.filter((c) => c.hasAttribute("aria-pressed"))).toEqual([]);
-  const result = chips
-    .filter((c) => c.classList.contains("bg-accent/15"))
-    .map((c) => c.textContent.replace("{ }", "").trim());
 
-  root.unmount();
-  container.remove();
-  return result;
+  const tinted = chips.filter((c) => c.classList.contains("bg-accent/15"));
+  // The tint reaches nobody who cannot see it, so the same chips have to say so in their accessible
+  // description. Either set alone would pass while half the users were told nothing.
+  expect(
+    screen.queryAllByRole("button", { description: IN_USE }),
+    "the tint and the description name different chips",
+  ).toEqual(tinted);
+
+  return tinted.map((c) => c.textContent.replace("{ }", "").trim());
 }
 
-test("a token in either template is marked, and nothing else is", async () => {
-  expect(await marked("$title{ [$resolution]}", "$studio/$year")).toEqual([
+test("a token in either template is marked, and nothing else is", () => {
+  expect(marked("$title{ [$resolution]}", "$studio/$year")).toEqual([
     "$title",
     "$studio",
     "$year",
     "$resolution",
   ]);
+});
+
+test("a template using no token leaves every chip unmarked", () => {
+  expect(marked("fixed name", "")).toEqual([]);
 });

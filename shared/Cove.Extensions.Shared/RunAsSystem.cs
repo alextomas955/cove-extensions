@@ -53,11 +53,6 @@ public static class RunAsSystem
     /// services already elevated to <see cref="CovePrincipal.System()"/>, and disposes the scope after
     /// the principal is restored.
     /// </summary>
-    /// <remarks>
-    /// The elevation itself is delegated to <see cref="RunAsSystemAsync{T}"/> rather than repeated, so
-    /// there is exactly one place in this module where the principal is swapped and exactly one
-    /// <c>finally</c> that puts it back.
-    /// </remarks>
     /// <param name="scopes">The scope factory a detached body was handed at initialization.</param>
     /// <param name="body">
     /// The work, receiving the new scope's service provider. It must not outlive the returned task: the

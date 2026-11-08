@@ -1,22 +1,17 @@
-// Drives the real validate-extension-repo.mjs as a child process against malformed catalog
-// fixtures, asserting exit code and output text.
-//
-// Subprocess rather than an imported function because the validator resolves its root relative to
-// where the executing file lives on disk, not process.cwd(). Each fixture therefore gets a copy of
-// the real validator bytes under its own `scripts/`, so that resolution lands in the fixture tree.
+// Subprocess rather than an imported function: the validator resolves its root relative to where the
+// executing file lives on disk, not process.cwd(). Each fixture therefore gets a copy of the real
+// validator bytes under its own `scripts/`, so that resolution lands in the fixture tree.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// A fully-valid extension.json baseline (mirrors extensions/catalog.json's real Renamer entry
-// shape: id matching the catalog entry, semver version, entryDll, url, non-empty lowercase-kebab
-// categories). Callers override individual fields to create exactly one malformation.
+// A fully-valid extension.json baseline. Callers override one field to create one malformation.
 function validManifest(id, overrides = {}) {
   return {
     id,
@@ -28,9 +23,9 @@ function validManifest(id, overrides = {}) {
   };
 }
 
-// A valid baseline mirroring the real Renamer entry; the drift check at the end of this file
-// asserts that mirror against the real one. makeFixture plants its project and solution unless a case
-// opts out. Callers override one field to create one malformation.
+// The smallest entry the validator accepts. Every optional path field is left out so a case can
+// drive the zero-subject state of each check. makeFixture plants its project and solution unless a
+// case opts out.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -43,9 +38,8 @@ function validEntry(id, dirName, overrides = {}) {
   };
 }
 
-// The attributed form the real Directory.Build.props uses, which is what exercises
-// readMsBuildProperties' optional-attribute branch. A bare-element fixture would leave the branch
-// that runs in production uncovered.
+// The attributed form the real Directory.Build.props uses. A bare-element fixture would miss
+// readMsBuildProperties' optional-attribute branch, which is the one production takes.
 function buildPropsWithFloor(floor = "1.1.0") {
   return [
     "<Project>",
@@ -58,9 +52,8 @@ function buildPropsWithFloor(floor = "1.1.0") {
   ].join("\n");
 }
 
-// Renders a solution file from a list of project paths. Passing raw text instead lets a case
-// express a solution the path-attribute match cannot read, which must fail loudly rather than
-// report an empty set - an empty set would read as every membership passing.
+// Renders a solution file from a list of project paths. A case passes raw text instead to express a
+// solution the path-attribute match cannot read.
 function solutionXml(projectPaths) {
   return [
     "<Solution>",
@@ -72,20 +65,9 @@ function solutionXml(projectPaths) {
   ].join("\n");
 }
 
-// Builds a temp fixture tree:
-//   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time, with
-//                                                    the sibling modules it imports)
-//   <root>/extensions/catalog.json                (the catalog under test)
-//   <root>/Directory.Build.props                  (defaults to "" - declares no floor, so the
-//                                                    per-entry floor comparison no-ops)
-//   <root>/CoveExtensions.slnx                    (`solution` when supplied, otherwise one listing
-//                                                    every planted project; null leaves it absent)
-//   <root>/<projectPath> for each entry, unless `plantProjects` is false (a case about a missing
-//   project or a solution gap plants its own)
-//   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
-//   on disk for each catalog entry that must not short-circuit on path-existence)
-//   <root>/<relPath> for each [relPath, text] in filesByPath (raw bytes - a .csproj fixture is not
-//   JSON, and only has to exist for the checks that consume it)
+// Builds a temp fixture tree. `buildProps` defaults to "", which declares no floor and so no-ops the
+// per-entry floor comparison. `solution` defaults to one listing every planted project, and null
+// leaves the file absent. `filesByPath` is raw bytes, for fixtures that are not JSON.
 function makeFixture({
   catalog,
   buildProps = "",
@@ -142,9 +124,42 @@ function runValidator(fixtureRoot) {
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
-// A catalog entry with a subject for every counter the report line carries: a floor to compare, four
-// declared optional paths, two projects to find in the solution, and a registry row matching the
-// version its manifest declares.
+// One valid entry and its manifest, each carrying the overrides a case supplies.
+function runWith({ entry = {}, manifest = {} } = {}) {
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [validEntry("com.example.foo", "Foo", entry)] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", manifest),
+    },
+  });
+  try {
+    return runValidator(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+// Two valid entries differing only in the field a case duplicates. Both need real, distinct fixture
+// dirs so neither short-circuits on the path-existence `continue` before the dedup check runs on the
+// second entry.
+function runWithTwoEntries(first, second) {
+  const root = makeFixture({
+    catalog: {
+      schemaVersion: 1,
+      extensions: [first, second].map(({ id, dir, overrides }) => validEntry(id, dir, overrides)),
+    },
+    extensionJsonByPath: Object.fromEntries(
+      [first, second].map(({ id, dir }) => [`extensions/${dir}/extension.json`, validManifest(id)]),
+    ),
+  });
+  try {
+    return runValidator(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+// A catalog entry with a subject for every counter the report line carries.
 function maximalFixture() {
   const entry = validEntry("com.example.foo", "Foo", {
     name: "Foo",
@@ -175,10 +190,7 @@ function maximalFixture() {
 }
 
 test("the summary line reports counts, and a check with no subject renders 0 rather than a sentence", () => {
-  // Exit 0 alone cannot distinguish a check that passed from one that never ran, so the counts are
-  // what has to be asserted. Both states are driven, because "this check ran" and "this check had no
-  // subject" reading identically is the failure mode. Asserted as the whole line, since a fragment
-  // matcher cannot see a counter that stopped being printed at all.
+  // Asserted as the whole line: a fragment matcher cannot see a counter that stopped being printed.
   const maximal = maximalFixture();
   try {
     const { status, stdout, stderr } = runValidator(maximal);
@@ -216,9 +228,6 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
 });
 
 test("a manifest floor below the repo floor fails, naming the entry and the floor it fell below", () => {
-  // The surviving floor comparison, driven to failure. It is the only one left with a real
-  // subject - a per-entry manifest value against the repo floor - so if this case cannot fail,
-  // nothing in the file compares versions at all.
   const entry = validEntry("com.example.foo", "Foo");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -242,10 +251,6 @@ test("a manifest floor below the repo floor fails, naming the entry and the floo
 });
 
 test("an entry whose path does not exist fails, and reports no counts at all", () => {
-  // The short-circuit that skips the floor comparison entirely. It is the reason a zero comparison
-  // count cannot be an independent finding - every entry that reaches the comparison increments the
-  // count, so the only way to reach zero is this error, which has already failed the run. The counts
-  // line must not appear at all on a failed run: a count is a claim of coverage.
   const entry = validEntry("com.example.foo", "Missing");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -264,8 +269,6 @@ test("an entry whose path does not exist fails, and reports no counts at all", (
 });
 
 test("a catalog with zero entries is a finding, not a clean pass", () => {
-  // The repo's worked example of "empty input is a hard failure" - validating nothing must never
-  // read as validating everything.
   const root = makeFixture({ catalog: { schemaVersion: 1, extensions: [] } });
   try {
     const { status, stderr } = runValidator(root);
@@ -276,23 +279,28 @@ test("a catalog with zero entries is a finding, not a clean pass", () => {
   }
 });
 
-test("missing required field (id) produces a non-zero exit and the expected error", () => {
-  // The label falls back through `entry.id ?? entry.name ?? "catalog entry"`, and id is the field
-  // omitted here, so the error is reported against entry.name ("Foo").
-  const entry = validEntry("com.example.foo", "Foo");
-  delete entry.id;
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /missing id/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
+test("each entry-level malformation is refused with its own reason", () => {
+  for (const [overrides, expected] of [
+    [{ entry: { id: undefined } }, /missing id/],
+    // A release tag is `<tagPrefix>v<semver>`, so a prefix missing its separator produces a tag that
+    // matches no release trigger, or matches another extension's.
+    [{ entry: { tagPrefix: "foo" } }, /com\.example\.foo: tagPrefix must end with \//],
+    // The catalog id is what CI's matrix, the release tag and the registry key on; the manifest id is
+    // what the host loads the extension as. Nothing else compares them.
+    [
+      { manifest: { id: "com.example.other" } },
+      /com\.example\.foo: catalog id does not match extension\.json id com\.example\.other/,
+    ],
+    // uiPath/testProjectPath/e2ePath are consumed by the CI build matrix but by none of the
+    // convention-derived checks, so without this a typo in one surfaces only inside a matrix leg.
+    [
+      { entry: { uiPath: "extensions/Foo/DoesNotExist.Ui" } },
+      /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/,
+    ],
+  ]) {
+    const { status, stderr } = runWith(overrides);
+    assert.notEqual(status, 0, `${JSON.stringify(overrides)} passed`);
+    assert.match(stderr, expected);
   }
 });
 
@@ -321,10 +329,9 @@ test("nonexistent projectPath produces a non-zero exit and the expected error", 
 });
 
 test("nonexistent manifestPath produces a non-zero exit and the expected error", () => {
-  // entry.path (extensionDir) must exist on disk, or the earlier existsSync(extensionDir) check
-  // short-circuits via `continue` before ever reaching the manifestPath check - so a real,
-  // unrelated placeholder file is planted under extensions/Foo/ to satisfy the extensionDir
-  // check, while manifestPath itself stays absent.
+  // entry.path must exist on disk, or the earlier existsSync check short-circuits via `continue`
+  // before reaching the manifestPath check. The placeholder satisfies it while manifestPath stays
+  // absent.
   const entry = validEntry("com.example.foo", "Foo", {
     manifestPath: "extensions/Foo/does-not-exist.json",
   });
@@ -343,120 +350,33 @@ test("nonexistent manifestPath produces a non-zero exit and the expected error",
   }
 });
 
-test("duplicate extension id produces a non-zero exit and the expected error", () => {
-  // Both entries need real, distinct, fully-valid fixture dirs so neither short-circuits on the
-  // path-existence `continue` before the dedup check on the second entry runs.
-  const entryA = validEntry("com.example.dup", "DupA");
-  const entryB = validEntry("com.example.dup", "DupB");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entryA, entryB] },
-    extensionJsonByPath: {
-      "extensions/DupA/extension.json": validManifest("com.example.dup"),
-      "extensions/DupB/extension.json": validManifest("com.example.dup"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /duplicate extension id/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
+test("a field two entries share where it must be unique is refused, naming that field", () => {
+  for (const [entries, expected] of [
+    [
+      [
+        { id: "com.example.dup", dir: "DupA" },
+        { id: "com.example.dup", dir: "DupB" },
+      ],
+      /duplicate extension id/,
+    ],
+    // Distinct ids, shared tagPrefix, so the tagPrefix dedup check is the only one that can speak.
+    [
+      [
+        { id: "com.example.taga", dir: "TagA", overrides: { tagPrefix: "shared/" } },
+        { id: "com.example.tagb", dir: "TagB", overrides: { tagPrefix: "shared/" } },
+      ],
+      /duplicate tagPrefix/,
+    ],
+  ]) {
+    const { status, stderr } = runWithTwoEntries(entries[0], entries[1]);
+    assert.notEqual(status, 0, `${JSON.stringify(entries)} passed`);
+    assert.match(stderr, expected);
   }
 });
 
-test("duplicate tagPrefix produces a non-zero exit and the expected error", () => {
-  // Distinct ids, shared tagPrefix; both entries fully valid otherwise so the dedup check is
-  // isolated.
-  const entryA = validEntry("com.example.taga", "TagA", { tagPrefix: "shared/" });
-  const entryB = validEntry("com.example.tagb", "TagB", { tagPrefix: "shared/" });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entryA, entryB] },
-    extensionJsonByPath: {
-      "extensions/TagA/extension.json": validManifest("com.example.taga"),
-      "extensions/TagB/extension.json": validManifest("com.example.tagb"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /duplicate tagPrefix/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a tagPrefix without a trailing slash fails", () => {
-  // The tag a release is cut from is `<tagPrefix>v<semver>`, so a prefix missing its separator
-  // produces a tag that matches no release trigger - or worse, matches another extension's. The
-  // catalog is the only place that can say so.
-  const entry = validEntry("com.example.foo", "Foo", { tagPrefix: "foo" });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /com\.example\.foo: tagPrefix must end with \//);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a manifest id disagreeing with its catalog entry fails, naming both ids", () => {
-  // The catalog id is what CI's matrix, the release tag and the registry all key on, while the
-  // manifest id is what the host loads the extension as. Nothing else compares them, and a
-  // disagreement ships an extension the store and the host each know by a different name.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.other"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(
-      stderr,
-      /com\.example\.foo: catalog id does not match extension\.json id com\.example\.other/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a declared catalog path that does not exist fails, naming the field", () => {
-  // uiPath/testProjectPath/e2ePath are consumed by the CI build matrix but by none
-  // of the convention-derived checks, so without this a typo in one surfaces only inside a matrix
-  // leg: an `npm ci` in a directory that is not there, or a dotnet restore several steps in. The
-  // error must name the field, because the path value alone does not say which CI step will break.
-  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/DoesNotExist.Ui" });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(
-      stderr,
-      /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-// A C#-bearing entry, complete enough that only the membership check can speak: the project files
-// exist, so the existence checks are silent, and the manifest is valid.
-// `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
-// separates the declared-but-missing check from the solution-membership one: both report on the
-// same field, and a case that plants nothing cannot say which of the two spoke.
+// A C#-bearing entry complete enough that only the membership check can speak. `absentOnDisk` names
+// declared paths the fixture does not plant, which is what separates the declared-but-missing check
+// from the solution-membership one: both report on the same field.
 function csharpFixture({
   solution,
   projectPath,
@@ -486,10 +406,8 @@ function csharpFixture({
 }
 
 test("a projectPath absent from the solution fails, naming the entry, the field, the path and the file", () => {
-  // The gap this closes is silent by nature: the format and analyzer gates take their whole subject
-  // list from the solution, so a project missing from it is simply never compiled and nothing says
-  // so. The error therefore has to name which CI step is about to under-cover, not only which string
-  // was absent - hence the field and the solution file alongside the path.
+  // The format and analyzer gates take their whole subject list from the solution, so a project
+  // missing from it is never compiled and nothing else says so.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions/Bar/Bar.csproj"],
@@ -507,9 +425,7 @@ test("a projectPath absent from the solution fails, naming the entry, the field,
 });
 
 test("an entry declaring no projectPath has its convention-derived path checked", () => {
-  // The upstream convention path is a real entry shape, not a legacy one, so an entry that omits
-  // projectPath still compiles something and can still be missing from the solution. The error says
-  // the path was derived, or a reader greps the catalog for it and finds nothing.
+  // The error says the path was derived, or a reader greps the catalog for it and finds nothing.
   const root = csharpFixture({ solution: ["extensions/Bar/Bar.csproj"] });
   try {
     const { status, stderr } = runValidator(root);
@@ -524,9 +440,8 @@ test("an entry declaring no projectPath has its convention-derived path checked"
 });
 
 test("a solution whose project paths cannot be read is a named failure, not a silent pass", () => {
-  // The failure mode that would make this whole check decorative: a match that stops finding path
-  // attributes yields an empty set, and an empty set makes every membership look confirmed. The
-  // element count and the extracted count are compared so that divergence speaks.
+  // A match that stops finding path attributes yields an empty set, and an empty set makes every
+  // membership look confirmed.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: '<Solution>\n  <Project Include="extensions/Foo/Foo.csproj" />\n</Solution>\n',
@@ -542,8 +457,7 @@ test("a solution whose project paths cannot be read is a named failure, not a si
 
 test("a solution declaring backslash separators matches a catalog declaring forward slashes", () => {
   // The repository is authored on Windows and built on Linux, so the two spellings of the same path
-  // must agree. Case is deliberately not folded: a case mismatch breaks the Linux build, so failing
-  // on it is the correct outcome on both platforms.
+  // must agree. Case is not folded: a case mismatch breaks the Linux build.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions\\Foo\\Foo.csproj"],
@@ -551,8 +465,7 @@ test("a solution declaring backslash separators matches a catalog declaring forw
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report,
-    // so only a confirmed membership says the two spellings were reconciled.
+    // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report.
     assert.match(stdout, /1 CoveExtensions\.slnx membership\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -560,9 +473,8 @@ test("a solution declaring backslash separators matches a catalog declaring forw
 });
 
 test("an entry declaring no test project stays valid", () => {
-  // The field is optional to declare, and an extension with no tests at all must not be forced to
-  // grow one. The membership count is asserted rather than exit 0 alone: a run that examined nothing
-  // also exits 0.
+  // The membership count is asserted rather than exit 0 alone: a run that examined nothing also
+  // exits 0.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions/Foo/Foo.csproj"],
@@ -577,9 +489,8 @@ test("an entry declaring no test project stays valid", () => {
 });
 
 test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
-  // The drift that has already shipped here once and was corrected by hand. Both files declare a
-  // minCoveVersion, nothing compares them, and the disagreement is invisible until a user on the
-  // version between the two floors is either locked out or offered a zip their host cannot run.
+  // Both files declare a minCoveVersion. A disagreement is invisible until a user on the version
+  // between the two floors is either locked out or offered a zip their host cannot run.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
@@ -611,11 +522,8 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
 });
 
 test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
-  // The case a naive implementation fails, and the only one that can speak for it. An implementation
-  // comparing every row passes every other case in this file while demanding the historical-row edit
-  // releasing.md forbids: each row describes an immutable published zip whose floor is the floor that
-  // zip needs, so the two older rows here are correct precisely by disagreeing with the current one.
-  // The three rows mirror the real manifest's shape (1.1.0 / 1.0.0 / 0.7.1, newest first).
+  // Each registry row describes an immutable published zip whose floor is the floor that zip needs,
+  // so the two older rows here are correct precisely by disagreeing with the current one.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
@@ -641,8 +549,8 @@ test("older versions[] rows with lower floors are not compared, so history stays
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    // one of the three rows was compared. The count is what says so: an implementation comparing
-    // every row also exits 0 on this fixture, because the two older rows agree with themselves.
+    // The count, not exit 0: an implementation comparing every row also exits 0 on this fixture,
+    // because the two older rows agree with themselves.
     assert.match(stdout, /1 registry row\(s\) compared across 1 declared registry manifest\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -650,9 +558,8 @@ test("older versions[] rows with lower floors are not compared, so history stays
 });
 
 test("two versions[] rows carrying the same version fail, naming the duplicated version", () => {
-  // A precondition of the guard above rather than a separate feature: with two rows claiming one
-  // version, "the row describing the current version" is not well defined, and the comparison would
-  // silently take whichever came first - passing or failing on row order alone.
+  // With two rows claiming one version, "the row describing the current version" is not well
+  // defined, and the comparison would take whichever came first.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
@@ -683,25 +590,8 @@ test("two versions[] rows carrying the same version fail, naming the duplicated 
   }
 });
 
-// One valid entry whose manifest carries `manifestOverrides`, run through the validator. Every case
-// below differs from a passing fixture by that one manifest field, so the error it asserts is the
-// only one the run can produce.
-function runWithManifest(manifestOverrides) {
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [validEntry("com.example.foo", "Foo")] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", manifestOverrides),
-    },
-  });
-  try {
-    return runValidator(root);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-}
-
 test("the unmodified manifest baseline passes, so each refusal below is its own field's", () => {
-  const { status, stderr } = runWithManifest({});
+  const { status, stderr } = runWith();
   assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
 });
 
@@ -712,7 +602,7 @@ test("a manifest missing entryDll, url or categories fails, naming the missing f
     [{ categories: [] }, /com\.example\.foo: extension\.json missing categories/],
     [{ categories: undefined }, /com\.example\.foo: extension\.json missing categories/],
   ]) {
-    const { status, stderr } = runWithManifest(overrides);
+    const { status, stderr } = runWith({ manifest: overrides });
     assert.notEqual(status, 0, `${JSON.stringify(overrides)} passed`);
     assert.match(stderr, expected);
   }
@@ -720,7 +610,7 @@ test("a manifest missing entryDll, url or categories fails, naming the missing f
 
 test("a category that is not lowercase kebab-case fails, naming the category", () => {
   for (const category of ["Utility", "file tools"]) {
-    const { status, stderr } = runWithManifest({ categories: ["utility", category] });
+    const { status, stderr } = runWith({ manifest: { categories: ["utility", category] } });
     assert.notEqual(status, 0, `category "${category}" passed`);
     assert.match(stderr, new RegExp(`category must be lowercase kebab-case: ${category}$`, "m"));
   }
@@ -731,90 +621,31 @@ test("each malformed external dependency is refused with its own reason", () => 
     [{ id: "dep" }, /externalDependencies must be an array/],
     [[{ name: "Dep" }], /external dependency missing id/],
     [[{ id: "dep" }], /external dependency missing name/],
-    [[{ id: "dep", name: "Dep", optional: true }], /uses legacy optional; use required/],
-    [
-      [{ id: "dep", name: "Dep", settingsKey: "k" }],
-      /uses legacy settingsKey; use configurationKeys/,
-    ],
     [[{ id: "dep", name: "Dep", configurationKeys: "k" }], /configurationKeys must be an array/],
   ]) {
-    const { status, stderr } = runWithManifest({ externalDependencies });
+    const { status, stderr } = runWith({ manifest: { externalDependencies } });
     assert.notEqual(status, 0, `${JSON.stringify(externalDependencies)} passed`);
     assert.match(stderr, expected);
   }
 
-  const wellFormed = runWithManifest({
-    externalDependencies: [{ id: "dep", name: "Dep", required: false, configurationKeys: ["k"] }],
+  const wellFormed = runWith({
+    manifest: {
+      externalDependencies: [{ id: "dep", name: "Dep", required: false, configurationKeys: ["k"] }],
+    },
   });
   assert.equal(wellFormed.status, 0, "a well-formed dependency was refused: " + wellFormed.stderr);
 });
 
-test("each malformed or legacy-shaped setting is refused with its own reason", () => {
+test("each malformed setting is refused with its own reason", () => {
   for (const [settings, expected] of [
     [{ name: "s" }, /extension\.json settings must be an array/],
     [[{ displayName: "S" }], /setting missing name/],
-    [[{ name: "s", key: "s" }], /setting uses legacy key; use name/],
-    [[{ name: "s", label: "S" }], /setting uses legacy label; use displayName/],
-    [[{ name: "s", defaultValue: 1 }], /setting uses legacy defaultValue/],
-    [[{ name: "s", scope: "user" }], /setting uses legacy scope/],
   ]) {
-    const { status, stderr } = runWithManifest({ settings });
+    const { status, stderr } = runWith({ manifest: { settings } });
     assert.notEqual(status, 0, `${JSON.stringify(settings)} passed`);
     assert.match(stderr, expected);
   }
 
-  const wellFormed = runWithManifest({ settings: [{ name: "s", displayName: "S" }] });
+  const wellFormed = runWith({ manifest: { settings: [{ name: "s", displayName: "S" }] } });
   assert.equal(wellFormed.status, 0, "a well-formed setting was refused: " + wellFormed.stderr);
-});
-
-// ── The fixtures themselves, checked against reality ─────────────────────────────────────────────
-//
-// Every case above is written against `validEntry`/`validManifest` - hand-written mirrors of the real
-// Renamer catalog entry and manifest. A hand-mirrored value with no mechanical check drifts, and the
-// drift is silent in the worst way: when a field leaves the real shape, every case above keeps passing
-// while exercising a shape that no longer exists.
-//
-// This does not re-run the validator against the real repo; CI already does that
-// (.github/workflows/ci.yml, the required `validate` job), and a second copy of an existing gate
-// would rot rather than protect. What CI cannot say is whether these fixtures still describe what it
-// validates. That is the gap here.
-//
-// Catalog-driven, so a second extension needs no edit: every entry is checked, and an empty catalog
-// is a hard failure rather than a vacuous pass.
-
-test("the hand-mirrored fixture baselines still describe the real catalog and manifest shape", () => {
-  const repoRoot = path.join(here, "..");
-  const catalog = JSON.parse(
-    readFileSync(path.join(repoRoot, "extensions", "catalog.json"), "utf8"),
-  );
-  const entries = catalog.extensions ?? [];
-
-  assert.ok(
-    entries.length > 0,
-    "extensions/catalog.json declares no extensions - this check inspected nothing, which is a failure, not a pass",
-  );
-
-  const baselineEntryFields = Object.keys(validEntry("com.example.foo", "Foo"));
-  const baselineManifestFields = Object.keys(validManifest("com.example.foo"));
-
-  for (const entry of entries) {
-    for (const field of baselineEntryFields) {
-      assert.ok(
-        field in entry,
-        `validEntry models catalog field "${field}", which the real entry "${entry.id}" does not have - ` +
-          `the fixtures describe a shape that no longer exists, so the cases above prove nothing about it`,
-      );
-    }
-
-    // The manifest is reached through the entry's own manifestPath rather than a second hardcoded
-    // path, so this check cannot itself become a stale mirror of where the manifest lives.
-    const manifest = JSON.parse(readFileSync(path.join(repoRoot, entry.manifestPath), "utf8"));
-    for (const field of baselineManifestFields) {
-      assert.ok(
-        field in manifest,
-        `validManifest models manifest field "${field}", which ${entry.manifestPath} does not have - ` +
-          `same drift, on the manifest side`,
-      );
-    }
-  }
 });

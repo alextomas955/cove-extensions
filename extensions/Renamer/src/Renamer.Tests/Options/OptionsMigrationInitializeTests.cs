@@ -205,7 +205,6 @@ public sealed class OptionsMigrationInitializeTests
         ((IStatefulExtension)ext).SetStore(failing);
         await ext.InitializeAsync(library.BuildProvider(DramaRoot));
 
-        // The settings write landed, and the name it discarded is named.
         Assert.Equal([13], (await new OptionsStore(store).LoadAsync()).ExcludeTagIds);
         Assert.Contains(log.Entries, e => e.EventId == RuleDroppedEvent);
 

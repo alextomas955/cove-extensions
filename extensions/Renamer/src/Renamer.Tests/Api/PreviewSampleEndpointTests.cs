@@ -26,7 +26,6 @@ public sealed class PreviewSampleEndpointTests
         return ctx.Request;
     }
 
-    // Runs the endpoint with a videos.read principal and a serialized {Options:...} body.
     private static IReadOnlyList<PreviewSampleResult> Preview(RenamerOptions? options)
     {
         // Serialize the body exactly as the panel/host would, via the converter-aware options, so the
@@ -35,7 +34,6 @@ public sealed class PreviewSampleEndpointTests
         return PreviewRaw(json);
     }
 
-    // Runs the endpoint with a videos.read principal and a raw JSON body string.
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
         var ext = RenamerFixture.CreateWithStore();
@@ -78,45 +76,33 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public void PreviewSample_DefaultOptions_VideoRendersTitle_NoFlags()
+    public void PreviewSample_DefaultOptions_ReturnsTheThreeServerSideSamplesOverTheirOriginalNames()
     {
         var all = Preview(new RenamerOptions());
-        Assert.Equal(3, all.Count); // exactly the 3 server-side samples
 
-        var video = Sample(all, "Video");
-        // The default template is "{$date - }$title{ [$resolution]}"; the Video sample has date
-        // 2021-03-14 and 3840 x 2160, which the engine buckets to $resolution "4K", so both groups
-        // render: "2021-03-14 - The Example [4K]".
-        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
-        Assert.Equal("the.example.2021.WEBRip.mp4", video.OldName);
-        Assert.Empty(video.Flags);
-        Assert.Empty(video.DroppedFields);
+        Assert.Equal(3, all.Count);
+        Assert.Equal("the.example.2021.WEBRip.mp4", Sample(all, "Video").OldName);
     }
 
-    [Fact]
-    public void PreviewSample_DefaultTemplate_AudioSample_NoBracketsNoDanglingSeparator()
+    [Theory]
+    // The default template is "{$date - }$title{ [$resolution]}". The Video sample has date
+    // 2021-03-14 and 3840 x 2160, which the engine buckets to $resolution "4K", so both groups
+    // render.
+    [InlineData("Video", "2021-03-14 - The Example [4K].mp4")]
+    // The Audio sample has a date but no height (so no $resolution), so the "{ [$resolution]}"
+    // group collapses entirely (leading space + brackets + token) while the "{$date - }" prefix
+    // stays: no dangling brackets and no empty " []".
+    [InlineData("Audio", "2020-01-09 - Track One.flac")]
+    // The Image sample's 6000 x 4000 frame takes its label from the short edge, which outranks the
+    // 6K its long edge buckets to. No other sample carries that branch through the endpoint.
+    [InlineData("Image", "2022-07-01 - Sunset [7K].jpg")]
+    public void PreviewSample_DefaultOptions_RendersEachSampleWithNoFlags(string label, string expectedName)
     {
-        // The Audio sample has a date but no height (so no $resolution), so the default's
-        // "{ [$resolution]}" group collapses entirely (leading space + brackets + token) while the
-        // "{$date - }" prefix stays, leaving a clean name with no dangling brackets.
-        var all = Preview(new RenamerOptions()); // default FilenameTemplate = "{$date - }$title{ [$resolution]}"
+        var sample = Sample(Preview(new RenamerOptions()), label);
 
-        var audio = Sample(all, "Audio");
-        Assert.Equal("2020-01-09 - Track One.flac", audio.NewName); // date prefix kept, no " []"
-        Assert.DoesNotContain("[", audio.NewName);
-        Assert.DoesNotContain("]", audio.NewName);
-        Assert.Empty(audio.Flags);
-    }
-
-    [Fact]
-    public void PreviewSample_DefaultTemplate_ImageSample_TakesItsLabelFromTheShortEdge()
-    {
-        // The Image sample's 6000 x 4000 frame takes its label from the short edge, which outranks
-        // the 6K its long edge buckets to. No other sample carries that branch through the endpoint.
-        var all = Preview(new RenamerOptions());
-
-        var image = Sample(all, "Image");
-        Assert.Equal("2022-07-01 - Sunset [7K].jpg", image.NewName);
+        Assert.Equal(expectedName, sample.NewName);
+        Assert.Empty(sample.Flags);
+        Assert.Empty(sample.DroppedFields);
     }
 
     [Fact]
@@ -125,7 +111,7 @@ public sealed class PreviewSampleEndpointTests
         var all = Preview(new RenamerOptions { FilenameTemplate = "$studio - $title [$resolution]" });
 
         var video = Sample(all, "Video");
-        // 3840 x 2160 → $resolution "4K" (the engine is the source of truth).
+        // The engine buckets the Video sample's 3840 x 2160 frame to $resolution "4K".
         Assert.Equal("Acme Studios - The Example [4K].mp4", video.NewName);
         Assert.Empty(video.Flags);
     }
@@ -153,8 +139,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_RequiredFieldMissing_FlagsGatingSkip()
     {
-        // videoCodec is required, but the image and audio samples have none → gating-skip; the video
-        // sample has videoCodec → not gated.
+        // Only the Video sample carries a videoCodec, so only it survives the gate.
         var all = Preview(new RenamerOptions { RequiredFields = ["videoCodec"] });
 
         Assert.Contains("gating-skip", Sample(all, "Image").Flags);
@@ -165,12 +150,12 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_IllegalCharTemplate_FlagsSanitized()
     {
-        // ':' is illegal and stripped by the sanitizer → the rendered name differs from raw → sanitized.
+        // ':' is illegal, so the sanitizer strips it and the rendered name differs from the raw one.
         var all = Preview(new RenamerOptions { FilenameTemplate = "$title: x" });
 
         var video = Sample(all, "Video");
         Assert.Contains("sanitized", video.Flags);
-        Assert.DoesNotContain(":", video.NewName); // proof the illegal char is gone
+        Assert.DoesNotContain(":", video.NewName);
     }
 
     [Theory]
@@ -198,7 +183,7 @@ public sealed class PreviewSampleEndpointTests
 
         var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), default);
 
-        Assert.Equal(403, StatusOf(result)); // permission denied
+        Assert.Equal(403, StatusOf(result));
     }
 
     [Fact]

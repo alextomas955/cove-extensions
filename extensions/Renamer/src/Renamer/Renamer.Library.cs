@@ -11,6 +11,14 @@ using static Renamer.Contracts.PreviewContracts;
 
 namespace Renamer;
 
+/// <summary>Which whole-library scan a stored aggregate is, and whose it is.</summary>
+/// <remarks>
+/// Minted by the enqueue and carried into the detached job, which can neither read the request nor
+/// re-resolve the principal. <c>OwnerKey</c> is the host's <c>JobOwner</c> spelling, and null for a
+/// principal the host gives no owner.
+/// </remarks>
+internal sealed record ScanRun(string RunId, string? OwnerKey);
+
 /// <summary>
 /// Whole-library work: the dry-run scan that plans every entity and stores a bounded aggregate, and
 /// the rename run that walks every kind. Neither returns rows, because nothing here may grow with
@@ -20,12 +28,12 @@ public sealed partial class Renamer
 {
     // readableKinds is captured at enqueue time: the job runs detached from the request, so this is
     // the only way per-kind authorization reaches the body. A caller holding partial permission gets
-    // a scan that omits the kinds they cannot read, not a 403 over the whole job. overrideOptions and
-    // caller are captured for the same reason; the detached job cannot re-read the request body and
-    // cannot re-resolve the principal.
+    // a scan that omits the kinds they cannot read, not a 403 over the whole job. overrideOptions,
+    // caller and run are captured for the same reason; the detached job cannot re-read the request
+    // body and cannot re-resolve the principal.
     internal async Task RunScanLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
-        Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        ScanRun run, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
         var options = overrideOptions ?? await StoredOptions.LoadAsync(ct);
 
@@ -43,7 +51,7 @@ public sealed partial class Renamer
         {
             var db = services.GetRequiredService<DbContext>();
             return RunScanCoreAsync(
-                new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, allowedIds, progress, ct);
+                new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, allowedIds, run, progress, ct);
         });
     }
 
@@ -53,7 +61,7 @@ public sealed partial class Renamer
     // every key this extension owns. /scan-rows serves the rows a page at a time.
     internal async Task RunScanCoreAsync(
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
-        AllowedIds allowedIds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        AllowedIds allowedIds, ScanRun run, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
         // A kind turned off in the options is dropped before it is walked. Planning it would fill the
         // scan with library-many rows whose only content is that the kind is off.
@@ -80,7 +88,7 @@ public sealed partial class Renamer
         // completes.
         if (total == 0)
         {
-            await WriteScanSummaryAsync(aggregator, ct);
+            await WriteScanSummaryAsync(aggregator, run, ct);
             LogScanDone(0, 0);
             progress.Report(1d, "Scan complete. Nothing to scan.");
             return;
@@ -140,16 +148,18 @@ public sealed partial class Renamer
             }
         }
 
-        await WriteScanSummaryAsync(aggregator, ct);
+        await WriteScanSummaryAsync(aggregator, run, ct);
 
         LogScanDone(aggregator.TotalFiles, total);
         progress.Report(1d, "Scan complete.");
     }
 
-    private Task WriteScanSummaryAsync(ScanAggregator aggregator, CancellationToken ct)
+    private Task WriteScanSummaryAsync(ScanAggregator aggregator, ScanRun run, CancellationToken ct)
         => Store.SetAsync(
             LastScanSummaryKey,
-            JsonSerializer.Serialize(aggregator.ToSummary(DateTime.UtcNow.Ticks), PreviewResponseJsonOptions),
+            JsonSerializer.Serialize(
+                aggregator.ToSummary(run.RunId, run.OwnerKey, DateTime.UtcNow.Ticks),
+                PreviewResponseJsonOptions),
             ct);
 
     // Written inside the job, so the counts are stored by the time the job reads as completed. The
@@ -177,7 +187,7 @@ public sealed partial class Renamer
     internal async Task RunRenamerLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
         Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
-        string? runId = null)
+        string? runId = null, string? ownerKey = null)
     {
         var options = await StoredOptions.LoadAsync(ct);
 
@@ -244,7 +254,8 @@ public sealed partial class Renamer
 
         await TryStoreLibraryRenameSummaryAsync(
             new LibraryRenameSummary(
-                LibraryRenameSummary.CurrentSchemaVersion, operationId, DateTime.UtcNow.Ticks, tallies));
+                LibraryRenameSummary.CurrentSchemaVersion, operationId, ownerKey, DateTime.UtcNow.Ticks,
+                tallies));
 
         progress.Report(
             1d,

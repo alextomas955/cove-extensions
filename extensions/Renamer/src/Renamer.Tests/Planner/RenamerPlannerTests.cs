@@ -24,7 +24,6 @@ public sealed class RenamerPlannerTests
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        // Pin the title-only template (this test exercises planner rename detection, not the default).
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         var item = Assert.Single(plan.Items);
@@ -38,7 +37,7 @@ public sealed class RenamerPlannerTests
     public async Task RenderedEqualsCurrent_IsNoOp_ZeroMutation()
     {
         var port = new FakeRenamerDataPort();
-        // Template "$title" with Title="raw" renders to "raw.mkv" == current basename → NoOp.
+        // "$title" over Title="raw" renders the file's current basename.
         port.SeedEntity(VideoEntity("raw", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
@@ -50,15 +49,12 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task TraversalFolderTemplate_NeutralizedByEngine_ConfinedUnderRoot()
     {
-        // Defense-in-depth: the engine strips "../" segments per-segment (TrimEdge dots),
-        // so "../../escape" renders to the benign subfolder "escape" - which the confinement gate
-        // then accepts as a move under the root. The raw "../.." → rejected path is proven directly
-        // at the helper level in PathConfinementTests.
+        // The engine strips the dots from each segment, so "../../escape" renders to the benign
+        // subfolder "escape", which the confinement gate then accepts as a move under the root.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
-        // Pin the title-only filename template - this test asserts folder-template confinement, not the default name shape.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "../../escape" };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
@@ -71,9 +67,7 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task ConfinementRejection_WiredIntoPlanner_IsSkipped_ZeroMutation()
     {
-        // Drive a real confinement rejection through the planner via the FullPathMax re-check
-        // the engine never measures on the absolute path - proves the planner classifies
-        // a confinement failure as a skip with the helper's reason, mutating nothing.
+        // The FullPathMax re-check measures the absolute path, which the engine never does.
         var port = new FakeRenamerDataPort();
         port.SeedEntity(VideoEntity(new string('A', 300), VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
@@ -105,8 +99,6 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
     {
-        // Seed the same entity behind the loading path; plan it both ways and prove item-for-item
-        // equality - the pure method and the load-then-plan method share identical plan logic.
         var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
         var port = new FakeRenamerDataPort();
         port.SeedEntity(entity);

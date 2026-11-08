@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 
 const SCRIPT = "check-host-imports.mjs";
-const SHIM = "ui/src/generated/extensions/runtime/v1/lucide-react.ts";
+const SHIM_DIR = "ui/src/generated/extensions/runtime/v1";
 
 function write(root, relative, content) {
   fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
@@ -17,10 +17,15 @@ function write(root, relative, content) {
 }
 
 /**
- * A parent directory holding `repo/` and, unless `hostExports` is null, `cove/` with a shim exporting
- * those names. The repository sits one level down so its `../cove` default lands inside the fixture.
+ * A parent directory holding `repo/` and, unless `hostExports` is null, `cove/` with one shim per
+ * checked package exporting those names. The repository sits one level down so its `../cove` default
+ * lands inside the fixture. The script requires every shim it checks, so both are written unless the
+ * caller is testing a missing one.
  */
-function fixture({ source, hostExports = ["Check", "Plus"] }) {
+function fixture({
+  source,
+  hostExports = { "lucide-react": ["Check", "Plus"], "react-query": ["useQuery"] },
+}) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), "check-host-imports-"));
   const repo = path.join(parent, "repo");
   fs.mkdirSync(path.join(repo, "scripts"), { recursive: true });
@@ -29,11 +34,13 @@ function fixture({ source, hostExports = ["Check", "Plus"] }) {
   write(repo, "extensions/Foo/src/Foo/Foo.cs", "");
   const cove = path.join(parent, "cove");
   if (hostExports !== null) {
-    write(
-      cove,
-      SHIM,
-      hostExports.map((name) => `export const ${name} = Icons.${name};\n`).join(""),
-    );
+    for (const [pkg, names] of Object.entries(hostExports)) {
+      write(
+        cove,
+        `${SHIM_DIR}/${pkg}.ts`,
+        names.map((name) => `export const ${name} = Mod.${name};\n`).join(""),
+      );
+    }
   }
   return { parent, repo, cove };
 }
@@ -54,7 +61,7 @@ test("a value import the host shim does not export fails, naming the file and th
     const result = run(f, f.cove);
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /extensions[/\\]Foo[/\\]src[/\\]Foo\.Ui[/\\]src[/\\]view\.tsx/);
-    assert.match(result.stderr, /"Sparkles" is absent from the host runtime shim/);
+    assert.match(result.stderr, /"Sparkles" is absent from the host's lucide-react/);
     assert.doesNotMatch(result.stderr, /"Check"/);
   } finally {
     fs.rmSync(f.parent, { recursive: true, force: true });
@@ -72,11 +79,24 @@ test("type-only imports are not checked, and an aliased import is checked by its
   try {
     const result = run(f, f.cove);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    // One value import checked: the alias resolved to Plus, and both type-only names were skipped.
+    assert.match(result.stdout, /OK \(1 imports across 1 UI bundles/);
+  } finally {
+    fs.rmSync(f.parent, { recursive: true, force: true });
+  }
+});
+
+test("a react-query name the host's version does not export fails too", () => {
+  const f = fixture({
+    source: 'import { useQuery, useFutureThing } from "@tanstack/react-query";\n',
+  });
+  try {
+    const result = run(f, f.cove);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(
-      result.stdout,
-      /OK \(1 lucide-react imports across 1 UI bundles, 2 host exports\)/,
+      result.stderr,
+      /"useFutureThing" is absent from the host's @tanstack\/react-query/,
     );
+    assert.doesNotMatch(result.stderr, /"useQuery"/);
   } finally {
     fs.rmSync(f.parent, { recursive: true, force: true });
   }

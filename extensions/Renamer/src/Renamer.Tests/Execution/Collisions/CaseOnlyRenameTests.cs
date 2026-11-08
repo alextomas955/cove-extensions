@@ -24,8 +24,8 @@ public sealed class CaseOnlyRenameTests
             // case-variant target is True, but it is the source occupying its own slot - not a clobber.
             File.WriteAllText(Path.Combine(dir.Root, "movie.mkv"), "movie-bytes");
 
-            // Hand-built in-place plan: movie.mkv → Movie.mkv (case-only), so the executor's collision
-            // seam is exercised directly and deterministically (no planner in the way).
+            // A hand-built in-place plan renaming movie.mkv to Movie.mkv, so the executor's collision
+            // seam runs with no planner in the way.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, folderPath + "/movie.mkv", folderPath + "/Movie.mkv",
@@ -38,8 +38,6 @@ public sealed class CaseOnlyRenameTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // A clean rename: exactly one renamed, nothing skipped or failed, and the new name is the
-            // case-corrected target - not a suffixed Movie (1).mkv.
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.Empty(result.Skipped);

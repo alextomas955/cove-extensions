@@ -2,15 +2,12 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.TestSupport;
 
-// In-memory IRenamerDataPort for DB-free unit tests of the planner / collision / gating / suffix
-// logic: this is the seam faked so the pure planning logic is testable without a live CoveContext.
-// No disk, no DB.
+// In-memory IRenamerDataPort, so the planning, collision, gating and suffix logic can be driven
+// with no disk and no database.
 public sealed class FakeRenamerDataPort : IRenamerDataPort
 {
     private readonly Dictionary<(RenamerFileKind kind, int id), RenamerEntity> _entities = [];
 
-    // Pre-seeded (folderId, basename) pairs treated as occupied (paired with the file id that holds
-    // them).
     private readonly HashSet<(int folderId, string basename, int fileId)> _occupied = [];
 
     private readonly Dictionary<string, int> _folderIds = new(StringComparer.Ordinal);
@@ -18,16 +15,13 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     private readonly Dictionary<RenamerFileKind, List<int>> _allIds = [];
 
-    // Seeds a loadable entity (returned by LoadEntityAsync).
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;
 
-    // Marks (folderId, basename) as occupied by fileId for collision tests.
     public void SeedOccupied(int folderId, string basename, int fileId) => _occupied.Add((folderId, basename, fileId));
 
-    // Pre-registers a folder path → id mapping (otherwise GetOrCreateFolderIdAsync mints one).
+    // Pre-registers a folder path that GetOrCreateFolderIdAsync would otherwise mint an id for.
     public void SeedFolder(string path, int id) => _folderIds[path] = id;
 
-    // Seeds the ids kind's pages walk.
     public void SeedAllIds(RenamerFileKind kind, params int[] ids) => _allIds[kind] = [.. ids];
 
     // Every seeded id of kind, ascending. Test support, not a port member: the production interface
@@ -39,17 +33,13 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     // Forward-slash source paths the test declares absent on disk; everything else reports present.
     public HashSet<string> MissingSources { get; } = new(StringComparer.Ordinal);
 
-    // Declares fullPath absent on disk for SourceExistsAsync.
     public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
 
-    // Number of LoadEntityAsync calls - lets a test prove the planning pass loads each id once, not
-    // twice.
     public int LoadEntityCallCount { get; private set; }
 
     // The library paths the fake declares; empty by default, so a test opts in to an anchor.
     public List<string> LibraryPathList { get; } = [];
 
-    // Declares paths as Cove's configured library paths.
     public void SeedLibraryPaths(params string[] paths) => LibraryPathList.AddRange(paths);
 
     public IReadOnlyList<string> LibraryRoots => LibraryPathList;
@@ -73,7 +63,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult<IReadOnlyList<RenamerEntity>>(found);
     }
 
-    // Every LoadEntityIdPageAsync call, in order, so a test can see how wide each ask was.
     public List<(RenamerFileKind Kind, int After, int Take)> IdPageRequests { get; } = [];
 
     public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
@@ -106,7 +95,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
     {
-        // Occupied by some other file row (excluding self) → collision.
         var taken = _occupied.Any(o => o.folderId == folderId && o.basename == basename && o.fileId != selfFileId);
         return Task.FromResult(taken);
     }
@@ -132,7 +120,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
         => Task.FromResult(!MissingSources.Contains(fullPath));
 
-    // Every ApplyAndSaveAsync call's mutation, in order.
     public List<RenamerFileMutation> ApplyAndSaveCalls { get; } = [];
 
     public Task<string> ApplyAndSaveAsync(RenamerFileMutation mutation, CancellationToken ct = default)

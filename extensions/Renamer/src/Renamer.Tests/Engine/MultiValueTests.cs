@@ -5,8 +5,6 @@ namespace Renamer.Tests.Engine;
 
 public class MultiValueTests
 {
-    // ---- MultiValue.Resolve ----
-
     private static readonly IReadOnlyList<string> Three = new[] { "Charlie", "alice", "Bob" };
 
     [Fact]
@@ -46,7 +44,6 @@ public class MultiValueTests
         Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
     }
 
-    // The whitelist and blacklist match on tag ids, never on names.
     private static readonly IReadOnlyList<(int Id, string Name)> ThreeTags =
         new[] { (1, "Charlie"), (2, "alice"), (3, "Bob") };
 
@@ -146,11 +143,8 @@ public class MultiValueTests
             MaxCount = 2,
             OnOverflow = OverflowPolicy.KeepFirst,
         };
-        // sorted: alice,Bob,Charlie -> take first 2
         Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
     }
-
-    // ---- MultiValue.Resolve (performer records: id sort + gender order/ignore) ----
 
     private static readonly IReadOnlyList<RenamerPerformer> Performers = new[]
     {
@@ -177,15 +171,12 @@ public class MultiValueTests
     public void Resolve_Performers_SortById_OrdersByAscendingId()
     {
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.IdAsc };
-        // ids 1,2,3 -> alice,Bob,Charlie
         Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(Performers, m));
     }
 
     [Fact]
     public void Resolve_Performers_IgnoreGender_FreesAnOverflowSlot()
     {
-        // Three performers, a limit of 2, one gender ignored. The ignored performer is dropped
-        // before the limit, so two non-ignored performers survive (not one).
         var m = new MultiValueOptions
         {
             Separator = ",",
@@ -197,9 +188,7 @@ public class MultiValueTests
 
         var result = MultiValue.Resolve(Performers, m);
 
-        // Female (alice) is dropped first; the two males survive the limit, name-ordered.
         Assert.Equal("Bob,Charlie", result);
-        Assert.Equal(2, result.Split(',').Length);
     }
 
     [Fact]
@@ -208,12 +197,11 @@ public class MultiValueTests
         var people = new[]
         {
             new RenamerPerformer(1, "alice", "Female"),
-            new RenamerPerformer(2, "Bob", null),     // no gender set -> always kept
+            new RenamerPerformer(2, "Bob", null),
             new RenamerPerformer(3, "Charlie", "male"),
         };
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.NameAsc, IgnoreGenders = ["MALE"] };
 
-        // "male" Charlie dropped (case-insensitive); null-gender Bob kept; alice kept.
         Assert.Equal("alice,Bob", MultiValue.Resolve(people, m));
     }
 
@@ -227,8 +215,6 @@ public class MultiValueTests
             GenderOrder = ["Male", "Female"],
         };
 
-        // Name order would be alice,Bob,Charlie; the gender rank puts Males first (Bob,Charlie)
-        // then Females (alice), each group keeping the name order.
         Assert.Equal("Bob,Charlie,alice", MultiValue.Resolve(Performers, m));
     }
 
@@ -243,16 +229,12 @@ public class MultiValueTests
         };
         var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.NameAsc, GenderOrder = ["Female"] };
 
-        // Female (alice) ranks first; Bob (null) and Charlie ("Other", unlisted) rank last,
-        // keeping their name order.
         Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(people, m));
     }
 
     [Fact]
     public void Resolve_Performers_DefaultOptions_RenderNamesLikeTheStringPath()
     {
-        // Regression guard: with default options (NameAsc, no gender features) the record path
-        // produces the same joined names as the equivalent string list would.
         var m = new MultiValueOptions { Separator = ", " };
         Assert.Equal("alice, Bob, Charlie", MultiValue.Resolve(Performers, m));
     }

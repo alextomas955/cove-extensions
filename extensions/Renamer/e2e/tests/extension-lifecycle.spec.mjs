@@ -15,8 +15,7 @@ import {
 } from "../lib/renamer-fixtures.mjs";
 
 // The first browser navigation to a settings route pays for the host fetching that route's chunk,
-// which the page objects budget for and the default assertion timeout does not. Bounded by what the
-// test has left, for the reason the page objects document.
+// which the default assertion timeout does not cover.
 const COLD_START_BUDGET_MS = 120_000;
 
 const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
@@ -35,9 +34,14 @@ test(
 
     const afterDisable = await api.get("/api/extensions");
     const disabledEntry = afterDisable.json.find((e) => e.id === EXTENSION_ID);
-    // A disabled extension either drops off the list or reports enabled:false - assert whichever
-    // the real API does, rather than assuming.
-    expect(disabledEntry === undefined || disabledEntry.enabled === false).toBe(true);
+    // Disable retires the extension's service provider and leaves the registry entry, so the listing
+    // still carries it. Only uninstall drops the entry. Accepting an absent one as well would let a
+    // host that forgot the extension entirely pass as a correct disable.
+    expect(
+      disabledEntry,
+      "a disabled extension left the listing, which is uninstall's job",
+    ).toBeDefined();
+    expect(disabledEntry.enabled).toBe(false);
 
     // The settings tab must no longer exist. Its absence alone proves nothing while the host is still
     // loading extensions, because the tab is absent then too. The host holds an unknown settings key

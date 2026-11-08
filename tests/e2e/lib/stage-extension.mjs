@@ -1,9 +1,8 @@
 // Stages an extension into a folder shaped the way Cove's bind-mount install expects:
 // <stagingRoot>/<extensionId>/{extension.json, *.dll, index.mjs, ...}.
 //
-// The folder is produced by the repo's own package assembler, the same one a release and a local dev
-// deploy run, so a test installs the declared package: a file that would not ship cannot reach a
-// passing test, and one that must ship cannot be missing from it.
+// The folder is produced by the repo's own package assembler, the one a release runs, so a file
+// that would not ship cannot reach a passing test.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { assemblePackage, resolveEntryManifestPath } from "../../../scripts/assemble-package.mjs";
@@ -61,14 +60,15 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
     );
   }
 
-  // Catches a run that installs an assembly older than the code it is testing. The publish directory
-  // is refreshed only by scripts/publish-extensions.mjs, wired as this package's npm pretest, while
-  // the JS bundle is taken from the UI build output - so invoking Playwright directly stages a fresh
-  // bundle on top of whatever assembly was left behind. An old assembly throws nothing. It serves a
-  // manifest missing whatever the newer source declares, and the run then reads as a host that does
-  // not do something rather than an artifact that is out of date.
-  // The manifest sits in the project the entryDll is built from, so its directory is that assembly's
-  // own source.
+  // Catches a run that installs an assembly older than the code it is testing. The publish
+  // directory is refreshed only by scripts/publish-extensions.mjs, wired as this package's npm
+  // pretest, while the JS bundle comes from the UI build output, so invoking Playwright directly
+  // stages a fresh bundle on top of whatever assembly was left behind. An old assembly throws
+  // nothing: it serves a manifest missing whatever the newer source declares, and the run reads as
+  // a host that does not do something.
+  //
+  // The manifest sits in the project the entryDll is built from, so its directory is that
+  // assembly's own source.
   const sourceRoot = dirname(manifestPath);
   const assembly = join(publishDir, manifest.entryDll);
   const newest = existsSync(assembly) ? newestSource(sourceRoot) : null;

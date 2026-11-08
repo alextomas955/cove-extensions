@@ -14,7 +14,6 @@ import { EntityReferenceValue } from "@cove/runtime/components";
 
 import type { EntityReferenceType } from "@cove/runtime/components";
 
-/** What a rule key is labelled with, and whether the entity behind it still exists. */
 export function RuleKeyLabel({
   entityType,
   id,

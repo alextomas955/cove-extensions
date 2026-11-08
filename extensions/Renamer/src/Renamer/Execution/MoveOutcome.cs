@@ -42,9 +42,6 @@ public enum MoveOutcome
 // that has no status of its own.
 public static class MoveOutcomeClassifier
 {
-    // Throws for MoveOutcome.Moved: a move that happened takes the planner's own status for the item,
-    // so there is nothing to translate. Nothing is retired here and no recovery is at stake, unlike
-    // UndoReplayer.StopFor, whose unreachable Moved arm answers harmlessly instead.
     public static RenamerStatus StatusFor(MoveOutcome outcome) => outcome switch
     {
         MoveOutcome.Locked => RenamerStatus.SkipLocked,

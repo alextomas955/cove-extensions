@@ -78,15 +78,26 @@ public sealed class OptionsEndpointTests
 
     // The panel's type drops the generated optional markers, so every member has to be on the wire. A
     // member the server omitted would read as undefined behind a type that says it cannot be.
+    //
+    // Compared against the committed wire document, which is what the TypeScript types are generated
+    // from, rather than against RenamerOptions itself: reading the expected names off the same type
+    // the response is serialized from makes the two agree whatever either does, and a property the
+    // model declares but never serializes is not a defect this test should report.
     [Fact]
-    public async Task Get_WritesEveryMemberTheModelDeclares()
+    public async Task Get_WritesEveryMemberTheWireDocumentDeclares()
     {
         await using var host = await TransportHost.BootAsync(Configurer());
 
         var options = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!.AsObject();
-        var declared = typeof(RenamerOptions)
-            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .Select(p => JsonNamingPolicy.CamelCase.ConvertName(p.Name))
+
+        using var document = JsonDocument.Parse(
+            await File.ReadAllTextAsync(
+                ExtensionOpenApiDocumentTests.CommittedDocumentPath(RenamerFixture.Manifest.Id)));
+        var declared = document.RootElement
+            .GetProperty("components").GetProperty("schemas").GetProperty(nameof(RenamerOptions))
+            .GetProperty("properties")
+            .EnumerateObject()
+            .Select(property => property.Name)
             .Order(StringComparer.Ordinal);
 
         Assert.Equal(declared, options.Select(entry => entry.Key).Order(StringComparer.Ordinal));
@@ -100,7 +111,7 @@ public sealed class OptionsEndpointTests
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(new RenamerOptions
         {
-            Kinds = new Dictionary<RenamerFileKind, KindOptions> { [RenamerFileKind.Video] = new() { Enabled = false } },
+            Kinds = new Dictionary<RenamerFileKind, KindOptions?> { [RenamerFileKind.Video] = new() { Enabled = false } },
         });
         await using var host = await TransportHost.BootAsync(Configurer(), store);
 
@@ -219,5 +230,20 @@ public sealed class OptionsEndpointTests
         var resp = await host.Client.GetAsync(Route);
 
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    // A stored blob can carry a present key with no value: the store's non-null restore does not reach
+    // inside a collection, so the entry survives the load and the serializer writes it out. The
+    // generated client takes its nullability from the declaration, so the declaration has to admit it.
+    [Fact]
+    public async Task Get_AKindEntryWithNoValue_IsServedAsNull_AndTheContractSaysSo()
+    {
+        var store = await StoreHolding("""{"Kinds":{"Text":null}}""");
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
+
+        var kinds = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!["kinds"]!.AsObject();
+
+        Assert.True(kinds.ContainsKey("text"));
+        Assert.Null(kinds["text"]);
     }
 }

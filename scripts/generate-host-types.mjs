@@ -24,8 +24,8 @@ const coveRepo = process.env.COVE_REPO ?? path.resolve(repoRoot, "../cove");
 const coveUi = path.join(coveRepo, "ui");
 const barrel = path.join(coveUi, "src/components/extension-shared.ts");
 
-// Fails rather than emitting a smaller set. A missing checkout makes the host's real props unreachable,
-// and the alternative - falling back to a hand-written stand-in - is the transcription this replaces.
+// Fails rather than emitting a smaller set: a missing checkout makes the host's real props
+// unreachable.
 if (!existsSync(barrel)) {
   console.error(
     `generate-host-types: no Cove checkout at ${coveRepo} (looked for ${barrel}). ` +

@@ -7,16 +7,13 @@
  * configures rules over the library the user already has. Locking it at one declaration site is what
  * this component is for: omitting the prop is silent at the instance that forgets.
  *
- * The input class is the shared one so an embedded host control matches every other input in the
- * panel. It is imported, never retyped.
+ * The input class is the shared one, imported and never retyped, so an embedded host control matches
+ * every other input in the panel.
  *
  * The wrapper is a `FieldGroup`, not a label element. The host draws each chip's Remove button ahead
  * of its input, so a label around it would name that button and a click on the heading would remove
- * a chip. The block carries the name, and the label also goes to the search input directly, because
- * a group's name does not reach a textbox nested inside it.
- *
- * No state, no searching, no filtering, no results list and no chip rendering live here. All of that
- * is the host's.
+ * a chip. The label also goes to the search input directly, because a group's name does not reach a
+ * textbox nested inside it.
  */
 import { EntityReferenceMultiSelector, type EntityReferenceType } from "@cove/runtime/components";
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Renamer.Contracts;
 using Renamer.Planner;
@@ -90,15 +91,17 @@ public sealed class TransportSmokeTests
     [Fact]
     public async Task LastScan_WritesCamelCaseProperties_AndCamelCaseStringEnums()
     {
+        var principals = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var store = new FakeStore();
         await store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
-            JsonSerializer.Serialize(SeededScanSummary(), PreviewContracts.PreviewResponseJsonOptions));
+            JsonSerializer.Serialize(
+                SeededScanSummary(JobOwner.FromPrincipal(principals.Current)?.Key),
+                PreviewContracts.PreviewResponseJsonOptions));
 
-        await using var host = await TransportHost.BootAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), store);
+        await using var host = await TransportHost.BootAsync(principals, store);
 
-        var resp = await host.Client.GetAsync(Base + "/last-scan");
+        var resp = await host.Client.GetAsync(Base + "/last-scan/" + SmokeRunId);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
         var body = await resp.Content.ReadAsStringAsync();
@@ -117,9 +120,11 @@ public sealed class TransportSmokeTests
         Assert.DoesNotContain("\"Status\":", body, StringComparison.Ordinal);
     }
 
-    // Built from the records directly rather than through the planner: this test is about the bytes on
-    // the way out, so the cheapest input that carries one of each wire enum is the honest one.
-    private static ScanSummary SeededScanSummary()
+    private const string SmokeRunId = "smoke-run";
+
+    // Built from the records directly rather than through the planner: these cases are about the
+    // bytes on the way out, so the cheapest input carrying one of each wire enum is enough.
+    private static ScanSummary SeededScanSummary(string? ownerKey)
     {
         var blastRadius = new PreviewSummary(
             TotalCount: 1,
@@ -132,6 +137,8 @@ public sealed class TransportSmokeTests
 
         return new ScanSummary(
             ScanSummary.CurrentSchemaVersion,
+            RunId: SmokeRunId,
+            OwnerKey: ownerKey,
             CompletedAtUtcTicks: 1,
             Kinds:
             [

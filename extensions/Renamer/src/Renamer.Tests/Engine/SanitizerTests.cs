@@ -5,8 +5,6 @@ namespace Renamer.Tests.Engine;
 
 public class SanitizerTests
 {
-    // ---- CleanSegment: illegal / control chars ----
-
     [Theory]
     [InlineData("a<b")]
     [InlineData("a>b")]
@@ -23,68 +21,32 @@ public class SanitizerTests
         Assert.Equal("ab", Sanitizer.CleanSegment(input, o));
     }
 
-    [Fact]
-    public void CleanSegment_IllegalChar_ReplacedWhenReplacementSet()
-    {
-        var o = new RenamerOptions { IllegalReplacement = "_" };
-        Assert.Equal("a_b", Sanitizer.CleanSegment("a:b", o));
-    }
-
-    [Fact]
-    public void CleanSegment_ControlChars_AlwaysStripped()
-    {
-        var o = new RenamerOptions { IllegalReplacement = "_" };
-        // Control chars are dropped, not replaced (they are not in the illegal set).
-        Assert.Equal("ab", Sanitizer.CleanSegment("a\tb", o));
-    }
-
-    // ---- CleanSegment: space replacement ----
-
-    [Fact]
-    public void CleanSegment_Spaces_KeptByDefault()
+    [Theory]
+    [InlineData(null, "_", "a:b", "a_b")]
+    // Control chars are dropped, not replaced (they are not in the illegal set).
+    [InlineData(null, "_", "a\u0001\tb", "ab")]
+    [InlineData(null, null, "a b", "a b")]
+    [InlineData("_", null, "a b", "a_b")]
+    [InlineData(null, null, "a    b", "a b")]
+    [InlineData("_", null, "a   b", "a_b")]
+    [InlineData(null, null, "  .title. ", "title")]
+    [InlineData(null, null, "  ...  ", "")]
+    public void CleanSegment_AppliesTheReplacements_ThenCollapsesAndTrims(
+        string? spaceReplacement, string? illegalReplacement, string input, string expected)
     {
         var o = new RenamerOptions();
-        Assert.Equal("a b", Sanitizer.CleanSegment("a b", o));
+        if (spaceReplacement is not null)
+        {
+            o = o with { SpaceReplacement = spaceReplacement };
+        }
+
+        if (illegalReplacement is not null)
+        {
+            o = o with { IllegalReplacement = illegalReplacement };
+        }
+
+        Assert.Equal(expected, Sanitizer.CleanSegment(input, o));
     }
-
-    [Fact]
-    public void CleanSegment_Spaces_ReplacedWhenSet()
-    {
-        var o = new RenamerOptions { SpaceReplacement = "_" };
-        Assert.Equal("a_b", Sanitizer.CleanSegment("a b", o));
-    }
-
-    // ---- CleanSegment: collapse + trim ----
-
-    [Fact]
-    public void CleanSegment_CollapsesRepeatedSpaces()
-    {
-        var o = new RenamerOptions();
-        Assert.Equal("a b", Sanitizer.CleanSegment("a    b", o));
-    }
-
-    [Fact]
-    public void CleanSegment_CollapsesRepeatedSpaceReplacement()
-    {
-        var o = new RenamerOptions { SpaceReplacement = "_" };
-        Assert.Equal("a_b", Sanitizer.CleanSegment("a   b", o));
-    }
-
-    [Fact]
-    public void CleanSegment_TrimsLeadingTrailingSpacesAndDots()
-    {
-        var o = new RenamerOptions();
-        Assert.Equal("title", Sanitizer.CleanSegment("  .title. ", o));
-    }
-
-    [Fact]
-    public void CleanSegment_EmptyAfterCleaning_ReturnsEmpty()
-    {
-        var o = new RenamerOptions();
-        Assert.Equal("", Sanitizer.CleanSegment("  ...  ", o));
-    }
-
-    // ---- CleanSegment: reserved device names ----
 
     [Theory]
     [InlineData("CON", "CON_")]
@@ -117,7 +79,6 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_TrimProducesReservedStem_GetsDisambiguatingUnderscore()
     {
-        // The trailing dot is trimmed first, leaving "CON", which the guard then disambiguates.
         var o = new RenamerOptions();
         Assert.Equal("CON_", Sanitizer.CleanSegment("CON.", o));
     }
@@ -125,12 +86,9 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_IllegalStripProducesReservedStem_GetsDisambiguatingUnderscore()
     {
-        // ':' is stripped by default, leaving "CON", which the guard then disambiguates.
         var o = new RenamerOptions();
         Assert.Equal("CON_", Sanitizer.CleanSegment("CON:", o));
     }
-
-    // ---- CleanSegment: character removal ----
 
     [Fact]
     public void CleanSegment_RemoveSet_DropsEveryListedChar()
@@ -155,7 +113,6 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_RemoveSet_DropsBeforeIllegalReplacement()
     {
-        // ':' is both OS-illegal and in the remove-set; it is removed, not turned into "_".
         var o = new RenamerOptions { RemoveCharacters = ":", IllegalReplacement = "_" };
         Assert.Equal("ab", Sanitizer.CleanSegment("a:b", o));
     }
@@ -167,52 +124,28 @@ public class SanitizerTests
         Assert.Equal("a_b_c", Sanitizer.CleanSegment("a, b c", o));
     }
 
-    // ---- ApplyCase ----
-
-    [Fact]
-    public void Transform_CaseNone_LeavesUnchanged()
+    [Theory]
+    [InlineData("Hello World", CaseTransform.None, "Hello World")]
+    [InlineData("Hello World", CaseTransform.Lower, "hello world")]
+    [InlineData("hello world", CaseTransform.Title, "Hello World")]
+    public void Transform_ApplyCase_AppliesEachTransform(
+        string input, CaseTransform transform, string expected)
     {
-        Assert.Equal("Hello World", Sanitizer.ApplyCase("Hello World", CaseTransform.None));
+        Assert.Equal(expected, Sanitizer.ApplyCase(input, transform));
     }
 
-    [Fact]
-    public void Transform_CaseLower_Lowercases()
+    [Theory]
+    [InlineData("Beyoncé", "Beyonce")]
+    [InlineData("España", "Espana")]
+    // Cyrillic must not be emptied - transliteration folds diacritics only, not whole scripts, so
+    // with no diacritics to fold the whole script survives unchanged.
+    [InlineData("Москва", "Москва")]
+    [InlineData("Plain Title", "Plain Title")]
+    public void Transform_Transliterate_FoldsDiacriticsAndLeavesEverythingElse(
+        string input, string expected)
     {
-        Assert.Equal("hello world", Sanitizer.ApplyCase("Hello World", CaseTransform.Lower));
+        Assert.Equal(expected, Sanitizer.Transliterate(input));
     }
-
-    [Fact]
-    public void Transform_TitleCase_TitleCasesEachWord()
-    {
-        Assert.Equal("Hello World", Sanitizer.ApplyCase("hello world", CaseTransform.Title));
-    }
-
-    // ---- Transliterate ----
-
-    [Fact]
-    public void Transform_Transliterate_FoldsDiacritics()
-    {
-        Assert.Equal("Beyonce", Sanitizer.Transliterate("Beyoncé")); // Beyoncé -> Beyonce
-        Assert.Equal("Espana", Sanitizer.Transliterate("España"));   // España -> Espana
-    }
-
-    [Fact]
-    public void Transform_Transliterate_LeavesNonLatinNonEmpty()
-    {
-        // Cyrillic must not be emptied - transliteration folds diacritics only, not whole scripts.
-        var cyr = "Москва"; // "Москва"
-        var result = Sanitizer.Transliterate(cyr);
-        Assert.False(string.IsNullOrEmpty(result));
-        Assert.Equal(cyr, result); // no diacritics to fold -> unchanged, still non-empty
-    }
-
-    [Fact]
-    public void Transform_Transliterate_PlainAsciiUnchanged()
-    {
-        Assert.Equal("Plain Title", Sanitizer.Transliterate("Plain Title"));
-    }
-
-    // ---- NormalizePunctuation ----
 
     [Theory]
     [InlineData("It‘s", "It's")]        // U+2018 left single quote
@@ -221,22 +154,13 @@ public class SanitizerTests
     [InlineData("A–B", "A-B")]          // U+2013 en-dash
     [InlineData("A—B", "A-B")]          // U+2014 em-dash
     [InlineData("Wait…", "Wait...")]    // U+2026 ellipsis -> three dots
-    public void Transform_NormalizePunctuation_FoldsEachMapping(string input, string expected)
+    // Punctuation-only: accented letters and non-Latin scripts are not this method's job.
+    [InlineData("Beyoncé", "Beyoncé")]
+    [InlineData("Москва", "Москва")]
+    [InlineData("Plain Title", "Plain Title")]
+    public void Transform_NormalizePunctuation_FoldsEachMapping_AndLeavesEverythingElse(
+        string input, string expected)
     {
         Assert.Equal(expected, Sanitizer.NormalizePunctuation(input));
-    }
-
-    [Fact]
-    public void Transform_NormalizePunctuation_LeavesLettersAndNonLatinUnchanged()
-    {
-        // Punctuation-only: accented letters and non-Latin scripts are not this method's job.
-        Assert.Equal("Beyoncé", Sanitizer.NormalizePunctuation("Beyoncé"));
-        Assert.Equal("Москва", Sanitizer.NormalizePunctuation("Москва"));
-    }
-
-    [Fact]
-    public void Transform_NormalizePunctuation_PlainAsciiUnchanged()
-    {
-        Assert.Equal("Plain Title", Sanitizer.NormalizePunctuation("Plain Title"));
     }
 }

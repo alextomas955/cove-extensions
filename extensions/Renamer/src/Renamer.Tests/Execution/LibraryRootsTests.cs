@@ -9,8 +9,6 @@ public sealed class LibraryRootsTests
         new() { CovePaths = [.. paths.Select(p => new CovePath { Path = p })] };
 
     [Theory]
-    // A separator style and a trailing separator are the two differences one folder can be written
-    // with here, and each must collapse to the same single spelling.
     [InlineData(@"C:\Videos", "C:/Videos")]
     [InlineData("C:/Videos/", "C:/Videos")]
     [InlineData(@"C:\Videos\", "C:/Videos")]

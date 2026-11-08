@@ -39,30 +39,30 @@ public sealed class GatingTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(title: "", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
-        // Default RequiredFields = ["title"]. FilenameAsTitle is forced off so the title-less item
-        // is gated rather than rescued by the basename fallback (which now defaults on) - this case
-        // exercises the require-fields gate, not the fallback.
+        // RequiredFields defaults to ["title"]. FilenameAsTitle is forced off so the title-less item
+        // is gated rather than rescued by the basename fallback, which defaults on.
         var opts = new RenamerOptions { FilenameAsTitle = false };
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
-        Assert.NotEqual(RenamerStatus.Failed, item.Status);
     }
 
-    [Fact]
-    public async Task RequireFields_TokenNeverProjected_SkipGated()
+    [Theory]
+    // A token the projector never produces at all.
+    [InlineData("zzznope")]
+    // A token the projector produces only for an item carrying one, which this item does not.
+    [InlineData("performers")]
+    public async Task RequireFields_AFieldThisItemCannotSupply_SkipGated(string field)
     {
         var port = new FakeRenamerDataPort();
-        // Title present, but require a field whose token is never produced by the projector.
         port.SeedEntity(Entity("My Film", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { RequiredFields = ["zzznope"] };
+        var opts = new RenamerOptions { RequiredFields = [field] };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipGated, item.Status);
+        Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
     }
 
     [Theory]
@@ -87,25 +87,10 @@ public sealed class GatingTests
     }
 
     [Fact]
-    public async Task RequireFields_Performers_OnAnItemWithNone_SkipGated()
-    {
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity("My Film", organized: true, File(1)));
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { RequiredFields = ["performers"] };
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipGated, item.Status);
-    }
-
-    [Fact]
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {
-        // With OnlyOrganized on but an UnorganizedDestination configured, an unorganized item must
-        // not be gated out - the unorganized destination takes precedence and the item routes.
-        // Without this carve-out the gate would silently nullify the unorganized route.
+        // With OnlyOrganized on and an UnorganizedDestination configured, the unorganized
+        // destination takes precedence over the gate and the item routes.
         string unorgRoot = OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";
 
@@ -127,7 +112,6 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);

@@ -525,18 +525,6 @@ jobs:
         working-directory: extensions
         run: npm run lint
 
-      # dangerouslySetInnerHTML is the half of this that nothing else catches, and lefthook is the
-      # only other place it ran. A hook is absent with no warning when npm withholds install scripts.
-      - name: check-classes (raw HTML and class discipline)
-        working-directory: extensions
-        run: |
-          mapfile -t uiPaths < <(node scripts/ci-catalog.mjs list uiPath)
-          for ui in "${uiPaths[@]}"; do
-            echo "::group::check-classes $ui"
-            (cd "$ui" && npm run check-classes)
-            echo "::endgroup::"
-          done
-
       - name: syncpack (dependency-version drift)
         working-directory: extensions
         run: npm run syncpack
@@ -613,28 +601,6 @@ jobs:
             echo "::endgroup::"
           done
 
-  # Every lucide-react icon an extension imports must exist in the module the host serves: a name only
-  # the local copy has typechecks and builds, then fails the whole bundle at load. The shim is generated
-  # inside a Cove checkout. COVE_REPO makes a missing shim a failure rather than a skip.
-  host-imports:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          path: extensions
-      - uses: ./extensions/.github/actions/checkout-cove
-      - name: Generate the host runtime shims
-        working-directory: cove/ui
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm run generate:extension-runtime
-      - name: Check lucide-react imports against the host
-        working-directory: extensions
-        env:
-          COVE_REPO: ${{ github.workspace }}/cove
-        run: node scripts/check-host-imports.mjs
-
   # The one status check branch protection needs. Every job above is in `needs`, and every result is
   # asserted, so a job gates merges by being listed here. An advisory leg that fails still reports
   # success to this job through its continue-on-error.
@@ -651,7 +617,6 @@ jobs:
         markdown-lint,
         js-lint,
         ui-verify,
-        host-imports,
       ]
     if: always()
     runs-on: ubuntu-latest

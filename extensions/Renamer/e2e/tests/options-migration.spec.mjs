@@ -1,26 +1,14 @@
-// The one-time name→id options conversion, driven the only way it can be driven end to end: against
-// a real containerized Cove that is started on top of a stored legacy blob, with the outcome read off
-// the settings panel a user would open.
+// The one-time name→id options conversion, against a real containerized Cove started on top of a
+// stored legacy blob, with the outcome read off the settings panel a user would open.
 //
-// Why this exists when the backend suite already covers the conversion: every one of those tests hands
-// a hand-written blob to `OptionsMigration.Scan`/`Convert` or to the initialize seam directly, and none
-// of them starts a host. So none can answer the question a user actually has - "do my settings survive
-// the upgrade?" - because the answer depends on three things those tiers replace with a double:
+// Three things the backend tier replaces with a double are real only here: that the host runs
+// InitializeAsync before it serves the panel; that the elevated library read returns rows through
+// Cove's own authorization filters, which exist only under Npgsql and so are absent from the SQLite
+// unit tier; and that the panel renders converted ids as entity names rather than as numbers, empty
+// fields, or the host's "Loading tag..." placeholder. The rename at the end covers an exclude that
+// converted but stopped matching, which is invisible in the blob.
 //
-//   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
-//   2. that the elevated library read returns real rows through Cove's own authorization filters,
-//      which exist only under Npgsql and so are absent from the SQLite unit tier;
-//   3. that the panel then renders the converted ids as entity names rather than as numbers, empty
-//      fields, or the host's "Loading tag..." placeholder.
-//
-// This spec is the only place all three are real at once. It also runs a rename over the converted
-// exclusion, because an exclude that converted but stopped matching is invisible in the blob. The
-// refusal to convert against an unreadable library is OptionsMigrationInitializeTests in the C# tier.
-//
-// What it is not: a test against data a real installation accumulated. The blob below is written by
-// this test, so it is realistic by construction rather than by history - six migrated fields in their
-// name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
-// three unrelated fields whose survival is the preservation proof.
+// The blob below is written by this test rather than taken from a real installation.
 import { test as base, isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import {
   expect,
@@ -35,26 +23,20 @@ import {
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
-// Its own Cove instance, for a reason stronger than data isolation: this test restarts the host. A
-// restart re-binds the published port and invalidates every token minted before it, so running it
-// against the per-worker instance would pull the base URL out from under every sibling test sharing
-// that worker. The fixture installs the extension with no stored blob, which is what makes the seed
-// below reachable: the conversion returns before stamping when there is nothing to convert, so the
-// schema stamp is still unset when this test writes its legacy blob.
+// Its own Cove instance, because this test restarts the host: a restart re-binds the published port
+// and invalidates every token minted before it, which would pull the base URL out from under every
+// sibling test sharing a worker. The fixture installs the extension with no stored blob, which is
+// what makes the seed below reachable: the conversion returns before stamping when there is nothing
+// to convert, so the schema stamp is still unset when this test writes its legacy blob.
 const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /**
- * The root element of a titled `GroupCard` - heading → title box → header row → card root, the hop
- * count read off `primitives.tsx` rather than matched on a class, which would silently follow a
- * restyle onto the wrong element instead of failing.
+ * A titled card, by the name it exposes. Every card names its `<section>` after its own heading, so
+ * this is one query rather than a count of the elements between the two - a count follows a restyle
+ * onto the wrong element instead of failing.
  */
-function groupCard(page, title) {
-  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
-}
-
-/** The root `<section>` of a `ToggleHeaderCard`, whose header nests its heading exactly as deeply. */
-function toggleCard(page, title) {
-  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
+function card(page, title) {
+  return page.getByRole("region", { name: title, exact: true });
 }
 
 // A `Field` renders a `<label>` and a `FieldGroup` a `<fieldset>`, so either shape is a candidate, and
@@ -86,12 +68,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   const stamp = Date.now();
   const seedApi = clientFor(isolatedHarness);
 
-  // ── The library the stored names will be resolved against ───────────────────────────────────────
   const names = {
     tagKeep: `Qzmig Keep Tag ${stamp}`,
-    // Two performers differing only by letter case. Created in this order deliberately: the converter
-    // keeps the lowest id so the choice is decided by the data rather than by the order rows came back
-    // in, and Postgres hands out ascending ids, so `caseFirst` is the predictable survivor.
+    // Two performers differing only by letter case, created in this order deliberately: the
+    // converter keeps the lowest id, and Postgres hands out ascending ids, so `caseFirst` is the
+    // predictable survivor.
     caseFirst: `qzmig case performer ${stamp}`,
     caseSecond: `QZMIG CASE PERFORMER ${stamp}`,
     tagRoute: `Qzmig Route Tag ${stamp}`,
@@ -120,9 +101,8 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     ).toBe(true);
     ids[key] = created.json.id;
   }
-  // Each spelling carries its own disambiguation, which is what lets a host hold both: a performer's
-  // identity is the name key paired with the disambiguation key, so one name covers several ids only
-  // where those disambiguations differ.
+  // A performer's identity is the name key paired with the disambiguation key, so the host holds
+  // both spellings only because each carries its own disambiguation.
   for (const key of ["caseFirst", "caseSecond"]) {
     const created = await seedApi.post("/api/performers", {
       name: names[key],
@@ -139,8 +119,8 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     `the case-variant performers were created as ${ids.caseFirst} and ${ids.caseSecond} - not ascending, so the collapse below has no predictable survivor`,
   ).toBe(true);
 
-  // Two titled videos for the rename run at the end: one carrying the tag the stored exclusion names,
-  // and one carrying nothing, which is what proves the run would have renamed the first.
+  // One video carries the tag the stored exclusion names and one carries nothing, which is what
+  // proves the run would have renamed the first.
   const renameSubjects = {};
   for (const key of ["excluded", "control"]) {
     const video = await seedVideo({
@@ -166,14 +146,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the excluded video must actually carry the tag, or its staying put below proves nothing",
   ).toContain(ids.tagExclude);
 
-  // ── The blob a pre-migration install left behind ────────────────────────────────────────────────
-  // All six migrated fields in their name-keyed form, both groups carrying both legacy keys including
-  // the empty array a real install always emitted (the panel serialized its whole defaults object),
-  // and three fields the converter does not model at all, so preservation is proven rather than
-  // assumed. The template names $performers and $tags because the panel renders those two token cards
-  // only for tokens the template uses - which makes it an unrelated-field check and a precondition at
-  // once. The two routing toggles are on because a `ToggleHeaderCard` renders no children while it is
-  // off, so a user who wrote these rules had them on.
+  // All six migrated fields in their name-keyed form, both groups carrying both legacy keys
+  // including the empty array a real install always emitted, and three fields the converter does
+  // not model. The template names $performers and $tags because the panel renders those two token
+  // cards only for tokens the template uses. The two routing toggles are on because a toggle card
+  // renders no children while it is off.
   const legacyBlob = {
     FilenameTemplate: "$title - $performers [$tags]",
     // A key the current model no longer has: an old blob must still load, with this ignored.
@@ -199,17 +176,13 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     `seeding the legacy options blob answered ${seeded.status}: ${seeded.text}`,
   ).toBe(true);
 
-  // ── Start the host over on top of it ────────────────────────────────────────────────────────────
-  // The conversion runs at InitializeAsync and nowhere else, so there is no way to reach it while the
-  // host stays up. Everything after this reads the restarted instance's base URL: a restart can
-  // re-bind the published port and re-mints the token.
+  // The conversion runs at InitializeAsync and nowhere else, so there is no way to reach it while
+  // the host stays up.
   await isolatedHarness.restart();
   const api = clientFor(isolatedHarness);
 
-  // The gate for every panel assertion below, and the first thing that fails when the conversion never
-  // runs at all: the stored blob has flipped to the id-keyed vocabulary. Read from the store rather
-  // than from the panel because the panel mounts once and would then show the pre-conversion state
-  // forever, so a page opened too early would fail for the wrong reason.
+  // Read from the store rather than from the panel: the panel mounts once and would then show the
+  // pre-conversion state forever, so a page opened too early would fail for the wrong reason.
   await pollUntil(
     () => storedOptions(api),
     (o) => o !== undefined && Array.isArray(o.Performers?.WhitelistIds),
@@ -223,8 +196,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
 
-  // ── The surviving rules render as entity names ──────────────────────────────────────────────────
-  const tagsCard = groupCard(page, "Tags");
+  const tagsCard = card(page, "Tags");
   const tagOnlyInclude = field(tagsCard, "Only include");
   await expect(
     tagOnlyInclude.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
@@ -239,7 +211,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the empty legacy Blacklist a real install always emitted must convert to an empty id list - not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
-  const performersCard = groupCard(page, "Performers");
+  const performersCard = card(page, "Performers");
   const performerOnlyInclude = field(performersCard, "Only include");
   await expect(
     performerOnlyInclude.getByRole("button", {
@@ -268,7 +240,6 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the performer blacklist rule did not survive as a named chip - the two groups convert independently, so a whitelist that landed says nothing about a blacklist that did not",
   ).toBeVisible();
 
-  // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: /^Excludes/ }).click();
   // The tag exclude names itself through its own `Field` rather than through a card heading, so that
   // block is the narrowest scope that holds its chips.
@@ -310,8 +281,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the host selector's search input carries no name of its own - a group's name does not reach a control nested inside it, so the field label has to be passed to the input",
   ).toHaveCount(1);
 
-  // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
-  const tagDestinations = toggleCard(page, "Per-tag destinations");
+  const tagDestinations = card(page, "Per-tag destinations");
   // The committed row, addressed by the remove button its own map key names. The `has:` locator is
   // rooted on `page` rather than on the card: Playwright re-anchors an inner locator at each candidate,
   // so one built from the card would require the card's heading to sit inside the row. `.last()` picks
@@ -328,10 +298,8 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     routedRow.getByText(names.tagRoute, { exact: true }),
     "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
-  // The map key is re-keyed and the stored path is split: a destination now names one of Cove's library
-  // paths plus a folder rendered under it, so the single legacy string becomes the library path that
-  // holds it and the remainder. Asserting both halves is what distinguishes a real split from a row
-  // preserved in name only, and from a path dropped into the template with no root behind it.
+  // A destination now names one of Cove's library paths plus a folder rendered under it, so the
+  // single legacy string has to split into the library path that holds it and the remainder.
   await expect(
     routedRow.getByRole("combobox"),
     "the stored path did not become the library path holding it",
@@ -341,37 +309,33 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the remainder of the stored path did not survive as the folder rendered under that root",
   ).toHaveValue("routed");
 
-  // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
     settings.filenameTemplateInput,
     "the filename template changed across a conversion that has no business touching it - this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
   ).toHaveValue(legacyBlob.FilenameTemplate);
-  const advancedRouting = toggleCard(page, "Source-path destinations");
+  const advancedRouting = card(page, "Source-path destinations");
   await expect(
-    field(advancedRouting, "Source path").getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Source path" }),
     "the stored source-path rule did not survive the conversion",
   ).toHaveValue("/data/legacy");
-  // The rule's destination splits the same way the per-tag one above does, so both halves are read: a
-  // row preserved in name only fails the first, and a path dropped whole into the folder field fails
-  // the second.
+  // This rule's destination splits the same way the per-tag one above does.
   await expect(
-    field(advancedRouting, "Under").getByRole("combobox"),
+    advancedRouting.getByRole("combobox", { name: "Under" }),
     "the source-path rule survived but its destination root did not",
   ).toHaveValue("/data");
   await expect(
-    field(advancedRouting, "Folder template").getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Folder template" }),
     "the source-path rule's destination root survived but the folder under it did not",
   ).toHaveValue("archive");
 
-  // The label element's own behaviour, kept on every field whose control does not name itself.
-  const sourcePathField = field(advancedRouting, "Source path");
-  await sourcePathField.getByText("Source path", { exact: true }).click();
+  // `htmlFor` carries the label-to-control pairing, so this holds whether or not the label wraps
+  // its control.
+  await advancedRouting.getByText("Source path", { exact: true }).click();
   await expect(
-    sourcePathField.getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Source path" }),
     "clicking a plain field's heading text no longer put the cursor in its input, so the label element was taken off every Field rather than off the entity selectors alone",
   ).toBeFocused();
 
-  // ── The converted exclusion still decides a rename ──────────────────────────────────────────────
   const subjectIds = [renameSubjects.excluded.id, renameSubjects.control.id];
   const preview = await api.post(`${ROUTE}/preview`, {
     EntityType: "video",
@@ -385,9 +349,9 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the video carrying the converted exclusion's tag is not planned as excluded",
   ).toBe("skipExcluded");
   expect(
-    ["rename", "move"],
+    statusOf(renameSubjects.control),
     "the untagged video would not be renamed either, so the exclusion above decides nothing",
-  ).toContain(statusOf(renameSubjects.control));
+  ).toBe("rename");
 
   const enqueue = await api.post(`${ROUTE}/renamer`, {
     EntityType: "video",

@@ -3,8 +3,8 @@
  * exhaustive over the wire's status union - so a status the server grows cannot reach a row with no
  * pill saying why it was skipped.
  *
- * Color is never the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
- * always carry text (accessibility). Every label string is a React text node (auto-escaped).
+ * Colour is never the only signal: an amber or red badge leads with an `AlertTriangle` glyph and
+ * always carries text.
  */
 import { AlertTriangle } from "lucide-react";
 import { StatusPill } from "@cove-extensions/ui-shared";
@@ -23,7 +23,6 @@ function Pill({ badge }: Readonly<{ badge: Badge }>) {
   );
 }
 
-/** Render every badge for an item (may be empty → renders nothing). */
 export function WarningBadges({ item }: Readonly<{ item: Badgeable }>) {
   const badges = badgesFor(item);
   if (badges.length === 0) return null;

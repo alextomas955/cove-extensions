@@ -2,11 +2,26 @@ using Cove.Core.Auth;
 
 namespace Cove.Extensions.Shared;
 
-/// <summary>Shared authorization gate for extension minimal-API endpoints.</summary>
+/// <summary>In-handler authorization gate, returning the extension's own 403 body.</summary>
 /// <remarks>
-/// The host <c>[RequiresPermission]</c> filter is MVC-only and inert on minimal-API endpoints, so
-/// every handler must re-check the principal itself. This centralizes the one 403 gate both
-/// extensions use.
+/// A route declares its requirement with the SDK's <c>RequireCovePermission</c>, and the host's
+/// extension-endpoint authorization middleware refuses the request before the handler runs. A handler
+/// still checks here, for two reasons.
+/// <para>
+/// The route metadata is fixed at registration, so it cannot name a permission chosen from the request
+/// body or from stored data - the read permission for the kind a caller posted, for instance. Only the
+/// handler can narrow to that.
+/// </para>
+/// <para>
+/// The host middleware returns early when Cove's own auth is switched off, and the principal it hands
+/// an auth-disabled install carries no permission at all until an owner account exists. The handler
+/// check is the only gate in that window, so dropping it where it looks to duplicate the route's
+/// declaration opens the endpoint on a fresh auth-disabled host.
+/// </para>
+/// <para>
+/// The <see cref="ForbiddenCode"/> return arm is also what publishes the 403 schema in the emitted wire
+/// document; the host middleware's own denial body is a different shape.
+/// </para>
 /// </remarks>
 public static class MinimalApiPermissions
 {

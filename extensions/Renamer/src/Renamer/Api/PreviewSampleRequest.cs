@@ -7,8 +7,8 @@ namespace Renamer.Api;
 /// settings panel.
 /// </summary>
 /// <remarks>
-/// The endpoint runs the real <see cref="Engine.TemplateEngine"/> over the built-in
-/// <see cref="SampleTokenSets"/>, so the panel never re-implements naming logic. Null options fall
-/// back to the defaults, as <c>OptionsStore</c> does.
+/// The endpoint renders the built-in <see cref="SampleTokenSets"/> through
+/// <see cref="Engine.TemplateEngine"/>. Null options fall back to the defaults, as
+/// <c>OptionsStore</c> does.
 /// </remarks>
 public sealed record PreviewSampleRequest(RenamerOptions? Options);

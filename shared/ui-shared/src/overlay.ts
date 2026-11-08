@@ -3,19 +3,16 @@
  * keyboard + outside-click hook, and an imperative mounter for overlays opened from a bulk-action
  * handler that owns no React tree.
  *
- * Not a library: the two nav modes below keep semantics that differ for real reasons, and a library
- * would either flatten them or pull in a second focus manager. See each mode's inline note.
- *
- * Not a native `<dialog>` either. `showModal()` makes the rest of the host page inert and draws the
- * dialog above the host's own portalled overlays, such as its toasts. It also turns Escape into a
- * browser close request, which a page cannot always block, so `enabled: false` would not reliably
- * hold a dialog open.
+ * Not a native `<dialog>`. `showModal()` makes the rest of the host page inert and draws the dialog
+ * above the host's own portalled overlays, such as its toasts. It also turns Escape into a browser
+ * close request, which a page cannot always block, so `enabled: false` would not reliably hold a
+ * dialog open.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactElement, RefObject } from "react";
 import { createRoot } from "react-dom/client";
 
-// The tab-order set for the dialog focus trap: the same query the Renamer Dialog used.
+// The tab-order set for the dialog focus trap.
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
@@ -25,9 +22,12 @@ export interface OverlayKeysOptions {
   onClose: () => void;
   /**
    * "menu": ArrowUp/Down roving focus over `itemSelector`, capture-phase Escape that stops
-   * propagation so the menu beats host key handlers.
-   * "dialog": Tab focus-trap over the focusable set, bubble-phase Escape that prevents default so
-   * the close does not leak to the host page.
+   * propagation, so no other handler on the page sees the key.
+   * "dialog": Tab focus-trap over the focusable set, bubble-phase Escape marked with
+   * `preventDefault`. The mark does not contain the key: it still reaches every other document and
+   * window handler, and only one that reads `defaultPrevented` leaves it alone. Cove's bulk-edit
+   * dialog reads it; its entity edit modal and its video queue do not, so a dialog opened over
+   * either of those closes both on one Escape.
    */
   nav: "menu" | "dialog";
   /** menu mode; default `[role^="menuitem"]` - the prefix form also catches menuitemcheckbox/radio. */
@@ -46,10 +46,8 @@ export interface OverlayKeysOptions {
  * Focus-first-on-open + Escape + (arrow roving | Tab trap) + outside-click for a mounted overlay.
  *
  * @remarks
- * The capture-vs-bubble and stopPropagation-vs-preventDefault Escape differences are intentional per
- * mode (a menu must win over host handlers; a dialog must not leak its cancel to the host page).
- * `enabled` gates only the cancels (Escape + outside-click) - the Tab trap keeps running while
- * suspended - and toggling it never re-runs focus-first nor drops the opener captured for restore.
+ * `enabled` gates only the cancels, Escape and outside-click. The Tab trap keeps running while
+ * suspended, and toggling it re-runs neither focus-first nor the opener captured for restore.
  */
 export function useOverlayKeys(
   ref: RefObject<HTMLElement | null>,
@@ -67,16 +65,15 @@ export function useOverlayKeys(
   //
   // The write must be a layout effect. A passive effect runs after the browser may already have
   // painted and delivered input, so a key event arriving in that gap would read the previous
-  // render's values - which for `enabled` means a cancel suppressed by an operation that has
-  // already finished. `enabled` is likewise read from the ref and kept out of the deps below:
-  // re-subscribing the listener to pick up a new value reintroduces the same gap.
+  // render's values - for `enabled`, a cancel suppressed by an operation that has already finished.
+  // `enabled` is read from the ref and kept out of the deps below for the same reason:
+  // re-subscribing the listener to pick up a new value reintroduces the gap.
   const optsRef = useRef(options);
   useLayoutEffect(() => {
     optsRef.current = options;
   });
 
-  // Focus the first target on open; on dialog cleanup, restore focus to whoever opened it. Runs once
-  // per open (empty deps): re-running on an option change would steal focus back mid-interaction.
+  // Runs once per open: re-running on an option change would steal focus back mid-interaction.
   useLayoutEffect(() => {
     const opener = restoreFocus ? (document.activeElement as HTMLElement | null) : null;
     const sel = nav === "menu" ? itemSelector : FOCUSABLE;
@@ -97,7 +94,14 @@ export function useOverlayKeys(
     function closeOnEscape(e: KeyboardEvent) {
       if (optsRef.current.enabled === false) return;
       if (nav === "menu") e.stopPropagation();
-      else e.preventDefault();
+      else {
+        // A control inside the dialog may have taken this Escape already, as a combobox does to put
+        // its suggestion list away. The same mark this sets for the host page is read from below,
+        // so one Escape is one action. Menu mode listens in the capture phase, where nothing inside
+        // has run yet and the mark is always clear.
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+      }
       optsRef.current.onClose();
     }
 
@@ -114,7 +118,6 @@ export function useOverlayKeys(
       list[next]?.focus();
     }
 
-    // dialog: Tab is trapped within the panel (wrap first↔last over the focusable set).
     function trapTab(e: KeyboardEvent) {
       const panel = ref.current;
       if (!panel) return;
@@ -160,10 +163,9 @@ export function useOverlayKeys(
 }
 
 /**
- * Imperatively mount an overlay outside any React tree - for bulk-action handlers, which own no tree
- * of their own. Renders `render(finish)` into a body-attached root; `finish` is single-shot (a
- * settled guard), unmounts the root, removes the container, and resolves the promise. `null` is the
- * cancel value.
+ * Imperatively mount an overlay outside any React tree, for a bulk-action handler that owns no tree
+ * of its own. `finish` is single-shot: it unmounts the root, removes the container and resolves the
+ * promise. `null` is the cancel value.
  *
  * @public
  */

@@ -1,11 +1,9 @@
-// What the "Per kind" list does to files, driven through the real panel: a kind sent to a folder of
-// its own lands there, an excluded kind is not touched at all, and a kind left alone follows the
-// card's own destination. All three hold in one whole-library run, which is the combination that
-// matters - a per-kind setting that leaked across kinds would still pass a one-kind test. A second run
-// then swaps which kinds move, so the buttons are proven to change the next run and not only the first.
+// What the "Per kind" list does to files, driven through the real panel. All three outcomes - a
+// kind in a folder of its own, an excluded kind, a kind on the card's own destination - hold in one
+// whole-library run, because a per-kind setting that leaked across kinds would still pass a
+// one-kind test. A second run swaps which kinds move.
 //
-// The proof is exact on-disk + DB state for every kind, never the panel's own banner: an excluded
-// kind's file must still be at the path it started from, which only a filesystem check can say.
+// The proof is exact on-disk and DB state for every kind, never the panel's own banner.
 import { isolatedHarnessFixtures } from "@cove-extensions/e2e";
 import { seedImage, seedText } from "@cove-extensions/e2e/seed-media";
 import {
@@ -24,9 +22,7 @@ const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /**
  * Asserts one item was left where it was: the DB still points at `path`, and a file is still there.
- * It does not compare contents, because a rename this run refused to make is a move, not a write. A
- * settled run is what makes it meaningful, so callers assert the kinds that did move first: this
- * check would pass on a run that had not started.
+ * This would pass on a run that had not started, so callers assert the kinds that did move first.
  */
 async function assertUntouched({ api, container, route, id, path }) {
   const res = await api.get(`/api/${route}/${id}`);
@@ -96,8 +92,8 @@ test("one run honors a kind's own folder, an excluded kind and a kind on the def
   // untouched image is a decision rather than a race.
   await assertUntouched({ api, container, route: "images", id: image.id, path: original.image });
 
-  // The other way round: the video stops being renamed and the image starts, into a folder of its
-  // own. The video's proof is that a second whole-library run leaves it exactly where run one put it.
+  // The other way round: the video stops being renamed and the image starts. The video's proof is
+  // that a second whole-library run leaves it where run one put it.
   await settingsPage.goto();
   await settingsPage.includeKind("Images");
   await settingsPage.setKindFolder("Images", "now-images");

@@ -2,11 +2,12 @@
 // What the panel says after an undo whose outcome nobody knows. `/undo` cannot be repeated, so a
 // transport failure, where the server may have restored all, part or none of the batch, must never
 // read as a confident success. The request module is the one stand-in.
-import { test, expect, vi, beforeEach } from "vitest";
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { waitFor } from "../common/lib/flushRender";
+import { withQueryClient } from "../common/lib/testQueryClient";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 const server = vi.hoisted(() => ({
@@ -35,6 +36,8 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
         remainingCount: 4,
         unrestorableCount: 0,
         writtenAtUtcTicks: Date.now() * 10000 + 621355968000000000,
+        // A week out, as the server states it: the panel prints this and derives nothing.
+        expiresAtUtcTicks: (Date.now() + 604_800_000) * 10000 + 621355968000000000,
         consumed: false,
       } satisfies LastBatchSummary);
     }
@@ -59,34 +62,25 @@ const VERDICT = /Undone: |Couldn't confirm the undo|Couldn't undo/;
 
 // Mount the section, run the undo to its verdict, and hand back the text a user would read.
 async function undoAndReadFeedback(): Promise<string> {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(UndoSection, { refreshKey: 0 }));
+  const user = userEvent.setup();
+  const { container } = render(withQueryClient(createElement(UndoSection)));
 
-  const button = (matches: (text: string) => boolean) =>
-    [...container.querySelectorAll("button")].find((b) => matches(b.textContent));
+  await user.click(await screen.findByRole("button", { name: /Undo last rename/ }));
+  await user.click(await screen.findByRole("button", { name: /^Undo \d+ rename/ }));
+  // The verdict is a sentence the panel assembles from several elements, so it is waited for over
+  // the card's whole text rather than queried as one node.
+  await waitFor(() => {
+    expect(container.textContent).toMatch(VERDICT);
+  });
 
-  const opensTheDialog = (text: string) => text.includes("Undo last rename");
-  await waitFor("the undo button to render", () => button(opensTheDialog) !== undefined);
-  button(opensTheDialog)?.click();
-
-  const confirms = (text: string) => /^Undo \d+ rename/.test(text);
-  await waitFor("the confirm button to render", () => button(confirms) !== undefined);
-  button(confirms)?.click();
-
-  await waitFor("the undo to reach a verdict", () => VERDICT.test(container.textContent));
-
-  const text = container.textContent;
-  root.unmount();
-  container.remove();
-  return text;
+  return container.textContent;
 }
 
 beforeEach(() => {
   server.undoRejection = null;
-  document.body.replaceChildren();
 });
+
+afterEach(cleanup);
 
 // `requestJson` raises its own ApiError for an empty body, so any other rejection is a request whose
 // fate is unknown: the connection dropped, or the body would not parse. The server may already have

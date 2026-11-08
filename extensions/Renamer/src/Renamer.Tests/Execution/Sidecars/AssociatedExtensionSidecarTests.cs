@@ -56,8 +56,13 @@ public sealed class AssociatedExtensionSidecarTests
         }
     }
 
-    [Fact]
-    public async Task DifferentStemNeighbor_WithListedExtension_IsNotMoved()
+    [Theory]
+    // A listed extension, but not on the video's stem.
+    [InlineData("other.srt", "Film A.srt", "unrelated")]
+    // The video's own stem, but an extension the setting does not list.
+    [InlineData("clip.nfo", "Film A.nfo", "metadata")]
+    public async Task OnlyASameStemNeighborWithAListedExtension_IsMoved(
+        string neighborName, string unexpectedTarget, string content)
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -68,47 +73,18 @@ public sealed class AssociatedExtensionSidecarTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            string neighbor = Path.Combine(dir.Root, "other.srt");
-            File.WriteAllText(neighbor, "unrelated");
+            string neighbor = Path.Combine(dir.Root, neighborName);
+            File.WriteAllText(neighbor, content);
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
             Assert.Single(result.Renamed);
-            Assert.True(File.Exists(neighbor), "a different-stem neighbor must be left at its source");
-            Assert.Equal("unrelated", File.ReadAllText(neighbor));
-            Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.srt")), "no sidecar should be created for it");
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task SameStemUnlistedExtension_IsNotMoved()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
-
-            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            string nfo = Path.Combine(dir.Root, "clip.nfo");
-            File.WriteAllText(nfo, "metadata");
-
-            var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
-            var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
-
-            Assert.Single(result.Renamed);
-            Assert.True(File.Exists(nfo), "a same-stem file with an unlisted extension must be left at its source");
-            Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.nfo")));
+            Assert.True(File.Exists(neighbor), "the neighbor must be left at its source");
+            Assert.Equal(content, File.ReadAllText(neighbor));
+            Assert.False(
+                File.Exists(Path.Combine(dir.Root, unexpectedTarget)), "no sidecar should be created for it");
         }
         finally
         {
@@ -174,10 +150,8 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
 
             Assert.Single(result.Renamed);
-            // The DB-tracked caption still moves and renames.
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "caption still moves with an empty list");
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.en.vtt")));
-            // A non-caption neighbor is untouched because the extension list is empty.
             Assert.True(File.Exists(neighbor), "no extension discovery with an empty list");
             Assert.Equal("subs", File.ReadAllText(neighbor));
             Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.srt")));
@@ -203,7 +177,7 @@ public sealed class AssociatedExtensionSidecarTests
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
             File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "mine");
             string occupied = Path.Combine(dir.Root, "Film A.srt");
-            File.WriteAllText(occupied, "theirs"); // pre-existing target
+            File.WriteAllText(occupied, "theirs");
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
@@ -211,7 +185,6 @@ public sealed class AssociatedExtensionSidecarTests
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.mkv")), "primary still moves");
-            // The pre-existing target is left untouched, and the source sidecar remains.
             Assert.Equal("theirs", File.ReadAllText(occupied));
             Assert.True(File.Exists(Path.Combine(dir.Root, "clip.srt")), "skipped sidecar source must remain");
             Assert.Equal("mine", File.ReadAllText(Path.Combine(dir.Root, "clip.srt")));
@@ -247,7 +220,6 @@ public sealed class AssociatedExtensionSidecarTests
 
             Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
-            // The file lands at the new stem exactly once, with its content intact.
             string moved = Path.Combine(dir.Root, "Film A.vtt");
             Assert.True(File.Exists(moved), "the caption lands at the new stem");
             Assert.Equal("caption", File.ReadAllText(moved));
@@ -299,44 +271,18 @@ public sealed class AssociatedExtensionSidecarTests
         }
     }
 
-    [Theory]
-    [InlineData(".srt")]
-    [InlineData("SRT")]
-    public async Task ExtensionNormalization_MatchesRegardlessOfDotOrCase(string configured)
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
-
-            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "subs");
-
-            var options = new RenamerOptions { AssociatedExtensions = [configured] };
-            var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
-
-            Assert.Single(result.Renamed);
-            Assert.Equal(["Film A.mkv", "Film A.srt"], NamesOnDisk(dir.Root));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
     // The moved file keeps the extension casing it had on disk rather than the casing in the setting.
     // Names are read from the directory listing, because File.Exists answers either casing on a
     // case-insensitive volume.
     [Theory]
-    [InlineData("srt")]
-    [InlineData(".srt")]
-    [InlineData("SRT")]
-    public async Task ExtensionNormalization_MatchesUpperCaseOnDisk_AndKeepsItsCasing(string configured)
+    [InlineData("srt", "clip.srt", new[] { "Film A.mkv", "Film A.srt" })]
+    [InlineData(".srt", "clip.srt", new[] { "Film A.mkv", "Film A.srt" })]
+    [InlineData("SRT", "clip.srt", new[] { "Film A.mkv", "Film A.srt" })]
+    [InlineData("srt", "clip.SRT", new[] { "Film A.SRT", "Film A.mkv" })]
+    [InlineData(".srt", "clip.SRT", new[] { "Film A.SRT", "Film A.mkv" })]
+    [InlineData("SRT", "clip.SRT", new[] { "Film A.SRT", "Film A.mkv" })]
+    public async Task ExtensionNormalization_MatchesRegardlessOfDotOrCase_AndKeepsTheOnDiskCasing(
+        string configured, string onDiskSidecar, string[] expectedNames)
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -347,14 +293,14 @@ public sealed class AssociatedExtensionSidecarTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
-            File.WriteAllText(Path.Combine(dir.Root, "clip.SRT"), "subs");
+            File.WriteAllText(Path.Combine(dir.Root, onDiskSidecar), "subs");
 
             var options = new RenamerOptions { AssociatedExtensions = [configured] };
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
             Assert.Single(result.Renamed);
-            Assert.Equal(["Film A.SRT", "Film A.mkv"], NamesOnDisk(dir.Root));
+            Assert.Equal(expectedNames, NamesOnDisk(dir.Root));
         }
         finally
         {

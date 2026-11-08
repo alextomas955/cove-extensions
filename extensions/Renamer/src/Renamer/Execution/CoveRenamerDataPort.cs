@@ -16,8 +16,7 @@ namespace Renamer.Execution;
 // Cove.Plugins and Cove.Sdk, which expose Cove.Core entities and EF Core but not the Cove.Data
 // assembly where CoveContext lives. The host registers its CoveContext resolvable as DbContext, so
 // this class reaches its rows through db.Set<BaseFileEntity>(). The overridden SaveChangesAsync, and
-// with it ComputeFilePaths, still runs because the runtime instance is the real CoveContext. Tests
-// inject a SQLite in-memory CoveContext directly.
+// with it ComputeFilePaths, still runs because the runtime instance is the real CoveContext.
 //
 // One instance wraps one scope's context, and a DbContext is not thread-safe. In production the
 // executor opens a scope per run with IServiceScopeFactory.CreateAsyncScope and constructs this over
@@ -151,7 +150,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-
     // The single source of truth for studio-hierarchy depth. Two things stay bound to it: the
     // WalkParentStudios ancestor-hop bound, and the number of ".ThenInclude(s => s!.Parent)" hops each
     // per-kind query below carries, because EF's Studio-to-Studio ThenInclude cannot be parameterized by
@@ -190,13 +188,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         return result;
     }
-
-    // Single-load and batch-load share the per-kind query and its mapper below, so their DTOs cannot
-    // drift apart.
-
-    // Each query's ancestor Include hop count is bound to MaxParentDepth and guarded by
-    // StudioDepthLockstepTests: add or drop a ".Parent" hop in the Studio include path without matching
-    // the constant and that test fails. EF Core loads every navigation along that reference chain.
 
     // AsSplitQuery on every one of them: each query includes sibling collections (files, performers,
     // tags), and a single-statement join returns their product per entity. One row per file times one
@@ -394,7 +385,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return existing?.Id;
     }
 
-    // The read-only disk probe backing the preview's missing-source warning.
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
     {
         return Task.FromResult(System.IO.File.Exists(PathOps.ToNative(fullPath)));
@@ -427,7 +417,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
             .FirstOrDefaultAsync(f => f.Id == mutation.FileId, ct)
             ?? throw new InvalidOperationException($"file {mutation.FileId} not found");
 
-        file.Basename = mutation.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
+        file.Basename = mutation.NewBasename;
 
         if (mutation.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
         {
@@ -475,8 +465,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // item, but a person can type one between the preview and the run, and a rename does not overwrite
     // what they wrote. The same check makes the write idempotent across the files of a multi-file item,
     // which save one at a time. There is no SaveChangesAsync here: the caller's single save carries it,
-    // so a recorded title and its rename cannot come apart. MetadataProjector.DerivedTitle covers why it
-    // is recorded at all.
+    // so a recorded title and its rename cannot come apart. MetadataProjector.DerivedTitle carries the
+    // rule for which items get one.
     private async Task ApplyDerivedTitleAsync(RenamerEntityTitleWrite write, CancellationToken ct)
     {
         switch (write.Kind)
