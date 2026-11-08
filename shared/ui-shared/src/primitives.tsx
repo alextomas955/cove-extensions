@@ -17,7 +17,7 @@
  * `focus-visible:ring-*` utilities.
  */
 import type { CSSProperties, ReactNode } from "react";
-import { useId, useRef, useState, useEffect } from "react";
+import { useId, useRef, useState } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
 import {
   isRegexValid,
@@ -487,37 +487,30 @@ export function SegmentedReplace({
   ariaLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
-  // clicking "Replace with" on an empty value must reveal the input so the user can type - deriving from
-  // value alone deadlocks. When the user is in replace mode and the input is momentarily empty, we stay in
-  // replace mode (don't collapse mid-type). The key case is an external change to "" (Reset-to-
-  // defaults / load): we detect "value changed to empty since last render" and snap back to strip mode.
-  const [replaceMode, setReplaceMode] = useState(value !== "");
-  const prevValue = useRef(value);
-  // Sync the explicit UI mode to an external value change (Reset/load), detected via prevValue.
-  // This is a prop-change synchronization across renders, not a render-derived setState - the
-  // react-compiler set-state-in-effect heuristic flags it but the ref-guarded transition is correct.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (value !== "") {
-      setReplaceMode(true); // a non-empty value always means replace mode
-    } else if (prevValue.current !== "") {
-      // value transitioned non-empty → "" from outside this control (Reset/load) → return to strip mode.
-      setReplaceMode(false);
-    }
-    prevValue.current = value;
-  }, [value]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-  const replaceActive = replaceMode || value !== "";
+  // "Replace with" is a mode of its own, not `value !== ""`. Choosing it on an empty value has to
+  // reveal the input or there is nowhere to type, and clearing the field mid-edit must not collapse
+  // the control under the caret. Only a change to "" this control did not make - a load, a reset -
+  // returns it to strip mode, which is what the value the last render saw distinguishes.
+  const [mode, setMode] = useState(() => ({ seen: value, replace: value !== "" }));
+  const current = mode.seen === value ? mode : { seen: value, replace: value !== "" };
+  if (current !== mode) setMode(current);
+  const replaceActive = current.replace || value !== "";
 
   function chooseStrip() {
-    setReplaceMode(false);
+    setMode({ seen: "", replace: false });
     if (value !== "") onChange("");
   }
   function chooseReplace() {
-    setReplaceMode(true);
-    // Reveal the (possibly empty) input and focus it so the user can type the replacement.
+    setMode({ seen: value, replace: true });
+    // The input is revealed by this render, so the focus waits for it to exist.
     requestAnimationFrame(() => inputRef.current?.focus());
+  }
+  // Typing in the field records what it produced, which is the only way an empty field under the
+  // user's caret is told from a value emptied from elsewhere: both reach this control as the same
+  // prop change.
+  function edit(next: string) {
+    setMode({ seen: next, replace: true });
+    onChange(next);
   }
 
   return (
@@ -534,7 +527,7 @@ export function SegmentedReplace({
         <div className="mt-2">
           <TextInput
             value={value}
-            onChange={onChange}
+            onChange={edit}
             placeholder={inputPlaceholder}
             inputRef={inputRef}
             ariaLabel={ariaLabel}
@@ -981,6 +974,37 @@ export function OrderedPickToAdd({
   );
 }
 
+/** The row keys {@link ObjectArrayEditor} is using, and the list they were minted for. */
+interface RowIdentity {
+  source: readonly unknown[];
+  keys: number[];
+  nextKey: number;
+}
+
+/**
+ * Keys for a list this editor has not seen before, taken from `from` onwards. A re-seed carries the
+ * counter on rather than restarting at nought: a key that repeats one the previous list still holds
+ * hands that row's node to whatever now sits at the repeated key's place, which is how a kept node
+ * reached a row it had nothing to do with. Carrying the counter means nothing matches, so the whole
+ * list is rebuilt - which is what an unrelated list deserves.
+ */
+function seedRowIdentity(rows: readonly unknown[], from: number): RowIdentity {
+  return { source: rows, keys: rows.map((_, i) => from + i), nextKey: from + rows.length };
+}
+
+/**
+ * The identity to render `rows` with: the one in hand where it still names this list, a fresh one
+ * otherwise. A caller that rebuilds the array around unchanged rows each render - `rows={x ?? []}`
+ * is enough - would otherwise re-seed on every render and lose the reorder, so the rows are
+ * compared rather than the array holding them.
+ */
+function rowIdentityFor(identity: RowIdentity, rows: readonly unknown[]): RowIdentity {
+  if (identity.source === rows) return identity;
+  const same =
+    identity.source.length === rows.length && rows.every((row, i) => identity.source[i] === row);
+  return same ? { ...identity, source: rows } : seedRowIdentity(rows, identity.nextKey);
+}
+
 /**
  * Generic add/remove/reorder editor for a list of typed-object rows. Controlled (`rows`/`onChange`,
  * no internal persistence). The caller supplies the row layout via `renderRow` and a fresh blank row
@@ -991,6 +1015,9 @@ export function OrderedPickToAdd({
  * `renderRow` receives the row, its index, and a typed patch callback so a field edit produces a fresh
  * row object (the update never mutates `rows` in place - it rebuilds the array and calls `onChange`).
  * Reorder (`ordered`) mirrors {@link TagListInput}'s ↑↓ move; empty state renders only the add control.
+ *
+ * `rows` is expected back from `onChange` as the array this editor handed over, which is what tells
+ * an edit here from a list arriving from elsewhere.
  */
 export function ObjectArrayEditor<T>({
   rows,
@@ -1007,38 +1034,39 @@ export function ObjectArrayEditor<T>({
   addLabel: string;
   ordered?: boolean;
 }) {
-  // A stable key per row, carried in lockstep with the data ops. The rows are arbitrary typed
-  // objects with no id, and an edit rebuilds the row object - so neither the array index nor the
-  // object reference is a stable React key (an index key reattaches a removed/reordered row's DOM +
-  // uncommitted input state to the wrong row). These counter-backed keys move with the data ops:
-  // remove/reorder permute them, add mints a fresh one, and an external wholesale replacement
-  // (load/Reset) re-seeds via the length-drift effect below. The key list lives in a ref so
-  // reorder/remove/add can keep it in step without a state-sync render: the ref is written only from
-  // event handlers, and render only reads it (writing a ref during render is what react-compiler
-  // forbids, not reading).
-  const [keys, setKeys] = useState<number[]>(() => rows.map((_, i) => i));
-  const nextKey = useRef(rows.length);
-  // Re-seed when `rows` is replaced wholesale from outside (lengths diverge); the index fallback in
-  // the key prop covers the single frame before this lands. Syncing external props into local state
-  // is the sanctioned use of the disable here (same pattern as SegmentedReplace's mode sync).
-  // The guard makes this a no-op on an edit (row count unchanged), so depending on the whole `rows`
-  // array re-runs the effect harmlessly per edit and only re-seeds on a genuine length change.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (keys.length !== rows.length) {
-      nextKey.current = rows.length;
-      setKeys(rows.map((_, i) => i));
-    }
-  }, [rows, keys.length]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  // A key per row, so a remove or a reorder carries that row's DOM with it instead of leaving the
+  // node in place for the next row's data. The rows are arbitrary typed objects with no id, and an
+  // edit rebuilds the row object, so neither the index nor the object reference is a stable key.
+  //
+  // The keys are only meaningful against the list they were minted for, so they are held with it.
+  // Every edit below records the array it hands to `onChange`, which is the array that comes back as
+  // `rows`; anything else is a list this editor did not produce - a load, a discard, a reset - whose
+  // rows these keys do not name, so identity restarts. Reconciling in render rather than from an
+  // effect is what keeps a key from being read while it still names the previous list, which is how
+  // a kept node reached a row it had nothing to do with.
+  const [identity, setIdentity] = useState(() => seedRowIdentity(rows, 0));
+  const current = rowIdentityFor(identity, rows);
+  if (current !== identity) setIdentity(current);
+
+  function commit(next: T[], keys: number[], nextKey: number) {
+    setIdentity({ source: next, keys, nextKey });
+    onChange(next);
+  }
 
   function update(i: number, patch: Partial<T>) {
-    onChange(rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+    commit(
+      rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
+      current.keys,
+      current.nextKey,
+    );
   }
 
   function remove(i: number) {
-    onChange(rows.filter((_, idx) => idx !== i));
-    setKeys((ks) => ks.filter((_, idx) => idx !== i));
+    commit(
+      rows.filter((_, idx) => idx !== i),
+      current.keys.filter((_, idx) => idx !== i),
+      current.nextKey,
+    );
   }
 
   function move(i: number, dir: -1 | 1) {
@@ -1046,24 +1074,20 @@ export function ObjectArrayEditor<T>({
     if (j < 0 || j >= rows.length) return;
     const next = [...rows];
     [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-    setKeys((ks) => {
-      const nk = [...ks];
-      [nk[i], nk[j]] = [nk[j], nk[i]];
-      return nk;
-    });
+    const keys = [...current.keys];
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    commit(next, keys, current.nextKey);
   }
 
   function add() {
-    onChange([...rows, makeRow()]);
-    setKeys((ks) => [...ks, nextKey.current++]);
+    commit([...rows, makeRow()], [...current.keys, current.nextKey], current.nextKey + 1);
   }
 
   return (
     <div className="space-y-2">
       {rows.map((row, i) => (
         <div
-          key={keys.length === rows.length ? keys[i] : i}
+          key={current.keys[i]}
           className="flex items-start gap-2 rounded-xl border border-border bg-card p-3"
         >
           <div className="min-w-0 flex-1 space-y-2">
