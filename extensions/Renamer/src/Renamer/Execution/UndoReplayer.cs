@@ -15,14 +15,14 @@ namespace Renamer.Execution;
 // branch that lets disk and database diverge writes no row, so the database path is exact.
 //
 // Each entry runs the forward executor's safety order in reverse: re-check the old slot is free on
-// both disk and database, move on disk, then save. A save that throws rolls the disk move back, so
-// there is no state where disk and database disagree. Entries are independent; one failure does not
+// both disk and database, move on disk, then save. A save that throws rolls the disk move back, and a
+// save that commits to a path the file is not at rolls the disk back and writes the row back with it,
+// so there is no state where disk and database disagree. Entries are independent; one failure does not
 // abort the batch.
 //
-// Sidecars replay the delta the forward path recorded, reversed; see RevertDelta. A sidecar that cannot
-// go back leaves the entry
-// restored with a warning, since the media file and its row are both at the original location. A
-// caption's stored filename is written back only when its file moved back.
+// Sidecars replay the delta the forward path recorded, reversed; see RevertDelta. A sidecar that
+// cannot go back leaves the entry restored with a warning, since the media file and its row are both
+// at the original location. A caption's stored filename is written back only when its file moved back.
 //
 // Restored rows are reported, not retired here; the caller retires exactly the rows it is given.
 public sealed class UndoReplayer
@@ -31,7 +31,6 @@ public sealed class UndoReplayer
     private readonly IEventBus _eventBus;
     private readonly CrossVolumeMover _cross;
 
-    // The cross mover handles a reverse move whose old and new paths sit on different volumes.
     public UndoReplayer(IRenamerDataPort port, IEventBus eventBus, CrossVolumeMover? cross = null)
     {
         _port = port;
@@ -56,12 +55,11 @@ public sealed class UndoReplayer
     // A non-fatal note about an entry that was restored anyway.
     public sealed record UndoWarning(int FileId, string Detail);
 
-    // The result of reverse-replaying a batch.
-    //
     // Failed holds entries whose reverse move succeeded but whose save either threw or committed
-    // without a row the restored path could be verified against. Only a throw rolls the disk back; a
-    // save that committed is never reverted. Skipped holds entries whose old slot was occupied or
-    // locked, which are never clobbered. Restored names the rows the caller retires.
+    // without a row the restored path could be verified against. Both roll the disk back to the
+    // renamed location, and a save that committed has its row written back to that location too, so
+    // long as the media file got there. Skipped holds entries whose old slot was occupied or locked,
+    // which are never clobbered. Restored names the rows the caller retires.
     //
     // Warnings is separate from the two problem buckets: those entries succeeded, and folding them in
     // would stop the caller retiring a row whose file did come back.
@@ -82,8 +80,10 @@ public sealed class UndoReplayer
         var restored = new List<RevertRow>();
         var warnings = new List<UndoWarning>();
 
-        // One load per entity, so a multi-file item costs one query.
-        var currentPaths = new Dictionary<int, string>();
+        // One load per entity, so a multi-file item costs one query. The whole row is kept, not just
+        // its path: a save that commits to the wrong path is put back from the folder id and caption
+        // filenames recorded here, which no longer exist once the save has overwritten them.
+        var currentFiles = new Dictionary<int, RenamerFile>();
         var loadedEntities = new HashSet<int>();
 
         foreach (var entry in batch.Rows)
@@ -97,11 +97,11 @@ public sealed class UndoReplayer
                 {
                     foreach (var file in entity.Files)
                     {
-                        currentPaths[file.FileId] = JoinPath(file.ParentFolderPath, file.Basename);
+                        currentFiles[file.FileId] = file;
                     }
                 }
 
-                if (!currentPaths.TryGetValue(entry.FileId, out var resolved))
+                if (!currentFiles.TryGetValue(entry.FileId, out var current))
                 {
                     // The row outlived its file, deleted since the rename: nothing to move back, and no
                     // current path to name.
@@ -112,8 +112,8 @@ public sealed class UndoReplayer
                     continue;
                 }
 
-                currentPath = resolved;
-                var outcome = await RevertEntryAsync(batch.Kind, entry, currentPath, warnings, ct);
+                currentPath = JoinPath(current.ParentFolderPath, current.Basename);
+                var outcome = await RevertEntryAsync(batch.Kind, entry, current, currentPath, warnings, ct);
                 switch (outcome)
                 {
                     case RevertOutcome.Undone: restored.Add(entry); break;
@@ -135,8 +135,8 @@ public sealed class UndoReplayer
     }
 
     private async Task<RevertOutcome> RevertEntryAsync(
-        RenamerFileKind kind, RevertRow entry, string currentPath, List<UndoWarning> warnings,
-        CancellationToken ct)
+        RenamerFileKind kind, RevertRow entry, RenamerFile current, string currentPath,
+        List<UndoWarning> warnings, CancellationToken ct)
     {
         // A rejected restore target is a reported skip that never reaches a folder-row create or a disk
         // write.
@@ -199,23 +199,12 @@ public sealed class UndoReplayer
             entry.FileId, oldBasename, oldFolderId, restoredCaptions.Count > 0 ? restoredCaptions : null);
         try
         {
-            // The recomputed path must equal the old path just restored to.
             string recomputed = await _port.ApplyAndSaveAsync(mutation, ct);
             string expected = NormalizeSlash(entry.OldPath);
             if (!PathsEqual(recomputed, expected))
             {
-                // Disk and database disagree, so roll the disk back to the renamed location and report
-                // failed, leaving no half-state. The file sits at the old path; both movers'
-                // Rollback(oldFull, newFull) move newFull to oldFull, so the arguments are passed
-                // swapped. Rollback warnings are surfaced so an incomplete rollback, such as the renamed
-                // slot being re-occupied or a cross-volume copy-back failing verification, is visible.
-                IReadOnlyList<string> rbWarnings = await Movers.RollbackAsync(sameVolume, _cross, nativeNew, nativeOld, movedSidecars, ct);
-                string note = rbWarnings.Count > 0
-                    ? $"recomputed Path '{recomputed}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
-                    : $"recomputed Path '{recomputed}' != restored path '{expected}'; rolled back";
-                return new RevertOutcome.Failed(new UndoFailure(
-                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
-                    UndoStopReason.RestoredPathMismatch));
+                return await RollBackRecomputeMismatchAsync(
+                    entry, current, recomputed, sameVolume, movedSidecars, restoredCaptions, ct);
             }
 
             _eventBus.Publish(new EntityEvent(EventTypeFor(kind), EntityTypeName(kind), entry.EntityId));
@@ -242,6 +231,87 @@ public sealed class UndoReplayer
                 entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
                 UndoStopReason.DatabaseSaveFailed));
         }
+    }
+
+    // The save committed, but the row it wrote recomputes to neither the old path nor anywhere the file
+    // is. The disk goes back to the renamed location, and the row goes back with it, so the two agree
+    // on where the file is. Both movers' Rollback(oldFull, newFull) move newFull to oldFull, so the
+    // arguments are passed swapped. Rollback warnings are surfaced so an incomplete rollback, such as
+    // the renamed slot being re-occupied or a cross-volume copy-back failing verification, is visible.
+    private async Task<RevertOutcome.Failed> RollBackRecomputeMismatchAsync(
+        RevertRow entry, RenamerFile current, string recomputed, bool sameVolume,
+        IReadOnlyList<SidecarMove> movedSidecars,
+        IReadOnlyList<(int CaptionId, string NewFilename)> restoredCaptions, CancellationToken ct)
+    {
+        string currentPath = JoinPath(current.ParentFolderPath, current.Basename);
+        string nativeNew = ToNative(currentPath);
+        string nativeOld = ToNative(entry.OldPath);
+        IReadOnlyList<string> rbWarnings =
+            await Movers.RollbackAsync(sameVolume, _cross, nativeNew, nativeOld, movedSidecars, ct);
+
+        string mismatch = $"recomputed Path '{recomputed}' != restored path '{NormalizeSlash(entry.OldPath)}'";
+        string warned = rbWarnings.Count > 0
+            ? $"; rollback warnings: {string.Join("; ", rbWarnings)}"
+            : "";
+
+        // Whether the row may be put back is read off the media file's own location, not off the
+        // rollback's warning list: that list folds the sidecars in, so a caption that could not come
+        // back would stop the row returning to the file it names. A case-only undo is its own target, so
+        // the vacated-old-slot half of the check cannot hold for one and is skipped.
+        bool primaryBack = System.IO.File.Exists(nativeNew)
+            && (PathsEqual(entry.OldPath, currentPath) || !System.IO.File.Exists(nativeOld));
+
+        if (!primaryBack)
+        {
+            return new RevertOutcome.Failed(new UndoFailure(
+                entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                $"{mismatch}; the file did not return to the renamed path, so the committed row is left "
+                + $"as the save wrote it{warned}",
+                UndoStopReason.RestoredPathMismatch));
+        }
+
+        string? restoreFailure = await RestoreSavedRowAsync(entry.FileId, current, currentPath, restoredCaptions, ct);
+        string note = restoreFailure is null
+            ? $"{mismatch}; rolled back{warned}"
+            : $"{mismatch}; file rolled back, database row NOT confirmed at the renamed path: "
+              + $"{restoreFailure}{warned}";
+
+        return new RevertOutcome.Failed(new UndoFailure(
+            entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
+            UndoStopReason.RestoredPathMismatch));
+    }
+
+    // Writes the file row back to the basename, folder and caption filenames it held before the undo
+    // save, and confirms it recomputes to the path the file is now at. Returns null on success,
+    // otherwise why the row could not be confirmed there.
+    private async Task<string?> RestoreSavedRowAsync(
+        int fileId, RenamerFile current, string currentPath,
+        IReadOnlyList<(int CaptionId, string NewFilename)> restoredCaptions, CancellationToken ct)
+    {
+        // Only the captions the undo save rewrote are written back, and each to the filename it held
+        // before that save. A caption the undo left alone must not be touched here.
+        var revertedCaptions = (current.Captions ?? [])
+            .Where(c => restoredCaptions.Any(r => r.CaptionId == c.CaptionId))
+            .Select(c => (c.CaptionId, NewFilename: c.Filename))
+            .ToList();
+
+        string recomputed;
+        try
+        {
+            recomputed = await _port.ApplyAndSaveAsync(
+                new RenamerFileMutation(
+                    fileId, current.Basename, current.ParentFolderId,
+                    revertedCaptions.Count > 0 ? revertedCaptions : null),
+                ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return ex.Message;
+        }
+
+        return PathsEqual(recomputed, currentPath)
+            ? null
+            : $"it recomputed to '{recomputed}', not '{NormalizeSlash(currentPath)}'";
     }
 
     // Validates the restore target before any mutation, returning either the skip that halts the entry
@@ -299,6 +369,4 @@ public sealed class UndoReplayer
         public sealed record Skipped(UndoFailure Failure) : RevertOutcome;
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
-
-
 }
