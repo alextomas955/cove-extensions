@@ -152,14 +152,20 @@ public sealed partial class Renamer
             (RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewAsync(req, db, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerPreview");
+            .WithName("RenamerPreview")
+            .WithSummary("Preview the rename of a named selection")
+            .WithDescription(
+                "Plans every file of the given entities against the saved settings and returns the planned move for each, plus the totals a confirmation needs. Touches no disk.");
 
         endpoints.MapPost(RenamerRoute,
             (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
                 IAuthorizationService authz, CancellationToken ct)
                 => RenamerEnqueue(req, principal, jobs, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions)
-            .WithName("RenamerRenameSelected");
+            .WithName("RenamerRenameSelected")
+            .WithSummary("Rename a named selection")
+            .WithDescription(
+                "Enqueues the rename of the given entities and returns at once with the job to poll. Each entity is authorized against the caller as the job runs, so a job may rename fewer than were asked for.");
 
         // The handler reads the raw request so an empty body means the defaults, which typed binding
         // cannot express. No parameter declares the body, so .Accepts<> is what puts its schema in the
@@ -169,7 +175,10 @@ public sealed partial class Renamer
                 => PreviewSampleAsync(http.Request, principal, ct))
             .Accepts<PreviewSampleRequest>("application/json")
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerPreviewSample");
+            .WithName("RenamerPreviewSample")
+            .WithSummary("Preview sample names for unsaved settings")
+            .WithDescription(
+                "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body previews the saved settings.");
 
         // /undo takes no request body: it operates on "the last batch", and binding no body avoids
         // the host's enum-converter 400 trap.
@@ -177,58 +186,88 @@ public sealed partial class Renamer
             (ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
                 => UndoAsync(principal, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions)
-            .WithName("RenamerUndo");
+            .WithName("RenamerUndo")
+            .WithSummary("Undo the last rename batch")
+            .WithDescription(
+                "Moves the files of the most recent batch back to the names they had. Answers with counts on every arm, including a refusal, so a caller never has to infer what happened.");
 
         endpoints.MapGet(LastBatchRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetLastBatch");
+            .WithName("RenamerGetLastBatch")
+            .WithSummary("Summarize the last rename batch")
+            .WithDescription(
+                "What an undo would act on, and whether it still can: a batch expires, and one already undone reports as consumed.");
 
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
                 ScanLibraryEnqueue(body, principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerScanLibrary");
+            .WithName("RenamerScanLibrary")
+            .WithSummary("Scan the whole library for planned renames")
+            .WithDescription(
+                "Enqueues the scan and returns the job to poll along with the run its rows are read under.");
 
         endpoints.MapGet(LastScanRoute,
             (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => ScanLibraryResultAsync(runId, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetScanResult");
+            .WithName("RenamerGetScanResult")
+            .WithSummary("Read a finished scan's totals")
+            .WithDescription(
+                "Only the most recent run's figures are kept, so a run replaced by a later scan answers 404.");
 
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => ScanRowsAsync(body, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetScanRows");
+            .WithName("RenamerGetScanRows")
+            .WithSummary("Read a page of a scan's planned renames")
+            .WithDescription(
+                "A POST because the cursor, the search and the settings the scan ran under travel in the body. A page carries the cursor the next one resumes from; a page without one ends the walk. A page may also stop on the server's per-request budget with the library only partly examined, which is not the same as having no more results.");
 
         endpoints.MapGet(LastLibraryRenameRoute,
             (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => LibraryRenameResultAsync(runId, principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetLibraryRenameResult");
+            .WithName("RenamerGetLibraryRenameResult")
+            .WithSummary("Read a finished library rename's counts")
+            .WithDescription(
+                "Only the most recent run's counts are kept, so a run replaced by a later rename answers 404.");
 
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions)
-            .WithName("RenamerRenameLibrary");
+            .WithName("RenamerRenameLibrary")
+            .WithSummary("Rename the whole library")
+            .WithDescription(
+                "Enqueues the rename of every entity the caller may write and returns the job to poll.");
 
         endpoints.MapGet(LibraryPathsRoute,
             (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetLibraryPaths");
+            .WithName("RenamerGetLibraryPaths")
+            .WithSummary("List the library paths Cove is configured with")
+            .WithDescription(
+                "The roots a destination rule may send files to. Host configuration, not library data.");
 
         endpoints.MapGet(JobStatusRoute,
             (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
                 => JobStatus(jobId, principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetJobStatus");
+            .WithName("RenamerGetJobStatus")
+            .WithSummary("Read the status of a job this extension started")
+            .WithDescription(
+                "Scoped to the caller who started it. The extension answers this itself because the host's own job route requires unrestricted read, which a scoped account does not have.");
 
         endpoints.MapGet(OrphanedRulesRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => OrphanedRulesAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
-            .WithName("RenamerGetOrphanedRules");
+            .WithName("RenamerGetOrphanedRules")
+            .WithSummary("List routing rules whose entity no longer exists")
+            .WithDescription(
+                "Answered by the server because a browser cannot tell a deleted entity from one this viewer may not read.");
 
         // Gated on extensions.configure, not on a media permission: one settings document decides how
         // every kind is named and where it is moved, and the auto-rename it can switch on runs later as
@@ -237,7 +276,10 @@ public sealed partial class Renamer
         endpoints.MapGet(OptionsRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
             .RequireCovePermission(Permissions.ExtensionsConfigure)
-            .WithName("RenamerGetOptions");
+            .WithName("RenamerGetOptions")
+            .WithSummary("Read the saved rename settings")
+            .WithDescription(
+                "Returns every member, filling any the stored document omits with its default. An unreadable stored document answers with the defaults and says so rather than failing.");
 
         // Binds the raw HttpContext so the pending-conversion refusal comes before the body is read and
         // a malformed body is this route's own 400. .Accepts<> is what puts the request schema in the
@@ -247,7 +289,10 @@ public sealed partial class Renamer
                 => SaveOptionsAsync(http.Request, principal, ct))
             .Accepts<RenamerOptions>("application/json")
             .RequireCovePermission(Permissions.ExtensionsConfigure)
-            .WithName("RenamerSaveOptions");
+            .WithName("RenamerSaveOptions")
+            .WithSummary("Replace the saved rename settings")
+            .WithDescription(
+                "The body replaces the whole document; a member it omits takes its default. Refused with 409 while a one-time conversion of the stored document is still pending.");
     }
 
     internal async Task<Results<Ok<OptionsView>, ForbiddenCode>> GetOptionsAsync(

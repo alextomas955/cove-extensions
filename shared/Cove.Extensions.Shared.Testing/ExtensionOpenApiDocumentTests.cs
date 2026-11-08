@@ -36,6 +36,12 @@ public abstract class ExtensionOpenApiDocumentTests
     private const string PinnedTitle = "cove extension wire contract";
     private const string PinnedVersion = "1.0.0";
 
+    private const string DocumentDescription =
+        "The HTTP surface one Cove extension adds to its host. Every route is mounted under "
+        + "/api/extensions/<extension id> and is reached same-origin from the host page.";
+
+    private const string BearerScheme = "coveBearer";
+
     /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
     public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
 
@@ -66,6 +72,35 @@ public abstract class ExtensionOpenApiDocumentTests
                 document.Info ??= new OpenApiInfo();
                 document.Info.Title = PinnedTitle;
                 document.Info.Version = PinnedVersion;
+                document.Info.Description = DocumentDescription;
+
+                // Relative, because an extension's routes are only ever reached same-origin: the host
+                // page serves them, and its own fetch refuses any other origin. A deployment host name
+                // here would be one this document cannot know.
+                document.Servers = [new OpenApiServer { Url = "/", Description = "The Cove host." }];
+
+                // The routes are authenticated and nothing in the paths says so, which leaves a reader
+                // and a generated client to read every 403 as arbitrary. The host attaches the bearer
+                // token; an extension never sees or issues one.
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>(
+                    StringComparer.Ordinal);
+                document.Components.SecuritySchemes[BearerScheme] = new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    Description =
+                        "Issued by the Cove host and attached by its own authenticated fetch. Every "
+                        + "route below requires it; a caller without one is refused by the host "
+                        + "before the extension is reached.",
+                };
+                document.Security =
+                [
+                    new OpenApiSecurityRequirement
+                    {
+                        [new OpenApiSecuritySchemeReference(BearerScheme)] = [],
+                    },
+                ];
                 return Task.CompletedTask;
             }));
 

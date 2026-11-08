@@ -2,14 +2,23 @@
   "openapi": "3.1.1",
   "info": {
     "title": "cove extension wire contract",
+    "description": "The HTTP surface one Cove extension adds to its host. Every route is mounted under /api/extensions/<extension id> and is reached same-origin from the host page.",
     "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The Cove host."
+    }
+  ],
   "paths": {
     "/api/extensions/com.alextomas955.renamer/preview": {
       "post": {
         "tags": [
           "Renamer"
         ],
+        "summary": "Preview the rename of a named selection",
+        "description": "Plans every file of the given entities against the saved settings and returns the planned move for each, plus the totals a confirmation needs. Touches no disk.",
         "operationId": "RenamerPreview",
         "requestBody": {
           "content": {
@@ -60,6 +69,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Rename a named selection",
+        "description": "Enqueues the rename of the given entities and returns at once with the job to poll. Each entity is authorized against the caller as the job runs, so a job may rename fewer than were asked for.",
         "operationId": "RenamerRenameSelected",
         "requestBody": {
           "content": {
@@ -110,6 +121,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Preview sample names for unsaved settings",
+        "description": "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body previews the saved settings.",
         "operationId": "RenamerPreviewSample",
         "requestBody": {
           "content": {
@@ -163,6 +176,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Undo the last rename batch",
+        "description": "Moves the files of the most recent batch back to the names they had. Answers with counts on every arm, including a refusal, so a caller never has to infer what happened.",
         "operationId": "RenamerUndo",
         "responses": {
           "200": {
@@ -193,6 +208,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Summarize the last rename batch",
+        "description": "What an undo would act on, and whether it still can: a batch expires, and one already undone reports as consumed.",
         "operationId": "RenamerGetLastBatch",
         "responses": {
           "200": {
@@ -223,6 +240,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Scan the whole library for planned renames",
+        "description": "Enqueues the scan and returns the job to poll along with the run its rows are read under.",
         "operationId": "RenamerScanLibrary",
         "requestBody": {
           "content": {
@@ -269,6 +288,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a finished scan's totals",
+        "description": "Only the most recent run's figures are kept, so a run replaced by a later scan answers 404.",
         "operationId": "RenamerGetScanResult",
         "parameters": [
           {
@@ -312,6 +333,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a page of a scan's planned renames",
+        "description": "A POST because the cursor, the search and the settings the scan ran under travel in the body. A page carries the cursor the next one resumes from; a page without one ends the walk. A page may also stop on the server's per-request budget with the library only partly examined, which is not the same as having no more results.",
         "operationId": "RenamerGetScanRows",
         "requestBody": {
           "content": {
@@ -368,6 +391,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a finished library rename's counts",
+        "description": "Only the most recent run's counts are kept, so a run replaced by a later rename answers 404.",
         "operationId": "RenamerGetLibraryRenameResult",
         "parameters": [
           {
@@ -411,6 +436,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Rename the whole library",
+        "description": "Enqueues the rename of every entity the caller may write and returns the job to poll.",
         "operationId": "RenamerRenameLibrary",
         "responses": {
           "202": {
@@ -441,6 +468,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "List the library paths Cove is configured with",
+        "description": "The roots a destination rule may send files to. Host configuration, not library data.",
         "operationId": "RenamerGetLibraryPaths",
         "responses": {
           "200": {
@@ -471,6 +500,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read the status of a job this extension started",
+        "description": "Scoped to the caller who started it. The extension answers this itself because the host's own job route requires unrestricted read, which a scoped account does not have.",
         "operationId": "RenamerGetJobStatus",
         "parameters": [
           {
@@ -514,6 +545,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "List routing rules whose entity no longer exists",
+        "description": "Answered by the server because a browser cannot tell a deleted entity from one this viewer may not read.",
         "operationId": "RenamerGetOrphanedRules",
         "responses": {
           "200": {
@@ -544,6 +577,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read the saved rename settings",
+        "description": "Returns every member, filling any the stored document omits with its default. An unreadable stored document answers with the defaults and says so rather than failing.",
         "operationId": "RenamerGetOptions",
         "responses": {
           "200": {
@@ -572,6 +607,8 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Replace the saved rename settings",
+        "description": "The body replaces the whole document; a member it omits takes its default. Refused with 409 while a one-time conversion of the stored document is still pending.",
         "operationId": "RenamerSaveOptions",
         "requestBody": {
           "content": {
@@ -1775,8 +1812,18 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "coveBearer": {
+        "type": "http",
+        "description": "Issued by the Cove host and attached by its own authenticated fetch. Every route below requires it; a caller without one is refused by the host before the extension is reached.",
+        "scheme": "bearer"
+      }
     }
   },
+  "security": [
+    { }
+  ],
   "tags": [
     {
       "name": "Renamer"
