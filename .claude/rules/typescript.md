@@ -19,7 +19,7 @@ why in the code that replaces it.
 The host's form fields are the one measured exception. `Field`, `TextInput`, `TextArea`,
 `NumberInput`, `SelectInput` and `SaveButton` do render standalone, themed, outside `EditModal` and
 with no provider, so they are available. They are a smaller set than
-`shared/ui-shared/src/primitives.tsx`: the host `Field` nests its control without an `htmlFor`
+`shared/ui-shared/src/fields.tsx`: the host `Field` nests its control without an `htmlFor`
 pairing and offers no helper text, `SelectInput` always prepends an empty option and is not generic
 over the value type, and `NumberInput` does not clamp to `min` and `max`. The shared primitives also
 carry `FieldGroup`, which exists because a `<label>` forwards a click to its first labelable
