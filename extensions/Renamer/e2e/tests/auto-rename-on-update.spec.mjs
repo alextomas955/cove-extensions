@@ -6,6 +6,7 @@
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
+import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
 test("enabling Auto-rename on update and editing a title through the UI renames the file automatically", async ({
@@ -44,8 +45,14 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   expect(afterEdit.title).toBe(title);
 
   // And the grid reflects it too, same as a real user would see without refreshing anything special.
-  // The grid's contents arrive from a client-side fetch after navigation, so readiness is the
-  // assertion's own retry rather than anything waited for beforehand.
-  await page.goto(`${baseUrl}/videos`);
-  await expect(page.locator("main p")).toContainText([title]);
+  // The card is found by the name its own link carries, so a restyle of the grid cannot move this
+  // assertion onto a different element than the one a user reads. Cove names that link after the
+  // card's title and falls back to the filename only for a video that has none, so the title is what
+  // this card reads once the edit above has landed.
+  const videos = new VideosPage(page, baseUrl);
+  await videos.goto();
+  await expect(
+    page.getByRole("link", { name: `Open video ${title}` }),
+    "the grid did not show the edited video",
+  ).toHaveCount(1);
 });
