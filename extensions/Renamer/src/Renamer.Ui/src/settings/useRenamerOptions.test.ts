@@ -7,7 +7,7 @@ import { renderHook, act, cleanup, waitFor } from "@testing-library/react";
 import { useRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
 import { withQueryClient } from "../common/lib/testQueryClient";
-import type { OptionsView } from "./options";
+import type { OptionsView, RenamerOptions } from "./options";
 
 // The stubbed endpoint's script, hoisted so the module factory below can reach it.
 const endpoint = vi.hoisted(() => ({
@@ -15,21 +15,31 @@ const endpoint = vi.hoisted(() => ({
   view: null as OptionsView | null,
   // Every non-GET call, in order.
   sent: [] as { path: string; method: string; body: unknown }[],
+  // Holds the next read, so a test can look at the panel while one is in flight. Cleared as that
+  // read begins, so only the one read is held.
+  holdNextRead: false,
+  releaseRead: (): void => undefined,
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {},
   errorText: (err: unknown) => String(err),
-  requestJson: () => Promise.resolve(structuredClone(endpoint.view)),
+  requestJson: async () => {
+    if (endpoint.holdNextRead) {
+      endpoint.holdNextRead = false;
+      await new Promise<void>((resolve) => {
+        endpoint.releaseRead = resolve;
+      });
+    }
+    return structuredClone(endpoint.view);
+  },
   request: (path: string, init: RequestInit) => {
-    endpoint.sent.push({
-      path,
-      method: String(init.method),
-      body: JSON.parse(init.body as string) as unknown,
-    });
-    // The PUT writes a whole, well-formed document, so the blob a later GET reads is no longer
-    // unreadable. Modelled here because the hook asks the server rather than assuming it.
-    if (endpoint.view) endpoint.view = { ...endpoint.view, unreadable: false };
+    const body = JSON.parse(init.body as string) as RenamerOptions;
+    endpoint.sent.push({ path, method: String(init.method), body });
+    // The PUT replaces the whole document, so a later GET answers with what was written and no
+    // longer reports the blob unreadable. Modelled here because the hook asks the server rather
+    // than assuming either.
+    if (endpoint.view) endpoint.view = { ...endpoint.view, options: body, unreadable: false };
     return Promise.resolve(undefined);
   },
 }));
@@ -166,4 +176,40 @@ test("discard restores what the endpoint answered with", async () => {
 
   expect(hook.current.options?.filenameTemplate).toBe(someOptions().filenameTemplate);
   expect(hook.current.dirty).toBe(false);
+});
+
+test("a saved edit stays on screen while the re-read it starts is still in flight", async () => {
+  // A save is a write and then a re-read, and between the two the cache still holds the document
+  // from before the save. Falling back to it there puts the previous values back under the user's
+  // caret for a round trip, and whatever they typed in that gap is overwritten when the read lands.
+  const hook = await mountHook();
+  const edited = "$studio - $title";
+
+  await commit(() => {
+    hook.current.set("filenameTemplate", edited);
+  });
+  expect(hook.current.options?.filenameTemplate).toBe(edited);
+
+  endpoint.holdNextRead = true;
+  let settled = false;
+  const save = hook.current.onSave().then(() => {
+    settled = true;
+  });
+  await commit(() => undefined);
+
+  // The positive control for the assertion below: without a read still outstanding, the panel would
+  // be past this moment and reading the saved document either way.
+  expect(settled, "the save resolved before its re-read answered").toBe(false);
+  expect(
+    hook.current.options?.filenameTemplate,
+    "the panel put the pre-save document back while its own re-read was in flight",
+  ).toBe(edited);
+
+  endpoint.releaseRead();
+  await act(async () => {
+    await save;
+  });
+
+  expect(hook.current.options?.filenameTemplate).toBe(edited);
+  expect(hook.current.dirty, "the saved edit still reads as unsaved").toBe(false);
 });

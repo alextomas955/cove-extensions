@@ -103,10 +103,16 @@ export function useRenamerOptions(): UseRenamerOptions {
     setSaveError(null);
     try {
       await request(OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
-      // The edit is now what the server holds, so the draft has nothing left to say and the stored
-      // facts beside it - the unreadable flag above all - are re-read rather than assumed.
-      setDraft(null);
+      // The edit is now what the server holds, and the stored facts beside it - the unreadable flag
+      // above all - are re-read rather than assumed.
+      //
+      // The draft goes only once that answer is in. Dropping it first falls back to the response
+      // still in the cache, which is the document from before this save: the panel would show the
+      // old values for a round trip and then rewrite whatever the user had typed in the meantime,
+      // under their caret. The cost is that the unsaved mark lingers until the read lands, which is
+      // when the panel can first show the saved values rather than claim them.
       await queryClient.invalidateQueries({ queryKey: OPTIONS_KEY });
+      setDraft(null);
       setSavedFlash(true);
       flashTimer.current = setTimeout(() => {
         setSavedFlash(false);
