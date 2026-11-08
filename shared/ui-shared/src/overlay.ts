@@ -25,9 +25,12 @@ export interface OverlayKeysOptions {
   onClose: () => void;
   /**
    * "menu": ArrowUp/Down roving focus over `itemSelector`, capture-phase Escape that stops
-   * propagation so the menu beats host key handlers.
-   * "dialog": Tab focus-trap over the focusable set, bubble-phase Escape that prevents default so
-   * the close does not leak to the host page.
+   * propagation, so no other handler on the page sees the key.
+   * "dialog": Tab focus-trap over the focusable set, bubble-phase Escape marked with
+   * `preventDefault`. The mark does not contain the key: it still reaches every other document and
+   * window handler, and only one that reads `defaultPrevented` leaves it alone. Cove's bulk-edit
+   * dialog reads it; its entity edit modal and its video queue do not, so a dialog opened over
+   * either of those closes both on one Escape.
    */
   nav: "menu" | "dialog";
   /** menu mode; default `[role^="menuitem"]` - the prefix form also catches menuitemcheckbox/radio. */
@@ -47,7 +50,14 @@ export interface OverlayKeysOptions {
  *
  * @remarks
  * The capture-vs-bubble and stopPropagation-vs-preventDefault Escape differences are intentional per
- * mode (a menu must win over host handlers; a dialog must not leak its cancel to the host page).
+ * mode: a menu takes the key away from every other handler, a dialog only marks it handled. See
+ * `nav` for what that mark buys and what it does not.
+ *
+ * A dialog does not read the same mark from below it: it closes on Escape whether or not a control
+ * inside it already handled the key. A dialog holding a control that does - `TagListInput`, whose
+ * Escape dismisses its suggestion list - needs `closeOnEscape` to return early on
+ * `defaultPrevented`, or one Escape both dismisses the list and closes the dialog.
+ *
  * `enabled` gates only the cancels (Escape + outside-click) - the Tab trap keeps running while
  * suspended - and toggling it never re-runs focus-first nor drops the opener captured for restore.
  */
