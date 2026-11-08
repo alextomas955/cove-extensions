@@ -53,10 +53,8 @@ export interface OverlayKeysOptions {
  * mode: a menu takes the key away from every other handler, a dialog only marks it handled. See
  * `nav` for what that mark buys and what it does not.
  *
- * A dialog does not read the same mark from below it: it closes on Escape whether or not a control
- * inside it already handled the key. A dialog holding a control that does - `TagListInput`, whose
- * Escape dismisses its suggestion list - needs `closeOnEscape` to return early on
- * `defaultPrevented`, or one Escape both dismisses the list and closes the dialog.
+ * A dialog reads that mark from below it too, so an Escape a control inside already handled - a
+ * combobox putting its suggestion list away - leaves the dialog open. One Escape is one action.
  *
  * `enabled` gates only the cancels (Escape + outside-click) - the Tab trap keeps running while
  * suspended - and toggling it never re-runs focus-first nor drops the opener captured for restore.
@@ -107,7 +105,14 @@ export function useOverlayKeys(
     function closeOnEscape(e: KeyboardEvent) {
       if (optsRef.current.enabled === false) return;
       if (nav === "menu") e.stopPropagation();
-      else e.preventDefault();
+      else {
+        // A control inside the dialog may have taken this Escape already, as a combobox does to put
+        // its suggestion list away. The same mark this sets for the host page is read from below,
+        // so one Escape is one action. Menu mode listens in the capture phase, where nothing inside
+        // has run yet and the mark is always clear.
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+      }
       optsRef.current.onClose();
     }
 

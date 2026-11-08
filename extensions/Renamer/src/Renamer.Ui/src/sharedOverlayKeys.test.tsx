@@ -2,11 +2,11 @@
 // This test of a shared hook lives in the consuming package because `react` resolves only here.
 // The overlay hook's dialog mode on a bare panel, so nothing but the hook decides what a key does.
 import { test, expect, vi, afterEach } from "vitest";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { useOverlayKeys } from "@cove-extensions/ui-shared";
+import { TagListInput, useOverlayKeys } from "@cove-extensions/ui-shared";
 
 afterEach(cleanup);
 
@@ -138,4 +138,41 @@ test("Escape closes again as soon as the panel is re-enabled", async () => {
   expect(view.onClose).toHaveBeenCalledTimes(1);
 
   view.unmount();
+});
+
+// A dialog holding a control with an Escape of its own. `TagListInput` is the one in the shared
+// package: Escape there puts its suggestion list away without closing anything around it.
+function PanelWithCombobox(props: Readonly<{ onClose: () => void }>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [values, setValues] = useState<string[]>([]);
+  useOverlayKeys(ref, { nav: "dialog", onClose: props.onClose, closeOnOutsideClick: false });
+  return (
+    <div ref={ref}>
+      <TagListInput
+        values={values}
+        onChange={setValues}
+        suggestions={["title", "studio"]}
+        ariaLabel="Tokens"
+      />
+    </div>
+  );
+}
+
+test("an Escape a control inside the dialog handled does not also close the dialog", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  render(<PanelWithCombobox onClose={onClose} />);
+
+  await user.type(screen.getByRole("combobox", { name: "Tokens" }), "ti");
+  expect(screen.getAllByRole("option")).toHaveLength(1);
+
+  await user.keyboard("{Escape}");
+
+  expect(screen.queryAllByRole("option"), "the list did not take the Escape").toEqual([]);
+  expect(onClose, "one Escape both closed the list and closed the dialog").not.toHaveBeenCalled();
+
+  // With nothing left inside to handle it, the next Escape is the dialog's. Without this the
+  // assertion above would also hold for a dialog that stopped closing on Escape altogether.
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
