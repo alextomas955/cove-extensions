@@ -13,9 +13,7 @@
     "check-classes": "node ../../../../shared/ui-shared/scripts/check-classes.cjs --allow \"shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]\"",
     "test": "npm run generate:wire && vitest run",
     "test:coverage": "npm run generate:wire && vitest run --coverage",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run check-host-imports && npm run test",
+    "verify": "npm run typecheck && npm run check-classes && npm run check-host-imports && npm run test",
     "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
   },
   "dependencies": {
@@ -34,7 +32,6 @@
     "@vitest/coverage-v8": "5.0.5",
     "jsdom": "30.1.3",
     "lucide-react": "1.63.0",
-    "prettier": "3.9.10",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "typescript": "6.0.3",

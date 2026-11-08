@@ -72,7 +72,7 @@ Then, from `src/Renamer.Ui/`:
 
 ```sh
 npm ci            # first time only (offline; installs the vendored SDK)
-npm run verify    # typecheck + format:check + check-classes + check-host-imports + tests
+npm run verify    # typecheck + check-classes + check-host-imports + tests
 npm run build     # rebuild dist/index.mjs
 ```
 

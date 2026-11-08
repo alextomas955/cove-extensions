@@ -49,7 +49,7 @@ Run these from the extension's UI directory, `extensions/Renamer/src/Renamer.Ui/
 ```sh
 npm run typecheck   # generates the wire and host types, then tsc --noEmit
 npm run test        # generates the wire types, then one Vitest run
-npm run verify      # typecheck, Prettier check, class check, host-import check, tests
+npm run verify      # typecheck, class check, host-import check, tests
 npm run build       # rebuilds dist/index.mjs
 ```
 
@@ -72,8 +72,8 @@ Two of the checks inside `verify` are worth knowing separately:
 - `check-host-imports` resolves each host import-map external against the module the host actually
   serves, read out of a Cove checkout. A name can typecheck, build, and pass every other check while
   the shipped bundle fails to load in the browser. With no `../cove` sibling it prints a skip and
-  exits 0. The `host-imports` job in `ci.yml` is the gate: it checks Cove out, generates the host's
-  shim, and fails on a missing name.
+  exits 0. The `ui-verify` job in `ci.yml` is the gate: it checks Cove out, generates the host's
+  shim, and sets `COVE_REPO`, which turns the skip into a failure.
 
 ## Regenerate the wire types after a handler change
 
@@ -202,7 +202,7 @@ push; run all of them if you touched root tooling.
 | Catalog validator  | A declared catalog path that does not exist, a project missing from the solution, a floor that disagrees with a manifest | `node scripts/validate-extension-repo.mjs`                             | repo root        |
 | Repo tooling tests | A regression in the scripts under `scripts/`                                                                             | `npm test`                                                             | repo root        |
 | Host imports       | A `lucide-react` icon import the host's runtime shim does not export                                                     | `node scripts/check-host-imports.mjs`                                  | repo root        |
-| UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                       | the UI directory |
+| UI verify          | Typecheck, class discipline, host imports, and unit tests for one bundle                                                 | `npm run verify`                                                       | the UI directory |
 
 The UI verify and C# analyzers rows both need a Cove source checkout. Its `-p:CoveSourceMode=source` refuses to fall
 back, so on a clone without one the command fails before it compiles anything. A `../cove` sibling
@@ -225,8 +225,9 @@ so a gate you need enforced belongs in a workflow. Every gate in the table above
 Three qualifications:
 
 - The Host imports row needs a Cove checkout with its runtime shims generated. Run
-  `npm run generate:extension-runtime` in the checkout's `ui/` directory once. The copy inside a UI's
-  `verify` skips in CI, and the `host-imports` job in `ci.yml` is what gates it.
+  `npm run generate:extension-runtime` in the checkout's `ui/` directory once. Without one the check
+  prints a skip and exits 0, so the `ui-verify` job sets `COVE_REPO` to make a missing shim a
+  failure. That job runs the check through each bundle's `verify` and is what gates it.
 - `ci.yml` ends in one `required-checks` job that needs every other job and fails unless each one
   succeeded, so that one status stands for the whole workflow. A new job gates merges once it is in
   that job's `needs`. What a green aggregate does and does not prove is on
