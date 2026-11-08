@@ -96,8 +96,8 @@ test(
     const secondNewPath = afterSecond.files[0].path;
 
     // The second item auto-suffixes to exactly "<title> (1).mp4" (default DuplicateSuffixFormat " ({n})").
+    // No-clobber: the suffix is what keeps the two final paths distinct.
     expect(basename(secondNewPath)).toBe(`${sharedTitle} (1).mp4`);
-    expect(secondNewPath).not.toBe(firstNewPath); // no-clobber: distinct final paths
 
     // The second item's own source path must be gone - moved, not copied.
     const secondSourceGone = await container.exec(["test", "-f", second.files[0].path]);

@@ -27,10 +27,12 @@ export async function fileExists(container, path) {
  * `images`, `texts`). Polls the record, so the read-after-write window is honored.
  */
 export async function assertLandedAt({ api, container, route, id, expectedPath, originalPath }) {
+  // Polled on having moved at all, not on the expected value: a poll that waits for the answer the
+  // assertion wants reports a wrong-but-settled path as a timeout, naming neither path.
   const record = await pollUntil(
     () => api.get(`/api/${route}/${id}`).then((r) => r.json),
-    (item) => item.files[0].path === expectedPath,
-    { label: `${route} ${id} to land at exactly "${expectedPath}"` },
+    (item) => originalPath === expectedPath || item.files[0].path !== originalPath,
+    { label: `${route} ${id} to move off "${originalPath}"` },
   );
   expect(
     record.files[0].path,
@@ -53,10 +55,12 @@ export async function assertLandedAt({ api, container, route, id, expectedPath, 
  * read-after-write window is honored, then returns the new full path.
  */
 export async function assertRenamedTo({ api, container, videoId, expectedBasename, originalPath }) {
+  // Polled on the basename having changed, so the assertion below is what decides whether it changed
+  // to the right thing, and a wrong name is reported as a comparison rather than as a timeout.
   const record = await pollUntil(
     () => api.get(`/api/videos/${videoId}`).then((r) => r.json),
-    (v) => basename(v.files[0].path) === expectedBasename,
-    { label: `video ${videoId} to be renamed to exactly "${expectedBasename}"` },
+    (v) => basename(v.files[0].path) !== basename(originalPath),
+    { label: `video ${videoId} to be renamed off "${basename(originalPath)}"` },
   );
   const newPath = record.files[0].path;
 
@@ -89,10 +93,12 @@ export async function assertRenamedTo({ api, container, videoId, expectedBasenam
  * is honored.
  */
 export async function assertRestoredTo({ api, container, videoId, originalPath }) {
+  // Polled on the name coming back, so the full-path assertion below is what decides. A restore that
+  // put the right name in the wrong folder settles here and is then reported as a path comparison.
   const record = await pollUntil(
     () => api.get(`/api/videos/${videoId}`).then((r) => r.json),
-    (v) => v.files[0].path === originalPath,
-    { label: `video ${videoId} to be restored to exactly "${originalPath}"` },
+    (v) => basename(v.files[0].path) === basename(originalPath),
+    { label: `video ${videoId} to be restored to a file named "${basename(originalPath)}"` },
   );
 
   expect(

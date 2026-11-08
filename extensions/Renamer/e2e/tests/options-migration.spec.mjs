@@ -380,9 +380,9 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the video carrying the converted exclusion's tag is not planned as excluded",
   ).toBe("skipExcluded");
   expect(
-    ["rename", "move"],
+    statusOf(renameSubjects.control),
     "the untagged video would not be renamed either, so the exclusion above decides nothing",
-  ).toContain(statusOf(renameSubjects.control));
+  ).toBe("rename");
 
   const enqueue = await api.post(`${ROUTE}/renamer`, {
     EntityType: "video",

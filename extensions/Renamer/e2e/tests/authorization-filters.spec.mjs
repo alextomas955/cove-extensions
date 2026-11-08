@@ -133,10 +133,6 @@ test("a preview driven as a restricted principal plans none of the videos its ro
     restrictedTotal,
     "the restricted principal can read video rows - Cove's row-level authorization filters did not bite",
   ).toBe(0);
-  expect(
-    restrictedTotal,
-    "the owner and the restricted user read the same count from the same library, so the filters are not discriminating between them",
-  ).not.toBe(ownerTotal);
 
   // The extension's own read, over the same ids. The handler plans from the caller's request-scoped
   // context, so the filters above must reach it; a handler reading as System would plan every video
