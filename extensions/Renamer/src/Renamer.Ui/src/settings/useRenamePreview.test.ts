@@ -47,14 +47,16 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-// Past the hook's 250ms debounce. A duration, not a condition: the thing being waited for here is
-// real elapsed time, because a debounce is a timer and nothing renders while it runs.
+// Past the hook's 250ms debounce. A debounce is a timer, so the wait is a duration rather than a
+// condition; the clock is this test's, so no part of the wait is real time the machine has to spend
+// and a loaded runner cannot change the outcome. Shortening the hook's debounce below this would
+// leave the test correct, and lengthening it past it fails on the request count rather than silently.
 const PAST_DEBOUNCE_MS = 400;
+
+const runDebounceOut = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+  });
 
 function sample(label: string): PreviewSampleResult[] {
   return [
@@ -96,10 +98,14 @@ function mountHook(initial: RenamerOptions) {
   };
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
+  vi.useFakeTimers();
   host.calls.length = 0;
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
 });
 
 test("an older preview response cannot repaint the pane over a newer one", async () => {
@@ -107,13 +113,13 @@ test("an older preview response cannot repaint the pane over a newer one", async
   const second = { ...someOptions(), filenameTemplate: "$title - $studio" };
 
   const hook = mountHook(first);
-  await sleep(PAST_DEBOUNCE_MS);
+  await runDebounceOut();
   expect(host.calls.length, "the first POST was never issued").toBe(1);
 
   // A second edit after the first POST is already in flight. Clearing the debounce timer can no longer
   // recall it, so both requests are open at once.
   hook.retarget(second);
-  await sleep(PAST_DEBOUNCE_MS);
+  await runDebounceOut();
   expect(host.calls.length, "the second POST was never issued").toBe(2);
 
   await settle(host.calls[1], () => {
@@ -130,16 +136,16 @@ test("an older preview response cannot repaint the pane over a newer one", async
     "second",
   );
   expect(hook.current.previewError).toBe(false);
-}, 30_000);
+});
 
 test("superseding a request aborts it, and its rejection is not reported as a failure", async () => {
   const first = { ...someOptions(), filenameTemplate: "$title" };
   const second = { ...someOptions(), filenameTemplate: "$title - $studio" };
 
   const hook = mountHook(first);
-  await sleep(PAST_DEBOUNCE_MS);
+  await runDebounceOut();
   hook.retarget(second);
-  await sleep(PAST_DEBOUNCE_MS);
+  await runDebounceOut();
   expect(host.calls).toHaveLength(2);
 
   expect(host.calls[0].aborted(), "the superseded request was not aborted").toBe(true);
@@ -157,14 +163,14 @@ test("superseding a request aborts it, and its rejection is not reported as a fa
   });
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
   expect(hook.current.previewError).toBe(false);
-}, 30_000);
+});
 
 test("an abort of the request still in force is not reported as a failure", async () => {
   // Going back to loading aborts the in-flight request without issuing a newer one, so the rejection
   // arrives under the generation still current and only the abort tells it from a real failure.
   const options = someOptions();
   const hook = mountHook(options);
-  await sleep(PAST_DEBOUNCE_MS);
+  await runDebounceOut();
   expect(host.calls).toHaveLength(1);
 
   hook.retarget(options, true);
@@ -175,4 +181,4 @@ test("an abort of the request still in force is not reported as a failure", asyn
   });
   expect(hook.current.previewError, "an abort was surfaced as a preview failure").toBe(false);
   expect(host.calls, "loading issued a request").toHaveLength(1);
-}, 30_000);
+});
