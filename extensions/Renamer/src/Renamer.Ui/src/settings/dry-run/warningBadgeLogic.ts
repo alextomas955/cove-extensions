@@ -1,4 +1,4 @@
-import type { RenamerStatus } from "../../wire/api";
+import type { RenamerStatus } from "../../wire";
 import { classifyItem, inFlightOverflowLabel } from "./dryRunLogic";
 
 type Variant = "amber" | "gray" | "red";

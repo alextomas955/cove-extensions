@@ -5,6 +5,10 @@
  * it, so it is attached through a local cast.
  */
 import { defineExtension } from "@cove/extension-sdk";
+
+// Imported for its effect: it registers the interceptor that turns a failed request from the
+// generated client into an ApiError carrying the status, which every error branch below reads.
+import "./common/lib/wireErrors";
 import { RenamePage } from "./settings/RenamePage";
 import { renameSelected } from "./rename-action/renameSelected";
 

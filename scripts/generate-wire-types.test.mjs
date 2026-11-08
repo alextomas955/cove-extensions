@@ -17,7 +17,12 @@ const EXT_PATH = "extensions/" + NAME;
 const UI_PATH = EXT_PATH + "/src/" + NAME + ".Ui";
 const DOC_PATH = EXT_PATH + "/wire/openapi.json"; // derived, never declared in the catalog
 
-function fixtureRoot({ entry = {}, writeDocument = true, paths = {} } = {}) {
+function fixtureRoot({
+  entry = {},
+  writeDocument = true,
+  paths = {},
+  writeClientConfig = true,
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "generate-wire-types-"));
   const catalogEntry = {
     name: NAME,
@@ -31,6 +36,14 @@ function fixtureRoot({ entry = {}, writeDocument = true, paths = {} } = {}) {
     path.join(root, "extensions", "catalog.json"),
     JSON.stringify({ schemaVersion: 1, extensions: [catalogEntry] }, null, 2),
   );
+  if (writeClientConfig) {
+    // The generated client takes its fetch from here, so the generator refuses an entry without it.
+    fs.mkdirSync(path.join(root, UI_PATH, "src", "common", "lib"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, UI_PATH, "src", "common", "lib", "wireClient.ts"),
+      "export const createClientConfig = (c) => c;\n",
+    );
+  }
   if (writeDocument) {
     fs.mkdirSync(path.join(root, EXT_PATH, "wire"), { recursive: true });
     fs.writeFileSync(path.join(root, DOC_PATH), JSON.stringify({ openapi: "3.1.1", paths }));
@@ -68,10 +81,21 @@ test("a declaring entry is generated from, with the document as input and the UI
     // The arguments, not merely that it was called: a call count passes just as happily when the
     // generator is pointed at the wrong document or writes to the wrong path.
     assert.equal(calls[0].documentPath, path.join(root, DOC_PATH));
-    assert.equal(calls[0].outputPath, path.join(root, UI_PATH, "src", "wire", "api.ts"));
-    // Naming the plugin is what keeps the output to types. Left to its defaults the generator also
-    // emits a client and an SDK, which are runtime modules that would ship inside the bundle.
-    assert.deepEqual(calls[0].plugins, ["@hey-api/typescript"]);
+    assert.equal(calls[0].outputPath, path.join(root, UI_PATH, "src", "wire"));
+    // The plugin list, not merely that one was passed: the client entry carries the path to the
+    // module that binds the host's authenticated fetch, and without it the generated client would
+    // call `fetch` directly and every request would answer 401.
+    assert.deepEqual(
+      calls[0].plugins.map((plugin) => (typeof plugin === "string" ? plugin : plugin.name)),
+      ["@hey-api/typescript", "@hey-api/client-fetch", "@hey-api/sdk", "@tanstack/react-query"],
+    );
+    const clientPlugin = calls[0].plugins.find(
+      (plugin) => typeof plugin !== "string" && plugin.name === "@hey-api/client-fetch",
+    );
+    assert.equal(
+      clientPlugin.runtimeConfigPath,
+      path.join(root, UI_PATH, "src", "common", "lib", "wireClient.ts"),
+    );
     assert.equal(calls[0].entry.id, ID);
 
     assert.match(lines.join("\n"), /Examined 1 catalog entry; generated from 1 of 1/);
@@ -140,90 +164,19 @@ test("--extension scopes the run to one entry, and an unknown id is a failure", 
   }
 });
 
-test("each named operation becomes a callable, and a path parameter is named and encoded", async () => {
-  const root = fixtureRoot({
-    paths: {
-      "/api/extensions/com.example.fixture/options": {
-        get: { operationId: "FixtureGetOptions" },
-      },
-      "/api/extensions/com.example.fixture/job-status/{jobId}": {
-        get: {
-          operationId: "FixtureGetJobStatus",
-          parameters: [{ name: "jobId", in: "path", schema: { type: "string" } }],
-        },
-      },
-    },
-  });
+test("a UI with no client config module is refused rather than generated against a bare fetch", async () => {
+  const root = fixtureRoot({ writeClientConfig: false });
   try {
-    const { generate } = recordingGenerate();
-    const { log } = silent();
-
-    const result = await generateWireTypes({ root, generate, log });
-    assert.deepEqual(result.failures, []);
-
-    const routes = fs.readFileSync(path.join(root, UI_PATH, "src", "wire", "routes.ts"), "utf8");
-
-    // The emitted source, not merely that a file appeared: a route whose template lost its prefix or
-    // its parameter still writes a module that compiles.
-    assert.match(
-      routes,
-      /FixtureGetOptions: \(\): string => `\/extensions\/com\.example\.fixture\/options`/,
-    );
-    assert.match(
-      routes,
-      /FixtureGetJobStatus: \(p: \{ jobId: string \}\): string => `\/extensions\/com\.example\.fixture\/job-status\/\$\{encodeURIComponent\(String\(p\.jobId\)\)\}`/,
-    );
-    // The request helpers add it, so a route carrying it would address /api/api/...
-    assert.doesNotMatch(routes, /`\/api\//);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("an operation with no operationId is reported rather than skipped quietly", async () => {
-  const root = fixtureRoot({
-    paths: { "/api/extensions/com.example.fixture/undo": { post: {} } },
-  });
-  try {
-    const { generate } = recordingGenerate();
+    const { calls, generate } = recordingGenerate();
     const { log } = silent();
 
     const result = await generateWireTypes({ root, generate, log });
 
     assert.equal(result.ok, false);
-    assert.equal(result.failures.length, 1);
-    assert.match(
-      result.failures[0],
-      /UNNAMED: com\.example\.fixture declares POST \/api\/extensions\/com\.example\.fixture\/undo/,
-    );
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a path item's non-operation keys are not read as unnamed operations", async () => {
-  // A path item may carry these beside its methods. Reading one as an operation would fail the run
-  // over a key the document is entitled to hold.
-  const root = fixtureRoot({
-    paths: {
-      "/api/extensions/com.example.fixture/options": {
-        summary: "Settings",
-        description: "The stored settings document.",
-        parameters: [],
-        get: { operationId: "FixtureGetOptions" },
-      },
-    },
-  });
-  try {
-    const { generate } = recordingGenerate();
-    const { log } = silent();
-
-    const result = await generateWireTypes({ root, generate, log });
-
-    assert.deepEqual(result.failures, []);
-    const routes = fs.readFileSync(path.join(root, UI_PATH, "src", "wire", "routes.ts"), "utf8");
-    assert.match(routes, /FixtureGetOptions:/);
-    assert.doesNotMatch(routes, /summary|description|parameters/);
+    // Refused before the generator runs: the output it would write binds its fetch to that module,
+    // and a client left on the global one answers 401 for every request.
+    assert.equal(calls.length, 0);
+    assert.match(result.failures[0], /wireClient\.ts must exist/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

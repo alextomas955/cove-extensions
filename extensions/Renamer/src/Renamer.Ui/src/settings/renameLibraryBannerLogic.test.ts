@@ -6,7 +6,7 @@ import {
   buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
-import type { LibraryRenameSummaryView, RenamerFileKind } from "../wire/api";
+import type { LibraryRenameSummaryView, RenamerFileKind } from "../wire";
 
 function summary(
   renamed: number,

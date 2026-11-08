@@ -1,6 +1,6 @@
 /** The banner a whole-library rename leaves behind. */
 
-import type { LibraryRenameSummaryView } from "../wire/api";
+import type { LibraryRenameSummaryView } from "../wire";
 import { KIND_LABELS, type RenamableKind } from "./options";
 
 export interface RenameLibraryBanner {

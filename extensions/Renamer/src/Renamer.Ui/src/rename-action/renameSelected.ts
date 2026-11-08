@@ -7,13 +7,10 @@
  * failure of either request reaches the host's error alert rather than being reported as a rename
  * that started.
  */
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
-
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
-import { postAction } from "@cove-extensions/ui-shared/postAction";
-import { routes } from "../wire/routes";
+import { renamerPreview, renamerRenameSelected } from "../wire";
 import { buildConfirmSummary } from "./confirmSummaryLogic";
-import type { PreviewResponse, RenamerRequest } from "../wire/api";
+import type { RenamerRequest } from "../wire";
 
 export async function renameSelected(
   _action: unknown,
@@ -24,10 +21,8 @@ export async function renameSelected(
     entityIds: payload.entityIds,
   } satisfies RenamerRequest;
 
-  const response = await requestJson<PreviewResponse>(routes.RenamerPreview(), {
-    method: "POST",
-    body: JSON.stringify(requestBody),
-  });
+  const { data: response } = await renamerPreview({ body: requestBody });
+  if (!response) throw new Error("preview answered with no summary");
 
   const { text, willRenameCount } = buildConfirmSummary(response.items, response.summary);
 
@@ -39,7 +34,7 @@ export async function renameSelected(
     return { cancelled: true };
   }
 
-  await postAction(routes.RenamerRenameSelected(), requestBody);
+  await renamerRenameSelected({ body: requestBody });
 
   return {};
 }

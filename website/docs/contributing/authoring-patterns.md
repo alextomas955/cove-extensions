@@ -188,10 +188,16 @@ Between the two sits `wire/openapi.json`, committed. A test emits it from the sh
 registrations and fails when the committed copy no longer matches, so the document cannot go stale
 without a red build, and the TypeScript is a pure function of it.
 
-The same run emits `src/wire/routes.ts` beside the types: one callable per operation, named by its
-`operationId`, so no call site writes a route out by hand. A route taking a path parameter takes it
-as a named argument and encodes it. The paths carry no `/api` prefix, because the request helpers
-add it.
+The same run writes the whole of `src/wire/`: the types, a function per operation, and the TanStack
+Query helpers over them. A hook calls `useQuery(renamerGetOptionsOptions())` or
+`useMutation(renamerSaveOptionsMutation())` and writes no path, method, query key or response type
+of its own - all six come from the document.
+
+The generated client takes its fetch from `src/common/lib/wireClient.ts`, which is hand-written and
+is where the host's authenticated `extensionFetch` is bound in. The generator refuses an extension
+that has no such module, because a client left on the global `fetch` carries no credential and
+every request answers 401. `src/common/lib/wireErrors.ts` registers the interceptor that turns a
+refused request into an `ApiError` carrying its status, which is what an error branch reads.
 
 Every route carries a `.WithName()`, which is both its ASP.NET endpoint name and its `operationId`
 in that document. Endpoint names must be unique across the host process, which every installed

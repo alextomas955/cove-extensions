@@ -12,14 +12,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { request, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { OptionsView, RenamerOptions, MultiValueOptions } from "./options";
-import { routes } from "../wire/routes";
+import { renamerGetOptionsOptions, renamerGetOptionsQueryKey } from "../common/lib/wireQueries";
+import { renamerSaveOptions } from "../wire";
 
-const READ_OPTIONS_PATH = routes.RenamerGetOptions();
-const SAVE_OPTIONS_PATH = routes.RenamerSaveOptions();
-const OPTIONS_KEY = ["renamer", "options"] as const;
+const OPTIONS_KEY = renamerGetOptionsQueryKey();
 
 const SAVED_FLASH_MS = 3000;
 
@@ -48,8 +47,12 @@ export function useRenamerOptions(): UseRenamerOptions {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: OPTIONS_KEY,
-    queryFn: ({ signal }) => requestJson<OptionsView>(READ_OPTIONS_PATH, { signal }),
+    ...renamerGetOptionsOptions(),
+    // The generator marks every member of the settings record optional, because a request may omit
+    // one. A response never does: the server writes all of them, and a backend test holds it to
+    // that. `Complete` in ./options is where that claim is stated; this is the one place a response
+    // takes it on, so a control below reads a value rather than a possible undefined.
+    select: (view): OptionsView => view as OptionsView,
   });
 
   const [draft, setDraft] = useState<RenamerOptions | null>(null);
@@ -91,7 +94,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     setSaving(true);
     setSaveError(null);
     try {
-      await request(SAVE_OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
+      await renamerSaveOptions({ body: options });
       // The draft goes only once the re-read has landed, and only while it still holds what was
       // sent. Dropping it first falls back to the response still in the cache, which is the
       // document from before this save, so the panel would show the old values for a round trip.

@@ -3,7 +3,7 @@
  * from each item's `status` plus the additive `suffixed` and `sanitized` flags the planner sets.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {

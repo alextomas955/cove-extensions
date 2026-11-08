@@ -4,15 +4,10 @@
  * dry run.
  */
 import { useEffect, useRef, useState } from "react";
-import { ApiError, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type {
-  RenamerJobStatus,
-  ScanEnqueued,
-  ScanLibraryRequest,
-  ScanSummaryView,
-} from "../../wire/api";
-import { routes } from "../../wire/routes";
+import type { RenamerJobStatus, ScanSummaryView } from "../../wire";
+import { renamerGetScanResult, renamerScanLibrary } from "../../wire";
 import { JobUnresponsiveError } from "../jobPollLogic";
 import { pollJob } from "../jobStatusStore";
 import {
@@ -22,8 +17,6 @@ import {
   progressPercent,
   type ProgressSample,
 } from "./dryRunLogic";
-
-const SCAN_LIBRARY_PATH = routes.RenamerScanLibrary();
 
 // Only the latest scan's figures are kept, so a scan that finished after this one leaves nothing
 // here to read and the summary read answers 404.
@@ -117,13 +110,12 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
     // from the gap between the two scans, so the buffer and the ceiling start empty.
     samples.current = [];
     maxPercent.current = 0;
-    requestJson<ScanEnqueued>(SCAN_LIBRARY_PATH, {
-      method: "POST",
-      body: JSON.stringify({ options: optionsBlob } satisfies ScanLibraryRequest),
-    })
-      .then((res) => {
-        runId.current = res.runId;
-        setJobId(res.jobId);
+    renamerScanLibrary({ body: { options: optionsBlob } })
+      .then(({ data }) => {
+        // Without a run there is nothing to poll and nothing to read a summary from.
+        if (!data) throw new Error("scan-library answered with no run");
+        runId.current = data.runId;
+        setJobId(data.jobId);
       })
       .catch((err: unknown) => {
         setError(errorText(err));
@@ -138,9 +130,9 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         setError(failure);
         return;
       }
-      requestJson<ScanSummaryView>(routes.RenamerGetScanResult({ runId: runId.current ?? "" }))
-        .then((res) => {
-          setSummary(res);
+      renamerGetScanResult({ path: { runId: runId.current ?? "" } })
+        .then(({ data }) => {
+          if (data) setSummary(data);
         })
         .catch((err: unknown) => {
           setError(err instanceof ApiError && err.status === 404 ? SUPERSEDED : errorText(err));

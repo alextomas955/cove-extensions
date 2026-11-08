@@ -13,10 +13,11 @@
  */
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { requestJson, ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { routes } from "../wire/routes";
-import type { LastBatchSummary, UndoResult } from "../wire/api";
+import { renamerGetLastBatchOptions, renamerGetLastBatchQueryKey } from "../common/lib/wireQueries";
+import { renamerUndo } from "../wire";
+import type { LastBatchSummary } from "../wire";
 import {
   buildUndoFeedback,
   buildUndoRefused,
@@ -24,11 +25,8 @@ import {
   type UndoFeedback,
 } from "./undoLogic";
 
-const LAST_BATCH_PATH = routes.RenamerGetLastBatch();
-const UNDO_PATH = routes.RenamerUndo();
-
 /** The cache key the summary lives under. Exported so a rename elsewhere can invalidate it. */
-export const LAST_BATCH_KEY = ["renamer", "last-batch"] as const;
+export const LAST_BATCH_KEY = renamerGetLastBatchQueryKey();
 
 interface LastBatch {
   summary: LastBatchSummary | null;
@@ -44,15 +42,16 @@ interface LastBatch {
 export function useLastBatch(): LastBatch {
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: LAST_BATCH_KEY,
-    queryFn: ({ signal }) => requestJson<LastBatchSummary>(LAST_BATCH_PATH, { signal }),
-  });
+  const query = useQuery(renamerGetLastBatchOptions());
 
   const undo = useCallback(async (): Promise<UndoFeedback> => {
     try {
-      // /undo answers every arm with counts, so requestJson raises a bodyless reply as an ApiError.
-      return buildUndoFeedback(await requestJson<UndoResult>(UNDO_PATH, { method: "POST" }));
+      // /undo answers every arm with counts, so a reply carrying none says nothing about what the
+      // call did. Not an ApiError: the refusal arm below reports a move that did not happen, and
+      // this is the arm for an outcome nobody can state.
+      const { data } = await renamerUndo();
+      if (!data) throw new Error("undo answered with no counts");
+      return buildUndoFeedback(data);
     } catch (err) {
       // A refusal moved nothing. Any other failure leaves the outcome of a destructive call unknown.
       return err instanceof ApiError

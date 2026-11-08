@@ -13,82 +13,30 @@ import { readJson } from "./repo-files.mjs";
 
 const scriptRoot = path.resolve(import.meta.dirname, "..");
 
-// Types and nothing else. The default plugin set also emits a client, an SDK and their serializers:
-// runtime modules that would ship inside the bundle and call `fetch` directly, where every request
-// has to go through the host's `extensionFetch` to carry a credential.
-const GENERATOR_PLUGINS = ["@hey-api/typescript"];
+// Types, the fetch client, one function per operation, and the TanStack Query helpers over them.
+// Everything the UI needs to reach a route comes from the document: the path, the method, the
+// request body, the response, the error, and the query key.
+//
+// The client plugin takes a runtime config module from the consuming UI. That module is what binds
+// the host's authenticated `extensionFetch` in, so nothing generated here ever calls `fetch`
+// directly, where a request would carry no credential and answer 401.
+const CLIENT_CONFIG_SUBPATH = "src/common/lib/wireClient.ts";
+
+const generatorPlugins = (clientConfigPath) => [
+  "@hey-api/typescript",
+  { name: "@hey-api/client-fetch", runtimeConfigPath: clientConfigPath },
+  "@hey-api/sdk",
+  "@tanstack/react-query",
+];
 
 // Repo-relative and POSIX-spelled: path.join normalizes the separator, and the same string spells
 // the message a reader has to match against the catalog.
-const OUTPUT_SUBPATH = "src/wire/api.ts";
-const ROUTES_SUBPATH = "src/wire/routes.ts";
+//
+// A directory, not a file: the generator owns everything inside it and empties it on every run.
+const OUTPUT_SUBPATH = "src/wire";
+// Written by the generator; named here so a run that produced neither fails by name.
+const REQUIRED_OUTPUT = ["types.gen.ts", "sdk.gen.ts", "client.gen.ts"];
 const DOCUMENT_SUBPATH = "wire/openapi.json";
-
-// The request helpers prepend it, and `extensionFetch` refuses a path outside it, so a route that
-// carried it would address `/api/api/...`.
-const REQUEST_PREFIX = "/api";
-
-// A path item holds its operations under these keys and may carry `summary`, `description`,
-// `servers`, `parameters` or `$ref` beside them. Those are not operations, and reading one as an
-// operation with no `operationId` would fail the run over a key the document is entitled to carry.
-const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
-
-/** The TypeScript a path parameter's declared schema binds to. */
-function parameterType(schema) {
-  return schema?.type === "integer" || schema?.type === "number" ? "number" : "string";
-}
-
-/**
- * Emits one callable per operation, keyed by the `operationId` the backend declares.
- *
- * A function rather than a string because three routes take a path parameter: naming and encoding it
- * here is what keeps the template in the one module generated from the document. An operation with
- * no `operationId` is skipped by name, because the alternative is a key derived from the method and
- * path that silently renames itself whenever a route moves.
- */
-function routesModule(document) {
-  const lines = [];
-  const skipped = [];
-
-  for (const [route, methods] of Object.entries(document.paths ?? {})) {
-    for (const [method, operation] of Object.entries(methods)) {
-      if (!HTTP_METHODS.has(method)) continue;
-
-      const id = operation?.operationId;
-      if (!id) {
-        skipped.push(`${method.toUpperCase()} ${route}`);
-        continue;
-      }
-
-      const pathParams = (operation.parameters ?? []).filter((p) => p.in === "path");
-      const signature = pathParams.length
-        ? `p: { ${pathParams.map((p) => `${p.name}: ${parameterType(p.schema)}`).join("; ")} }`
-        : "";
-
-      let template = route.startsWith(REQUEST_PREFIX) ? route.slice(REQUEST_PREFIX.length) : route;
-      for (const p of pathParams) {
-        template = template.replace(`{${p.name}}`, `\${encodeURIComponent(String(p.${p.name}))}`);
-      }
-
-      lines.push(`  ${id}: (${signature}): string => \`${template}\`,`);
-    }
-  }
-
-  return {
-    skipped,
-    source: [
-      "// Generated from the committed OpenAPI document. Do not edit.",
-      "//",
-      "// One callable per operation, named by its operationId, so no call site writes a route out by",
-      `// hand. The paths carry no ${REQUEST_PREFIX} prefix: the request helpers add it.`,
-      "",
-      "export const routes = {",
-      ...lines,
-      "} as const;",
-      "",
-    ].join("\n"),
-  };
-}
 
 /**
  * The real document-to-types step.
@@ -103,19 +51,20 @@ function routesModule(document) {
  */
 async function generateWithHeyApi({ documentPath, outputPath, plugins }) {
   const { createClient } = await import("@hey-api/openapi-ts");
-  const outDir = path.dirname(outputPath);
 
-  // Emptied by the generator on every run, so nothing else may live here and anything written
-  // alongside the types has to be written after this call.
-  await createClient({ input: documentPath, output: outDir, plugins, logs: { level: "silent" } });
+  await createClient({
+    input: documentPath,
+    output: outputPath,
+    plugins,
+    logs: { level: "silent" },
+  });
 
-  const emitted = path.join(outDir, "types.gen.ts");
-  if (!fs.existsSync(emitted)) {
-    throw new Error(`the generator wrote no ${path.basename(emitted)} in ${outDir}`);
+  // The emit reports success for a run that wrote nothing a call site can import.
+  for (const required of REQUIRED_OUTPUT) {
+    if (!fs.existsSync(path.join(outputPath, required))) {
+      throw new Error(`the generator wrote no ${required} in ${outputPath}`);
+    }
   }
-  fs.renameSync(emitted, outputPath);
-  // Its re-export barrel names the file that just moved, so it resolves nothing.
-  fs.rmSync(path.join(outDir, "index.ts"), { force: true });
 }
 
 /**
@@ -168,23 +117,23 @@ export async function generateWireTypes({
       continue;
     }
 
-    await generate({ documentPath, outputPath, plugins: GENERATOR_PLUGINS, entry });
-
-    // After the types, never before: the generator empties the directory it writes into.
-    const routesPath = path.join(absoluteRoot, entry.uiPath, ROUTES_SUBPATH);
-    const routes = routesModule(readJson(documentPath));
-    fs.mkdirSync(path.dirname(routesPath), { recursive: true });
-    fs.writeFileSync(routesPath, routes.source);
-
-    // An unnamed operation is reachable only by a hand-written path, which is what this module
-    // exists to remove, so it is named here rather than left to be noticed at the call site.
-    for (const operation of routes.skipped) {
+    // Resolved against this entry's own UI, so the generated client binds that bundle's host fetch.
+    const clientConfigPath = path.join(absoluteRoot, entry.uiPath, CLIENT_CONFIG_SUBPATH);
+    if (!fs.existsSync(clientConfigPath)) {
       failures.push(
-        `UNNAMED: ${entry.id} declares ${operation} with no operationId, so no route is generated for it.`,
+        `MISSING: ${entry.id} declares a uiPath, so ${entry.uiPath}/${CLIENT_CONFIG_SUBPATH} must exist; it does not. Without it the generated client calls fetch directly and every request answers 401.`,
       );
+      continue;
     }
 
-    generated.push({ id: entry.id, documentPath, outputPath, routesPath });
+    await generate({
+      documentPath,
+      outputPath,
+      plugins: generatorPlugins(clientConfigPath),
+      entry,
+    });
+
+    generated.push({ id: entry.id, documentPath, outputPath });
   }
 
   // Reports what it examined, not only what it did: a run that inspected zero input and exited 0

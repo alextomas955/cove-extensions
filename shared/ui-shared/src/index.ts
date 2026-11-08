@@ -8,7 +8,6 @@ export * from "./layout";
 export * from "./feedback";
 export * from "./overlay";
 // `actions` is pure (zero-import), so re-exporting it here costs a consumer nothing. The SDK-touching
-// `postAction` is deliberately not re-exported - it is reached through its own `./postAction` subpath,
 // so importing this barrel never pulls `@cove/extension-sdk` into the consumer's graph.
 export * from "./actions";
 // Re-exported by name: `primitivesLogic` also declares a `RegexValidity` result interface whose name

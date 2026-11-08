@@ -10,13 +10,11 @@
  */
 import { useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanCursor, ScanRow, ScanRowsPage, ScanRowsRequest } from "../../wire/api";
-import { routes } from "../../wire/routes";
+import type { ScanCursor, ScanRow, ScanRowsPage } from "../../wire";
+import { renamerGetScanRows } from "../../wire";
 import { bucketWireValue, walkKey, type DryRunFilter } from "./dryRunLogic";
-
-const SCAN_ROWS_PATH = routes.RenamerGetScanRows();
 
 interface UseScanRows {
   rows: ScanRow[];
@@ -54,19 +52,24 @@ export function useScanRows(
     queryKey: ["renamer", "scan-rows", walkKey(query, bucket), optionsBlob],
     enabled,
     initialPageParam: null as ScanCursor | null,
-    queryFn: ({ pageParam, signal }) =>
-      requestJson<ScanRowsPage>(SCAN_ROWS_PATH, {
-        method: "POST",
-        body: JSON.stringify({
+    // The walk is an infinite query over a POST, which carries its cursor in the body, so the
+    // generated mutation helper does not fit and the operation is called directly.
+    queryFn: async ({ pageParam, signal }): Promise<ScanRowsPage> => {
+      const { data } = await renamerGetScanRows({
+        body: {
           options: optionsBlob,
           kind: pageParam?.kind ?? null,
           afterEntityId: pageParam?.afterEntityId ?? null,
           take: null,
           query,
           bucket: bucketWireValue(bucket),
-        } satisfies ScanRowsRequest),
+        },
         signal,
-      }),
+      });
+      // A page is the unit the walk advances on; without one there is no cursor to resume from.
+      if (!data) throw new Error("scan-rows answered with no page");
+      return data;
+    },
     // A page with no cursor is the end of the last readable kind.
     getNextPageParam: (last) => last.next,
     // A retry would issue a second read against a cursor the user has not asked to advance, and the

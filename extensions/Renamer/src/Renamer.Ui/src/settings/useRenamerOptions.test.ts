@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 // What the options hook shows from one `GET /options`, and what it sends back. The endpoint decides
 // whether a save is allowed, and a hook that ignored it would offer a Save the server refuses.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, cleanup, waitFor } from "@testing-library/react";
 
@@ -21,26 +24,33 @@ const endpoint = vi.hoisted(() => ({
   releaseRead: (): void => undefined,
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: async () => {
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the hook really issues.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: async (path: string, init: RequestInit) => {
+    const json = (value: unknown, status = 200) =>
+      new Response(value === undefined ? null : JSON.stringify(value), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    if (String(init.method).toUpperCase() === "PUT") {
+      const body = JSON.parse(init.body as string) as RenamerOptions;
+      endpoint.sent.push({ path, method: String(init.method), body });
+      // The PUT replaces the whole document, so a later GET answers with what was written and no
+      // longer reports the blob unreadable. Modelled here because the hook asks the server rather
+      // than assuming either.
+      if (endpoint.view) endpoint.view = { ...endpoint.view, options: body, unreadable: false };
+      return json(undefined, 204);
+    }
+
     if (endpoint.holdNextRead) {
       endpoint.holdNextRead = false;
       await new Promise<void>((resolve) => {
         endpoint.releaseRead = resolve;
       });
     }
-    return structuredClone(endpoint.view);
-  },
-  request: (path: string, init: RequestInit) => {
-    const body = JSON.parse(init.body as string) as RenamerOptions;
-    endpoint.sent.push({ path, method: String(init.method), body });
-    // The PUT replaces the whole document, so a later GET answers with what was written and no
-    // longer reports the blob unreadable. Modelled here because the hook asks the server rather
-    // than assuming either.
-    if (endpoint.view) endpoint.view = { ...endpoint.view, options: body, unreadable: false };
-    return Promise.resolve(undefined);
+    return json(structuredClone(endpoint.view));
   },
 }));
 

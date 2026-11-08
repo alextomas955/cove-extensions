@@ -2,7 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildUndoFeedback, buildUndoStatus } from "./undoLogic";
-import type { LastBatchSummary, UndoResult } from "../wire/api";
+import type { LastBatchSummary, UndoResult } from "../wire";
 
 // The gap this fixture puts between a batch opening and expiring. It is test data, not a copy of
 // the server's retention window: the response states the expiry and nothing here computes it. Seven

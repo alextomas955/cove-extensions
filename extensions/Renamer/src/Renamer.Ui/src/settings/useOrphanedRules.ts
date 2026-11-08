@@ -10,12 +10,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
-
-import { routes } from "../wire/routes";
-import type { OrphanedRulesView } from "../wire/api";
-
-const ORPHANED_RULES_PATH = routes.RenamerGetOrphanedRules();
+import { renamerGetOrphanedRulesOptions } from "../common/lib/wireQueries";
 
 /** Rule keys whose entity is gone, as sets for a per-row lookup. */
 interface OrphanedRules {
@@ -29,8 +24,7 @@ export function useOrphanedRules(): OrphanedRules {
   // The sets are built in `select` rather than on each render, so a row's lookup compares against the
   // same object until the response itself changes.
   const query = useQuery({
-    queryKey: ["renamer", "orphaned-rules"],
-    queryFn: ({ signal }) => requestJson<OrphanedRulesView>(ORPHANED_RULES_PATH, { signal }),
+    ...renamerGetOrphanedRulesOptions(),
     select: (view): OrphanedRules => ({
       studios: new Set(view.studios),
       tags: new Set(view.tags),

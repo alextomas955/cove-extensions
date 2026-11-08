@@ -3,6 +3,9 @@
 // loop over a scripted job-status route, with the two tuning constants shrunk so a bound is reached
 // on the second poll, and asserts what a user notices: the requests stop and the button comes back
 // with a banner. The clock is fake, so the test that asserts nothing happens meanwhile costs nothing.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { renderHook, cleanup, act } from "@testing-library/react";
@@ -12,11 +15,7 @@ import { createTestQueryClient } from "../common/lib/testQueryClient";
 
 import { useRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
-import type {
-  LibraryRenameEnqueued,
-  LibraryRenameSummaryView,
-  RenamerJobStatus,
-} from "../wire/api";
+import type { LibraryRenameEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
 interface EndpointScript {
@@ -37,17 +36,22 @@ const host = vi.hoisted((): EndpointScript => ({
   summary: null,
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (path: string) => {
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the hook really issues.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (path: string) => {
+    const json = (value: unknown, status = 200) =>
+      Promise.resolve(
+        new Response(value === undefined ? null : JSON.stringify(value), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     host.reads.push(path);
     if (path.includes("/last-library-rename")) {
-      return host.summary === null
-        ? Promise.reject(new Error("500 boom"))
-        : Promise.resolve(host.summary);
+      return host.summary === null ? json("boom", 500) : json(host.summary);
     }
-    return Promise.resolve(
+    return json(
       path.includes("/job-status/")
         ? ({
             id: "job-under-test",
@@ -168,9 +172,9 @@ test("a completed job still resolves through the same poll", async () => {
   // The rename POST, exactly one job read, then the job's own counts. No scan runs first. The paths
   // are written out rather than built from the route helper the code under test uses.
   expect(host.reads).toEqual([
-    "/extensions/com.alextomas955.renamer/renamer-library",
-    "/extensions/com.alextomas955.renamer/job-status/job-under-test",
-    "/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
+    "/api/extensions/com.alextomas955.renamer/renamer-library",
+    "/api/extensions/com.alextomas955.renamer/job-status/job-under-test",
+    "/api/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
   ]);
 });
 

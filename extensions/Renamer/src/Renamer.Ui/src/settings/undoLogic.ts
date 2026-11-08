@@ -6,7 +6,7 @@
  * sample's length would under-report a large undo.
  */
 
-import type { LastBatchSummary, UndoResult } from "../wire/api";
+import type { LastBatchSummary, UndoResult } from "../wire";
 
 // .NET ticks are 100 ns since 0001-01-01. The epoch offset in ticks exceeds the safe-integer range as
 // a literal, so it is built from two safe factors.

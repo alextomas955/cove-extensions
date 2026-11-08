@@ -8,14 +8,11 @@
  * `previewError`; an abort raises nothing, because the hook caused it.
  */
 import { useEffect, useRef, useState } from "react";
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
-
 import { type RenamerOptions } from "./options";
 import { decideSettledPreview } from "./previewRequestLogic";
-import type { PreviewSampleRequest, PreviewSampleResult } from "../wire/api";
-import { routes } from "../wire/routes";
+import type { PreviewSampleResult } from "../wire";
+import { renamerPreviewSample } from "../wire";
 
-const PREVIEW_PATH = routes.RenamerPreviewSample();
 const PREVIEW_DEBOUNCE_MS = 250;
 
 export interface UseRenamePreview {
@@ -43,12 +40,9 @@ export function useRenamePreview(
     const issued = generation.current;
     const controller = new AbortController();
     const handle = setTimeout(() => {
-      requestJson<PreviewSampleResult[]>(PREVIEW_PATH, {
-        method: "POST",
-        body: JSON.stringify({ options } satisfies PreviewSampleRequest),
-        signal: controller.signal,
-      })
-        .then((res) => {
+      renamerPreviewSample({ body: { options }, signal: controller.signal })
+        .then(({ data }) => {
+          const res = data ?? [];
           if (
             decideSettledPreview(
               { generation: issued, outcome: "resolved" },

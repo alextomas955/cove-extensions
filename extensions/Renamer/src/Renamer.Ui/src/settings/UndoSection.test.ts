@@ -1,36 +1,37 @@
 // @vitest-environment jsdom
 // What the panel says after an undo whose outcome nobody knows. `/undo` cannot be repeated, so a
 // transport failure, where the server may have restored all, part or none of the batch, must never
-// read as a confident success. The request module is the one stand-in.
+// read as a confident success. The host's own fetch is the one stand-in.
+// Registers the interceptor that turns a refused request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { withQueryClient } from "../common/lib/testQueryClient";
-import type { LastBatchSummary, UndoResult } from "../wire/api";
+import type { LastBatchSummary, UndoResult } from "../wire";
 
 const server = vi.hoisted(() => ({
-  // Rejection handed to the undo POST, or null to answer it with a clean full restore.
-  undoRejection: null as Error | null,
+  // How the undo POST ends: an Error the request fails with before any reply, a status the server
+  // answers with, or null for a clean full restore. The two failures are different arms - only a
+  // status means the server was reached and said no.
+  undoFailure: null as Error | { status: number; body: string } | null,
 }));
 
-class FakeApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: string,
-  ) {
-    super(`${status} ${body}`);
-  }
-}
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (_path: string, init: RequestInit) => {
+    const json = (value: unknown, status = 200) =>
+      Promise.resolve(
+        new Response(typeof value === "string" ? value : JSON.stringify(value), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: FakeApiError,
-  errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  requestJson: (_path: string, options?: { method?: string }) => {
-    if (options?.method !== "POST") {
+    if (String(init.method).toUpperCase() !== "POST") {
       // Written just now, so the panel offers the button rather than an expired line.
-      return Promise.resolve({
+      return json({
         hasBatch: true,
         count: 4,
         remainingCount: 4,
@@ -41,17 +42,18 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
         consumed: false,
       } satisfies LastBatchSummary);
     }
-    return server.undoRejection === null
-      ? Promise.resolve({
-          undone: 4,
-          failedCount: 0,
-          failedSample: [],
-          skippedCount: 0,
-          skippedSample: [],
-          warningCount: 0,
-          warningSample: [],
-        } satisfies UndoResult)
-      : Promise.reject(server.undoRejection);
+
+    if (server.undoFailure instanceof Error) return Promise.reject(server.undoFailure);
+    if (server.undoFailure) return json(server.undoFailure.body, server.undoFailure.status);
+    return json({
+      undone: 4,
+      failedCount: 0,
+      failedSample: [],
+      skippedCount: 0,
+      skippedSample: [],
+      warningCount: 0,
+      warningSample: [],
+    } satisfies UndoResult);
   },
 }));
 
@@ -77,19 +79,18 @@ async function undoAndReadFeedback(): Promise<string> {
 }
 
 beforeEach(() => {
-  server.undoRejection = null;
+  server.undoFailure = null;
 });
 
 afterEach(cleanup);
 
-// `requestJson` raises its own ApiError for an empty body, so any other rejection is a request whose
-// fate is unknown: the connection dropped, or the body would not parse. The server may already have
-// moved part or all of the batch back.
+// A request that failed before any reply has an unknown fate: the connection dropped, or the body
+// would not parse. The server may already have moved part or all of the batch back.
 test.each([
   ["a dropped connection", new TypeError("Failed to fetch")],
   ["a malformed body", new SyntaxError("Unexpected token < in JSON at position 0")],
 ])("an undo lost to %s is not reported as a completed undo", async (_case, rejection) => {
-  server.undoRejection = rejection;
+  server.undoFailure = rejection;
   const text = await undoAndReadFeedback();
 
   expect(text).not.toContain("Undone: ");
@@ -100,9 +101,9 @@ test.each([
   expect(text).toMatch(/check the batch/i);
 });
 
-test("a real ApiError still reads as a failure that changed nothing", async () => {
+test("a refusal the server answered still reads as a failure that changed nothing", async () => {
   // The server answered that it refused, so the batch is untouched and saying so is correct here.
-  server.undoRejection = new FakeApiError(403, "forbidden");
+  server.undoFailure = { status: 403, body: "forbidden" };
   const text = await undoAndReadFeedback();
 
   expect(text).toMatch(/couldn't undo/i);

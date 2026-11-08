@@ -5,13 +5,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type {
-  LibraryRenameEnqueued,
-  LibraryRenameSummaryView,
-  RenamerJobStatus,
-} from "../wire/api";
+import type { RenamerJobStatus } from "../wire";
 import { JobUnresponsiveError } from "./jobPollLogic";
 import { pollJob } from "./jobStatusStore";
 import {
@@ -19,10 +15,8 @@ import {
   buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
-import { routes } from "../wire/routes";
+import { renamerGetLibraryRenameResult, renamerRenameLibrary } from "../wire";
 import { LAST_BATCH_KEY } from "./useLastBatch";
-
-const RENAME_LIBRARY_PATH = routes.RenamerRenameLibrary();
 
 export type RunLibraryFeedback =
   { kind: "success"; text: string } | { kind: "error"; text: string } | null;
@@ -86,9 +80,10 @@ export function useRenameLibrary(): UseRenameLibrary {
     // Whether the job was accepted. From then on a failure may follow renames that already happened.
     let started = false;
     try {
-      const { jobId, runId } = await requestJson<LibraryRenameEnqueued>(RENAME_LIBRARY_PATH, {
-        method: "POST",
-      });
+      const { data: enqueued } = await renamerRenameLibrary();
+      // Nothing was accepted, so the catch below reporting the library untouched is correct.
+      if (!enqueued) throw new Error("renamer-library answered with no run");
+      const { jobId, runId } = enqueued;
       started = true;
       await runPoll(jobId, (job) => {
         if (mounted.current)
@@ -100,9 +95,9 @@ export function useRenameLibrary(): UseRenameLibrary {
       });
       // The job has completed, so a failed read of its counts must not land in the catch below,
       // which reports the library as untouched.
-      const summary = await requestJson<LibraryRenameSummaryView>(
-        routes.RenamerGetLibraryRenameResult({ runId }),
-      ).catch(() => null);
+      const summary = await renamerGetLibraryRenameResult({ path: { runId } })
+        .then(({ data }) => data ?? null)
+        .catch(() => null);
 
       if (!mounted.current) return;
       setDryRunOpen(false);

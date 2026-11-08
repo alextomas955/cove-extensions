@@ -38,7 +38,6 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
   // Anchored on the factory's own location so no consumer restates the relative climb to shared/.
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");
-  const sharedSrcPostAction = path.resolve(factoryDir, "../src/postAction.ts");
   const sharedSrcExtensionRequest = path.resolve(factoryDir, "../src/extensionRequest.ts");
   // The SDK is vendored per-UI (this package has no node_modules), so its bare specifier will not
   // resolve from the aliased shared source unless it is pinned to the consuming UI's own copy.
@@ -65,7 +64,6 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
       // Vite string-alias matching is prefix-based, so every subpath must be listed before the bare
       // barrel entry or the barrel would match it first.
       alias: {
-        "@cove-extensions/ui-shared/postAction": sharedSrcPostAction,
         "@cove-extensions/ui-shared/extensionRequest": sharedSrcExtensionRequest,
         "@cove-extensions/ui-shared": sharedSrcIndex,
         "@cove/extension-sdk": sdkDir,

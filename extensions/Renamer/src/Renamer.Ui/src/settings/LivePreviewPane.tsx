@@ -3,7 +3,7 @@
  * of Cove's own navbar, so it stays visible while the filename card scrolls.
  */
 import { PreviewCard } from "./PreviewCard";
-import type { PreviewSampleResult } from "../wire/api";
+import type { PreviewSampleResult } from "../wire";
 import { StatusText, Spinner } from "@cove-extensions/ui-shared";
 
 interface LivePreviewPaneProps {

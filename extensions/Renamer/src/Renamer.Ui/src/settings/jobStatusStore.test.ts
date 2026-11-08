@@ -1,8 +1,10 @@
 // The scheduling around the poll, which jobPollLogic's tests cannot see: how many reads are in
 // flight, when the next one starts, and what a read that settles after the poll stopped does.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import type { RenamerJobStatus } from "../wire/api";
+import type { RenamerJobStatus } from "../wire";
 
 const host = vi.hoisted(() => ({
   // Resolves or rejects each read in call order; a test pushes one entry per read it expects.
@@ -13,17 +15,26 @@ const host = vi.hoisted(() => ({
   maxInFlight: 0,
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (path: string) => {
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the store really issues. A
+// scripted answer still resolves a value; it is wrapped in the response that carries it.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (path: string) => {
     host.calls.push(path);
     host.inFlight += 1;
     host.maxInFlight = Math.max(host.maxInFlight, host.inFlight);
     const next = host.answers.shift() ?? (() => Promise.reject(new Error("unscripted read")));
-    return next().finally(() => {
-      host.inFlight -= 1;
-    });
+    return next()
+      .then(
+        (value) =>
+          new Response(JSON.stringify(value), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      )
+      .finally(() => {
+        host.inFlight -= 1;
+      });
   },
 }));
 

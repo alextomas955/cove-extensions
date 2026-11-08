@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-import type { PreviewSampleResult } from "../wire/api";
+import type { PreviewSampleResult } from "../wire";
 
 /** The user-facing copy for one flag the server emits, or null for a flag with no line to show. */
 function flagMessage(flag: string, r: PreviewSampleResult): string | null {
