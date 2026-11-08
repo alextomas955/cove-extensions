@@ -22,10 +22,10 @@ export const JOB_STALL_BUDGET_MS = 10 * 60 * 1000;
 export const JOB_FAILURE_ALLOWANCE = 30;
 
 /** The wait between a settled read and the next one, while the job is answering. */
-export const JOB_POLL_INTERVAL_MS = 1000;
+const JOB_POLL_INTERVAL_MS = 1000;
 
 /** The longest the backoff waits, so a host that comes back is noticed within a few seconds. */
-export const JOB_POLL_MAX_BACKOFF_MS = 4000;
+const JOB_POLL_MAX_BACKOFF_MS = 4000;
 
 /**
  * How long to wait before the next read, given how many reads in a row have failed.
