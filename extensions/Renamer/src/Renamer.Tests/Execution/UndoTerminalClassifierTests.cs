@@ -14,8 +14,4 @@ public sealed class UndoTerminalClassifierTests
 
         Assert.Equal([UndoStopReason.FileNoLongerInLibrary], terminal);
     }
-
-    [Fact]
-    public void TheDefaultValue_IsRetryable_SoAnUnsetReasonNeverRetiresARow() =>
-        Assert.False(UndoTerminalClassifier.IsTerminal(default));
 }

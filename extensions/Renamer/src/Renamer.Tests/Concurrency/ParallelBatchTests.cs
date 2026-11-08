@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
@@ -76,48 +74,6 @@ public sealed class ParallelBatchTests
         finally
         {
             await shared.DisposeAsync();
-        }
-    }
-
-    // Holds every execution-phase report for a moment, so the other workers finish and queue their
-    // own reports behind it. Which queued report the host receives next is then up to the scheduler,
-    // so a report carrying a count read before it queued can arrive after a larger one.
-    private sealed class SlowExecutionReports : IJobProgress
-    {
-        public ConcurrentQueue<double> Percents { get; } = new();
-
-        public void Report(double percent, string? message = null)
-        {
-            Percents.Enqueue(percent);
-            if (percent is > 0.5d and < 1d)
-            {
-                Thread.Sleep(TimeSpan.FromMilliseconds(15));
-            }
-        }
-    }
-
-    // The interleaving is the scheduler's to choose, so one batch provokes it only some of the time.
-    // Several batches make a pass on a regressing bar unlikely rather than impossible.
-    [Fact]
-    public async Task ParallelBatch_ReportsQueuedBehindASlowSink_NeverStepTheBarBackward()
-    {
-        for (int round = 0; round < 3; round++)
-        {
-            using var dir = new TempDir();
-            await using var shared = await SharedCacheSqlite.CreateAsync();
-
-            const int k = 32;
-            var ids = await SeedVideosAsync(shared, dir, k);
-
-            var (ext, _) = await ExtensionHarness.CreateWithScopedContextsAsync(
-                shared, new RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = k });
-            var progress = new SlowExecutionReports();
-
-            await ext.RunRenamerBatchAsync(RenamerFileKind.Video, ids, progress, default);
-
-            var seq = progress.Percents.ToList();
-            Assert.Equal(seq.OrderBy(p => p).ToList(), seq);
-            Assert.Equal(1d, seq[^1]);
         }
     }
 

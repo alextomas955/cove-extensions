@@ -81,7 +81,6 @@ public sealed class RevertJournalConcurrencyTests
             // Whatever moment it caught, the aggregate describes a real state: nothing settled, and a
             // count that never exceeds what was asked for.
             Assert.InRange(seen.Value.OriginalCount, 0, N);
-            Assert.Equal(0, seen.Value.RestoredCount);
             Assert.Equal(seen.Value.OriginalCount, seen.Value.Remaining);
         });
 

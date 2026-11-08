@@ -66,7 +66,9 @@ public sealed class JobStatusEndpointTests
     public void UnknownJobId_IsNotFound()
     {
         var ext = RenamerFixture.CreateWithStore();
-        var jobs = new RecordingJobService(job: null);
+        // A real job this caller owns, under a different id. With no job at all the owner check
+        // refuses first and the id is never compared, so the name would not be what produced the 404.
+        var jobs = new RecordingJobService(Job("job-7", OwnScanJob, JobStatus.Running), OwnerOfReader);
 
         Assert.IsType<NotFound>(Unwrap(ext.JobStatus("no-such-job", Reader, jobs)));
     }

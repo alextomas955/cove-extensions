@@ -66,32 +66,28 @@ public sealed class AuthorizedPagingTests
         }
     }
 
-    [Fact]
-    public async Task ADeniedEntityInTheFirstPage_LeavesTheRestOfTheWalkRenamed()
+    [Theory]
+    // One denial inside the first page of two.
+    [InlineData(new[] { 0 }, new[] { 1, 2, 3 })]
+    // The whole first page denied: an empty allowed page must not read as the end of the walk.
+    [InlineData(new[] { 0, 1 }, new[] { 2, 3 })]
+    public async Task DeniedEntitiesStayAtTheirSource_AndTheWalkRenamesTheRest(
+        int[] denied, int[] expectedRenamed)
     {
         using var dir = new TempDir();
 
-        await RunOverFourVideosAsync(dir, 0);
+        await RunOverFourVideosAsync(dir, denied);
 
-        Assert.True(File.Exists(Path.Combine(dir.Root, "raw 0.mkv")), "the denied entity must not move");
-        Assert.False(File.Exists(Path.Combine(dir.Root, "Film 0.mkv")));
-        for (int i = 1; i < 4; i++)
+        foreach (int i in denied)
+        {
+            Assert.True(File.Exists(Path.Combine(dir.Root, $"raw {i}.mkv")), $"the denied entity {i} must not move");
+            Assert.False(File.Exists(Path.Combine(dir.Root, $"Film {i}.mkv")));
+        }
+
+        foreach (int i in expectedRenamed)
         {
             Assert.True(File.Exists(Path.Combine(dir.Root, $"Film {i}.mkv")), $"Film {i}.mkv missing");
         }
-    }
-
-    [Fact]
-    public async Task AFullyDeniedPage_DoesNotEndTheWalk()
-    {
-        using var dir = new TempDir();
-
-        await RunOverFourVideosAsync(dir, 0, 1);
-
-        Assert.True(File.Exists(Path.Combine(dir.Root, "raw 0.mkv")));
-        Assert.True(File.Exists(Path.Combine(dir.Root, "raw 1.mkv")));
-        Assert.True(File.Exists(Path.Combine(dir.Root, "Film 2.mkv")), "Film 2.mkv missing");
-        Assert.True(File.Exists(Path.Combine(dir.Root, "Film 3.mkv")), "Film 3.mkv missing");
     }
 
     [Fact]
@@ -103,6 +99,6 @@ public sealed class AuthorizedPagingTests
             dir, count: 12, chunkEntities: 4, [3, 4, 5, 6, 7, 8, 9, 10]);
 
         Assert.Equal(12, authz.Asked.Count);
-        Assert.True(authz.BatchCalls <= 4, $"12 entities over pages of 4 took {authz.BatchCalls} calls");
+        Assert.Equal(3, authz.BatchCalls);
     }
 }

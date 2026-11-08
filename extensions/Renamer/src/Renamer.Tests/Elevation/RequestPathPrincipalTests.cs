@@ -96,7 +96,6 @@ public sealed class RequestPathPrincipalTests
         // Non-empty first: a handler that reached no database at all would satisfy every verdict below.
         Assert.NotEmpty(recorded);
         Assert.All(recorded, c => Assert.Equal(PrincipalKind.User, c.Principal));
-        Assert.DoesNotContain(PrincipalKind.System, recorded.Select(c => c.Principal));
     }
 
     // A present, unprivileged-beyond-these-keys user principal - never a null accessor.

@@ -78,15 +78,26 @@ public sealed class OptionsEndpointTests
 
     // The panel's type drops the generated optional markers, so every member has to be on the wire. A
     // member the server omitted would read as undefined behind a type that says it cannot be.
+    //
+    // Compared against the committed wire document, which is what the TypeScript types are generated
+    // from, rather than against RenamerOptions itself: reading the expected names off the same type
+    // the response is serialized from makes the two agree whatever either does, and a property the
+    // model declares but never serializes is not a defect this test should report.
     [Fact]
-    public async Task Get_WritesEveryMemberTheModelDeclares()
+    public async Task Get_WritesEveryMemberTheWireDocumentDeclares()
     {
         await using var host = await TransportHost.BootAsync(Configurer());
 
         var options = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!.AsObject();
-        var declared = typeof(RenamerOptions)
-            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .Select(p => JsonNamingPolicy.CamelCase.ConvertName(p.Name))
+
+        using var document = JsonDocument.Parse(
+            await File.ReadAllTextAsync(
+                ExtensionOpenApiDocumentTests.CommittedDocumentPath(RenamerFixture.Manifest.Id)));
+        var declared = document.RootElement
+            .GetProperty("components").GetProperty("schemas").GetProperty(nameof(RenamerOptions))
+            .GetProperty("properties")
+            .EnumerateObject()
+            .Select(property => property.Name)
             .Order(StringComparer.Ordinal);
 
         Assert.Equal(declared, options.Select(entry => entry.Key).Order(StringComparer.Ordinal));

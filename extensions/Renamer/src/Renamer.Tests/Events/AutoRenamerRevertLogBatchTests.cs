@@ -49,7 +49,6 @@ public sealed class AutoRenamerRevertLogBatchTests
             var entry = Assert.Single(batch.Rows);
             Assert.Equal(videoId, entry.EntityId);
             Assert.Equal(fileId, entry.FileId);
-            Assert.NotEqual(entry.EntityId, entry.FileId);
 
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
@@ -70,7 +69,6 @@ public sealed class AutoRenamerRevertLogBatchTests
             // The undo republishes the entity the row names, not its file.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(undoBus.Published));
             Assert.Equal(videoId, evt.EntityId);
-            Assert.NotEqual(fileId, evt.EntityId);
         }
         finally
         {

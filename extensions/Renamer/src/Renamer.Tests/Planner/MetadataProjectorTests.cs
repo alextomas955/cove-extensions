@@ -109,48 +109,51 @@ public sealed class MetadataProjectorTests
         Assert.Equal(["hd", "fav"], multi[Tokens.Tags]);
     }
 
-    [Fact]
-    public void Audio_Omits_VideoCodec_FrameRate_Width_Height()
+    // The projector has no branch on file kind at all: every media token is a null test around a Put
+    // that skips a null or empty value. So the rule is about the stored value, not the kind, and one
+    // theory covers audio, image and a video carrying nothing for the entity-level tokens. Absent -
+    // not empty-string - is what lets the engine's {} groups collapse.
+    [Theory]
+    [MemberData(nameof(FilesWithTokensThatHaveNoStoredValue))]
+    public void ATokenWithNoStoredValue_IsAbsent_NotEmptyString_WhateverTheFileKind(
+        RenamerFile file, string[] expectedPresent, string[] expectedAbsent)
     {
-        var file = new RenamerFile(
-            FileId: 2, Kind: RenamerFileKind.Audio, Basename: "song.mp3", ParentFolderId: 6,
-            ParentFolderPath: "media/audio", Format: "mp3",
-            Duration: 200, AudioCodec: "mp3");
         var entity = new RenamerEntity(
-            EntityId: 20, Kind: RenamerFileKind.Audio, Title: "Track", Code: null, StudioName: null,
+            EntityId: 20, Kind: file.Kind, Title: "Item", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
-        Assert.Equal("Track", tokens[Tokens.Title]);
-        Assert.Equal("mp3", tokens[Tokens.AudioCodec]);
-        // Absent - not empty-string - so the engine's {} collapse drops them.
-        Assert.False(tokens.ContainsKey(Tokens.VideoCodec));
-        Assert.False(tokens.ContainsKey(Tokens.FrameRate));
-        Assert.False(tokens.ContainsKey(Tokens.Width));
-        Assert.False(tokens.ContainsKey(Tokens.Height));
+        Assert.All(expectedPresent, token => Assert.True(tokens.ContainsKey(token), $"{token} is absent"));
+        Assert.All(expectedAbsent, token => Assert.False(tokens.ContainsKey(token), $"{token} is present"));
     }
 
-    [Fact]
-    public void Image_Omits_Video_And_Audio_Only_Tokens()
+    public static TheoryData<RenamerFile, string[], string[]> FilesWithTokensThatHaveNoStoredValue() => new()
     {
-        var file = new RenamerFile(
-            FileId: 3, Kind: RenamerFileKind.Image, Basename: "pic.jpg", ParentFolderId: 7,
-            ParentFolderPath: "media/images", Format: "jpg",
-            Width: 800, Height: 600);
-        var entity = new RenamerEntity(
-            EntityId: 30, Kind: RenamerFileKind.Image, Title: "Shot", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
-
-        var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
-
-        Assert.Equal("800", tokens[Tokens.Width]);
-        Assert.Equal("600", tokens[Tokens.Height]);
-        Assert.False(tokens.ContainsKey(Tokens.VideoCodec));
-        Assert.False(tokens.ContainsKey(Tokens.AudioCodec));
-        Assert.False(tokens.ContainsKey(Tokens.FrameRate));
-        Assert.False(tokens.ContainsKey(Tokens.Duration));
-    }
+        {
+            new RenamerFile(
+                FileId: 2, Kind: RenamerFileKind.Audio, Basename: "song.mp3", ParentFolderId: 6,
+                ParentFolderPath: "media/audio", Format: "mp3",
+                Duration: 200, AudioCodec: "mp3"),
+            [Tokens.AudioCodec, Tokens.Duration],
+            [Tokens.VideoCodec, Tokens.FrameRate, Tokens.Width, Tokens.Height]
+        },
+        {
+            new RenamerFile(
+                FileId: 3, Kind: RenamerFileKind.Image, Basename: "pic.jpg", ParentFolderId: 7,
+                ParentFolderPath: "media/images", Format: "jpg",
+                Width: 800, Height: 600),
+            [Tokens.Width, Tokens.Height],
+            [Tokens.VideoCodec, Tokens.AudioCodec, Tokens.FrameRate, Tokens.Duration]
+        },
+        {
+            // A fully measured video file, with no bitrate on the file and no parent studio or
+            // director on the entity.
+            VideoFileRow(),
+            [Tokens.VideoCodec, Tokens.AudioCodec, Tokens.FrameRate, Tokens.Width, Tokens.Height],
+            [Tokens.Bitrate, Tokens.ParentStudio, Tokens.Director]
+        },
+    };
 
     [Fact]
     public void EmptyScalars_AreOmitted_NotEmptyString()
@@ -241,21 +244,6 @@ public sealed class MetadataProjectorTests
         Assert.Equal("Acme Parent", tokens[Tokens.ParentStudio]);  // NEAREST parent (nearest-first)
         Assert.Equal("Jane Roe", tokens[Tokens.Director]);
         Assert.Equal("8000", tokens[Tokens.Bitrate]);              // bits/sec → kbps
-    }
-
-    [Fact]
-    public void NewTokens_AreOmitted_WhenAbsent()
-    {
-        // A video with no parent studio, no director, no bitrate → all three tokens absent
-        // (omit-not-blank, so a `{}` group collapses cleanly).
-        var file = VideoFileRow();                 // BitRate defaults null
-        var entity = VideoEntity(file);            // Director + ParentStudios default null
-
-        var (tokens, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
-
-        Assert.False(tokens.ContainsKey(Tokens.ParentStudio));
-        Assert.False(tokens.ContainsKey(Tokens.Director));
-        Assert.False(tokens.ContainsKey(Tokens.Bitrate));
     }
 
     // ---- filename-as-title fallback ----

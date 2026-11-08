@@ -7,42 +7,21 @@ public class FieldRewriterTests
 {
     // ---- squeeze_studio_names ----
 
-    [Fact]
-    public void Squeeze_TwoSpacingVariants_ProduceOneIdenticalStudioKey()
+    [Theory]
+    // Canonical regression: two spacing variants of one studio must collapse to one key.
+    [InlineData(true, Tokens.Studio, "Reality Kings", "RealityKings")]
+    [InlineData(true, Tokens.Studio, "RealityKings", "RealityKings")]
+    [InlineData(true, Tokens.Studio, "A B C", "ABC")]
+    [InlineData(true, Tokens.Title, "Reality Kings", "Reality Kings")]
+    // Token name compared case-insensitively against Tokens.Studio.
+    [InlineData(true, "STUDIO", "Reality Kings", "RealityKings")]
+    // SqueezeStudioNames defaults false.
+    [InlineData(false, Tokens.Studio, "Reality Kings", "Reality Kings")]
+    public void Squeeze_RemovesEverySpaceFromTheStudioToken_WhenEnabled(
+        bool squeeze, string token, string input, string expected)
     {
-        // Canonical regression: two spacing variants of one studio must collapse to one key.
-        var o = new RenamerOptions { SqueezeStudioNames = true };
-        Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "Reality Kings", o));
-        Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "RealityKings", o));
-    }
-
-    [Fact]
-    public void Squeeze_RemovesAllSpaces_NotJustCollapse()
-    {
-        var o = new RenamerOptions { SqueezeStudioNames = true };
-        Assert.Equal("ABC", FieldRewriter.RewriteScalar(Tokens.Studio, "A B C", o));
-    }
-
-    [Fact]
-    public void Squeeze_TargetsStudioOnly_TitleUntouched()
-    {
-        var o = new RenamerOptions { SqueezeStudioNames = true };
-        Assert.Equal("Reality Kings", FieldRewriter.RewriteScalar(Tokens.Title, "Reality Kings", o));
-    }
-
-    [Fact]
-    public void Squeeze_CaseInsensitiveTokenName()
-    {
-        var o = new RenamerOptions { SqueezeStudioNames = true };
-        // Token name compared case-insensitively against Tokens.Studio.
-        Assert.Equal("RealityKings", FieldRewriter.RewriteScalar("STUDIO", "Reality Kings", o));
-    }
-
-    [Fact]
-    public void Squeeze_OffByDefault_StudioUnchanged()
-    {
-        var o = new RenamerOptions(); // SqueezeStudioNames defaults false
-        Assert.Equal("Reality Kings", FieldRewriter.RewriteScalar(Tokens.Studio, "Reality Kings", o));
+        var o = new RenamerOptions { SqueezeStudioNames = squeeze };
+        Assert.Equal(expected, FieldRewriter.RewriteScalar(token, input, o));
     }
 
     // ---- field_replacer ----
@@ -116,58 +95,24 @@ public class FieldRewriterTests
     // ---- prepositions_removal ----
 
     [Theory]
-    [InlineData("The Matrix", "Matrix")]
-    [InlineData("A Movie", "Movie")]
-    [InlineData("An Apple", "Apple")]
-    public void Article_StripsSingleLeadingArticle(string input, string expected)
+    [InlineData(true, Tokens.Title, "The Matrix", "Matrix")]
+    [InlineData(true, Tokens.Title, "A Movie", "Movie")]
+    [InlineData(true, Tokens.Title, "An Apple", "Apple")]
+    // "Theatre" starts with "The" but the next char is a letter, not whitespace.
+    [InlineData(true, Tokens.Title, "Theatre", "Theatre")]
+    [InlineData(true, Tokens.Title, "Live The Dream", "Live The Dream")]
+    [InlineData(true, Tokens.Title, "the matrix", "matrix")]
+    // Only the single leading "The" is removed, leaving "The End".
+    [InlineData(true, Tokens.Title, "The The End", "The End")]
+    // $studio is not targeted by the article strip.
+    [InlineData(true, Tokens.Studio, "The Studio", "The Studio")]
+    // StripLeadingArticles defaults false.
+    [InlineData(false, Tokens.Title, "The Matrix", "The Matrix")]
+    public void Article_StripsAtMostOneLeadingArticle_FromTheTitle_WhenEnabled(
+        bool strip, string token, string input, string expected)
     {
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        Assert.Equal(expected, FieldRewriter.RewriteScalar(Tokens.Title, input, o));
-    }
-
-    [Fact]
-    public void Article_Theatre_Untouched()
-    {
-        // "Theatre" starts with "The" but the next char is a letter, not whitespace.
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        Assert.Equal("Theatre", FieldRewriter.RewriteScalar(Tokens.Title, "Theatre", o));
-    }
-
-    [Fact]
-    public void Article_MidTitle_Untouched()
-    {
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        Assert.Equal("Live The Dream", FieldRewriter.RewriteScalar(Tokens.Title, "Live The Dream", o));
-    }
-
-    [Fact]
-    public void Article_CaseInsensitive()
-    {
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        Assert.Equal("matrix", FieldRewriter.RewriteScalar(Tokens.Title, "the matrix", o));
-    }
-
-    [Fact]
-    public void Article_StrippedAtMostOnce()
-    {
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        // Only the single leading "The" is removed, leaving "The End".
-        Assert.Equal("The End", FieldRewriter.RewriteScalar(Tokens.Title, "The The End", o));
-    }
-
-    [Fact]
-    public void Article_TargetsTitleOnly()
-    {
-        var o = new RenamerOptions { StripLeadingArticles = true };
-        // $studio is not targeted by the article strip.
-        Assert.Equal("The Studio", FieldRewriter.RewriteScalar(Tokens.Studio, "The Studio", o));
-    }
-
-    [Fact]
-    public void Article_OffByDefault_NoOp()
-    {
-        var o = new RenamerOptions(); // StripLeadingArticles defaults false
-        Assert.Equal("The Matrix", FieldRewriter.RewriteScalar(Tokens.Title, "The Matrix", o));
+        var o = new RenamerOptions { StripLeadingArticles = strip };
+        Assert.Equal(expected, FieldRewriter.RewriteScalar(token, input, o));
     }
 
     // ---- combined order ----
@@ -188,65 +133,29 @@ public class FieldRewriterTests
 
     // ---- prevent_title_performer ----
 
-    [Fact]
-    public void DropPerformers_DropsWholeWordOccurrence_InTitle()
+    [Theory]
+    // "Eve" appears as a whole word, so it is dropped.
+    [InlineData(true, new[] { "Eve", "Bob" }, "Eve Goes Home", new[] { "Bob" })]
+    // "Eve" is not a whole word in "Evelyn", so it is kept.
+    [InlineData(true, new[] { "Eve", "Bob" }, "Evelyn Goes Home", new[] { "Eve", "Bob" })]
+    // lower-case "eve" in the title still drops "Eve".
+    [InlineData(true, new[] { "Eve", "Bob" }, "the eve party", new[] { "Bob" })]
+    // The performer name is trimmed and compared as a unit.
+    [InlineData(true, new[] { "  Eve  ", "Bob" }, "Eve Goes Home", new[] { "Bob" })]
+    // Boundary at index 0 and at string end both count as whole-word matches.
+    [InlineData(true, new[] { "Eve", "Bob" }, "Eve", new[] { "Bob" })]
+    [InlineData(true, new[] { "Eve", "Bob" }, "Home of Eve", new[] { "Bob" })]
+    // A non-letter-or-digit (here ',') is a word boundary.
+    [InlineData(true, new[] { "Eve", "Bob" }, "Eve, Again", new[] { "Bob" })]
+    // A trimmed-empty name short-circuits to a no-op (never matches everything).
+    [InlineData(true, new[] { "", "  ", "Bob" }, "Any Title", new[] { "", "  ", "Bob" })]
+    // PreventTitlePerformer defaults false, and off is a no-op.
+    [InlineData(false, new[] { "Eve", "Bob" }, "Eve Goes Home", new[] { "Eve", "Bob" })]
+    public void DropPerformers_DropsOnlyWholeWordTitleMatches_WhenEnabled(
+        bool on, string[] names, string title, string[] expected)
     {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Eve Goes Home", o);
-        Assert.Equal(["Bob"], result); // Eve appears as a whole word -> dropped
-    }
-
-    [Fact]
-    public void DropPerformers_KeepsName_WhenOnlyASubstring()
-    {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        // "Eve" is not a whole word in "Evelyn", so it is kept.
-        var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Evelyn Goes Home", o);
-        Assert.Equal(["Eve", "Bob"], result);
-    }
-
-    [Fact]
-    public void DropPerformers_CaseInsensitive()
-    {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        // lower-case "eve" in the title still drops "Eve".
-        var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "the eve party", o);
-        Assert.Equal(["Bob"], result);
-    }
-
-    [Fact]
-    public void DropPerformers_TrimsPerformerName_BeforeMatch()
-    {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        // The performer name is trimmed and compared as a unit.
-        var result = FieldRewriter.DropPerformersInTitle(["  Eve  ", "Bob"], "Eve Goes Home", o);
-        Assert.Equal(["Bob"], result);
-    }
-
-    [Fact]
-    public void DropPerformers_MatchAtTitleStartAndEnd()
-    {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        // Boundary at index 0 and at string end both count as whole-word matches.
-        Assert.Equal(["Bob"], FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Eve", o));
-        Assert.Equal(["Bob"], FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Home of Eve", o));
-    }
-
-    [Fact]
-    public void DropPerformers_PunctuationBoundary_CountsAsWholeWord()
-    {
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        // A non-letter-or-digit (here ',') is a word boundary.
-        Assert.Equal(["Bob"], FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Eve, Again", o));
-    }
-
-    [Fact]
-    public void DropPerformers_EmptyOrWhitespaceName_NeverDropped()
-    {
-        // A trimmed-empty name short-circuits to a no-op (never matches everything).
-        var o = new RenamerOptions { PreventTitlePerformer = true };
-        var result = FieldRewriter.DropPerformersInTitle(["", "  ", "Bob"], "Any Title", o);
-        Assert.Equal(["", "  ", "Bob"], result);
+        var o = new RenamerOptions { PreventTitlePerformer = on };
+        Assert.Equal(expected, FieldRewriter.DropPerformersInTitle(names, title, o));
     }
 
     [Fact]
@@ -265,50 +174,20 @@ public class FieldRewriterTests
         Assert.Equal([1, 2], survivors.Select(p => p.Id).ToArray());
     }
 
-    [Fact]
-    public void DropPerformers_OffByDefault_ListUnchanged()
-    {
-        var o = new RenamerOptions(); // PreventTitlePerformer defaults false
-        var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Eve Goes Home", o);
-        Assert.Equal(["Eve", "Bob"], result); // no-op when off
-    }
-
     // ---- prevent_consecutive ----
 
-    [Fact]
-    public void CollapseConsecutive_CollapsesAdjacentDuplicates()
+    [Theory]
+    [InlineData(true, new[] { "Foo", "Foo", "Bar" }, new[] { "Foo", "Bar" })]
+    [InlineData(true, new[] { "Foo", "Bar", "Foo" }, new[] { "Foo", "Bar", "Foo" })]
+    // "foo" then "Foo" -> the first occurrence is kept.
+    [InlineData(true, new[] { "foo", "Foo" }, new[] { "foo" })]
+    [InlineData(true, new[] { "A", "A", "A", "B" }, new[] { "A", "B" })]
+    [InlineData(false, new[] { "Foo", "Foo", "Bar" }, new[] { "Foo", "Foo", "Bar" })]
+    public void CollapseConsecutive_CollapsesOnlyAdjacentDuplicates_WhenEnabled(
+        bool on, string[] input, string[] expected)
     {
-        var o = new RenamerOptions { PreventConsecutiveSegments = true };
-        Assert.Equal(["Foo", "Bar"], FieldRewriter.CollapseConsecutive(["Foo", "Foo", "Bar"], o));
-    }
-
-    [Fact]
-    public void CollapseConsecutive_LeavesNonAdjacentDuplicates()
-    {
-        var o = new RenamerOptions { PreventConsecutiveSegments = true };
-        Assert.Equal(["Foo", "Bar", "Foo"], FieldRewriter.CollapseConsecutive(["Foo", "Bar", "Foo"], o));
-    }
-
-    [Fact]
-    public void CollapseConsecutive_CaseInsensitive_KeepsFirst()
-    {
-        var o = new RenamerOptions { PreventConsecutiveSegments = true };
-        // "foo" then "Foo" -> the first occurrence is kept.
-        Assert.Equal(["foo"], FieldRewriter.CollapseConsecutive(["foo", "Foo"], o));
-    }
-
-    [Fact]
-    public void CollapseConsecutive_CollapsesRunsLongerThanTwo()
-    {
-        var o = new RenamerOptions { PreventConsecutiveSegments = true };
-        Assert.Equal(["A", "B"], FieldRewriter.CollapseConsecutive(["A", "A", "A", "B"], o));
-    }
-
-    [Fact]
-    public void CollapseConsecutive_Off_SegmentsUnchanged()
-    {
-        var o = new RenamerOptions { PreventConsecutiveSegments = false };
-        Assert.Equal(["Foo", "Foo", "Bar"], FieldRewriter.CollapseConsecutive(["Foo", "Foo", "Bar"], o));
+        var o = new RenamerOptions { PreventConsecutiveSegments = on };
+        Assert.Equal(expected, FieldRewriter.CollapseConsecutive(input, o));
     }
 
     [Fact]

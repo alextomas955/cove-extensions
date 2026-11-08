@@ -199,7 +199,6 @@ public class MultiValueTests
 
         // Female (alice) is dropped first; the two males survive the limit, name-ordered.
         Assert.Equal("Bob,Charlie", result);
-        Assert.Equal(2, result.Split(',').Length);
     }
 
     [Fact]

@@ -47,22 +47,23 @@ public sealed class GatingTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
-        Assert.NotEqual(RenamerStatus.Failed, item.Status);
     }
 
-    [Fact]
-    public async Task RequireFields_TokenNeverProjected_SkipGated()
+    [Theory]
+    // A token the projector never produces at all.
+    [InlineData("zzznope")]
+    // A token the projector produces only for an item carrying one, which this item does not.
+    [InlineData("performers")]
+    public async Task RequireFields_AFieldThisItemCannotSupply_SkipGated(string field)
     {
         var port = new FakeRenamerDataPort();
-        // Title present, but require a field whose token is never produced by the projector.
         port.SeedEntity(Entity("My Film", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { RequiredFields = ["zzznope"] };
+        var opts = new RenamerOptions { RequiredFields = [field] };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipGated, item.Status);
+        Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
     }
 
     [Theory]
@@ -84,20 +85,6 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(RenamerStatus.Rename, Assert.Single(plan.Items).Status);
-    }
-
-    [Fact]
-    public async Task RequireFields_Performers_OnAnItemWithNone_SkipGated()
-    {
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity("My Film", organized: true, File(1)));
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { RequiredFields = ["performers"] };
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipGated, item.Status);
     }
 
     [Fact]
@@ -127,7 +114,6 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);

@@ -82,14 +82,11 @@ public sealed class OptionsMigrationSortTests
 
         var options = JsonSerializer.Deserialize<RenamerOptions>(result.Json, RenamerOptions.JsonOptions);
 
+        // APerformerSortNamingTheDroppedMember_BecomesNameAsc_AndEveryOtherStoredKeyIsKept pins the
+        // preservation; one member stands for it here, so the unique claim is that the result binds
+        // at all and that Sort arrives as the replacement member.
         Assert.NotNull(options);
-        Assert.Equal("$studio/$title", options.FilenameTemplate);
         Assert.Equal(120, options.FilenameMax);
-        Assert.Equal(CaseTransform.Title, options.Case);
-        Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal(" & ", options.Performers.Separator);
-        Assert.Equal(3, options.Performers.MaxCount);
-        Assert.Equal(["Female"], options.Performers.GenderOrder);
         Assert.Equal(SortOrder.NameAsc, options.Performers.Sort);
     }
 

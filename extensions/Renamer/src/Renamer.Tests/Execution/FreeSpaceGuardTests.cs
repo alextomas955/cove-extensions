@@ -16,70 +16,66 @@ public sealed class FreeSpaceGuardTests
 
     private static string RootOf(string vol) => VolumeClassifier.VolumeKey(OnVol(vol, "x"), Mounts);
 
-    [Fact]
-    public void CrossVolumeBatch_OverBudget_ReportsShortfallForThatVolume()
+    [Theory]
+    [MemberData(nameof(Batches))]
+    public void Shortfall_SumsOnlyCrossVolumeBytes_AgainstTheDestinationVolumesFreeSpacePlusHeadroom(
+        (string OldFullPath, string NewFullPath, long SizeBytes)[] moves,
+        long headroomBytes,
+        long available,
+        string? expectedVolume,
+        long expectedNeeded)
     {
-        // 3 GiB of cross-drive moves onto a volume that only has 2 GiB free → shortfall.
-        var moves = new[]
-        {
-            (OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 2L << 30),
-            (OnVol("C", "b.mkv"), OnVol("D", "b.mkv"), 1L << 30),
-        };
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes, _ => available, Mounts);
 
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 2L << 30, Mounts);
+        if (expectedVolume is null)
+        {
+            Assert.Empty(result);
+            return;
+        }
 
         var entry = Assert.Single(result);
-        Assert.Equal(RootOf("D"), entry.Volume);
-        Assert.Equal(3L << 30, entry.Needed);
-        Assert.True(entry.Needed > entry.Available, "an over-budget volume must report Needed > Available");
+        Assert.Equal(RootOf(expectedVolume), entry.Volume);
+        Assert.Equal(expectedNeeded, entry.Needed);
     }
 
-    [Fact]
-    public void CrossVolumeBatch_FitsWithRoom_ReturnsEmptyShortfall()
+    public static TheoryData<(string OldFullPath, string NewFullPath, long SizeBytes)[], long, long, string?, long>
+        Batches() => new()
     {
-        var moves = new[]
+        // 3 GiB of cross-drive moves onto a volume that only has 2 GiB free → shortfall.
         {
-            (OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 1L << 30),
-        };
+            [
+                (OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 2L << 30),
+                (OnVol("C", "b.mkv"), OnVol("D", "b.mkv"), 1L << 30),
+            ],
+            0, 2L << 30, "D", 3L << 30
+        },
 
         // 1 GiB need + 0 headroom vs 10 GiB available → fits.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 10L << 30, Mounts);
+        { [(OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 1L << 30)], 0, 10L << 30, null, 0 },
 
-        Assert.Empty(result);
-    }
+        // 1 GiB raw fits 1 GiB available; + 1 GiB headroom = 2 GiB need > 1 GiB available → shortfall.
+        { [(OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 1L << 30)], 1L << 30, 1L << 30, "D", 2L << 30 },
 
-    [Fact]
-    public void SameVolumeOnlyBatch_ReturnsEmptyShortfall_EvenWithTinyAvailable()
-    {
-        // Regression: same-volume moves consume ~no extra space and must never be summed.
-        var moves = new[]
+        // Regression: same-volume moves consume ~no extra space and must never be summed. The probe
+        // returns 1 byte for every volume, so summing these 10 GiB would report a shortfall.
         {
-            (OnVol("C", "a.mkv"), OnVol("C", "renamed.mkv"), 5L << 30),
-            (OnVol("C", "b.mkv"), OnVol("C", "moved.mkv"), 5L << 30),
-        };
+            [
+                (OnVol("C", "a.mkv"), OnVol("C", "renamed.mkv"), 5L << 30),
+                (OnVol("C", "b.mkv"), OnVol("C", "moved.mkv"), 5L << 30),
+            ],
+            0, 1L, null, 0
+        },
 
-        // Probe returns 1 byte for every volume; if same-volume bytes were summed this would fail.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L, Mounts);
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void MixedBatch_CountsOnlyCrossVolumeBytes()
-    {
-        // One same-volume move (5 GiB, must be dropped) + one cross-volume move (1 GiB, must count).
-        var moves = new[]
+        // Mixed: dest volume D has exactly the 1 GiB the cross-volume move needs, so the 5 GiB
+        // same-volume move must not push it over budget.
         {
-            (OnVol("C", "stay.mkv"), OnVol("C", "stay-renamed.mkv"), 5L << 30),   // same-volume → excluded
-            (OnVol("C", "go.mkv"), OnVol("D", "go.mkv"), 1L << 30),               // cross-volume → counts
-        };
-
-        // Dest volume D has exactly 1 GiB free; the 1 GiB cross-move fits (no headroom), and the
-        // 5 GiB same-volume move must not push it over budget.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L << 30, Mounts);
-
-        Assert.Empty(result);
-    }
+            [
+                (OnVol("C", "stay.mkv"), OnVol("C", "stay-renamed.mkv"), 5L << 30),
+                (OnVol("C", "go.mkv"), OnVol("D", "go.mkv"), 1L << 30),
+            ],
+            0, 1L << 30, null, 0
+        },
+    };
 
     [Fact]
     public void PerVolumeGrouping_SumsVolumesIndependently_ReportsOnlyOverBudget()
@@ -95,22 +91,6 @@ public sealed class FreeSpaceGuardTests
 
         var entry = Assert.Single(result);
         Assert.Equal(RootOf("D"), entry.Volume);
-    }
-
-    [Fact]
-    public void Headroom_IsEnforced_FitsRawBytesButNotBytesPlusHeadroom()
-    {
-        var moves = new[]
-        {
-            (OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), 1L << 30),   // 1 GiB raw
-        };
-
-        // 1 GiB raw fits 1 GiB available; but +1 GiB headroom = 2 GiB need > 1 GiB available → shortfall.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 1L << 30, _ => 1L << 30, Mounts);
-
-        var entry = Assert.Single(result);
-        Assert.Equal(2L << 30, entry.Needed);
-        Assert.True(entry.Needed > entry.Available, "headroom must be added before the comparison");
     }
 
     [Fact]

@@ -105,19 +105,37 @@ public class TemplateEngineTests
         Assert.Equal("Upright [vertical]", r.Filename);
     }
 
-    [Fact]
-    public void TrailingResolution_InTitle_NotDoubled_WhenTemplateAppendsResolution()
+    // One title tag, one derived label: the title's own trailing tag is replaced by the label this
+    // render derives, and survives wherever either side is not a resolution.
+    [Theory]
+    // The library-migration case: a title imported from a filename that already ends in its label.
+    [InlineData("Bootie From Beijing [1080p]", "1920", "1080", "Bootie From Beijing [1080p]")]
+    // Only a tag at the very end is stripped.
+    [InlineData("Shot in [1080p] Glory", "3840", "2160", "Shot in [1080p] Glory [4K]")]
+    // The derived label is authoritative, so a title tag naming a different height still goes.
+    [InlineData("Old Rip [720p]", "3840", "2160", "Old Rip [4K]")]
+    // A tag no bucket is named for: the generic trailing-[<digits>p] strip removes it anyway.
+    [InlineData("Nikki [368p]", "654", "368", "Nikki [360p]")]
+    // The stripper matches case-insensitively, and the widest label is in its vocabulary.
+    [InlineData("Old Rip [4k]", "3840", "2160", "Old Rip [4K]")]
+    [InlineData("Old Rip [4K]", "3840", "2160", "Old Rip [4K]")]
+    [InlineData("Old Rip [HUGE]", "3840", "2160", "Old Rip [4K]")]
+    // A bracketed number with no 'p' is a serial, index or scene number, never a resolution.
+    [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
+    // A hash-like bracketed token is not a resolution tag either.
+    [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
+    // A resolution mid-title with a real serial at the end: no trailing res-tag to strip.
+    [InlineData("Shot [720p] Take [5]", "1920", "1080", "Shot [720p] Take [5] [1080p]")]
+    // A height with no stored width derives no label, so the title's own tag is the only one left.
+    [InlineData("Movie [1080p]", null, "1080", "Movie [1080p]")]
+    // 120 x 100 is under the smallest bucket on its long edge and under the smallest standard label's
+    // margin on its short one, so Cove names that frame no resolution and the title keeps its tag.
+    [InlineData("Clip [100p]", "120", "100", "Clip [100p]")]
+    public void TrailingResolutionTag_IsReplaced_OnlyByALabelThisRenderDerives(
+        string title, string? width, string? height, string expected)
     {
-        // The library-migration case: the title was imported from a filename that already ends in
-        // "[1080p]", and the template also appends { [$resolution]}.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Bootie From Beijing [1080p]",
-            ["width"] = "1920",
-            ["height"] = "1080",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Bootie From Beijing [1080p]", r.Filename);
+        var r = Render("$title{ [$resolution]}", Dimensions(title, width, height));
+        Assert.Equal(expected, r.Filename);
     }
 
     [Fact]
@@ -131,91 +149,6 @@ public class TemplateEngineTests
         };
         var r = Render("$title", tokens);
         Assert.Equal("Bootie From Beijing [1080p]", r.Filename);
-    }
-
-    [Fact]
-    public void TrailingResolution_MidTitle_Untouched()
-    {
-        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Shot in [1080p] Glory",
-            ["width"] = "3840",
-            ["height"] = "2160",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Shot in [1080p] Glory [4K]", r.Filename);
-    }
-
-    [Fact]
-    public void TrailingResolution_DifferentLabelThanFile_StillStripped()
-    {
-        // The title's trailing tag is stripped regardless of whether it matches the file's real height:
-        // the template's derived $resolution (from height) is authoritative.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Old Rip [720p]",
-            ["width"] = "3840",
-            ["height"] = "2160",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Old Rip [4K]", r.Filename);
-    }
-
-    [Fact]
-    public void TrailingResolution_ArbitraryScanTag_NotDoubled()
-    {
-        // The doubled-tag regression: a title imported with a "[368p]" tag, which no bucket is named
-        // for, plus a template that appends { [$resolution]} would yield "Nikki [368p] [360p]". The
-        // generic trailing-[<digits>p] strip removes the imported tag and leaves one.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Nikki [368p]",
-            ["width"] = "654",
-            ["height"] = "368",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Nikki [360p]", r.Filename);
-    }
-
-    [Theory]
-    // The stripper matches case-insensitively, so a title carrying either spelling of a K label is
-    // stripped before the derived tag is appended.
-    [InlineData("Old Rip [4k]", "Old Rip [4K]")]
-    [InlineData("Old Rip [4K]", "Old Rip [4K]")]
-    // The widest label is in the stripper's vocabulary too.
-    [InlineData("Old Rip [HUGE]", "Old Rip [4K]")]
-    public void TrailingResolution_KLabel_StrippedInEitherCase(string title, string expected)
-    {
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = title,
-            ["width"] = "3840",
-            ["height"] = "2160",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal(expected, r.Filename);
-    }
-
-    [Theory]
-    // A bracketed number with no 'p' is a serial/index/scene number, not a resolution - never stripped.
-    [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
-    // A hash-like bracketed token is not a resolution tag.
-    [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
-    // A resolution mid-title with a real serial at the end: only a trailing res-tag is stripped, and
-    // there is none here, so nothing is stripped and the derived tag is appended.
-    [InlineData("Shot [720p] Take [5]", "1920", "1080", "Shot [720p] Take [5] [1080p]")]
-    public void TrailingResolution_NonResolutionBrackets_NotStripped(
-        string title, string width, string height, string expected)
-    {
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = title,
-            ["width"] = width,
-            ["height"] = height,
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal(expected, r.Filename);
     }
 
     [Theory]
@@ -237,35 +170,6 @@ public class TemplateEngineTests
         };
         var r = Render(template, tokens);
         Assert.Equal(expected, r.Filename);
-    }
-
-    [Fact]
-    public void TitleHasResolution_MissingWidth_PreservesExistingTag()
-    {
-        // A height with no stored width derives no label, so the title's own tag is the only
-        // resolution the name can carry.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Movie [1080p]",
-            ["height"] = "1080",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Movie [1080p]", r.Filename);
-    }
-
-    [Fact]
-    public void TitleHasResolution_DerivedResolutionEmpty_PreservesExistingTag()
-    {
-        // 120 x 100 sits below the smallest bucket on its long edge and below the smallest standard
-        // label's margin on its short one, so Cove names that frame no resolution at all.
-        var tokens = new Dictionary<string, string>
-        {
-            ["title"] = "Clip [100p]",
-            ["width"] = "120",
-            ["height"] = "100",
-        };
-        var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Clip [100p]", r.Filename);
     }
 
     [Theory]

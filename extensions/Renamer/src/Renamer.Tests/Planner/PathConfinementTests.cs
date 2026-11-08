@@ -11,22 +11,15 @@ public sealed class PathConfinementTests
         string folder, string basename = "film.mkv", RenamerOptions? options = null)
         => PathConfinement.Resolve(Root, folder, basename, options ?? new RenamerOptions());
 
-    [Fact]
-    public void EmptyFolder_IsInPlace_Accepted_UnderRoot()
+    [Theory]
+    [InlineData("", "/media/videos")]                           // empty folder: in place, at the root
+    [InlineData("Acme/2024", "/media/videos/Acme/2024")]
+    public void ARelativeFolder_IsAccepted_UnderTheRoot(string destinationFolder, string expectedSuffix)
     {
-        var r = Resolve("");
+        var r = Resolve(destinationFolder);
 
         Assert.True(r.Accepted);
-        Assert.EndsWith("/media/videos", r.TargetFolderPath);
-    }
-
-    [Fact]
-    public void BenignRelativeSubfolder_Accepted_UnderRoot()
-    {
-        var r = Resolve("Acme/2024");
-
-        Assert.True(r.Accepted);
-        Assert.EndsWith("/media/videos/Acme/2024", r.TargetFolderPath);
+        Assert.EndsWith(expectedSuffix, r.TargetFolderPath);
     }
 
     [Fact]
@@ -105,21 +98,18 @@ public sealed class ContainingRootTests
             "/media/video",
             PathConfinement.ContainingRoot("/media/video/a.mkv", [first, second]));
 
-    [Fact]
-    public void PathUnderNoRoot_ReturnsNull()
-        => Assert.Null(PathConfinement.ContainingRoot("/elsewhere/a.mkv", ["/media"]));
+    [Theory]
+    [MemberData(nameof(PathsWithNoContainingRoot))]
+    public void NoContainingRoot_ReturnsNull(string path, string[] roots)
+        => Assert.Null(PathConfinement.ContainingRoot(path, roots));
 
-    [Fact]
-    public void NoRootsAtAll_ReturnsNull()
-        => Assert.Null(PathConfinement.ContainingRoot("/media/a.mkv", []));
-
-    [Fact]
-    public void BlankEntry_IsIgnored_NotTreatedAsARootMatchingEverything()
-        => Assert.Null(PathConfinement.ContainingRoot("/elsewhere/a.mkv", ["", "   "]));
-
-    [Fact]
-    public void Sibling_IsNotAMatch()
-        => Assert.Null(PathConfinement.ContainingRoot("/mediaEvil/a.mkv", ["/media"]));
+    public static TheoryData<string, string[]> PathsWithNoContainingRoot() => new()
+    {
+        { "/elsewhere/a.mkv", ["/media"] },     // the path is under no root
+        { "/media/a.mkv", [] },                 // no roots at all
+        { "/elsewhere/a.mkv", ["", "   "] },    // a blank entry is ignored, not a root matching everything
+        { "/mediaEvil/a.mkv", ["/media"] },     // a sibling sharing the root's textual prefix
+    };
 
     [Fact]
     public void TheAnswerIsTheNormalizedEntry_NotTheOneSupplied()

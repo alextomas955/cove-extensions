@@ -78,45 +78,33 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
-    public void PreviewSample_DefaultOptions_VideoRendersTitle_NoFlags()
+    public void PreviewSample_DefaultOptions_ReturnsTheThreeServerSideSamplesOverTheirOriginalNames()
     {
         var all = Preview(new RenamerOptions());
-        Assert.Equal(3, all.Count); // exactly the 3 server-side samples
 
-        var video = Sample(all, "Video");
-        // The default template is "{$date - }$title{ [$resolution]}"; the Video sample has date
-        // 2021-03-14 and 3840 x 2160, which the engine buckets to $resolution "4K", so both groups
-        // render: "2021-03-14 - The Example [4K]".
-        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
-        Assert.Equal("the.example.2021.WEBRip.mp4", video.OldName);
-        Assert.Empty(video.Flags);
-        Assert.Empty(video.DroppedFields);
+        Assert.Equal(3, all.Count);
+        Assert.Equal("the.example.2021.WEBRip.mp4", Sample(all, "Video").OldName);
     }
 
-    [Fact]
-    public void PreviewSample_DefaultTemplate_AudioSample_NoBracketsNoDanglingSeparator()
+    [Theory]
+    // The default template is "{$date - }$title{ [$resolution]}". The Video sample has date
+    // 2021-03-14 and 3840 x 2160, which the engine buckets to $resolution "4K", so both groups
+    // render.
+    [InlineData("Video", "2021-03-14 - The Example [4K].mp4")]
+    // The Audio sample has a date but no height (so no $resolution), so the "{ [$resolution]}"
+    // group collapses entirely (leading space + brackets + token) while the "{$date - }" prefix
+    // stays: no dangling brackets and no empty " []".
+    [InlineData("Audio", "2020-01-09 - Track One.flac")]
+    // The Image sample's 6000 x 4000 frame takes its label from the short edge, which outranks the
+    // 6K its long edge buckets to. No other sample carries that branch through the endpoint.
+    [InlineData("Image", "2022-07-01 - Sunset [7K].jpg")]
+    public void PreviewSample_DefaultOptions_RendersEachSampleWithNoFlags(string label, string expectedName)
     {
-        // The Audio sample has a date but no height (so no $resolution), so the default's
-        // "{ [$resolution]}" group collapses entirely (leading space + brackets + token) while the
-        // "{$date - }" prefix stays, leaving a clean name with no dangling brackets.
-        var all = Preview(new RenamerOptions()); // default FilenameTemplate = "{$date - }$title{ [$resolution]}"
+        var sample = Sample(Preview(new RenamerOptions()), label);
 
-        var audio = Sample(all, "Audio");
-        Assert.Equal("2020-01-09 - Track One.flac", audio.NewName); // date prefix kept, no " []"
-        Assert.DoesNotContain("[", audio.NewName);
-        Assert.DoesNotContain("]", audio.NewName);
-        Assert.Empty(audio.Flags);
-    }
-
-    [Fact]
-    public void PreviewSample_DefaultTemplate_ImageSample_TakesItsLabelFromTheShortEdge()
-    {
-        // The Image sample's 6000 x 4000 frame takes its label from the short edge, which outranks
-        // the 6K its long edge buckets to. No other sample carries that branch through the endpoint.
-        var all = Preview(new RenamerOptions());
-
-        var image = Sample(all, "Image");
-        Assert.Equal("2022-07-01 - Sunset [7K].jpg", image.NewName);
+        Assert.Equal(expectedName, sample.NewName);
+        Assert.Empty(sample.Flags);
+        Assert.Empty(sample.DroppedFields);
     }
 
     [Fact]

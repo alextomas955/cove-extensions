@@ -148,7 +148,8 @@ public sealed class OptionsMigrationDestinationTests
     }
 
     [Theory]
-    [InlineData("""{ "StudioDestinations": { "101": "D:/a" } }""")]
+    // StudioDestinations is the shape AStoredValue_IsWorkForThisHalf_ExactlyWhenItIsAString already
+    // drives, so it is not repeated here.
     [InlineData("""{ "TagDestinations": { "7": "D:/a" } }""")]
     [InlineData("""{ "PathDestinations": [ { "Pattern": "D:/in", "Dest": "D:/a" } ] }""")]
     [InlineData("""{ "UnorganizedDestination": "D:/a" }""")]

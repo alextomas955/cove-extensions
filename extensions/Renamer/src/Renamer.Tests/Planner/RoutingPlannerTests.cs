@@ -58,13 +58,20 @@ public sealed class RoutingPlannerTests
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
     [Theory]
-    [InlineData(Spelling.PlatformSeparators)]
+    [InlineData(Spelling.BackslashSeparators)]
     [InlineData(Spelling.TrailingSeparator)]
     public async Task ARootStoredInAnotherSpelling_StillNamesItsLibraryPath(Spelling spelling)
     {
+        if (spelling == Spelling.BackslashSeparators)
+        {
+            // A backslash names a directory boundary only on Windows. Elsewhere it is an ordinary
+            // character in a folder name, and folding it would be wrong rather than lenient.
+            Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows path separator semantics");
+        }
+
         string stored = spelling switch
         {
-            Spelling.PlatformSeparators => StudioRoot.Replace('/', Path.DirectorySeparatorChar),
+            Spelling.BackslashSeparators => @"D:\studios\acme",
             Spelling.TrailingSeparator => Fwd(StudioRoot) + "/",
             _ => throw new ArgumentOutOfRangeException(nameof(spelling)),
         };
@@ -154,45 +161,36 @@ public sealed class RoutingPlannerTests
     // How a stored destination root spells the library path it names.
     public enum Spelling
     {
-        // The platform's own separators, as an older store holds them.
-        PlatformSeparators,
+        // Backslash separators, as a store written on a Windows host holds them.
+        BackslashSeparators,
 
         // The canonical forward-slash form with a trailing separator.
         TrailingSeparator,
     }
 
-    [Fact]
-    public async Task StudioRouted_CarriesRootRuleAndVolume()
+    // The route's template replaces the default rather than being appended to it: the planner renders
+    // with `options with { FolderTemplate = destination.Template }`, so an empty route template erases
+    // a non-empty default and the file lands at the root of the routed destination. A matched route
+    // relocates the file either way, rather than renaming it in place under its source folder.
+    [Theory]
+    [InlineData("Sorted", "", "/My Film.mkv")]
+    [InlineData("", "", "/My Film.mkv")]
+    [InlineData("Default", "$studio", "/Acme/My Film.mkv")]
+    public async Task StudioRouted_RendersTheRoutesOwnTemplate_UnderTheRoutedRoot(
+        string defaultFolderTemplate, string routeTemplate, string expectedPathUnderRoot)
     {
-        var port = Port(SrcRoot, StudioRoot);
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
-        var planner = new RenamerPlanner(port);
-        var opts = MoveOptions();
-        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
-        Assert.Equal("Studio:42(direct)", item.MatchedRule);
-        Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-    }
-
-    [Fact]
-    public async Task StudioRouted_EmptyFolderTemplate_StillMovesToRoutedRoot()
-    {
-        // A matched route relocates the file even when the folder template is empty: the user wants
-        // the routed studio's files dropped at the root of the destination, with no subfolder, not
-        // renamed in place under the source folder.
         var port = Port(SrcRoot, StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
+            FolderTemplate = defaultFolderTemplate,
         };
-        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
+        var lk = Lookups(studio: new Dictionary<int, Destination>
+        {
+            [42] = Dest.At(StudioRoot, routeTemplate),
+        });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
@@ -201,30 +199,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-        // The file lands at the root of the routed destination (no subfolder), not under its source.
-        Assert.Equal(Fwd(StudioRoot) + "/My Film.mkv", item.NewFullPath);
-        Assert.DoesNotContain("incoming", item.NewFullPath);
-    }
-
-    [Fact]
-    public async Task RoutedRule_RendersItsOwnTemplate_NotTheDefaultOne()
-    {
-        // The rule's template replaces the default rather than being appended to it: the two are never
-        // joined, which is what keeps a plan a fixed point under the move it names.
-        var port = Port(SrcRoot, StudioRoot);
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Default" };
-        var lk = Lookups(studio: new Dictionary<int, Destination>
-        {
-            [42] = Dest.At(StudioRoot, "$studio"),
-        });
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(Fwd(StudioRoot) + "/Acme/My Film.mkv", item.NewFullPath);
-        Assert.DoesNotContain("Default", item.NewFullPath);
+        Assert.Equal(Fwd(StudioRoot) + expectedPathUnderRoot, item.NewFullPath);
     }
 
     [Fact]
@@ -389,7 +364,6 @@ public sealed class RoutingPlannerTests
         Assert.All(plan.Items, item =>
         {
             Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
-            Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
             Assert.Contains("Exclude:Tag:anime", item.Reason);
         });
     }
@@ -438,7 +412,6 @@ public sealed class RoutingPlannerTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
-        Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Contains("Exclude:Tag:anime", item.Reason);
     }
 

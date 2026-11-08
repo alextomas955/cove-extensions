@@ -1,5 +1,4 @@
 using Renamer.Execution;
-using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
@@ -76,24 +75,23 @@ public sealed class CrossVolumeMoverTests
         AssertMintedPathsGone(minted, "the unpromotable in-flight copy must be removed after a lost race");
     }
 
-    [Fact]
-    public async Task SizeEqualHashDiffers_VerifyFailed_SourceSurvives_DestDeleted()
+    [Theory]
+    [MemberData(nameof(VerifyDefeatingCorruptions))]
+    public async Task ACorruptedInFlightCopy_VerifyFailed_SourceSurvives_DestDeleted(
+        string corruption, Action<string> corrupt)
     {
         using var dir = new TempDir();
-        const string original = "the original content";
+        const string original = "the real bytes that must survive a torn write";
         var old = dir.Touch("clip.mkv", original);
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
         var minted = new List<string>();
 
-        // Fault seam: between copy and verify, rewrite the in-flight copy to the same length but
-        // different bytes. A size-only verify would false-pass; the hash must catch this. The seam also
-        // hands the test the minted path, which is the only way to know it.
+        // Fault seam: corrupt the in-flight copy between copy and verify. The seam also hands the
+        // test the minted path, which is the only way to know it.
         var mover = new CrossVolumeMover((inFlight, _) =>
         {
             minted.Add(inFlight);
-            var corrupt = new string('Z', original.Length);
-            Assert.Equal(original.Length, corrupt.Length); // same size, different content
-            File.WriteAllText(inFlight, corrupt);
+            corrupt(inFlight);
             return Task.CompletedTask;
         });
 
@@ -101,11 +99,36 @@ public sealed class CrossVolumeMoverTests
 
         Assert.False(result.Moved);
         Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
-        Assert.True(File.Exists(old), "source MUST survive a size-equal-hash-differs verify failure");
+        Assert.True(File.Exists(old), $"source MUST survive a {corruption} verify failure");
         Assert.Equal(original, File.ReadAllText(old));
         Assert.False(File.Exists(dest), "the suspect destination must be deleted");
         AssertMintedPathsGone(minted, "the rejected in-flight copy must be removed after a verify failure");
     }
+
+    public static TheoryData<string, Action<string>> VerifyDefeatingCorruptions() => new()
+    {
+        // The hash half: same length, different bytes. A size-only verify would false-pass.
+        {
+            "size-equal-hash-differs",
+            path =>
+            {
+                var bytes = File.ReadAllBytes(path);
+                Array.Fill(bytes, (byte)'Z');
+                File.WriteAllBytes(path, bytes);
+            }
+        },
+
+        // The size half: a torn or short write, shorter than the source.
+        {
+            "truncated-dest",
+            path =>
+            {
+                var bytes = File.ReadAllBytes(path);
+                Assert.True(bytes.Length > 4, "test fixture must be longer than the truncation point");
+                File.WriteAllBytes(path, bytes[..4]);
+            }
+        },
+    };
 
     [Fact]
     public async Task LockedSource_Skipped_NotThrown_SourceIntact()
@@ -310,40 +333,11 @@ public sealed class CrossVolumeMoverTests
             // Beside the final name, so the promote stays a same-directory atomic rename, and exactly as
             // much longer as the planner measures a cross-volume destination against.
             Assert.StartsWith(dest, path, StringComparison.Ordinal);
-            Assert.Equal(PathOps.InFlightSuffixLength, path.Length - dest.Length);
+            // The literal, not PathOps.InFlightSuffixLength: that constant is the sum of the two the
+            // minting uses, so reading it back here would agree with any value they took.
+            Assert.Equal(12, path.Length - dest.Length);
             Assert.Equal(Path.GetDirectoryName(dest), Path.GetDirectoryName(path));
         }
-    }
-
-    [Fact]
-    public async Task TruncatedDestination_VerifyFails_SourceSurvives_DestDeleted()
-    {
-        using var dir = new TempDir();
-        const string original = "the real bytes that must survive a torn write";
-        var src = dir.Touch("clip.mkv", original);
-        var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
-        string? inFlight = null;
-
-        // Fault seam: truncate the in-flight copy to a shorter length (a torn/short write). This is
-        // the size half of verify; SizeEqualHashDiffers covers the hash half.
-        var mover = new CrossVolumeMover((path, _) =>
-        {
-            inFlight = path;
-            var bytes = File.ReadAllBytes(path);
-            Assert.True(bytes.Length > 4, "test fixture must be longer than the truncation point");
-            File.WriteAllBytes(path, bytes[..4]); // shorter than the source
-            return Task.CompletedTask;
-        });
-
-        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
-
-        Assert.False(result.Moved);
-        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
-        Assert.True(File.Exists(src), "source MUST survive a truncated-dest verify failure");
-        Assert.Equal(original, File.ReadAllText(src));
-        Assert.False(File.Exists(dest), "the suspect (short) destination must be deleted");
-        Assert.NotNull(inFlight);
-        Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
     }
 
     // A file already present in the destination directory is untouched by a cross-volume move,

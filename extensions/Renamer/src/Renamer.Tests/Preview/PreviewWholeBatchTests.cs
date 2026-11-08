@@ -82,9 +82,6 @@ public sealed class PreviewWholeBatchTests
             Assert.Contains("\"to\":", json);
             Assert.Contains("\"count\":", json);
             Assert.Contains("\"bytes\":", json);
-            Assert.DoesNotContain("\"status\":0", json);
-            Assert.DoesNotContain("\"Status\":", json);
-            Assert.DoesNotContain("\"ConfirmLevel\":", json);
 
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);

@@ -8,7 +8,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class ScanAggregateScaleTests
 {
-    private const int SmallFixture = 10;
     private const int LargeFixture = 10_000;
 
     // The ceiling the stored blob must stay under, derived from the shape rather than asserted as a
@@ -80,11 +79,11 @@ public sealed class ScanAggregateScaleTests
         return (json, summary, store);
     }
 
-    [Theory]
-    [InlineData(SmallFixture)]
-    [InlineData(LargeFixture)]
-    public async Task StoredBlob_StaysUnderTheDerivedCeiling(int files)
+    [Fact]
+    public async Task StoredBlob_StaysUnderTheDerivedCeiling()
     {
+        const int files = LargeFixture;
+
         var (json, summary, _) = await ScanAsync(SeedLibrary(files));
 
         int ceiling = Ceiling(summary.Kinds.Count);

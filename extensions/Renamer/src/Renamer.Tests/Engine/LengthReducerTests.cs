@@ -55,7 +55,12 @@ public class LengthReducerTests
     [Fact]
     public void RenderWithDropped_LongFixture_DropsEveryField_ThenTruncatesTheTitleToTheBudget()
     {
-        var options = new RenamerOptions { FilenameTemplate = LongTemplateFixture.FilenameTemplate, FolderTemplate = "" };
+        var options = new RenamerOptions
+        {
+            FilenameTemplate = LongTemplateFixture.FilenameTemplate,
+            FolderTemplate = "",
+            FilenameMax = 255,
+        };
 
         var (r, dropped) = TemplateEngine.RenderWithDropped(LongTemplateFixture.Tokens, FixtureMulti, options);
 
@@ -72,7 +77,7 @@ public class LengthReducerTests
         // The bare title still overruns, so the hard truncate cuts the name to exactly the filename
         // budget: FilenameMax less the extension, which is tighter than the full-path budget here.
         Assert.Equal(".mkv", r.Ext);
-        Assert.Equal(options.FilenameMax - r.Ext.Length, r.Filename.Length);
+        Assert.Equal(251, r.Filename.Length);
         Assert.Contains(LongTemplateFixture.LongTitle[..100], r.Filename);
         Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
     }
