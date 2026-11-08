@@ -213,3 +213,40 @@ test("a saved edit stays on screen while the re-read it starts is still in fligh
   expect(hook.current.options?.filenameTemplate).toBe(edited);
   expect(hook.current.dirty, "the saved edit still reads as unsaved").toBe(false);
 });
+
+test("an edit made while the save is in flight survives it", async () => {
+  // Only the save bar's own two buttons go disabled for a save, so every field stays editable
+  // across both of its round trips. An edit made in that window is newer than the document being
+  // written, and the save must not take it down with the draft it does clear.
+  const hook = await mountHook();
+
+  commit(() => {
+    hook.current.set("filenameTemplate", "$studio - $title");
+  });
+
+  endpoint.holdNextRead = true;
+  const save = hook.current.onSave();
+  await hook.settled("the save's re-read to reach the endpoint", () => !endpoint.holdNextRead);
+
+  const typedDuringSave = "$studio - $date - $title";
+  commit(() => {
+    hook.current.set("filenameTemplate", typedDuringSave);
+  });
+
+  endpoint.releaseRead();
+  await act(async () => {
+    await save;
+  });
+
+  // The write carried the document as it stood when Save was pressed, which is the half of this
+  // that already held: nothing about the later edit belongs in the request.
+  expect((endpoint.sent[0].body as RenamerOptions).filenameTemplate).toBe("$studio - $title");
+  expect(
+    hook.current.options?.filenameTemplate,
+    "the save discarded the edit typed while it was in flight",
+  ).toBe(typedDuringSave);
+  expect(
+    hook.current.dirty,
+    "the surviving edit reads as saved, so nothing offers to save it",
+  ).toBe(true);
+});

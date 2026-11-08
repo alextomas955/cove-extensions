@@ -91,12 +91,15 @@ export function useRenamerOptions(): UseRenamerOptions {
     setSaveError(null);
     try {
       await request(OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
-      // The draft goes only once the re-read has landed. Dropping it first falls back to the
-      // response still in the cache, which is the document from before this save: the panel would
-      // show the old values for a round trip and then rewrite what the user typed in the meantime,
-      // under their caret. The cost is that the unsaved mark lingers until the read lands.
+      // The draft goes only once the re-read has landed, and only while it still holds what was
+      // sent. Dropping it first falls back to the response still in the cache, which is the
+      // document from before this save, so the panel would show the old values for a round trip.
+      // No form input is disabled while a save runs, so an edit made across either round trip is
+      // newer than what was written: clearing it unconditionally loses that edit, and clears the
+      // unsaved mark that would have been the one sign it was gone. The cost of both is that the
+      // mark lingers until the read lands.
       await queryClient.invalidateQueries({ queryKey: OPTIONS_KEY });
-      setDraft(null);
+      setDraft((d) => (d === null || JSON.stringify(d) === JSON.stringify(options) ? null : d));
       setSavedFlash(true);
       flashTimer.current = setTimeout(() => {
         setSavedFlash(false);
