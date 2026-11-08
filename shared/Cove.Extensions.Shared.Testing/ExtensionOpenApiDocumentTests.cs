@@ -105,7 +105,7 @@ public abstract class ExtensionOpenApiDocumentTests
                     {
                         [new OpenApiSecuritySchemeReference(BearerScheme, document)] = [],
                     },
-                    new OpenApiSecurityRequirement(),
+                    [],
                 ];
                 return Task.CompletedTask;
             }));
