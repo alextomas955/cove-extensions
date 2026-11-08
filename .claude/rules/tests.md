@@ -23,10 +23,10 @@ failure modes that matter. A module with no behavior of its own is covered throu
 Never extract a helper so a test can reach it. That moves the seam rather than testing the thing,
 and it leaves production code shaped by the test. Drive the view, the handler or the endpoint.
 
-For a UI suite, use the shared render and wait helpers rather than growing a harness per suite.
-Where an established testing library covers what a hand-written harness does, take it as a dev
-dependency for the new suite - a UI test dependency never reaches a shipped bundle. Leave the
-existing suites as they are; a migration is its own change.
+A UI component test uses React Testing Library and `user-event`. `render` and every `user` action
+run inside `act`, so a test that flushes or polls is working around a missing query, not a timing
+problem. Query by role and accessible name. Never mount a root by hand and never write a wait
+helper.
 
 ## An assertion that cannot fail is worse than no assertion
 

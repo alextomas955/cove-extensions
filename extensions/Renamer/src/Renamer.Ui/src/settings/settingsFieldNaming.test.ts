@@ -3,16 +3,16 @@
 // forwards a click to a button that is one control among several: a label activates its first
 // labelable descendant, so a heading over a chip row would activate a chip. Every text input, select
 // and textarea has an accessible name. Every label names exactly one control by an id that resolves.
-import { test, expect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import { createElement, createRef, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { someOptions } from "./testOptions";
 // Reached by path, not through the barrel: a stand-in for a host module is not public surface.
 import { HOST_SELECTOR_MARK } from "../../../../../../shared/ui-shared/src/coveRuntimeComponentsStub";
 import type { LibraryPathsState, RenamerOptions } from "./options";
 
-import { waitFor } from "../common/lib/flushRender";
 import { withQueryClient } from "../common/lib/testQueryClient";
 
 import { AdvancedSection } from "./AdvancedSection";
@@ -107,28 +107,19 @@ function Panel() {
   );
 }
 
+afterEach(cleanup);
+
 async function renderPanel() {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(withQueryClient(createElement(Panel)));
-  await waitFor("the panel to mount", () => container.querySelector("[data-section]") !== null);
+  const user = userEvent.setup();
+  const { container } = render(withQueryClient(createElement(Panel)));
 
   // Every Advanced panel is collapsed by default and renders no children until opened, so the fields
   // inside one are not on screen to be checked.
-  const collapsed = () => [
-    ...container.querySelectorAll<HTMLElement>('button[aria-expanded="false"]'),
-  ];
-  for (const header of collapsed()) header.click();
-  await waitFor("every collapsible panel to open", () => collapsed().length === 0);
+  const collapsed = () => screen.queryAllByRole("button", { expanded: false });
+  for (const header of collapsed()) await user.click(header);
+  expect(collapsed(), "a collapsible panel stayed shut").toEqual([]);
 
-  return {
-    container,
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
-  };
+  return { container };
 }
 
 // The HTML labelable elements. `button` is on this list, which is the whole reason a heading over a
@@ -220,8 +211,6 @@ test("no label forwards a click to a button that is one control among several", 
   expect(allowed.length, "the single-control carve-out matched nothing").toBeGreaterThan(0);
 
   expect(violations, "a label forwarding a click to one of several controls").toEqual([]);
-
-  view.unmount();
 });
 
 test("every text input, select and textarea is named, including the host selector's own input", async () => {
@@ -241,8 +230,6 @@ test("every text input, select and textarea is named, including the host selecto
   expect(selectorInputs.length, "no host selector input was rendered").toBeGreaterThan(0);
 
   expect(unnamed, "an unnamed control").toEqual([]);
-
-  view.unmount();
 });
 
 test("every label names exactly one control, by an id that resolves", async () => {
@@ -269,6 +256,4 @@ test("every label names exactly one control, by an id that resolves", async () =
 
   expect(unpaired, "a label whose for names no single control").toEqual([]);
   expect(notOne, "a label wrapping other than one control").toEqual([]);
-
-  view.unmount();
 });

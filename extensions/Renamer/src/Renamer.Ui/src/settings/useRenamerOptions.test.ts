@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 // What the options hook shows from one `GET /options`, and what it sends back. The endpoint decides
 // whether a save is allowed, and a hook that ignored it would offer a Save the server refuses.
-import { test, expect, vi, beforeEach } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, cleanup, waitFor } from "@testing-library/react";
 
-import { useRenamerOptions, type UseRenamerOptions } from "./useRenamerOptions";
+import { useRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
 import { withQueryClient } from "../common/lib/testQueryClient";
 import type { OptionsView } from "./options";
@@ -35,12 +34,6 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-// `act` refuses to run without it, and React reads it off the global rather than from an import.
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean;
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
 // Apply a synchronous change and return once React has committed it and the effects it started have
 // settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
 // caller reads committed state rather than whatever a fixed wait happened to catch.
@@ -50,54 +43,29 @@ const commit = (change: () => void) =>
     await Promise.resolve();
   });
 
-// Mount the hook and hand back its latest return value plus a teardown.
-async function mountHook() {
-  let latest: UseRenamerOptions | null = null;
-  function Probe() {
-    latest = useRenamerOptions();
-    return null;
-  }
+afterEach(cleanup);
 
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await commit(() => {
-    root.render(withQueryClient(createElement(Probe)));
+// Mount the hook and hand back its latest return value.
+async function mountHook() {
+  const hook = renderHook(() => useRenamerOptions(), {
+    wrapper: ({ children }) => withQueryClient(children),
   });
 
-  // Read through a call so the compiler does not narrow `latest` to the null it is initialised with:
-  // every assignment happens inside the probe's render, which the flow analysis here cannot see.
-  const read = () => latest;
-
-  // Wait for the load to settle rather than for a fixed number of microtasks: the query resolves
-  // through its client's own scheduler, so how many turns that takes is not this test's to know.
-  for (let i = 0; i < 100 && read()?.loading !== false; i++) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 2));
-    });
-  }
-  expect(read()?.loading, "the options never loaded").toBe(false);
+  // The query resolves through its client's own scheduler, so how many turns that takes is not this
+  // test's to know.
+  await waitFor(() => {
+    expect(hook.result.current.loading, "the options never loaded").toBe(false);
+  });
 
   return {
-    get current(): UseRenamerOptions {
-      expect(latest, "the probe never rendered").not.toBeNull();
-      return latest as unknown as UseRenamerOptions;
+    get current() {
+      return hook.result.current;
     },
-    /** Commits renders until `holds` is true, for a refetch the last action started. */
-    settled: async (condition: string, holds: () => boolean) => {
-      for (let i = 0; i < 200 && !holds(); i++) {
-        await act(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2));
-        });
-      }
-      expect(holds(), `waited for ${condition}, which never became true`).toBe(true);
-    },
-    unmount: async () => {
-      await commit(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
+    /** Waits for a refetch the last action started. */
+    settled: (condition: string, holds: () => boolean) =>
+      waitFor(() => {
+        expect(holds(), `waited for ${condition}, which never became true`).toBe(true);
+      }),
   };
 }
 
@@ -137,8 +105,6 @@ test("an edit is sent back as the whole settings document", async () => {
   // The whole document, not the edited member: the endpoint replaces what it is given.
   expect(Object.keys(sent)).toEqual(Object.keys(someOptions()));
   expect(hook.current.dirty).toBe(false);
-
-  await hook.unmount();
 });
 
 test.each([["pendingNameMigration" as const], ["pendingDestinationMigration" as const]])(
@@ -161,8 +127,6 @@ test.each([["pendingNameMigration" as const], ["pendingDestinationMigration" as 
 
     expect(endpoint.sent, "a save was sent while a conversion was outstanding").toEqual([]);
     expect(hook.current.savedFlash).toBe(false);
-
-    await hook.unmount();
   },
 );
 
@@ -188,8 +152,6 @@ test("an unreadable stored blob offers a save although nothing is edited", async
     () => !hook.current.recoveredFromBadBlob,
   );
   expect(hook.current.canSave).toBe(false);
-
-  await hook.unmount();
 });
 
 test("discard restores what the endpoint answered with", async () => {
@@ -204,6 +166,4 @@ test("discard restores what the endpoint answered with", async () => {
 
   expect(hook.current.options?.filenameTemplate).toBe(someOptions().filenameTemplate);
   expect(hook.current.dirty).toBe(false);
-
-  await hook.unmount();
 });

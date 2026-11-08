@@ -2,11 +2,10 @@
 // The pane shows the preview for the options the user is on when two requests overlap. The request
 // mock hands each call's resolver back to the test, so the test settles them in reverse issue order,
 // which the debounce cannot prevent.
-import { test, expect, vi, beforeEach } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, cleanup } from "@testing-library/react";
 
-import { useRenamePreview, type UseRenamePreview } from "./useRenamePreview";
+import { useRenamePreview } from "./useRenamePreview";
 import { type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
 import type { PreviewSampleResult } from "../wire/api";
@@ -70,12 +69,6 @@ function sample(label: string): PreviewSampleResult[] {
   ];
 }
 
-// `act` refuses to run without it, and React reads it off the global rather than from an import.
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean;
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
 // Settles a request inside `act`, so whatever state the hook's handler set is committed before the
 // next assertion reads it. A handler that discards sets nothing, so there is no render to wait for.
 async function settle(call: (typeof host.calls)[number], outcome: () => void) {
@@ -85,39 +78,25 @@ async function settle(call: (typeof host.calls)[number], outcome: () => void) {
   });
 }
 
-// Mount the hook and hand back its latest return value, a way to change its inputs, and a teardown.
+// Mount the hook and hand back its latest return value and a way to change its inputs.
 function mountHook(initial: RenamerOptions) {
-  let latest: UseRenamePreview | null = null;
-  function Probe({ options, loading }: { options: RenamerOptions; loading: boolean }) {
-    latest = useRenamePreview(options, loading);
-    return null;
-  }
-
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  act(() => {
-    root.render(createElement(Probe, { options: initial, loading: false }));
-  });
+  const hook = renderHook(
+    ({ options, loading }: { options: RenamerOptions; loading: boolean }) =>
+      useRenamePreview(options, loading),
+    { initialProps: { options: initial, loading: false } },
+  );
 
   return {
-    get current(): UseRenamePreview {
-      expect(latest, "the probe never rendered").not.toBeNull();
-      return latest as unknown as UseRenamePreview;
+    get current() {
+      return hook.result.current;
     },
     retarget: (options: RenamerOptions, loading = false) => {
-      act(() => {
-        root.render(createElement(Probe, { options, loading }));
-      });
-    },
-    unmount: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
+      hook.rerender({ options, loading });
     },
   };
 }
+
+afterEach(cleanup);
 
 beforeEach(() => {
   host.calls.length = 0;
@@ -151,8 +130,6 @@ test("an older preview response cannot repaint the pane over a newer one", async
     "second",
   );
   expect(hook.current.previewError).toBe(false);
-
-  hook.unmount();
 }, 30_000);
 
 test("superseding a request aborts it, and its rejection is not reported as a failure", async () => {
@@ -180,8 +157,6 @@ test("superseding a request aborts it, and its rejection is not reported as a fa
   });
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
   expect(hook.current.previewError).toBe(false);
-
-  hook.unmount();
 }, 30_000);
 
 test("an abort of the request still in force is not reported as a failure", async () => {
@@ -200,6 +175,4 @@ test("an abort of the request still in force is not reported as a failure", asyn
   });
   expect(hook.current.previewError, "an abort was surfaced as a preview failure").toBe(false);
   expect(host.calls, "loading issued a request").toHaveLength(1);
-
-  hook.unmount();
 }, 30_000);

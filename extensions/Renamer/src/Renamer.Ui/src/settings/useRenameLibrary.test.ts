@@ -3,15 +3,14 @@
 // loop over a scripted job-status route, with the two tuning constants shrunk so a bound is reached
 // in seconds, and asserts what a user notices: the requests stop and the button comes back with a
 // banner. One test waits on real elapsed time, because it asserts that nothing happens meanwhile.
-import { test, expect, vi, beforeEach } from "vitest";
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { renderHook, cleanup, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-import { waitFor } from "../common/lib/flushRender";
 import { createTestQueryClient } from "../common/lib/testQueryClient";
 
-import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
+import { useRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
 import type {
   LibraryRenameEnqueued,
@@ -79,35 +78,31 @@ const sleep = (ms: number) =>
 // Mount the hook under a client of its own, standing in for the host's. The cache is seeded with a
 // fresh last-batch entry, so "the undo line re-reads after a rename" is observable as that entry
 // going stale - which is what the hook asks the client for.
-async function mountHook() {
-  let latest: UseRenameLibrary | null = null;
-  function Probe() {
-    latest = useRenameLibrary();
-    return null;
-  }
-
+function mountHook() {
   const queryClient = createTestQueryClient();
   queryClient.setQueryData(LAST_BATCH_KEY, { hasBatch: false });
 
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(QueryClientProvider, { client: queryClient }, createElement(Probe)));
-  await waitFor("the probe to render", () => latest !== null);
+  const hook = renderHook(() => useRenameLibrary(), {
+    wrapper: ({ children }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children),
+  });
 
   return {
-    get current(): UseRenameLibrary {
-      expect(latest, "the probe never rendered").not.toBeNull();
-      return latest as unknown as UseRenameLibrary;
+    get current() {
+      return hook.result.current;
     },
     /** Whether the last-batch entry has been marked for re-reading. */
     lastBatchStale: () => queryClient.getQueryState(LAST_BATCH_KEY)?.isInvalidated === true,
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
   };
 }
+
+afterEach(cleanup);
+
+/** Waits out the poll loop the last action started. */
+const runEnded = (hook: { current: { renamingLibrary: boolean } }) =>
+  waitFor(() => {
+    expect(hook.current.renamingLibrary, "the run never ended").toBe(false);
+  });
 
 beforeEach(() => {
   host.reads.length = 0;
@@ -117,10 +112,10 @@ beforeEach(() => {
 });
 
 test("a job that stops reporting progress ends the run instead of polling forever", async () => {
-  const hook = await mountHook();
+  const hook = mountHook();
 
   await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await runEnded(hook);
 
   const readsAtSettlement = host.reads.length;
 
@@ -141,8 +136,6 @@ test("a job that stops reporting progress ends the run instead of polling foreve
   expect(feedback?.text).toContain("Couldn't confirm the rename");
   expect(feedback?.text).not.toContain("Nothing was changed");
   expect(hook.current.dryRunOpen).toBe(false);
-
-  hook.unmount();
 }, 30_000);
 
 test("a completed job still resolves through the same poll", async () => {
@@ -157,10 +150,10 @@ test("a completed job still resolves through the same poll", async () => {
     completedAtUtcTicks: 0,
     kinds: ["video"],
   };
-  const hook = await mountHook();
+  const hook = mountHook();
 
   await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await runEnded(hook);
 
   expect(hook.current.renamingLibrary).toBe(false);
   expect(hook.current.runLibraryFeedback).toEqual({
@@ -175,37 +168,31 @@ test("a completed job still resolves through the same poll", async () => {
     "/extensions/com.alextomas955.renamer/job-status/job-under-test",
     "/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
   ]);
-
-  hook.unmount();
 }, 30_000);
 
 test("a completed job whose counts cannot be read is not reported as a rename that changed nothing", async () => {
   host.status = "completed";
-  const hook = await mountHook();
+  const hook = mountHook();
 
   await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await runEnded(hook);
 
   const feedback = hook.current.runLibraryFeedback;
   expect(feedback?.kind).toBe("success");
   expect(feedback?.text).toContain("Rename finished.");
   expect(feedback?.text).not.toContain("Nothing was changed");
   expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
-
-  hook.unmount();
 }, 30_000);
 
 test("a job that fails after it started never reports the library as untouched", async () => {
   host.status = "failed";
-  const hook = await mountHook();
+  const hook = mountHook();
 
   await hook.current.renameLibrary();
-  await waitFor("the run to end", () => !hook.current.renamingLibrary);
+  await runEnded(hook);
 
   const feedback = hook.current.runLibraryFeedback;
   expect(feedback?.kind).toBe("error");
   expect(feedback?.text).toContain("The rename stopped before it finished");
   expect(feedback?.text).not.toContain("Nothing was changed");
-
-  hook.unmount();
 }, 30_000);

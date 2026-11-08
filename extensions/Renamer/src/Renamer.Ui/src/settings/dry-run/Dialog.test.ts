@@ -1,74 +1,56 @@
 // @vitest-environment jsdom
 // The Dry Run shell's own cancel paths. The overlay hook's keys are covered by its own suite; what is
 // this component's is the scrim, and holding the dialog open while an operation is in flight.
-import { test, expect, vi } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { test, expect, vi, afterEach } from "vitest";
+import { createElement } from "react";
+import { render, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { Dialog } from "./Dialog";
 
-// `act` refuses to run without it, and React reads it off the global rather than from an import.
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean;
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+afterEach(cleanup);
 
 function mount(pending: boolean) {
   const onCancel = vi.fn();
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  act(() => {
-    root.render(
-      createElement(Dialog, {
-        titleId: "t",
-        pending,
-        onCancel,
-        children: [
-          createElement("h2", { id: "t", key: "title" }, "Dry run"),
-          createElement("button", { type: "button", key: "close" }, "Close"),
-        ],
-      }),
-    );
-  });
+  const { container } = render(
+    createElement(Dialog, {
+      titleId: "t",
+      pending,
+      onCancel,
+      children: [
+        createElement("h2", { id: "t", key: "title" }, "Dry run"),
+        createElement("button", { type: "button", key: "close" }, "Close"),
+      ],
+    }),
+  );
 
   return {
     onCancel,
-    // The backdrop is the one element the dialog hides from assistive technology.
+    // The backdrop is the one element the dialog hides from assistive technology, so it carries no
+    // role and no name to find it by.
     scrim: () => {
       const found = container.querySelector<HTMLElement>('[aria-hidden="true"]');
       if (!found) throw new Error("no scrim");
       return found;
     },
-    unmount: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
   };
 }
 
-function pressEscape() {
-  const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
-  (document.activeElement ?? document.body).dispatchEvent(event);
-}
-
-test("a click on the scrim cancels", () => {
+test("a click on the scrim cancels", async () => {
+  const user = userEvent.setup();
   const view = mount(false);
 
-  view.scrim().click();
-  expect(view.onCancel).toHaveBeenCalledTimes(1);
+  await user.click(view.scrim());
 
-  view.unmount();
+  expect(view.onCancel).toHaveBeenCalledTimes(1);
 });
 
-test("while an operation is pending neither Escape nor the scrim cancels", () => {
+test("while an operation is pending neither Escape nor the scrim cancels", async () => {
+  const user = userEvent.setup();
   const view = mount(true);
 
-  pressEscape();
-  view.scrim().click();
-  expect(view.onCancel, "the dialog closed over an operation in flight").not.toHaveBeenCalled();
+  await user.keyboard("{Escape}");
+  await user.click(view.scrim());
 
-  view.unmount();
+  expect(view.onCancel, "the dialog closed over an operation in flight").not.toHaveBeenCalled();
 });

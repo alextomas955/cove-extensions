@@ -1,59 +1,13 @@
 // @vitest-environment jsdom
 // Each Advanced control is named once, its explanation sits above it, and every line of copy
 // reads as the engine behaves.
-import { test, expect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { AdvancedSection } from "./AdvancedSection";
 import { someOptions } from "./testOptions";
-
-async function renderAdvanced() {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(
-    createElement(AdvancedSection, {
-      // A non-empty illegal replacement is what puts the replace helper on screen at all.
-      options: { ...someOptions(), illegalReplacement: "_" },
-      set: () => undefined,
-    }),
-  );
-  const collapsed = () => [
-    ...container.querySelectorAll<HTMLElement>('button[aria-expanded="false"]'),
-  ];
-  await waitFor("the advanced panels to render", () => collapsed().length > 0);
-  for (const header of collapsed()) header.click();
-  await waitFor("every panel to open", () => collapsed().length === 0);
-
-  return {
-    container,
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
-  };
-}
-
-// How many text nodes read exactly `text`.
-function textNodes(container: HTMLElement, text: string): number {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let found = 0;
-  let node = walker.nextNode();
-  while (node) {
-    if ((node.nodeValue ?? "").trim() === text) found += 1;
-    node = walker.nextNode();
-  }
-  return found;
-}
-
-function input(container: HTMLElement, placeholder: string): HTMLInputElement {
-  const el = container.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`);
-  if (!el) throw new Error(`no input with placeholder ${placeholder}`);
-  return el;
-}
 
 const DROP_ORDER_PLACEHOLDER = "Type to add a token";
 const ARTICLES_PLACEHOLDER = "Add article, press Enter";
@@ -68,9 +22,26 @@ const SHIPS = [
   "Only when the name appears as a whole word.",
 ];
 
-// Every sentence and its count, so a run names each one that disagrees.
-function counts(container: HTMLElement, sentences: readonly string[]): Record<string, number> {
-  return Object.fromEntries(sentences.map((s) => [s, textNodes(container, s)]));
+afterEach(cleanup);
+
+async function renderAdvanced() {
+  const user = userEvent.setup();
+  render(
+    createElement(AdvancedSection, {
+      // A non-empty illegal replacement is what puts the replace helper on screen at all.
+      options: { ...someOptions(), illegalReplacement: "_" },
+      set: () => undefined,
+    }),
+  );
+
+  const collapsed = () => screen.queryAllByRole("button", { expanded: false });
+  for (const header of collapsed()) await user.click(header);
+  expect(collapsed(), "a panel stayed shut").toEqual([]);
+}
+
+// Every sentence and how many elements read exactly that, so a run names each one that disagrees.
+function counts(sentences: readonly string[]): Record<string, number> {
+  return Object.fromEntries(sentences.map((s) => [s, screen.queryAllByText(s).length]));
 }
 
 function expected(sentences: readonly string[], n: number): Record<string, number> {
@@ -78,47 +49,40 @@ function expected(sentences: readonly string[], n: number): Record<string, numbe
 }
 
 test("each shipped line of helper and option copy is on screen exactly once", async () => {
-  const view = await renderAdvanced();
+  await renderAdvanced();
 
-  expect(counts(view.container, SHIPS)).toEqual(expected(SHIPS, 1));
-
-  view.unmount();
+  expect(counts(SHIPS)).toEqual(expected(SHIPS, 1));
 });
 
 test("the drop-order explanation precedes the control it explains", async () => {
-  const view = await renderAdvanced();
+  await renderAdvanced();
 
-  const explanation = [...view.container.querySelectorAll("*")]
-    .filter((e) => e.textContent.trim() === DROP_ORDER_EXPLANATION)
-    .at(-1);
-  expect(explanation, DROP_ORDER_EXPLANATION).toBeDefined();
-
-  const control = input(view.container, DROP_ORDER_PLACEHOLDER);
+  const explanation = screen.getByText(DROP_ORDER_EXPLANATION);
+  const control = screen.getByPlaceholderText(DROP_ORDER_PLACEHOLDER);
   const precedes = Boolean(
-    explanation!.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
+    explanation.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
   );
-  expect(precedes).toBe(true);
 
-  view.unmount();
+  expect(precedes).toBe(true);
 });
 
 test("the chip controls are named by their own heading, not by a placeholder", async () => {
-  const view = await renderAdvanced();
+  await renderAdvanced();
 
-  expect(input(view.container, DROP_ORDER_PLACEHOLDER).getAttribute("aria-label")).toBe(
-    "Drop order",
+  // Queried by accessible name and matched against the control the placeholder identifies, so a name
+  // moved onto a different control fails as surely as a name that changed.
+  expect(screen.getByRole("combobox", { name: "Drop order" })).toBe(
+    screen.getByPlaceholderText(DROP_ORDER_PLACEHOLDER),
   );
-  expect(input(view.container, ARTICLES_PLACEHOLDER).getAttribute("aria-label")).toBe("Articles");
-
-  view.unmount();
+  expect(screen.getByRole("textbox", { name: "Articles" })).toBe(
+    screen.getByPlaceholderText(ARTICLES_PLACEHOLDER),
+  );
 });
 
 test("each exclude control is named once", async () => {
-  const view = await renderAdvanced();
+  await renderAdvanced();
 
   for (const label of ["Exclude by tag", "Exclude by studio", "Exclude by source path"]) {
-    expect(textNodes(view.container, label), label).toBe(1);
+    expect(screen.queryAllByText(label), label).toHaveLength(1);
   }
-
-  view.unmount();
 });

@@ -38,11 +38,15 @@ Source inspection is a fallback for a contract that cannot reasonably be exercis
 is needed and keep the assertion limited to that contract. Prefer comparing actual manifest and
 bundle exports when testing component registration.
 
-Use React's `act` and observable completion conditions to synchronize component tests. Advance fake
-timers explicitly when testing debounce or timeout behavior. Do not use fixed sleeps to guess when
-React has committed. Production-only build defines belong outside test configuration; production
-bundle behavior is verified at the integration tier. Existing tests with sleeps are migration work,
-not a pattern to copy.
+Write a component test with React Testing Library and `user-event`. `render` and every `user` action
+run inside `act`, so a committed render needs no flush and no wait. Query by role and accessible
+name, so a control whose name drifts from the heading above it fails the query instead of passing on
+a stale `aria-label`. Advance fake timers explicitly when testing debounce or timeout behavior. Do
+not use fixed sleeps to guess when React has committed. Production-only build defines belong outside
+test configuration; production bundle behavior is verified at the integration tier.
+
+Do not mount a root by hand, and do not write a wait helper. Every component suite here goes through
+the library.
 
 Run checks appropriate to the changed behavior and required repository gates. Broaden the run when
 shared code changes or failures reveal wider impact. Report skipped checks and environmental limits;
@@ -127,6 +131,10 @@ That generates the wire types first, then does one Vitest run. It is also one of
 Renamer's configuration runs its own tests and the shared UI suite rooted at `shared/ui-shared` as
 separate Vitest projects. Read the project names from the relevant `vite.config.ts`. Shared UI currently resolves through source aliases and uses Renamer's
 test runner; run that suite when changing shared UI code.
+
+Both projects run on the `node` environment, so a test that renders a component opens with
+`// @vitest-environment jsdom`. Neither declares Vitest globals, so React Testing Library's automatic
+cleanup never registers and each such suite calls `afterEach(cleanup)` itself.
 
 ## Measure coverage
 
