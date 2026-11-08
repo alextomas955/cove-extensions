@@ -298,7 +298,7 @@ export default defineConfig(
       "boundaries/dependencies": [
         "error",
         {
-          // External npm packages (react, @cove/extension-sdk, …) are governed by boundaries/external,
+          // External npm packages (react, @tanstack/react-query, …) are governed by boundaries/external,
           // not this rule; only import between local elements is constrained here.
           default: "disallow",
           policies: [

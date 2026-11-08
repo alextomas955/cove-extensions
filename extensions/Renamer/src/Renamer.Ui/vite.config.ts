@@ -54,10 +54,6 @@ export default defineConfig({
           include: ["src/**/*.test.{ts,tsx}"],
           environment: "node",
           alias: hostRuntimeStubs,
-          // The vendored SDK ships extensionless relative imports, which a bundler resolves and
-          // Node's ESM loader refuses. Transforming it here is what lets a test render a component
-          // whose graph reaches the host request helper.
-          server: { deps: { inline: ["@cove/extension-sdk"] } },
         },
       },
       {
@@ -67,10 +63,9 @@ export default defineConfig({
           root: sharedUiRoot,
           include: ["src/**/*.test.{ts,tsx}"],
           environment: "node",
-          // The shared request helpers reach the host runtime and the vendored SDK, exactly as the
-          // consuming bundle's own sources do, so this project resolves both the same way.
+          // The shared sources reach the host runtime exactly as the consuming bundle's own do, so
+          // this project resolves it the same way.
           alias: hostRuntimeStubs,
-          server: { deps: { inline: ["@cove/extension-sdk"] } },
         },
       },
     ],

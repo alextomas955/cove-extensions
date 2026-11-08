@@ -58,9 +58,8 @@ with one error rather than running a smaller set.
 
 ## Frontend (the settings panel)
 
-The panel bundle is built with an offline, vendored `@cove/extension-sdk` tarball (`npm ci`
-resolves it from `src/Renamer.Ui/vendor/`, no registry access needed). The panel's wire types are
-generated from the committed OpenAPI document and gitignored, so generate them from the repo root
+The panel's wire types, its HTTP client and its TanStack Query helpers are all generated from the
+committed OpenAPI document and gitignored, so generate them from the repo root
 before the first frontend command on a fresh clone:
 
 ```sh
@@ -71,7 +70,7 @@ npm run generate:wire
 Then, from `src/Renamer.Ui/`:
 
 ```sh
-npm ci            # first time only (offline; installs the vendored SDK)
+npm ci            # first time only
 npm run verify    # typecheck + check-classes + check-host-imports + tests
 npm run build     # rebuild dist/index.mjs
 ```

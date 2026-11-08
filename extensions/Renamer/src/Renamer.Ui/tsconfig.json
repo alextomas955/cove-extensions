@@ -26,7 +26,6 @@
       ],
       "@cove/runtime/components": ["../../../../.host-types/components/extension-shared.d.ts"],
       "@cove/runtime/api": ["../../../../.host-types/extensions/extension-api.d.ts"],
-      "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],

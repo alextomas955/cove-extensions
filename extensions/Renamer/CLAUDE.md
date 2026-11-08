@@ -25,9 +25,6 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 - `pwsh scripts/deploy-dev.ps1` builds against the local Cove checkout, builds the UI, assembles the
   catalog's file set and installs it. It does not restart Cove. Always `pwsh`. Set `COVE_HOME` off
   Windows.
-- `@cove/extension-sdk` is not on npm. It is vendored as a tarball under `src/Renamer.Ui/vendor/`
-  and installs offline. Regenerate it with `scripts/update-cove-sdk.ps1` when the SDK version
-  changes.
 
 ## Where comments are needed
 

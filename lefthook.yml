@@ -1,8 +1,7 @@
 # One pre-commit gate spanning the mixed C# + TypeScript repo.
 #
 # ESLint is one repo-root config (eslint.config.mjs) covering every extension's UI and all
-# .mjs/.cjs scripts. The same type-aware gate runs here and in CI (ci.yml's js-lint job), since
-# the vendored @cove/extension-sdk is committed and installs offline in both.
+# .mjs/.cjs scripts. The same type-aware gate runs here and in CI (ci.yml's js-lint job).
 #
 # Format and lint staged files only; no build and no test run on commit.
 
