@@ -26,8 +26,8 @@ public sealed class EntityIdsCapTests
     private static void AssertTooManyIds(IResult result)
     {
         var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
-        Assert.Equal("TOO_MANY_IDS", bad.Problem.Extensions[Problems.CodeMember]);
-        Assert.Equal(Cap, bad.Problem.Extensions[Problems.MaxMember]);
+        Assert.Equal("TOO_MANY_IDS", bad.Problem.Code);
+        Assert.Equal(Cap, bad.Problem.Max);
     }
 
     [Fact]

@@ -74,13 +74,8 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
     };
 
     function read() {
-      renamerGetJobStatus({ path: { jobId } })
-        .then(({ data }): RenamerJobStatus => {
-          // A poll with no status cannot say whether the job advanced, which is the one thing the
-          // caller reads this for.
-          if (!data) throw new Error("job-status answered with no status");
-          return data;
-        })
+      renamerGetJobStatus({ path: { jobId }, throwOnError: true })
+        .then(({ data }): RenamerJobStatus => data)
         .then((job) => {
           if (settled) return;
           const now = Date.now();

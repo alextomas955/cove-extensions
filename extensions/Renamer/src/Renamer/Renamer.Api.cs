@@ -165,7 +165,7 @@ public sealed partial class Renamer
             .WithName("RenamerRenameSelected")
             .WithSummary("Rename a named selection")
             .WithDescription(
-                "Enqueues the rename of the given entities and returns at once with the job to poll. Each entity is authorized against the caller as the job runs, so a job may rename fewer than were asked for.");
+                "Enqueues the rename of the given entities and returns at once with the job to poll. Every id is authorized before anything is enqueued, and one the caller may not write refuses the whole request, so an accepted job renames all of them or none were accepted.");
 
         // The handler reads the raw request so an empty body means the defaults, which typed binding
         // cannot express. No parameter declares the body, so .Accepts<> is what puts its schema in the
@@ -173,7 +173,10 @@ public sealed partial class Renamer
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
-            .Accepts<PreviewSampleRequest>("application/json")
+            // isOptional, because the handler reads the raw body and treats an absent one as the
+            // defaults. The overload without it declares the body required, which would tell a
+            // generated client the defaults cannot be asked for without sending a dummy object.
+            .Accepts<PreviewSampleRequest>(isOptional: true, "application/json")
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions)
             .WithName("RenamerPreviewSample")
             .WithSummary("Preview sample names for unsaved settings")
@@ -189,7 +192,7 @@ public sealed partial class Renamer
             .WithName("RenamerUndo")
             .WithSummary("Undo the last rename batch")
             .WithDescription(
-                "Moves the files of the most recent batch back to the names they had. Every arm it answers carries counts, including the one where there was nothing to undo, so a caller never has to infer what happened. A caller the permission gate refuses is the exception: that answers 403 with no counts.");
+                "Moves the files of the most recent batch back to the names they had. Every arm that answers carries counts, including the one where there was nothing left to undo, so a caller never has to infer what happened. A refusal is the exception and answers 403 with none: the caller may hold no write permission at all, or not the permission for a kind the batch touched, or not the right to an entity in it.");
 
         endpoints.MapGet(LastBatchRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
@@ -206,7 +209,7 @@ public sealed partial class Renamer
             .WithName("RenamerScanLibrary")
             .WithSummary("Scan the whole library for planned renames")
             .WithDescription(
-                "Enqueues the scan and returns the job to poll along with the run its rows are read under.");
+                "Enqueues the scan and returns the job to poll, along with the run id its totals are later read under. Rows are not read by run: they are paged from the settings the scan ran with.");
 
         endpoints.MapGet(LastScanRoute,
             (string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -258,7 +261,7 @@ public sealed partial class Renamer
             .WithName("RenamerGetJobStatus")
             .WithSummary("Read the status of a job this extension started")
             .WithDescription(
-                "Scoped to the caller who started it. The extension answers this itself because the host's own job route requires unrestricted read, which a scoped account does not have.");
+                "Scoped to the caller who started it wherever the host identifies one, which it does not when authentication is turned off. The extension answers this itself because the host's own job route requires unrestricted read, which a scoped account does not have.");
 
         endpoints.MapGet(OrphanedRulesRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct)

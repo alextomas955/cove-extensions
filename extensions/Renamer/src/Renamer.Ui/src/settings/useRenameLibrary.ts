@@ -80,10 +80,7 @@ export function useRenameLibrary(): UseRenameLibrary {
     // Whether the job was accepted. From then on a failure may follow renames that already happened.
     let started = false;
     try {
-      const { data: enqueued } = await renamerRenameLibrary();
-      // Nothing was accepted, so the catch below reporting the library untouched is correct.
-      if (!enqueued) throw new Error("renamer-library answered with no run");
-      const { jobId, runId } = enqueued;
+      const { jobId, runId } = (await renamerRenameLibrary({ throwOnError: true })).data;
       started = true;
       await runPoll(jobId, (job) => {
         if (mounted.current)
@@ -95,8 +92,8 @@ export function useRenameLibrary(): UseRenameLibrary {
       });
       // The job has completed, so a failed read of its counts must not land in the catch below,
       // which reports the library as untouched.
-      const summary = await renamerGetLibraryRenameResult({ path: { runId } })
-        .then(({ data }) => data ?? null)
+      const summary = await renamerGetLibraryRenameResult({ path: { runId }, throwOnError: true })
+        .then(({ data }) => data)
         .catch(() => null);
 
       if (!mounted.current) return;

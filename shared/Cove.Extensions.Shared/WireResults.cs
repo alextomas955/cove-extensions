@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -7,31 +8,44 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cove.Extensions.Shared;
 
 /// <summary>
-/// The RFC 9457 problem body every non-2xx wire result carries, and the per-status results that write
-/// it.
+/// An RFC 9457 problem body with this repository's two extension members declared on it.
 /// </summary>
 /// <remarks>
-/// A status is one type, because a result declares exactly one response schema and the document is
-/// emitted from the handler's declared return type. The framework's own
-/// <c>TypedResults.Problem</c> writes the right body but declares <c>500</c> whatever status it was
-/// given, so it cannot describe these arms.
+/// Declared properties rather than entries in <see cref="ProblemDetails.Extensions"/>, which carries
+/// <c>JsonExtensionData</c> and is therefore invisible to schema generation: members put there are
+/// written on the wire and absent from the document, so no generated client can read them. RFC 9457
+/// places no constraint on how an extension member is implemented, only on the names being distinct
+/// from the standard ones.
 /// </remarks>
+public sealed class ExtensionProblemDetails : ProblemDetails
+{
+    /// <summary>
+    /// A stable SCREAMING_SNAKE token a caller branches on (<c>FORBIDDEN</c>, <c>INVALID_BODY</c>, …).
+    /// </summary>
+    /// <remarks>
+    /// Part of the wire contract: changing one is a breaking change even though nothing in the type
+    /// system says so. It exists beside <see cref="ProblemDetails.Type"/> because that member is a
+    /// URI, which is awkward to compare against.
+    /// </remarks>
+    [JsonPropertyName(Problems.CodeMember)]
+    public required string Code { get; init; }
+
+    /// <summary>The bound a cap rejection exceeded, so a caller can batch to fit rather than guess.</summary>
+    [JsonPropertyName(Problems.MaxMember)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Max { get; init; }
+}
+
+/// <summary>Builds the problem bodies the results below write.</summary>
 public static class Problems
 {
     /// <summary>The media type RFC 9457 defines for a problem body.</summary>
     public const string MediaType = "application/problem+json";
 
-    /// <summary>
-    /// The extension member carrying the stable token a caller branches on.
-    /// </summary>
-    /// <remarks>
-    /// A problem's <c>type</c> is a URI, which is awkward to compare against. RFC 9457 allows
-    /// extension members for exactly this, so the short token stays available and the envelope stays
-    /// the standard one the host's own errors use.
-    /// </remarks>
+    /// <summary>The extension member carrying the stable token a caller branches on.</summary>
     public const string CodeMember = "code";
 
-    /// <summary>The bound a cap rejection exceeded, so a caller can batch to fit rather than guess.</summary>
+    /// <summary>The extension member carrying the bound a cap rejection exceeded.</summary>
     public const string MaxMember = "max";
 
     // Stable and non-dereferenceable on purpose: a problem type is an identifier, and an http URL here
@@ -42,39 +56,45 @@ public static class Problems
     /// <param name="status">The status the result writes; echoed into the body as RFC 9457 requires.</param>
     /// <param name="code">A stable SCREAMING_SNAKE token. Part of the wire contract.</param>
     /// <param name="title">A short human-readable summary, which never varies by occurrence.</param>
+    /// <param name="detail">What happened on this occurrence, written to be read by a person.</param>
     /// <param name="max">Written only for a cap rejection.</param>
-    public static ProblemDetails Create(int status, string code, string title, int? max = null)
-    {
-        var problem = new ProblemDetails
+    public static ExtensionProblemDetails Create(
+        int status, string code, string title, string detail, int? max = null) =>
+        new()
         {
             Type = TypePrefix + code,
             Title = title,
             Status = status,
+            Detail = detail,
+            Code = code,
+            Max = max,
         };
-        problem.Extensions[CodeMember] = code;
-        if (max is { } bound)
-        {
-            problem.Extensions[MaxMember] = bound;
-        }
-
-        return problem;
-    }
 }
 
-/// <summary>A non-2xx result writing an RFC 9457 problem body and declaring its own status.</summary>
+/// <summary>A result writing an RFC 9457 problem body and declaring its own status.</summary>
+/// <remarks>
+/// One type per status, because a result declares exactly one response schema and the document is
+/// emitted from the handler's declared return type. The framework's own <c>TypedResults.Problem</c>
+/// writes the right body but declares <c>500</c> whatever status it was given, so it cannot describe
+/// these arms.
+/// <para>
+/// Not every refusal uses one. A route answering <c>404</c> says all it has to say in the status, so
+/// it returns no body at all.
+/// </para>
+/// </remarks>
 public abstract class ProblemResultBase
     : IResult,
         IStatusCodeHttpResult,
         IValueHttpResult,
-        IValueHttpResult<ProblemDetails>
+        IValueHttpResult<ExtensionProblemDetails>
 {
-    private protected ProblemResultBase(ProblemDetails problem) => Problem = problem;
+    private protected ProblemResultBase(ExtensionProblemDetails problem) => Problem = problem;
 
     /// <summary>The problem body this result writes.</summary>
-    public ProblemDetails Problem { get; }
+    public ExtensionProblemDetails Problem { get; }
 
     /// <inheritdoc />
-    public ProblemDetails? Value => Problem;
+    public ExtensionProblemDetails? Value => Problem;
 
     object? IValueHttpResult.Value => Problem;
 
@@ -94,16 +114,18 @@ public abstract class ProblemResultBase
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Metadata.Add(
-            new ProducesResponseTypeMetadata(status, typeof(ProblemDetails), [Problems.MediaType]));
+            new ProducesResponseTypeMetadata(status, typeof(ExtensionProblemDetails), [Problems.MediaType]));
     }
 }
 
 /// <summary>A <c>400</c> carrying the code that names what the request got wrong.</summary>
 public sealed class BadRequestProblem : ProblemResultBase, IEndpointMetadataProvider
 {
-    /// <summary>Builds the result for one code.</summary>
-    public BadRequestProblem(string code, string title, int? max = null)
-        : base(Problems.Create(StatusCodes.Status400BadRequest, code, title, max)) { }
+    /// <summary>Builds the result for one code, with the sentence a reader is shown.</summary>
+    public BadRequestProblem(string code, string detail, int? max = null)
+        : base(Problems.Create(
+            StatusCodes.Status400BadRequest, code, "Bad Request", detail, max))
+    { }
 
     static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder) =>
         Describe(builder, StatusCodes.Status400BadRequest);
@@ -118,6 +140,7 @@ public sealed class ForbiddenProblem : ProblemResultBase, IEndpointMetadataProvi
             Problems.Create(
                 StatusCodes.Status403Forbidden,
                 "FORBIDDEN",
+                "Forbidden",
                 "The signed-in user may not perform this action."))
     { }
 
@@ -128,9 +151,9 @@ public sealed class ForbiddenProblem : ProblemResultBase, IEndpointMetadataProvi
 /// <summary>A <c>409</c> for a request the current stored state refuses.</summary>
 public sealed class ConflictProblem : ProblemResultBase, IEndpointMetadataProvider
 {
-    /// <summary>Builds the result for one code.</summary>
-    public ConflictProblem(string code, string title)
-        : base(Problems.Create(StatusCodes.Status409Conflict, code, title)) { }
+    /// <summary>Builds the result for one code, with the sentence a reader is shown.</summary>
+    public ConflictProblem(string code, string detail)
+        : base(Problems.Create(StatusCodes.Status409Conflict, code, "Conflict", detail)) { }
 
     static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder) =>
         Describe(builder, StatusCodes.Status409Conflict);

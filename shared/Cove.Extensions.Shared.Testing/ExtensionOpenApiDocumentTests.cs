@@ -155,14 +155,19 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.Empty(withoutResponseSchema);
 
         // Both alternatives, by name. An empty requirement object is valid OpenAPI and means the
-        // routes are reachable anonymously, which is one of the two arms here - and is also what a
-        // scheme reference that failed to resolve serializes to. Asserting the count alone would not
-        // tell those apart, so the bearer arm is checked by the scheme it names.
+        // routes are reachable anonymously, which is one of the two arms here - and is also what an
+        // unresolvable scheme reference serializes to. A reference carries whatever id it was built
+        // with, so the id alone cannot tell those apart; it is checked against the schemes the
+        // document actually declares.
         var security = document.Security ?? [];
         Assert.Equal(2, security.Count);
-        Assert.Equal(
-            [BearerScheme],
-            security[0].Keys.Select(key => key.Reference?.Id).ToList());
+        var referenced = security[0].Keys.Select(key => key.Reference?.Id).ToList();
+        Assert.Equal([BearerScheme], referenced);
+        Assert.All(
+            referenced,
+            id => Assert.True(
+                document.Components?.SecuritySchemes?.ContainsKey(id!) == true,
+                $"security names '{id}', which components.securitySchemes does not declare."));
         Assert.Empty(security[1]);
 
         var writer = new StringWriter();

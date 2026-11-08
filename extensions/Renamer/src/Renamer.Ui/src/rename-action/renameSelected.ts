@@ -21,8 +21,7 @@ export async function renameSelected(
     entityIds: payload.entityIds,
   } satisfies RenamerRequest;
 
-  const { data: response } = await renamerPreview({ body: requestBody });
-  if (!response) throw new Error("preview answered with no summary");
+  const { data: response } = await renamerPreview({ body: requestBody, throwOnError: true });
 
   const { text, willRenameCount } = buildConfirmSummary(response.items, response.summary);
 
@@ -34,7 +33,7 @@ export async function renameSelected(
     return { cancelled: true };
   }
 
-  await renamerRenameSelected({ body: requestBody });
+  await renamerRenameSelected({ body: requestBody, throwOnError: true });
 
   return {};
 }

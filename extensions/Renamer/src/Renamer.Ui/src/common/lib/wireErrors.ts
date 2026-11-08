@@ -15,16 +15,47 @@ import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { client } from "../../wire/client.gen";
 
-/** The thrown body as a reader sees it: a string stays itself, anything else is re-serialized. */
-function bodyText(error: unknown): string {
+/** The RFC 9457 members written for a reader, neither of which a problem body must carry. */
+interface ProblemText {
+  detail?: unknown;
+  title?: unknown;
+}
+
+/**
+ * What a failure says to the person who caused it.
+ *
+ * A problem body states its own occurrence in `detail` and its kind in `title`, both written to be
+ * read. Serializing the envelope instead puts the type URI, the status and the machine token on
+ * screen around the one sentence meant for them. A route answering something other than a problem
+ * falls back to whatever it did send.
+ */
+function readable(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
+  if (typeof error === "object") {
+    const { detail, title } = error as ProblemText;
+    if (typeof detail === "string" && detail) return detail;
+    if (typeof title === "string" && title) return title;
+  }
   try {
-    // A value that serializes to nothing falls back to the empty string, which the caller reads as
-    // no body and replaces with the status text.
     return JSON.stringify(error) || "";
   } catch {
     return String(error);
+  }
+}
+
+/**
+ * The route the failure came from, in the spelling {@link ApiError} documents.
+ *
+ * A Response carries an absolute url, or an empty one when it was constructed rather than fetched.
+ * Parsing is therefore attempted rather than assumed: a throw here would replace the server's own
+ * reason with a URL complaint, which is the one thing this interceptor exists to prevent.
+ */
+function pathOf(response: Response): string {
+  try {
+    return new URL(response.url).pathname;
+  } catch {
+    return response.url;
   }
 }
 
@@ -32,5 +63,5 @@ client.interceptors.error.use((error, response) => {
   // No response means the request never completed - a network failure or an abort - and the thrown
   // value is already the reason. An ApiError there would claim a status the server never sent.
   if (!response) return error;
-  return new ApiError(response.status, bodyText(error) || response.statusText, response.url);
+  return new ApiError(response.status, readable(error) || response.statusText, pathOf(response));
 });

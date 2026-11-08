@@ -46,11 +46,7 @@ export function useLastBatch(): LastBatch {
 
   const undo = useCallback(async (): Promise<UndoFeedback> => {
     try {
-      // /undo answers every arm with counts, so a reply carrying none says nothing about what the
-      // call did. Not an ApiError: the refusal arm below reports a move that did not happen, and
-      // this is the arm for an outcome nobody can state.
-      const { data } = await renamerUndo();
-      if (!data) throw new Error("undo answered with no counts");
+      const { data } = await renamerUndo({ throwOnError: true });
       return buildUndoFeedback(data);
     } catch (err) {
       // A refusal moved nothing. Any other failure leaves the outcome of a destructive call unknown.

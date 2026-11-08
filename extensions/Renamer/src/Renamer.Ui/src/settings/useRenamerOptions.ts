@@ -94,7 +94,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     setSaving(true);
     setSaveError(null);
     try {
-      await renamerSaveOptions({ body: options });
+      await renamerSaveOptions({ body: options, throwOnError: true });
       // The draft goes only once the re-read has landed, and only while it still holds what was
       // sent. Dropping it first falls back to the response still in the cache, which is the
       // document from before this save, so the panel would show the old values for a round trip.

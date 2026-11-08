@@ -206,7 +206,7 @@ public sealed class PreviewSampleEndpointTests
         var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, default);
 
         var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
-        Assert.Equal("INVALID_BODY", bad.Problem.Extensions[Problems.CodeMember]);
+        Assert.Equal("INVALID_BODY", bad.Problem.Code);
     }
 
     private sealed class ThrowingStream : Stream

@@ -34,8 +34,15 @@ const generatorPlugins = (clientConfigPath) => [
 //
 // A directory, not a file: the generator owns everything inside it and empties it on every run.
 const OUTPUT_SUBPATH = "src/wire";
-// Written by the generator; named here so a run that produced neither fails by name.
-const REQUIRED_OUTPUT = ["types.gen.ts", "sdk.gen.ts", "client.gen.ts"];
+// Written by the generator; named here so a run that produced none of them fails by name rather
+// than as an unresolved import several steps later. The query helpers are included because a
+// consuming hook imports them: a plugin that silently emitted nothing would otherwise exit 0.
+const REQUIRED_OUTPUT = [
+  "types.gen.ts",
+  "sdk.gen.ts",
+  "client.gen.ts",
+  "@tanstack/react-query.gen.ts",
+];
 const DOCUMENT_SUBPATH = "wire/openapi.json";
 
 /**

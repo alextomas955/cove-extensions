@@ -110,10 +110,8 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
     // from the gap between the two scans, so the buffer and the ceiling start empty.
     samples.current = [];
     maxPercent.current = 0;
-    renamerScanLibrary({ body: { options: optionsBlob } })
+    renamerScanLibrary({ body: { options: optionsBlob }, throwOnError: true })
       .then(({ data }) => {
-        // Without a run there is nothing to poll and nothing to read a summary from.
-        if (!data) throw new Error("scan-library answered with no run");
         runId.current = data.runId;
         setJobId(data.jobId);
       })
@@ -130,9 +128,9 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         setError(failure);
         return;
       }
-      renamerGetScanResult({ path: { runId: runId.current ?? "" } })
+      renamerGetScanResult({ path: { runId: runId.current ?? "" }, throwOnError: true })
         .then(({ data }) => {
-          if (data) setSummary(data);
+          setSummary(data);
         })
         .catch((err: unknown) => {
           setError(err instanceof ApiError && err.status === 404 ? SUPERSEDED : errorText(err));

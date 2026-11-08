@@ -66,3 +66,37 @@ test("a failed request arrives as an ApiError carrying the status the body does 
   expect((err as InstanceType<typeof ApiError>).status).toBe(404);
   expect((err as InstanceType<typeof ApiError>).body).toContain("superseded");
 });
+
+test("a problem body reaches the reader as its detail, not as the envelope", async () => {
+  const { errorText } = await import("@cove-extensions/ui-shared/extensionRequest");
+  host.reply = new Response(
+    JSON.stringify({
+      type: "urn:cove:extension:error:MIGRATION_PENDING",
+      title: "Conflict",
+      status: 409,
+      detail: "A one-time conversion of the stored settings has not run yet.",
+      code: "MIGRATION_PENDING",
+    }),
+    { status: 409, headers: { "Content-Type": "application/problem+json" } },
+  );
+
+  const err = await renamerSaveOptions({ body: {}, throwOnError: true }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+
+  // The sentence the server wrote for a reader, and nothing else from the envelope.
+  expect(errorText(err)).toBe("409 A one-time conversion of the stored settings has not run yet.");
+});
+
+test("a route answering something other than a problem still reads as what it sent", async () => {
+  const { errorText } = await import("@cove-extensions/ui-shared/extensionRequest");
+  host.reply = new Response("upstream exploded", { status: 502, statusText: "Bad Gateway" });
+
+  const err = await renamerSaveOptions({ body: {}, throwOnError: true }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+
+  expect(errorText(err)).toBe("502 upstream exploded");
+});

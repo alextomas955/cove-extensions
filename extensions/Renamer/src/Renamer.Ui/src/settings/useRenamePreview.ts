@@ -40,9 +40,9 @@ export function useRenamePreview(
     const issued = generation.current;
     const controller = new AbortController();
     const handle = setTimeout(() => {
-      renamerPreviewSample({ body: { options }, signal: controller.signal })
+      renamerPreviewSample({ body: { options }, signal: controller.signal, throwOnError: true })
         .then(({ data }) => {
-          const res = data ?? [];
+          const res = data;
           if (
             decideSettledPreview(
               { generation: issued, outcome: "resolved" },

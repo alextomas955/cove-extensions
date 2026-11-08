@@ -49,6 +49,8 @@ export function useScanRows(
   bucket: DryRunFilter,
 ): UseScanRows {
   const walk = useInfiniteQuery({
+    // Hand-written because the generator emits a query key only for a GET. This walk reads through
+    // a POST, which carries its cursor in the body, so there is no generated key to build on.
     queryKey: ["renamer", "scan-rows", walkKey(query, bucket), optionsBlob],
     enabled,
     initialPageParam: null as ScanCursor | null,
@@ -56,6 +58,7 @@ export function useScanRows(
     // generated mutation helper does not fit and the operation is called directly.
     queryFn: async ({ pageParam, signal }): Promise<ScanRowsPage> => {
       const { data } = await renamerGetScanRows({
+        throwOnError: true,
         body: {
           options: optionsBlob,
           kind: pageParam?.kind ?? null,
@@ -66,8 +69,6 @@ export function useScanRows(
         },
         signal,
       });
-      // A page is the unit the walk advances on; without one there is no cursor to resume from.
-      if (!data) throw new Error("scan-rows answered with no page");
       return data;
     },
     // A page with no cursor is the end of the last readable kind.
