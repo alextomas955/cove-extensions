@@ -188,6 +188,13 @@ Between the two sits `wire/openapi.json`, committed. A test emits it from the sh
 registrations and fails when the committed copy no longer matches, so the document cannot go stale
 without a red build, and the TypeScript is a pure function of it.
 
+Every route carries a `.WithName()`, which is both its ASP.NET endpoint name and its `operationId`
+in that document. Endpoint names must be unique across the host process, which every installed
+extension shares, so prefix each with the extension's own name: `RenamerGetOptions`, not
+`GetOptions`. A generator names its output from the `operationId`, falling back to the method and
+path when there is none, so a route without a name produces a symbol that moves whenever the route
+does. Treat a rename as a breaking change to the generated client.
+
 ## Frontend conventions
 
 Use named exports (the one default export is `defineExtension` in `index.ts`) and avoid barrel files.
