@@ -163,11 +163,8 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.Equal(2, security.Count);
         var referenced = security[0].Keys.Select(key => key.Reference?.Id).ToList();
         Assert.Equal([BearerScheme], referenced);
-        Assert.All(
-            referenced,
-            id => Assert.True(
-                document.Components?.SecuritySchemes?.ContainsKey(id!) == true,
-                $"security names '{id}', which components.securitySchemes does not declare."));
+        var declared = document.Components?.SecuritySchemes?.Keys ?? [];
+        Assert.All(referenced, id => Assert.Contains(id, declared, StringComparer.Ordinal));
         Assert.Empty(security[1]);
 
         var writer = new StringWriter();
