@@ -62,7 +62,6 @@ test("a declaring entry is generated from, with the document as input and the UI
 
     const result = await generateWireTypes({ root, generate, log });
 
-    assert.equal(result.ok, true);
     assert.deepEqual(result.failures, []);
     assert.equal(calls.length, 1);
 

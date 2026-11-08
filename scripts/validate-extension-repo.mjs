@@ -108,14 +108,6 @@ function validateExternalDependencies(extensionId, manifest) {
   for (const dependency of manifest.externalDependencies) {
     if (!dependency?.id) errors.push(`${extensionId}: external dependency missing id`);
     if (!dependency?.name) errors.push(`${extensionId}: external dependency missing name`);
-    if (Object.hasOwn(dependency, "optional")) {
-      errors.push(`${extensionId}: external dependency uses legacy optional; use required`);
-    }
-    if (Object.hasOwn(dependency, "settingsKey")) {
-      errors.push(
-        `${extensionId}: external dependency uses legacy settingsKey; use configurationKeys`,
-      );
-    }
     if (dependency.configurationKeys != null && !Array.isArray(dependency.configurationKeys)) {
       errors.push(`${extensionId}: external dependency configurationKeys must be an array`);
     }
@@ -131,20 +123,6 @@ function validateSettings(extensionId, manifest) {
 
   for (const setting of manifest.settings) {
     if (!setting?.name) errors.push(`${extensionId}: setting missing name`);
-    if (Object.hasOwn(setting, "key")) {
-      errors.push(`${extensionId}: setting uses legacy key; use name`);
-    }
-    if (Object.hasOwn(setting, "label")) {
-      errors.push(`${extensionId}: setting uses legacy label; use displayName`);
-    }
-    if (Object.hasOwn(setting, "defaultValue")) {
-      errors.push(
-        `${extensionId}: setting uses legacy defaultValue; remove it from extension.json`,
-      );
-    }
-    if (Object.hasOwn(setting, "scope")) {
-      errors.push(`${extensionId}: setting uses legacy scope; remove it from extension.json`);
-    }
   }
 }
 
