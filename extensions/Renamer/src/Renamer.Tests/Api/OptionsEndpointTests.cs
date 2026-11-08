@@ -161,8 +161,9 @@ public sealed class OptionsEndpointTests
         var put = await host.Client.PutAsync(Route, JsonBody("""{"FilenameTemplate":"$title"}"""));
         Assert.Equal(HttpStatusCode.Conflict, put.StatusCode);
 
-        var code = await put.Content.ReadFromJsonAsync<ErrorCode>(Web);
-        Assert.Equal("MIGRATION_PENDING", code!.Code);
+        Assert.Equal(Problems.MediaType, put.Content.Headers.ContentType?.MediaType);
+        var problem = await put.Content.ReadFromJsonAsync<JsonElement>(Web);
+        Assert.Equal("MIGRATION_PENDING", problem.GetProperty(Problems.CodeMember).GetString());
         Assert.Equal(legacy, await store.GetAsync(OptionsStore.Key));
     }
 

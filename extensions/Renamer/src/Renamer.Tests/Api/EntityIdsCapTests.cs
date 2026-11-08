@@ -5,7 +5,6 @@ using Cove.Core.Auth;
 using Cove.Data;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Tests.TestSupport;
@@ -26,8 +25,9 @@ public sealed class EntityIdsCapTests
     // The cap's own refusal, not one of the other 400s, carrying the bound so a caller can batch to fit.
     private static void AssertTooManyIds(IResult result)
     {
-        var bad = Assert.IsType<BadRequest<ErrorCode>>(Unwrap(result));
-        Assert.Equal(new ErrorCode("TOO_MANY_IDS", Cap), bad.Value);
+        var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
+        Assert.Equal("TOO_MANY_IDS", bad.Problem.Extensions[Problems.CodeMember]);
+        Assert.Equal(Cap, bad.Problem.Extensions[Problems.MaxMember]);
     }
 
     [Fact]
@@ -121,7 +121,11 @@ public sealed class EntityIdsCapTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
-        var error = JsonSerializer.Deserialize<ErrorCode>(await response.Content.ReadAsStringAsync(), Web);
-        Assert.Equal("MISSING_ENTITY_IDS", error?.Code);
+        // Read off the wire, so this also holds the body to the problem envelope the document declares.
+        Assert.Equal(Problems.MediaType, response.Content.Headers.ContentType?.MediaType);
+        var problem = JsonSerializer.Deserialize<JsonElement>(
+            await response.Content.ReadAsStringAsync(), Web);
+        Assert.Equal("MISSING_ENTITY_IDS", problem.GetProperty(Problems.CodeMember).GetString());
+        Assert.Equal(400, problem.GetProperty("status").GetInt32());
     }
 }

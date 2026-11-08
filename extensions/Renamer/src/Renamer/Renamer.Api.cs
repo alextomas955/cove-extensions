@@ -295,7 +295,7 @@ public sealed partial class Renamer
                 "The body replaces the whole document; a member it omits takes its default. Refused with 409 while a one-time conversion of the stored document is still pending.");
     }
 
-    internal async Task<Results<Ok<OptionsView>, ForbiddenCode>> GetOptionsAsync(
+    internal async Task<Results<Ok<OptionsView>, ForbiddenProblem>> GetOptionsAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
         if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
@@ -324,7 +324,7 @@ public sealed partial class Renamer
     // nothing, so a save would write those blanks over the only copy of the user's rules. The conversion
     // defers until Cove has supplied the entity rows or library paths it needs, so this state outlives
     // a restart and is not a race.
-    internal async Task<Results<NoContent, BadRequest<ErrorCode>, Conflict<ErrorCode>, ForbiddenCode>> SaveOptionsAsync(
+    internal async Task<Results<NoContent, BadRequestProblem, ConflictProblem, ForbiddenProblem>> SaveOptionsAsync(
         HttpRequest request, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
         if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
@@ -335,7 +335,7 @@ public sealed partial class Renamer
         var stored = await Store.GetAsync(OptionsStore.Key, ct);
         if (OptionsMigration.Scan(stored).Any || OptionsMigration.HasLegacyDestinations(stored))
         {
-            return TypedResults.Conflict(new ErrorCode("MIGRATION_PENDING"));
+            return new ConflictProblem("MIGRATION_PENDING", "A one-time conversion of the stored settings has not run yet.");
         }
 
         RenamerOptions? options;
@@ -346,12 +346,12 @@ public sealed partial class Renamer
         }
         catch (JsonException)
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+            return new BadRequestProblem("INVALID_OPTIONS", "The request body is not a settings document.");
         }
 
         if (options is null)
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+            return new BadRequestProblem("INVALID_OPTIONS", "The request body is not a settings document.");
         }
 
         // Repaired before the write, so the stored blob holds what every later load would answer and a
@@ -364,11 +364,11 @@ public sealed partial class Renamer
     // Cove's configured library paths: the list every destination root is chosen from. Reads
     // in-memory host settings, so it opens no scope and touches no database. Gated on any
     // renamer-read permission: the list says where a rename may write, not what the library holds.
-    internal Results<Ok<LibraryPathsView>, ForbiddenCode> LibraryPaths(
+    internal Results<Ok<LibraryPathsView>, ForbiddenProblem> LibraryPaths(
         ICurrentPrincipalAccessor principal)
         => HasAnyReadPermission(principal)
             ? TypedResults.Ok(new LibraryPathsView(LibraryRoots))
-            : new ForbiddenCode();
+            : new ForbiddenProblem();
 
     private string OwnJobTypePrefix => "ext:" + Id + ":";
 
@@ -380,12 +380,12 @@ public sealed partial class Renamer
     //
     // A job whose type does not carry OwnJobTypePrefix is reported as not found. Answering forbidden
     // would confirm that id names a real job, which is the fact the host's gate withholds.
-    internal Results<Ok<RenamerJobStatus>, NotFound, ForbiddenCode> JobStatus(
+    internal Results<Ok<RenamerJobStatus>, NotFound, ForbiddenProblem> JobStatus(
         string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         // Asked for by owner where the host gives this caller one. A job's progress, sub-task text and
@@ -412,12 +412,12 @@ public sealed partial class Renamer
     // otherwise be told it is gone. Only the caller's own unresolved rule keys are returned, so
     // elevating discloses no more than the rules they already hold. The query asks about exactly the
     // ids the rules name, so it is bounded by rule count, and no rules means no query.
-    internal async Task<Results<Ok<OrphanedRulesView>, ForbiddenCode>> OrphanedRulesAsync(
+    internal async Task<Results<Ok<OrphanedRulesView>, ForbiddenProblem>> OrphanedRulesAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         var options = await StoredOptions.LoadAsync(ct);
@@ -453,14 +453,14 @@ public sealed partial class Renamer
     }
 
     // The synchronous dry run: plans each requested id and mutates nothing.
-    internal async Task<Results<Ok<PreviewResponse>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewAsync(
+    internal async Task<Results<Ok<PreviewResponse>, BadRequestProblem, ForbiddenProblem>> PreviewAsync(
         RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // The kind is resolved first so the check gates on that kind's read permission. An unparseable
         // kind is a 400 before the check; it carries no ids and reads no data.
         if (!TryParseKind(req.EntityType, out var kind))
         {
-            return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
+            return new BadRequestProblem("UNSUPPORTED_ENTITY_TYPE", "This extension does not rename that kind of entity.");
         }
 
         var (readPermission, _) = PermissionsFor(kind);
@@ -471,12 +471,15 @@ public sealed partial class Renamer
 
         if (req.EntityIds is null)
         {
-            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+            return new BadRequestProblem("MISSING_ENTITY_IDS", "The request named no entities.");
         }
 
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
-            return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
+            return new BadRequestProblem(
+                "TOO_MANY_IDS",
+                "The request named more entities than one call may carry.",
+                MaxEntityIdsPerRequest);
         }
 
         var options = await StoredOptions.LoadAsync(ct);
@@ -524,14 +527,14 @@ public sealed partial class Renamer
     // One id the caller cannot write refuses the whole request, and the 403 carries no body, so the
     // response names none of the ids that were denied. The per-entity decision runs in the request
     // scope, where the caller's principal is live, so it needs no snapshot.
-    internal async Task<Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode>> RenamerEnqueue(
+    internal async Task<Results<Accepted<JobEnqueued>, BadRequestProblem, ForbiddenProblem>> RenamerEnqueue(
         RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
         IAuthorizationService authz, CancellationToken ct)
     {
         // The kind is resolved first so the check gates on that kind's write permission.
         if (!TryParseKind(req.EntityType, out var kind))
         {
-            return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
+            return new BadRequestProblem("UNSUPPORTED_ENTITY_TYPE", "This extension does not rename that kind of entity.");
         }
 
         var (_, writePermission) = PermissionsFor(kind);
@@ -542,19 +545,22 @@ public sealed partial class Renamer
 
         if (req.EntityIds is null)
         {
-            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+            return new BadRequestProblem("MISSING_ENTITY_IDS", "The request named no entities.");
         }
 
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
-            return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
+            return new BadRequestProblem(
+                "TOO_MANY_IDS",
+                "The request named more entities than one call may carry.",
+                MaxEntityIdsPerRequest);
         }
 
         var allowed = await EntityAccessGuard.AllowedOnlyAsync(
             authz, principal.Current, kind, writePermission, req.EntityIds, ct);
         if (allowed.Count != req.EntityIds.Length)
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         // Exclusive: a rename batch mutates disk and database, so two batches running at once could
@@ -575,13 +581,13 @@ public sealed partial class Renamer
     // needs restoring, so "nothing remains" and "already undone" are one fact and cannot disagree.
     // Reads the batch rows only and never pages the row table, so the response size is fixed
     // whatever the rename's size.
-    internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
+    internal async Task<Results<Ok<LastBatchSummary>, ForbiddenProblem>> LastBatchAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // The summary carries no paths and no kind, so any kind's read permission admits it.
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         await using var scope = ScopeFactory.CreateAsyncScope();
@@ -649,12 +655,12 @@ public sealed partial class Renamer
     // body before it returns, and it is what the caller reads the figures back by. The owner key is
     // captured with it: the aggregate covers only the entities this caller could read, so it is this
     // caller's to read back and nobody else's.
-    internal Results<Accepted<ScanEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+    internal Results<Accepted<ScanEnqueued>, ForbiddenProblem> ScanLibraryEnqueue(
         ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         // Parsed here, because the detached job cannot read the request.
@@ -707,12 +713,12 @@ public sealed partial class Renamer
     //
     // A blob that will not parse, or one stamped with an unrecognised schema version, reads as "no
     // scan yet", so a future shape change costs the user one dry run and not a 500.
-    internal async Task<Results<Ok<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
+    internal async Task<Results<Ok<ScanSummaryView>, NotFound, ForbiddenProblem>> ScanLibraryResultAsync(
         string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         var json = await Store.GetAsync(LastScanSummaryKey, ct);
@@ -746,12 +752,12 @@ public sealed partial class Renamer
     // Reads back one whole-library rename's counts, on the same terms as /last-scan: 404 when the
     // stored run is not runId, was not run by this caller, will not parse, or carries an unknown
     // schema version. The counts are stored per kind and summed over the kinds the caller may read.
-    internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenCode>> LibraryRenameResultAsync(
+    internal async Task<Results<Ok<LibraryRenameSummaryView>, NotFound, ForbiddenProblem>> LibraryRenameResultAsync(
         string runId, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         var json = await Store.GetAsync(LastLibraryRenameSummaryKey, ct);
@@ -787,17 +793,17 @@ public sealed partial class Renamer
     // A live preview, not a snapshot read: the page is planned with the options in the request,
     // falling back to the saved ones, so a caller sending the blob it sent to /scan-library sees rows
     // consistent with that scan without the scan storing them.
-    internal async Task<Results<Ok<ScanRowsPage>, BadRequest<ErrorCode>, ForbiddenCode>> ScanRowsAsync(
+    internal async Task<Results<Ok<ScanRowsPage>, BadRequestProblem, ForbiddenProblem>> ScanRowsAsync(
         ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         if (!ScanBucket.TryParse(body?.Bucket, out var bucket))
         {
-            return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_BUCKET"));
+            return new BadRequestProblem("UNSUPPORTED_BUCKET", "That is not one of the result buckets.");
         }
 
         ScanCursor? cursor = null;
@@ -805,7 +811,7 @@ public sealed partial class Renamer
         {
             if (!TryParseKind(body.Kind, out var cursorKind))
             {
-                return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
+                return new BadRequestProblem("UNSUPPORTED_ENTITY_TYPE", "This extension does not rename that kind of entity.");
             }
 
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
@@ -836,12 +842,12 @@ public sealed partial class Renamer
     // into the job closure, because the detached job cannot re-resolve the principal. A copy of the
     // principal is captured beside them, because holding a kind's write permission does not grant
     // write access to every entity of that kind and the job authorizes each candidate it derives.
-    internal Results<Accepted<LibraryRenameEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+    internal Results<Accepted<LibraryRenameEnqueued>, ForbiddenProblem> RenamerLibraryEnqueue(
         ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         var writableKinds = HeldKinds(principal, write: true);
@@ -863,13 +869,13 @@ public sealed partial class Renamer
     // Selection-less and pure: no planner, no database, no disk, so a hostile template cannot escape
     // or amplify. The permission is enforced before any body read or engine work. An empty or
     // null-options body takes the defaults; malformed JSON is a 400.
-    internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequest<ErrorCode>, ForbiddenCode>> PreviewSampleAsync(
+    internal async Task<Results<Ok<IReadOnlyList<PreviewSampleResult>>, BadRequestProblem, ForbiddenProblem>> PreviewSampleAsync(
         HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // The samples are fixed and touch no library data, so any kind's read permission admits them.
         if (!HasAnyReadPermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         // Read to a string first to tell "no content", which takes the defaults, from "content
@@ -894,7 +900,7 @@ public sealed partial class Renamer
             }
             catch (JsonException)
             {
-                return TypedResults.BadRequest(new ErrorCode("INVALID_BODY"));
+                return new BadRequestProblem("INVALID_BODY", "The request body could not be read.");
             }
 
             // A body carrying no Options takes the defaults too.

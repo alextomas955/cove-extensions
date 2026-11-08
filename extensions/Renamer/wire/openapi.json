@@ -44,9 +44,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -54,9 +54,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -96,9 +96,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -106,9 +106,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -151,9 +151,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -161,9 +161,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -193,9 +193,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -225,9 +225,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -273,9 +273,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -318,9 +318,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -366,9 +366,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -376,9 +376,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -421,9 +421,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -453,9 +453,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -485,9 +485,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -530,9 +530,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -562,9 +562,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -594,9 +594,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -627,9 +627,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -637,9 +637,9 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -647,9 +647,9 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -682,24 +682,6 @@
           },
           "template": {
             "type": "string"
-          }
-        }
-      },
-      "ErrorCode": {
-        "required": [
-          "code"
-        ],
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "max": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
           }
         }
       },
@@ -1156,6 +1138,42 @@
           "inFlightPathOverflowCount": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
