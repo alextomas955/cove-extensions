@@ -69,11 +69,9 @@ test("a declaring entry is generated from, with the document as input and the UI
     // generator is pointed at the wrong document or writes to the wrong path.
     assert.equal(calls[0].documentPath, path.join(root, DOC_PATH));
     assert.equal(calls[0].outputPath, path.join(root, UI_PATH, "src", "wire", "api.ts"));
-    assert.deepEqual(calls[0].flags, [
-      "--root-types",
-      "--root-types-no-schema-prefix",
-      "--root-types-keep-casing",
-    ]);
+    // Naming the plugin is what keeps the output to types. Left to its defaults the generator also
+    // emits a client and an SDK, which are runtime modules that would ship inside the bundle.
+    assert.deepEqual(calls[0].plugins, ["@hey-api/typescript"]);
     assert.equal(calls[0].entry.id, ID);
 
     assert.match(lines.join("\n"), /Examined 1 catalog entry; generated from 1 of 1/);

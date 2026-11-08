@@ -9,18 +9,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
 import { readJson } from "./repo-files.mjs";
 
 const scriptRoot = path.resolve(import.meta.dirname, "..");
 
-// These are what make the output top-level aliases (`export type LastBatchSummary = …`) rather than
-// a nest under components['schemas'], so a call site imports the name the C# type has.
-const GENERATOR_FLAGS = [
-  "--root-types",
-  "--root-types-no-schema-prefix",
-  "--root-types-keep-casing",
-];
+// Types and nothing else. The default plugin set also emits a client, an SDK and their serializers:
+// runtime modules that would ship inside the bundle and call `fetch` directly, where every request
+// has to go through the host's `extensionFetch` to carry a credential.
+const GENERATOR_PLUGINS = ["@hey-api/typescript"];
 
 // Repo-relative and POSIX-spelled: path.join normalizes the separator, and the same string spells
 // the message a reader has to match against the catalog.
@@ -34,21 +30,25 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
  * injects a fake in its place, and the catalog-validation job installs nothing yet runs every
  * scripts/*.test.mjs.
  *
- * openapi-typescript declares an older TypeScript as a peer than this repo is on, so `npm install`
- * refuses the pair without the root package.json `overrides` entry that forces it. The combination is
- * unsupported by the package: it drives the TypeScript compiler API, so a bump on either side can
- * break the emit for reasons the error will not name. Check whether the peer range has widened before
- * debugging anything else; the override can be retired as soon as it has.
+ * The generator writes a directory it owns, and names the file inside it for itself. The output is
+ * renamed to one module at a fixed path, so no call site imports a name the generator chose and
+ * swapping generators again stays a change to this function.
  */
-async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }) {
-  const { default: openapiTS, astToString } = await import("openapi-typescript");
-  const ast = await openapiTS(pathToFileURL(documentPath), {
-    rootTypes: flags.includes("--root-types"),
-    rootTypesNoSchemaPrefix: flags.includes("--root-types-no-schema-prefix"),
-    rootTypesKeepCasing: flags.includes("--root-types-keep-casing"),
-  });
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, astToString(ast));
+async function generateWithHeyApi({ documentPath, outputPath, plugins }) {
+  const { createClient } = await import("@hey-api/openapi-ts");
+  const outDir = path.dirname(outputPath);
+
+  // Emptied by the generator on every run, so nothing else may live here and anything written
+  // alongside the types has to be written after this call.
+  await createClient({ input: documentPath, output: outDir, plugins, logs: { level: "silent" } });
+
+  const emitted = path.join(outDir, "types.gen.ts");
+  if (!fs.existsSync(emitted)) {
+    throw new Error(`the generator wrote no ${path.basename(emitted)} in ${outDir}`);
+  }
+  fs.renameSync(emitted, outputPath);
+  // Its re-export barrel names the file that just moved, so it resolves nothing.
+  fs.rmSync(path.join(outDir, "index.ts"), { force: true });
 }
 
 /**
@@ -57,7 +57,7 @@ async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }
  * @param {object} opts
  * @param {string} [opts.root] - the repo root holding `extensions/catalog.json`.
  * @param {string|null} [opts.extension] - restrict to one entry by `id` or `name`.
- * @param {(step: {documentPath: string, outputPath: string, flags: string[], entry: object}) => Promise<void>} [opts.generate]
+ * @param {(step: {documentPath: string, outputPath: string, plugins: string[], entry: object}) => Promise<void>} [opts.generate]
  *        the document-to-types step; injected by the tooling test so the catalog logic is covered
  *        without the generator package.
  * @param {(line: string) => void} [opts.log]
@@ -66,7 +66,7 @@ async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }
 export async function generateWireTypes({
   root = scriptRoot,
   extension = null,
-  generate = generateWithOpenApiTypescript,
+  generate = generateWithHeyApi,
   log = console.log,
 } = {}) {
   const failures = [];
@@ -101,7 +101,7 @@ export async function generateWireTypes({
       continue;
     }
 
-    await generate({ documentPath, outputPath, flags: GENERATOR_FLAGS, entry });
+    await generate({ documentPath, outputPath, plugins: GENERATOR_PLUGINS, entry });
     generated.push({ id: entry.id, documentPath, outputPath });
   }
 
