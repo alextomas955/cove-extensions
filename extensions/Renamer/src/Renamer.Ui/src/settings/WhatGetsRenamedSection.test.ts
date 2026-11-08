@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 // The Required fields explanation sits under its heading and above the control, and the control
 // is named by that heading.
-import { test, expect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-
-import { waitFor } from "../common/lib/flushRender";
+import { render, screen, cleanup } from "@testing-library/react";
 
 import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
 import { someOptions } from "./testOptions";
@@ -13,53 +11,30 @@ import { someOptions } from "./testOptions";
 const HEADING = "Required fields";
 const HELPER = "An item missing any of these is skipped.";
 
-async function renderSection() {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(
-    createElement(WhatGetsRenamedSection, { options: someOptions(), set: () => undefined }),
-  );
-  await waitFor("the section to render", () => container.querySelector("input") !== null);
+afterEach(cleanup);
 
-  return {
-    container,
-    unmount: () => {
-      root.unmount();
-      container.remove();
-    },
-  };
+function renderSection() {
+  render(createElement(WhatGetsRenamedSection, { options: someOptions(), set: () => undefined }));
 }
 
-// The last element whose whole text is `text`.
-function innermost(container: HTMLElement, text: string): Element | undefined {
-  return [...container.querySelectorAll("*")].filter((e) => e.textContent.trim() === text).at(-1);
-}
+test("the explanation is grouped under its heading, above the control", () => {
+  renderSection();
 
-test("the explanation is grouped under its heading, above the control", async () => {
-  const view = await renderSection();
-
-  const helper = innermost(view.container, HELPER);
-  const control = view.container.querySelector("input");
-  expect(helper).toBeDefined();
-  expect(control).not.toBeNull();
+  const helper = screen.getByText(HELPER);
+  const control = screen.getByRole("combobox", { name: HEADING });
 
   const helperPrecedesControl = Boolean(
-    helper!.compareDocumentPosition(control!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    helper.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
   );
   expect(helperPrecedesControl).toBe(true);
-
-  view.unmount();
 });
 
-test("the control is named by its heading and nothing else", async () => {
-  const view = await renderSection();
+test("the control is named by its heading and nothing else", () => {
+  renderSection();
 
-  const heading = innermost(view.container, HEADING);
-  const control = view.container.querySelector("input");
-  expect(heading).toBeDefined();
-  expect(control).not.toBeNull();
-  expect(control!.getAttribute("aria-label")).toBe(heading!.textContent);
-
-  view.unmount();
+  // The role query matches on the accessible name, so a name assembled any other way - a wrapping
+  // label, an `aria-labelledby`, a second visible string - fails here as an `aria-label` read would
+  // not. Named from the heading element's own text, so the two drifting apart is what fails.
+  const heading = screen.getByText(HEADING);
+  expect(screen.getByRole("combobox", { name: heading.textContent })).toBeDefined();
 });
