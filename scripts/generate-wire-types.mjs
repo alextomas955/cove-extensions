@@ -28,6 +28,11 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
 // carried it would address `/api/api/...`.
 const REQUEST_PREFIX = "/api";
 
+// A path item holds its operations under these keys and may carry `summary`, `description`,
+// `servers`, `parameters` or `$ref` beside them. Those are not operations, and reading one as an
+// operation with no `operationId` would fail the run over a key the document is entitled to carry.
+const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
+
 /** The TypeScript a path parameter's declared schema binds to. */
 function parameterType(schema) {
   return schema?.type === "integer" || schema?.type === "number" ? "number" : "string";
@@ -47,6 +52,8 @@ function routesModule(document) {
 
   for (const [route, methods] of Object.entries(document.paths ?? {})) {
     for (const [method, operation] of Object.entries(methods)) {
+      if (!HTTP_METHODS.has(method)) continue;
+
       const id = operation?.operationId;
       if (!id) {
         skipped.push(`${method.toUpperCase()} ${route}`);

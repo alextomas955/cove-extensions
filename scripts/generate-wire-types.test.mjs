@@ -200,3 +200,31 @@ test("an operation with no operationId is reported rather than skipped quietly",
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("a path item's non-operation keys are not read as unnamed operations", async () => {
+  // A path item may carry these beside its methods. Reading one as an operation would fail the run
+  // over a key the document is entitled to hold.
+  const root = fixtureRoot({
+    paths: {
+      "/api/extensions/com.example.fixture/options": {
+        summary: "Settings",
+        description: "The stored settings document.",
+        parameters: [],
+        get: { operationId: "FixtureGetOptions" },
+      },
+    },
+  });
+  try {
+    const { generate } = recordingGenerate();
+    const { log } = silent();
+
+    const result = await generateWireTypes({ root, generate, log });
+
+    assert.deepEqual(result.failures, []);
+    const routes = fs.readFileSync(path.join(root, UI_PATH, "src", "wire", "routes.ts"), "utf8");
+    assert.match(routes, /FixtureGetOptions:/);
+    assert.doesNotMatch(routes, /summary|description|parameters/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
