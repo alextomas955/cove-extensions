@@ -48,9 +48,12 @@ test("the host tag selector stores the picked tag's id and renders its name back
   await result.click();
 
   // Scoped to the add row rather than to the page: every destination on this panel draws the same
-  // two controls, so an unscoped lookup would reach whichever one happens to render first.
-  const addRow = page.getByRole("button", { name: /Add tag rule/i }).locator("xpath=..");
-  await addRow.locator("select").selectOption("/data");
+  // two controls, so an unscoped lookup would reach whichever one happens to render first. The row
+  // is named after the button that commits it, so the scope is a query rather than a hop upward.
+  const addRow = page.getByRole("group", { name: "Add tag rule", exact: true });
+  // Named, not just scoped: the tag search box in the same row is a combobox too, and the root
+  // select's label carries a parenthetical hint after the word the field is known by.
+  await addRow.getByRole("combobox", { name: /^Under/ }).selectOption("/data");
   await addRow.getByPlaceholder("$studio/$year").fill("routed");
   await page.getByRole("button", { name: /Add tag rule/i }).click();
   await settings.save();

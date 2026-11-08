@@ -280,7 +280,14 @@ export function KeyValueMapEditor<TValue>({
           </button>
         </div>
       ))}
-      <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
+      {/* Named after the button that commits it, so the controls a new entry is typed into are
+          addressable as a set. Every committed row draws the same pair, so without a name on this
+          one nothing tells the draft controls from the first row's. */}
+      <div
+        role="group"
+        aria-label={addLabel}
+        className="flex items-start gap-2 rounded-xl border border-border bg-card p-3"
+      >
         <span className="min-w-0 max-w-xs flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
         <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
         {/* Stands in for a committed row's remove button, so the add row's controls sit in the same

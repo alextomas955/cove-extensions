@@ -12,7 +12,11 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { Toggle } from "./fields";
 
-/** One of the five field groups. Matches Cove sub-card styling. */
+/**
+ * One of the five field groups. Matches Cove sub-card styling. Named through `aria-labelledby`, so
+ * it exposes a `region` that a reader can jump to and a test can address by its title rather than
+ * by counting the elements between the heading and the card.
+ */
 export function GroupCard({
   title,
   description,
@@ -26,12 +30,15 @@ export function GroupCard({
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
+  const headingId = useId();
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <section aria-labelledby={headingId} className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-2">
           {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          <h3 id={headingId} className="text-base font-semibold text-foreground">
+            {title}
+          </h3>
         </div>
         {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
       </div>
@@ -41,7 +48,7 @@ export function GroupCard({
         <div className="mb-4" />
       )}
       <div className="space-y-4">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -99,9 +106,12 @@ export function SectionCard({
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
+  const headingId = useId();
   const hasHeader = Boolean(title) || Boolean(description) || badge != null || headerRight != null;
   return (
     <section
+      // A card with no title has no name to expose, and an unnamed section is no landmark at all.
+      aria-labelledby={title ? headingId : undefined}
       className="rounded-2xl border border-border bg-surface p-5"
       // The host Tailwind JIT never scans this bundle, so an arbitrary `shadow-[…]` class renders nothing;
       // the computed shadow goes in an inline style (the same rule as the ProgressBar fill / Toggle knob).
@@ -112,7 +122,11 @@ export function SectionCard({
           <div className="flex min-w-0 items-start gap-3">
             {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
             <div className="min-w-0">
-              {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
+              {title ? (
+                <h3 id={headingId} className="text-base font-semibold text-foreground">
+                  {title}
+                </h3>
+              ) : null}
               {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
             </div>
           </div>
@@ -143,11 +157,17 @@ export function ToggleHeaderCard({
   onToggle: (enabled: boolean) => void;
   children: ReactNode;
 }) {
+  const headingId = useId();
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card">
+    <section
+      aria-labelledby={headingId}
+      className="overflow-hidden rounded-xl border border-border bg-card"
+    >
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          <h3 id={headingId} className="text-base font-semibold text-foreground">
+            {title}
+          </h3>
           {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
         </div>
         <div className="shrink-0">

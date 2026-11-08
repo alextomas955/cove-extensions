@@ -6,6 +6,8 @@
  * React escapes it. There is no raw-HTML rendering anywhere in this file.
  */
 
+import { useId } from "react";
+
 import type { PreviewSampleResult } from "../wire/api";
 
 /** Maps a backend flag code + the result to the user-facing advisory copy. */
@@ -27,9 +29,16 @@ function flagMessage(flag: string, r: PreviewSampleResult): string | null {
 }
 
 export function PreviewCard({ result }: Readonly<{ result: PreviewSampleResult }>) {
+  const labelId = useId();
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+    // Named by the sample it previews, so one card among several is addressable by which kind it
+    // shows rather than by where it sits.
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className="rounded-xl border border-border bg-card p-4"
+    >
+      <div id={labelId} className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
         {result.sampleLabel}
       </div>
 

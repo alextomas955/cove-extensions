@@ -44,17 +44,12 @@ import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));
 
 /**
- * The root element of a titled `GroupCard` - heading → title box → header row → card root, the hop
- * count read off `primitives.tsx` rather than matched on a class, which would silently follow a
- * restyle onto the wrong element instead of failing.
+ * A titled card, by the name it exposes. Every card in `layout.tsx` names its `<section>` after its
+ * own heading, so this is one query rather than a count of the elements between the two - a count
+ * follows a restyle onto the wrong element instead of failing.
  */
-function groupCard(page, title) {
-  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
-}
-
-/** The root `<section>` of a `ToggleHeaderCard`, whose header nests its heading exactly as deeply. */
-function toggleCard(page, title) {
-  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
+function card(page, title) {
+  return page.getByRole("region", { name: title, exact: true });
 }
 
 // A `Field` renders a `<label>` and a `FieldGroup` a `<fieldset>`, so either shape is a candidate, and
@@ -224,7 +219,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   await settings.goto();
 
   // ── The surviving rules render as entity names ──────────────────────────────────────────────────
-  const tagsCard = groupCard(page, "Tags");
+  const tagsCard = card(page, "Tags");
   const tagOnlyInclude = field(tagsCard, "Only include");
   await expect(
     tagOnlyInclude.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
@@ -239,7 +234,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     "the empty legacy Blacklist a real install always emitted must convert to an empty id list - not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
-  const performersCard = groupCard(page, "Performers");
+  const performersCard = card(page, "Performers");
   const performerOnlyInclude = field(performersCard, "Only include");
   await expect(
     performerOnlyInclude.getByRole("button", {
@@ -311,7 +306,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toHaveCount(1);
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
-  const tagDestinations = toggleCard(page, "Per-tag destinations");
+  const tagDestinations = card(page, "Per-tag destinations");
   // The committed row, addressed by the remove button its own map key names. The `has:` locator is
   // rooted on `page` rather than on the card: Playwright re-anchors an inner locator at each candidate,
   // so one built from the card would require the card's heading to sit inside the row. `.last()` picks
@@ -346,7 +341,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     settings.filenameTemplateInput,
     "the filename template changed across a conversion that has no business touching it - this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
   ).toHaveValue(legacyBlob.FilenameTemplate);
-  const advancedRouting = toggleCard(page, "Source-path destinations");
+  const advancedRouting = card(page, "Source-path destinations");
   await expect(
     field(advancedRouting, "Source path").getByRole("textbox"),
     "the stored source-path rule did not survive the conversion",

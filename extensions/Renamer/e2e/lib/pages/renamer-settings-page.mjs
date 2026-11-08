@@ -266,9 +266,13 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
-  /** The video live-preview card's full text, used to assert the debounced preview updated. */
+  /**
+   * The video live-preview card's full text, used to assert the debounced preview updated. Each
+   * preview card is named after the sample it shows, so this is the card for that sample rather
+   * than whatever element happens to hold the word.
+   */
   liveVideoSampleCard() {
-    return this.page.getByText("Video", { exact: true }).locator("..");
+    return this.page.getByRole("group", { name: "Video", exact: true });
   }
 
   /**
