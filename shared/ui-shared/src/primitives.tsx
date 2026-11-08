@@ -608,6 +608,63 @@ export function Toggle({
  * is never closed: free text still commits, because a value outside the set is a legitimate entry
  * the caller warns about rather than refuses.
  */
+/**
+ * One entry of a list editor: a removable chip, carrying the ↑↓ pair where the list's order is the
+ * user's. `name` is both what the chip reads and what its buttons are named after - the value
+ * itself in a free-text list, the option's label where the stored value is an opaque id - so a
+ * screen reader never announces three unlabelled buttons in a row.
+ */
+function ListChip({
+  name,
+  mono = false,
+  onMove,
+  onRemove,
+}: {
+  name: string;
+  mono?: boolean;
+  /** Omitted where the list has no order to change, which drops the ↑↓ pair. */
+  onMove?: (dir: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground">
+      {onMove ? (
+        <>
+          <button
+            type="button"
+            aria-label={`Move ${name} up`}
+            onClick={() => {
+              onMove(-1);
+            }}
+            className="text-muted hover:text-foreground"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${name} down`}
+            onClick={() => {
+              onMove(1);
+            }}
+            className="text-muted hover:text-foreground"
+          >
+            ↓
+          </button>
+        </>
+      ) : null}
+      <span className={mono ? "font-mono" : undefined}>{name}</span>
+      <button
+        type="button"
+        aria-label={`Remove ${name}`}
+        onClick={onRemove}
+        className="text-muted hover:text-foreground"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 export function TagListInput({
   values,
   onChange,
@@ -679,46 +736,21 @@ export function TagListInput({
       {values.length > 0 ? (
         <div className="mb-1 flex flex-wrap gap-1">
           {values.map((v, i) => (
-            <span
+            <ListChip
               key={`${v}-${i}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground"
-            >
-              {ordered ? (
-                <>
-                  <button
-                    type="button"
-                    aria-label={`Move ${v} up`}
-                    onClick={() => {
-                      move(i, -1);
-                    }}
-                    className="text-muted hover:text-foreground"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move ${v} down`}
-                    onClick={() => {
-                      move(i, 1);
-                    }}
-                    className="text-muted hover:text-foreground"
-                  >
-                    ↓
-                  </button>
-                </>
-              ) : null}
-              <span className="font-mono">{v}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${v}`}
-                onClick={() => {
-                  remove(i);
-                }}
-                className="text-muted hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
+              name={v}
+              mono
+              onMove={
+                ordered
+                  ? (dir) => {
+                      move(i, dir);
+                    }
+                  : undefined
+              }
+              onRemove={() => {
+                remove(i);
+              }}
+            />
           ))}
         </div>
       ) : null}
@@ -911,42 +943,16 @@ export function OrderedPickToAdd({
       {values.length > 0 ? (
         <div className="mb-1 flex flex-wrap gap-1">
           {values.map((v, i) => (
-            <span
+            <ListChip
               key={v}
-              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground"
-            >
-              <button
-                type="button"
-                aria-label={`Move ${labelOf(v)} up`}
-                onClick={() => {
-                  move(i, -1);
-                }}
-                className="text-muted hover:text-foreground"
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                aria-label={`Move ${labelOf(v)} down`}
-                onClick={() => {
-                  move(i, 1);
-                }}
-                className="text-muted hover:text-foreground"
-              >
-                ↓
-              </button>
-              <span>{labelOf(v)}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${labelOf(v)}`}
-                onClick={() => {
-                  remove(i);
-                }}
-                className="text-muted hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
+              name={labelOf(v)}
+              onMove={(dir) => {
+                move(i, dir);
+              }}
+              onRemove={() => {
+                remove(i);
+              }}
+            />
           ))}
         </div>
       ) : null}
