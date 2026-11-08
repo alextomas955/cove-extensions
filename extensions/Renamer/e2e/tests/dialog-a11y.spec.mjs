@@ -8,10 +8,10 @@
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-// The exact focusable set the overlay's trap queries - used to grab the panel's first/last tabbable so the
-// wrap assertions don't depend on which controls those happen to be.
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+// More presses than the dialog has controls, so the run must cross the end of the panel and wrap.
+// Naming the panel's own focusable set here would be a copy of the trap's query, which would keep
+// passing against a different set once the trap's changed.
+const TABS_PAST_THE_END = 12;
 
 // Callers take `restoredOptions`: the template saved here would otherwise render every later test's
 // names on this worker's instance.
@@ -44,19 +44,17 @@ test("the dialog traps Tab focus, wraps at both ends, and Escape restores focus 
 
   await expect(settings.dryRunDialog).toHaveAttribute("aria-modal", "true");
 
-  const focusables = settings.dryRunDialog.locator(FOCUSABLE);
-  const first = focusables.first();
-  const last = focusables.last();
-
-  // Tab off the last tabbable wraps to the first; shift-Tab off the first wraps to the last - focus never
-  // escapes the panel.
-  await last.focus();
-  await page.keyboard.press("Tab");
-  await expect(first).toBeFocused();
-
-  await first.focus();
-  await page.keyboard.press("Shift+Tab");
-  await expect(last).toBeFocused();
+  // Tabbing on past the end of the panel wraps rather than leaving it, and the same backwards, so
+  // focus is inside the dialog after every press.
+  for (const key of ["Tab", "Shift+Tab"]) {
+    for (let press = 0; press < TABS_PAST_THE_END; press++) {
+      await page.keyboard.press(key);
+      await expect(
+        settings.dryRunDialog.locator(":focus"),
+        `focus left the dialog on ${key} press ${String(press + 1)}`,
+      ).toHaveCount(1);
+    }
+  }
 
   // Escape (no op in flight) cancels, and focus returns to the "Dry run" opener.
   await page.keyboard.press("Escape");
