@@ -21,11 +21,6 @@ import { useRenamerOptions } from "./useRenamerOptions";
 import { useRenamePreview } from "./useRenamePreview";
 import { useRenameLibrary } from "./useRenameLibrary";
 
-/**
- * The fixed-bottom global save bar - reachable from anywhere on the page, visible only while
- * `dirty`. Reuses the dirty/saving/saveError/savedFlash state and onSave handler from
- * useRenamerOptions; Discard reverts to the last-saved snapshot, never the factory defaults.
- */
 // The error dot takes its colour from an inline style, so its class carries none.
 function dotClass(saveError: string | null, savedFlash: boolean): string {
   if (saveError) return "";
@@ -102,11 +97,6 @@ function SaveBar({
   );
 }
 
-/**
- * RenamePage - the composition root rendered by the dedicated nav page (`RenamePage`). The root
- * stays a plain `<div className="space-y-6">`; the host SectionCard / page wrapper supplies outer
- * chrome.
- */
 export function RenamePage() {
   const {
     options,
@@ -185,8 +175,7 @@ export function RenamePage() {
     }
   };
 
-  // Empty-for-sample advisory: read the existing debounced /preview-sample
-  // result; name each sample whose flags include "empty". No new request.
+  // Read off the debounced /preview-sample result already loaded, so the advisory costs no request.
   const emptySamples = (preview ?? [])
     .filter((r) => r.flags.includes("empty"))
     .map((r) => r.sampleLabel);
@@ -194,10 +183,9 @@ export function RenamePage() {
   // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent - inline it.
   return (
     <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
-      {/* Two-pane shell, narrowed to the two naming cards: they take 2/3 via col-span-2, the live
-          preview 1/3, sticky on lg+. Every other panel renders as a full-width sibling below this
-          grid, so the preview's sticky containing block is that column's height, not the whole page.
-          Standard grid-cols-3 + col-span-2 only: the host stylesheet has no arbitrary [..] values. */}
+      {/* Every other panel renders as a full-width sibling below this grid, so the preview's sticky
+          containing block is that column's height, not the whole page. Standard grid-cols-3 and
+          col-span-2 only: the host stylesheet carries no arbitrary [..] values. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <FilenameSection
           library={library}

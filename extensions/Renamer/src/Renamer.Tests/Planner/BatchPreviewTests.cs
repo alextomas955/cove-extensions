@@ -28,7 +28,6 @@ public sealed class BatchPreviewTests
     private static string NameForPathLength(int total) =>
         new string('n', total - OnVolPrefixLength - ".mkv".Length) + ".mkv";
 
-    // A minimal acting item: only the fields the aggregate reads (FileId, paths, status, target volume).
     private static RenamerPlanItem Item(
         int fileId, string oldPath, string newPath, RenamerStatus status, string targetVolume) =>
         new(fileId, oldPath, newPath, status, NewBasename: "x", TargetFolderPath: "x",
@@ -128,7 +127,6 @@ public sealed class BatchPreviewTests
         Assert.Equal(2, summary.TotalCount);
         Assert.Equal(1, summary.SameVolumeCount);
         Assert.Equal(1, summary.CrossVolumeCount);
-        // The 9 GiB same-volume move is not counted; only the 1 GiB cross-volume move.
         Assert.Equal(1L << 30, summary.CrossVolumeBytes);
         var pair = Assert.Single(summary.VolumePairs);
         Assert.Equal(1L << 30, pair.Bytes);
@@ -203,10 +201,9 @@ public sealed class BatchPreviewTests
     [Fact]
     public void SameVolumeMove_OfTheIdenticalOverBoundaryLength_IsNotFlagged()
     {
-        // The arm that decides whether the warning is trustworthy. DiskMover mints no temporary name at
-        // all - a same-volume move is one atomic rename - so an identical path length that overruns when
-        // copied across drives is perfectly fine in place. A warning here would fire on a correct plan,
-        // and most plans are same-volume.
+        // DiskMover mints no temporary name for a same-volume move - it is one atomic rename - so a
+        // path length that overruns when copied across drives is fine in place. A warning here
+        // would fire on a correct plan, and most plans are same-volume.
         string overLength = NameForPathLength(Budget - PathOps.InFlightSuffixLength + 1);
 
         var sameVolume = Item(

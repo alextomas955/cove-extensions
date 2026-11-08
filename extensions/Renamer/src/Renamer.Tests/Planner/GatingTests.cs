@@ -39,9 +39,8 @@ public sealed class GatingTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(title: "", organized: true, File(1)));
         var planner = new RenamerPlanner(port);
-        // Default RequiredFields = ["title"]. FilenameAsTitle is forced off so the title-less item
-        // is gated rather than rescued by the basename fallback (which now defaults on) - this case
-        // exercises the require-fields gate, not the fallback.
+        // RequiredFields defaults to ["title"]. FilenameAsTitle is forced off so the title-less item
+        // is gated rather than rescued by the basename fallback, which defaults on.
         var opts = new RenamerOptions { FilenameAsTitle = false };
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
@@ -90,9 +89,8 @@ public sealed class GatingTests
     [Fact]
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {
-        // With OnlyOrganized on but an UnorganizedDestination configured, an unorganized item must
-        // not be gated out - the unorganized destination takes precedence and the item routes.
-        // Without this carve-out the gate would silently nullify the unorganized route.
+        // With OnlyOrganized on and an UnorganizedDestination configured, the unorganized
+        // destination takes precedence over the gate and the item routes.
         string unorgRoot = OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";
 

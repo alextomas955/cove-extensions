@@ -1,4 +1,3 @@
-/** The scan's live progress block: a determinate {@link ProgressBar} + phase line + ETA. */
 import { ProgressBar } from "@cove-extensions/ui-shared";
 
 import type { ScanDisplay } from "./useLibraryScan";

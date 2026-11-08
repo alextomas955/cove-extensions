@@ -5,13 +5,12 @@ import { request } from "./extensionRequest";
 
 /**
  * POST an extension route, resolving the parsed response body, or `undefined` for the bodyless 2xx
- * that a fire-and-forget route answers with.
+ * that a fire-and-forget route answers with. `request` rather than `requestJson`, because an empty
+ * body is such a route's success and not its failure.
  *
- * `request` rather than `requestJson`, because an empty body is such a route's success and not its
- * failure. Nothing is caught: an {@link ApiError} for a non-ok status, a network or cancellation
- * failure, and a malformed 2xx body all reach the caller, which is where the host's onError alert
- * reads them. Catching the last three and resolving a value instead would report an action the
- * server never accepted as done.
+ * Nothing is caught. A non-ok status, a network or cancellation failure and a malformed 2xx body all
+ * reach the caller, where the host's onError alert reads them; resolving a value for any of them
+ * would report an action the server never accepted as done.
  */
 export function postAction<T extends object = Record<string, never>>(
   path: string,

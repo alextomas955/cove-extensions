@@ -30,9 +30,8 @@ public sealed class ParallelFolderCreationTests
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
 
-            // Every item targets one folder the database does not hold yet. The batch resolves each
-            // distinct destination once before the parallel execution, so what this asserts is that the
-            // routed run lands every file under the single folder row that pass created.
+            // Every item targets one folder the database does not hold yet, and the batch resolves
+            // each distinct destination once before the parallel execution.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",

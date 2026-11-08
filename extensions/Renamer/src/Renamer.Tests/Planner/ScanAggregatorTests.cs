@@ -17,10 +17,9 @@ public sealed class ScanAggregatorTests
     private static string OnVol(string vol, string name) =>
         OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
 
-    // The shipped path budget, read from the options rather than transcribed, and the budget every
-    // aggregator below folds against. The overflow cases are positioned relative to it and to the minted
-    // segment's own declaration, so a change to either moves them rather than leaving them beside a
-    // boundary they no longer sit on.
+    // The shipped path budget, read from the options rather than transcribed. The overflow cases are
+    // positioned relative to it and to the minted segment's own declaration, so a change to either
+    // moves them rather than leaving them beside a boundary they no longer sit on.
     private static readonly int Budget = new RenamerOptions().FullPathMax;
 
     // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - seven characters either way,
@@ -68,9 +67,8 @@ public sealed class ScanAggregatorTests
         };
         var sizes = new Dictionary<int, long> { [1] = 100, [2] = 250, [3] = 999, [6] = 40 };
 
-        // Every member of the summary is compared, the overflow count included - the two paths must not
-        // disagree about any of them. What this comparison canNOT show is a count wrong on both paths,
-        // which is why the boundary cases below transcribe their expectations by hand instead.
+        // The two paths are compared against each other, which cannot show a count wrong on both of
+        // them. That is why the boundary cases below transcribe their expectations by hand instead.
         var expected = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         var aggregator = new ScanAggregator(Budget, Mounts);
@@ -175,9 +173,9 @@ public sealed class ScanAggregatorTests
     [Fact]
     public void ToSummary_SerializedLength_DoesNotGrowWithEntitiesFolded()
     {
-        // The aggregator's retained state is asserted through the only observable proxy that cannot lie:
-        // the summary it materialises. Ten and ten thousand entities of the same shape must serialize to
-        // the same structure, differing only by the digits of the counts.
+        // The aggregator's retained state is observed through the summary it materialises: entities
+        // of the same shape serialize to the same structure whatever their number, differing only by
+        // the digits of the counts.
         static string Summarize(int entities)
         {
             var aggregator = new ScanAggregator(Budget, Mounts);
@@ -205,8 +203,7 @@ public sealed class ScanAggregatorTests
     {
         // The longest final path whose cross-volume copy still fits, because the copy is minted
         // PathOps.InFlightSuffixLength characters longer beside the destination before being
-        // promoted. Three items positioned around it: the boundary itself, one character past it, and a
-        // same-volume item of that same over-boundary length, which mints no temporary name at all.
+        // promoted. A same-volume move mints no temporary name at all, so it has no boundary.
         int longestThatFits = Budget - PathOps.InFlightSuffixLength;
         string fitsName = NameForPathLength(longestThatFits);
         string overName = NameForPathLength(longestThatFits + 1);
@@ -231,9 +228,8 @@ public sealed class ScanAggregatorTests
 
         var blastRadius = Assert.Single(aggregator.ToSummary("run", "user:1", 0L).Kinds).BlastRadius;
 
-        // One of three: the count is a strict subset of the cross-volume moves, which are themselves a
-        // subset of the acting items. Asserting all three distinguishes a working counter from one that
-        // counts every cross-volume item, or every item.
+        // Asserting all three distinguishes a working counter from one that counts every
+        // cross-volume item, or every item.
         Assert.Equal(1, blastRadius.InFlightPathOverflowCount);
         Assert.Equal(2, blastRadius.CrossVolumeCount);
         Assert.Equal(3, blastRadius.TotalCount);

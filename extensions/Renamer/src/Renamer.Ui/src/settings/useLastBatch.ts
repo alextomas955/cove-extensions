@@ -36,7 +36,6 @@ interface LastBatch {
   loadedAtMs: number;
   loading: boolean;
   error: string | null;
-  /** Re-reads the summary, for the retry the error line offers. */
   reload: () => void;
   /** Runs the undo and resolves the sentence that reports it. Never rejects. */
   undo: () => Promise<UndoFeedback>;

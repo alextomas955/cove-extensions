@@ -12,8 +12,9 @@ public sealed class RevertJournalTests
     [Fact]
     public async Task AppendedRows_ReadBackNewestFirst()
     {
-        // Newest-first is a correctness requirement, not presentation: one run can rename A→B and then
-        // B→C, so reversing in reverse-append order is what frees each slot before the next row needs it.
+        // Newest-first is a correctness requirement, not presentation: one run can rename A to B and
+        // then B to C, so reversing in reverse-append order frees each slot before the next row
+        // needs it.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;
@@ -71,10 +72,9 @@ public sealed class RevertJournalTests
             await journal.DeleteRowAsync("run-1", seq, unrestorable: false);
         }
 
-        // Nothing left to offer…
         Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
-        // …and yet the panel can still say what the run was: the aggregate outlives its rows.
+        // The aggregate outlives its rows, so the panel can still say what the run was.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal("run-1", summary.Value.OperationId);

@@ -1,13 +1,12 @@
 /**
- * useLibraryPaths - Cove's configured library paths, which every destination root is chosen from.
+ * Cove's configured library paths, which every destination root is chosen from.
  *
- * Host configuration rather than library data: it changes when the user edits Cove's own settings, not
- * while this panel is open, so the host's default staleness is more than enough and nothing here asks
- * for a refetch.
+ * Host configuration rather than library data: it changes when the user edits Cove's own settings,
+ * not while this panel is open, so the host's default staleness is enough and nothing asks for a
+ * refetch.
  *
  * It returns the read's state and not just the list, because an empty list on its own cannot say
- * whether the read has landed. See {@link LibraryPathsState} for why the three cases are kept apart,
- * and {@link destinationPicker} for what each one lets the panel say.
+ * whether the read has landed.
  */
 import { useQuery } from "@tanstack/react-query";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";

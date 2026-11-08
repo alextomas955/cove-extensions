@@ -30,10 +30,8 @@ public sealed class PreviewPurityTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
 
         var item = Assert.Single(plan.Items);
-        // It still plans as a Move to the (not-yet-existing) destination folder...
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("Archive/My Film.mkv", item.NewFullPath);
-        // ...and planning created no folder and saved nothing.
         Assert.Empty(port.CreatedFolderPaths);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
@@ -44,7 +42,6 @@ public sealed class PreviewPurityTests
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // Declare the file's current source (ParentFolderPath + Basename) absent on disk.
         port.SeedMissingSource("media/videos/raw.mkv");
         var planner = new RenamerPlanner(port);
 
@@ -62,7 +59,6 @@ public sealed class PreviewPurityTests
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // The destination folder already exists (id 42) and already holds "My Film.mkv" (file 99).
         port.SeedFolder("media/videos/Archive", 42);
         port.SeedOccupied(folderId: 42, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);

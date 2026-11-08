@@ -82,9 +82,8 @@ public sealed class OptionsMigrationSortTests
 
         var options = JsonSerializer.Deserialize<RenamerOptions>(result.Json, RenamerOptions.JsonOptions);
 
-        // APerformerSortNamingTheDroppedMember_BecomesNameAsc_AndEveryOtherStoredKeyIsKept pins the
-        // preservation; one member stands for it here, so the unique claim is that the result binds
-        // at all and that Sort arrives as the replacement member.
+        // The preservation of every other stored key is pinned above. What is unique here is that the
+        // result binds at all and that Sort arrives as the replacement member.
         Assert.NotNull(options);
         Assert.Equal(120, options.FilenameMax);
         Assert.Equal(SortOrder.NameAsc, options.Performers.Sort);

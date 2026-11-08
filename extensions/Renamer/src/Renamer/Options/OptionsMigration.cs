@@ -33,14 +33,9 @@ public static class OptionsMigration
     /// </summary>
     /// <remarks>
     /// The three conversions ride one stamp because a blob is either current or it is not; the seam runs
-    /// whichever ones the blob still needs, each recognizing its own input. Each has its own retirement
-    /// condition and they are reached in different releases, so read all three before deleting any. The
-    /// name conversion can go once no installed store can still hold a name-keyed blob; its test is that
-    /// <see cref="Scan"/> can find no name to resolve on any real install. The destination conversion
-    /// goes later, once no store can still hold a blob whose destinations are bare strings; its test is
-    /// that <see cref="ConvertDestinationsToRoots"/> can find no site to rewrite. The sort conversion
-    /// goes once no installed store can hold a <c>Sort</c> naming a member the enum does not declare;
-    /// its test is that <see cref="ConvertDroppedSorts"/> finds no group to rewrite. Deleting any early
+    /// whichever ones the blob still needs, each recognizing its own input. They retire separately and
+    /// at different times: a conversion can go only once no installed store can still hold the shape it
+    /// recognizes, which is when it finds nothing to rewrite on any real install. Deleting one early
     /// silently costs a user the configuration it covers, because the unconverted blob fails to bind and
     /// the store answers that with defaults.
     /// </remarks>
@@ -68,6 +63,7 @@ public static class OptionsMigration
     // so a stored blob carries the member name rather than the camelCase wire spelling. The converter's
     // read side accepts either, so the match is case-insensitive and covers both.
     private const string DroppedSort = "FavoriteFirst";
+
     /// <summary>The converted blob and the groups whose sort it rewrote, for the log.</summary>
     public sealed record SortConversion(string Json, IReadOnlyList<string> Groups);
 
@@ -122,7 +118,6 @@ public static class OptionsMigration
     /// </remarks>
     public readonly record struct LegacyNames(IReadOnlyList<string> Tags, IReadOnlyList<string> Performers)
     {
-        /// <summary>True when anything at all still needs resolving.</summary>
         public bool Any => Tags.Count > 0 || Performers.Count > 0;
     }
 
@@ -334,9 +329,7 @@ public static class OptionsMigration
     }
 
     // One stored destination the conversion has to rewrite: its label for the log, the root as stored,
-    // and the two edits - replace with a root/template pair, or remove the rule entirely. The four
-    // fields differ only in how a value is reached (a map entry, an array element's member, a top-level
-    // member), while the decision about it is one rule.
+    // and the two edits - replace with a root/template pair, or remove the rule entirely.
     //
     // EmptyIsNoRoute is true for the one field where an empty stored value means there is no route at
     // all. The current model spells that as the absent member, so such a site is removed: a bare JSON

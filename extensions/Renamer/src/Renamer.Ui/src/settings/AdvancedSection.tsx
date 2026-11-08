@@ -8,6 +8,7 @@ import type { SetOption } from "./useRenamerOptions";
 import { type ReactNode } from "react";
 
 import {
+  optionsFor,
   type RenamerOptions,
   type CaseTransform,
   type ExcludeRule,
@@ -31,7 +32,6 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { BARE_TOKENS } from "./templateLogic";
-import { optionsFor } from "./selectOptions";
 import { TokenAdvisory } from "./templateAdvisories";
 
 const CASE_OPTIONS = optionsFor<CaseTransform>({

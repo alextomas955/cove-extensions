@@ -8,6 +8,7 @@ import type { SetOption } from "./useRenamerOptions";
 import type { ReactNode } from "react";
 
 import {
+  optionsFor,
   type RenamerOptions,
   type MultiValueOptions,
   type OverflowPolicy,
@@ -32,7 +33,6 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateLogic";
-import { optionsFor } from "./selectOptions";
 import { TOKENS } from "./tokens";
 
 const OVERFLOW_OPTIONS = optionsFor<OverflowPolicy>({

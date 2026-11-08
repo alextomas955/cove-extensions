@@ -8,8 +8,7 @@ namespace Renamer.Tests.TestSupport;
 // Counts the commands a context executes, so a test can prove a path issues a bounded number of
 // round-trips rather than one per item. The reader count is of commands and not of rows: EF may
 // split one query with includes into a small, constant number of readers, so an assertion built on
-// it compares two populations or a stated bound rather than an exact number. NonQueryTexts carries
-// the SQL of every non-query so a test can count the statements one table saw.
+// it compares two populations or a stated bound rather than an exact number.
 public sealed class CommandCountingInterceptor : DbCommandInterceptor
 {
     private int _readers;
@@ -21,7 +20,6 @@ public sealed class CommandCountingInterceptor : DbCommandInterceptor
         set => Volatile.Write(ref _readers, value);
     }
 
-    // The SQL of every executed non-query, in execution order.
     public ConcurrentQueue<string> NonQueryTexts { get; } = new();
 
     // How many executed non-queries deleted FROM table. Matched on the delete target and not on the

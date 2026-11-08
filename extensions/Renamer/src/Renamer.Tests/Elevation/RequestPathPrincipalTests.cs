@@ -87,8 +87,6 @@ public sealed class RequestPathPrincipalTests
         Assert.IsType<Ok<LastBatchSummary>>(summary.Result);
     }
 
-    // Every command recorded since the last clear ran as the caller - a User - and none as System,
-    // over a non-empty recording.
     private static void AssertRanEntirelyAsTheCaller(LibraryDatabase library)
     {
         var recorded = library.CommandsExecuted.ToList();

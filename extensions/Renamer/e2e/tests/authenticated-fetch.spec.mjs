@@ -1,10 +1,8 @@
-// The one spec that runs against an authentication-enabled Cove, and the only place this repo can
-// tell an extension request that carries its own credential apart from one that does not. Under the
-// suite's normal `COVE__Auth__Enabled=false` default every request resolves to a bypass principal
-// whatever headers it carries, so neither a header assertion nor a 200 distinguishes fixed from
-// unfixed there - the check would be unfalsifiable. Flipping auth is instance-global, hence the
-// per-test harness rather than the worker-shared one. It stays in the default run regardless: it
-// provisions its own instance and shares no state, and a spec CI does not run guards nothing.
+// The one spec that runs against an authentication-enabled Cove. Under the suite's normal
+// `COVE__Auth__Enabled=false` default every request resolves to a bypass principal whatever headers
+// it carries, so neither a header assertion nor a 200 could distinguish an extension request that
+// carries its own credential from one that does not. Flipping auth is instance-global, hence the
+// per-test harness rather than the worker-shared one.
 //
 // A logged-in browser holds a `cove_access_token` cookie, and the host's principal middleware falls
 // back to that cookie whenever a request carries no Authorization header - so an extension calling
@@ -12,11 +10,11 @@
 // cookie also delivers the extension's own UI bundle (`/api/extensions/assets/...` requires
 // ExtensionsRead and a module import cannot carry a bearer), so the panel cannot mount without it.
 //
-// Hence the shape below: the panel mounts and reads with the cookie, then the cookie is dropped and
-// the write is exercised on the already-mounted panel. A logged-in session whose access cookie has
-// lapsed is ordinary - the cookie expires with the access token, in minutes, while the refresh
-// session lasts days - and in that state the only credential left is the bearer the app holds, which
-// an extension can reach only through the host's authenticated fetch.
+// So the panel mounts and reads with the cookie, then the cookie is dropped and the write is
+// exercised on the already-mounted panel. A logged-in session whose access cookie has lapsed is
+// ordinary - the cookie expires with the access token while the refresh session lasts days - and in
+// that state the only credential left is the bearer the app holds, which an extension can reach
+// only through the host's authenticated fetch.
 //
 // `baseUrl` is pointed at this spec's own instance, so the shared `page` fixture opens and diagnoses
 // that instance and never boots the worker's auth-off one.
@@ -33,10 +31,9 @@ const test = base.extend({
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
       try {
         await harness.bootstrapOwner();
-        // The install reads the id out of the manifest, which is where it is defined; a copy here
-        // would go stale silently, because the panel would follow the manifest to the new route while
-        // every response predicate below kept matching the old one - and a predicate that matches
-        // nothing fails as a bare 30s timeout, naming neither the id nor the mismatch.
+        // The id comes from the manifest the install read. A copy here would go stale silently: the
+        // panel would follow the manifest to the new route while every response predicate below
+        // kept matching the old one, and a predicate that matches nothing fails as a bare timeout.
         const { id } = await harness.installExtension(RENAMER_EXTENSION);
         await use({ harness, extensionId: id });
       } finally {
@@ -64,14 +61,10 @@ async function putStoredOptions(harness, dataPathname, payload) {
 }
 
 /**
- * Drops the access cookie and proves it is gone.
- *
- * The proof is the whole spec: with that cookie in place the host's principal middleware
- * authenticates an extension's plain same-origin `fetch` by ambient authority, so every assertion
- * below passes whether or not the request carries a credential of its own - which is the measured
- * historical behavior of this exact test, not a hypothesis. An unasserted `clearCookies` can stop
- * clearing (its filter semantics are Playwright's to change) or clear a cookie the host has since
- * started setting on a second path, and nothing would say so.
+ * Drops the access cookie and proves it is gone. With that cookie in place every assertion in this
+ * spec passes whether or not the request carries a credential of its own, and an unasserted
+ * `clearCookies` can stop clearing (its filter semantics are Playwright's to change) or clear a
+ * cookie the host has since started setting on a second path, with nothing to say so.
  */
 async function dropAmbientAuthority(page) {
   await page.context().clearCookies({ name: ACCESS_COOKIE });
@@ -88,10 +81,8 @@ async function dropAmbientAuthority(page) {
  *
  * Dropping the cookie again first only narrows the window, it does not close it: a 401 on any
  * request in between drives the app's own refresh, and the host re-issues the access cookie on that
- * response - handing the remaining writes back the ambient authority this spec exists to rule out.
- * A drop asserted at t=drop says nothing about what the request carried at t=put, so the claim is
- * asserted on the exercised request itself. That is what stays red against a bundle calling plain
- * `fetch`, whatever the status says.
+ * response. A drop asserted at t=drop says nothing about what the request carried at t=put, so the
+ * headers of the exercised request are read instead.
  *
  * `allHeaders()`, not `headers()`: the latter strips cookie-related headers, so a `not.toContain`
  * against it would pass no matter what the request actually carried.
@@ -157,7 +148,7 @@ test("the settings panel reads and writes its options through an authenticated r
   // the panel; a failed read leaves the panel on its load-error path showing built-in defaults.
   await expect(settings.filenameTemplateInput).toHaveValue(seededTemplate, { timeout: 30_000 });
 
-  // Load twice: same instance, same stored blob, same rendered options.
+  // A remount reads the blob again, so the second load is a second authenticated read.
   await settings.goto();
   await expect(settings.filenameTemplateInput).toHaveValue(seededTemplate, { timeout: 30_000 });
 

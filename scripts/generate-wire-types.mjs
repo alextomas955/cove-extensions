@@ -34,12 +34,11 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
  * injects a fake in its place, and the catalog-validation job installs nothing yet runs every
  * scripts/*.test.mjs.
  *
- * openapi-typescript declares `typescript: ^5.x` as a peer and this repo is on 6, so `npm install`
+ * openapi-typescript declares an older TypeScript as a peer than this repo is on, so `npm install`
  * refuses the pair without the root package.json `overrides` entry that forces it. The combination is
- * deliberate and unsupported by the package: it drives the TypeScript compiler API, so a bump on
- * either side can break the emit for reasons the error will not name. 7.13.0 is the newest release
- * and still says ^5.x, so the override cannot be retired by upgrading - check that first when it does
- * break.
+ * unsupported by the package: it drives the TypeScript compiler API, so a bump on either side can
+ * break the emit for reasons the error will not name. Check whether the peer range has widened before
+ * debugging anything else; the override can be retired as soon as it has.
  */
 async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }) {
   const { default: openapiTS, astToString } = await import("openapi-typescript");
@@ -93,9 +92,8 @@ export async function generateWireTypes({
     const documentPath = path.join(absoluteRoot, entry.path, DOCUMENT_SUBPATH);
     const outputPath = path.join(absoluteRoot, entry.uiPath, OUTPUT_SUBPATH);
 
-    // A hard failure naming the entry and the path, never a skip: declaring a UI is what makes the
-    // extension import a generated module, so a run that quietly generated nothing leaves the next
-    // step failing somewhere with no cause attached.
+    // A hard failure, never a skip: declaring a UI is what makes the extension import a generated
+    // module, so a run that generated nothing leaves the next step failing with no cause attached.
     if (!fs.existsSync(documentPath)) {
       failures.push(
         `MISSING: ${entry.id} declares a uiPath, so ${entry.path}/${DOCUMENT_SUBPATH} must exist; it does not.`,
@@ -108,7 +106,7 @@ export async function generateWireTypes({
   }
 
   // Reports what it examined, not only what it did: a run that inspected zero input and exited 0
-  // otherwise reads exactly like a run that generated everything asked of it.
+  // otherwise reads like a run that generated everything asked of it.
   log(
     `Examined ${selected.length} catalog entr${selected.length === 1 ? "y" : "ies"}; ` +
       (declaring.length === 0

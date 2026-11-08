@@ -13,8 +13,6 @@ import { useLastBatch } from "./useLastBatch";
 
 type UndoStatus = ReturnType<typeof buildUndoStatus>;
 
-// What the footer shows beside the extension id, in precedence order: the check in flight, the check
-// failing, an undoable rename, then an expired one or none.
 function UndoStatusRow({
   loading,
   summaryError,

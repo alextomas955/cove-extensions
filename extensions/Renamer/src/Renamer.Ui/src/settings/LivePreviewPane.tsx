@@ -1,8 +1,6 @@
 /**
- * LivePreviewPane - the sticky right-hand "Live preview" column. Presentational only: it renders the
- * old→new samples that useRenamePreview produced (via <PreviewCard>) plus its loading/error states,
- * and never fetches anything itself. Sits in the 1/3 grid cell beside FilenameSection; the inner card
- * is `lg:sticky lg:top-16` under the 64px navbar so it stays visible while the filename card scrolls.
+ * The sticky right-hand "Live preview" column. The inner card offsets its sticky top by the height
+ * of Cove's own navbar, so it stays visible while the filename card scrolls.
  */
 import { PreviewCard } from "./PreviewCard";
 import type { PreviewSampleResult } from "../wire/api";
@@ -29,10 +27,9 @@ export function LivePreviewPane({ preview, previewError }: Readonly<LivePreviewP
           </div>
         ) : null}
         {preview == null && !previewError ? (
-          // Only while no failure has been reported. The hook keeps the last good preview on a failed
-          // refresh, so a null preview beside a raised error is the first request having failed: there
-          // is nothing further in flight, and a spinner beneath the error line above would promise a
-          // render that never arrives.
+          // The hook keeps the last good preview on a failed refresh, so a null preview beside a
+          // raised error is the first request having failed. Nothing further is in flight, and a
+          // spinner under the error line would promise a render that never arrives.
           <div className="flex items-center gap-2 text-sm text-secondary">
             <Spinner />
             Rendering preview…

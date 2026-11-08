@@ -22,7 +22,6 @@ public sealed class RecordingJobService(JobInfo? job = null, JobOwner? jobOwner 
         return "job-123";
     }
 
-    // Runs the single enqueued job to completion, as the host's worker would.
     public Task RunTheOnlyJobAsync() => Assert.Single(Work)(new NullProgress(), CancellationToken.None);
 
     public JobInfo? GetJob(string jobId) => job is not null && job.Id == jobId ? job : null;

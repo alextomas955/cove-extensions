@@ -8,7 +8,6 @@ namespace Renamer.Tests.Planner;
 
 public sealed class RoutingPlannerTests
 {
-    // OS-aware absolute roots (path-syntax valid on the current OS).
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string StudioRoot => OperatingSystem.IsWindows() ? @"D:\studios\acme" : "/mnt/studios/acme";
     private static string TagRoot => OperatingSystem.IsWindows() ? @"E:\by-tag\anime" : "/mnt/by-tag/anime";
@@ -28,7 +27,7 @@ public sealed class RoutingPlannerTests
             Date: new DateOnly(2024, 3, 2), Organized: true,
             Performers: [new RenamerPerformer(1, "Bob", null)], TagRefs: [(7, "anime")], Files: files);
 
-    // A port whose library paths are libraryPaths - the roots a destination may name.
+    // Library paths are the roots a destination may name.
     private static FakeRenamerDataPort Port(params string[] libraryPaths)
     {
         var port = new FakeRenamerDataPort();
@@ -85,15 +84,14 @@ public sealed class RoutingPlannerTests
 
         var item = Assert.Single(plan.Items);
 
-        // The property: the rule still routes. A spelling the membership comparison did not fold would
-        // surface as SkipRootMissing - the rule silently ceasing to route - not as a different path.
+        // A spelling the membership comparison did not fold would surface as SkipRootMissing - the
+        // rule silently ceasing to route - not as a different path.
         Assert.Equal(RenamerStatus.Move, item.Status);
 
         // Compared with any trailing separator trimmed, because one is carried through into the
-        // reported root rather than normalised away: a rule stored as "<root>/" reports
-        // "<root>/" here while a rule stored as "<root>" reports "<root>". Both route to the same
-        // place, so this is a cosmetic inconsistency in a projection field and not a routing defect -
-        // recorded rather than asserted away, so a later normalisation is a visible change here.
+        // reported root rather than normalised away: a rule stored as "<root>/" reports "<root>/"
+        // here while a rule stored as "<root>" reports "<root>". Both route to the same place, so
+        // this is a cosmetic inconsistency in a projection field and not a routing defect.
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot!.TrimEnd('/'));
     }
 
@@ -113,7 +111,6 @@ public sealed class RoutingPlannerTests
             FolderTemplate = "Sorted",
         };
 
-        // The rule sends the staging folder itself somewhere specific.
         var lk = Lookups(exact: new Dictionary<string, Destination>(StringComparer.Ordinal)
         {
             [Fwd(SrcRoot)] = Dest.At(StudioRoot, "Sorted"),
@@ -164,14 +161,13 @@ public sealed class RoutingPlannerTests
         // Backslash separators, as a store written on a Windows host holds them.
         BackslashSeparators,
 
-        // The canonical forward-slash form with a trailing separator.
         TrailingSeparator,
     }
 
-    // The route's template replaces the default rather than being appended to it: the planner renders
-    // with `options with { FolderTemplate = destination.Template }`, so an empty route template erases
-    // a non-empty default and the file lands at the root of the routed destination. A matched route
-    // relocates the file either way, rather than renaming it in place under its source folder.
+    // The route's template replaces the default rather than being appended to it, so an empty route
+    // template erases a non-empty default and the file lands at the root of the routed destination.
+    // A matched route relocates the file either way, rather than renaming it in place under its
+    // source folder.
     [Theory]
     [InlineData("Sorted", "", "/My Film.mkv")]
     [InlineData("", "", "/My Film.mkv")]
@@ -267,8 +263,6 @@ public sealed class RoutingPlannerTests
     [Fact]
     public async Task Unmatched_SecondPass_IsANoOp_NotAnotherDescent()
     {
-        // The fixed point the library anchor buys: the file already sits where the first pass put it,
-        // so the second pass computes the same path and changes nothing.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot + "/Sorted")) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -285,7 +279,7 @@ public sealed class RoutingPlannerTests
     public async Task Unmatched_FileUnderNoLibraryPath_IsSkipUnanchored()
     {
         // A destination measuring from the file's own library path, and the file is under none: the
-        // destination is not forbidden, it cannot be computed. The item keeps its name and its folder.
+        // destination is not forbidden, it cannot be computed.
         var port = Port(StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -346,9 +340,6 @@ public sealed class RoutingPlannerTests
     [Fact]
     public async Task Excluded_ProducesSkipExcluded_ForEveryFile_NotSkipGated()
     {
-        // An excluded multi-file entity yields a SkipExcluded skip-with-reason for every file
-        // (mirrors the gated path), carrying the matched exclude rule label - and it is not the
-        // (gating) SkipGated status, guarding the relabel.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(
             VideoFile(1, "a.mkv", SrcRoot),
@@ -403,8 +394,10 @@ public sealed class RoutingPlannerTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            OnlyOrganized = true,            // would gate the unorganized item …
-            // … and no unorganized route to fall through to (the absent member is how that is spelled).
+
+            // Gates the unorganized item, with no unorganized route to fall through to - the absent
+            // member is how that is spelled.
+            OnlyOrganized = true,
         };
         var lk = Lookups(excludeTags: new HashSet<int>([7]));
 
@@ -418,19 +411,16 @@ public sealed class RoutingPlannerTests
     [Fact]
     public async Task RoutedToSameFolder_SameName_IsNoOp_NotMove()
     {
-        // The move-to-itself bug: with a destination configured, every file is a "move" (isMove
-        // true). If the route resolves the file back to the folder it already lives in and the
-        // rendered name equals its current basename, nothing changes on disk - it must be NoOp, not
-        // a Move reported (and executed) as a rename to its own identical path. Here the default
-        // root is the file's source root, no subfolder, and the filename template reproduces the
-        // current basename stem - so target full path == current full path.
+        // With a destination configured every file is a move, so a route that resolves the file back
+        // to the folder it already lives in under its current name has to settle as NoOp rather than
+        // a Move executed as a rename to its own path.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
-            FilenameTemplate = "$title",     // renders "My Film" → "My Film.mkv" == current basename
-            FolderRoot = SrcRoot,            // … and the destination IS the file's own folder
+            FilenameTemplate = "$title",     // renders the current basename, "My Film.mkv"
+            FolderRoot = SrcRoot,            // and the destination is the file's own folder
         };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
@@ -445,10 +435,9 @@ public sealed class RoutingPlannerTests
     {
         // Cove does not guarantee a forward-slash Folder.Path - its own tests build
         // `new Folder { Path = "C:\\library" }` - so on a Windows host ParentFolderPath arrives with
-        // backslashes while the confinement gate returns its target forward-slashed. The no-op check
-        // compares the two ordinally, so a file already sitting at its routed destination read as a
-        // Move to its own path. This seeds the raw host shape deliberately: every other test here
-        // goes through Fwd(), which normalizes away the one input that reproduces it.
+        // backslashes while the confinement gate returns its target forward-slashed, and the no-op
+        // check compares the two ordinally. This seeds the raw host shape deliberately: every other
+        // test here goes through Fwd(), which normalizes away the one input that reaches the case.
         Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows backslash Folder.Path semantics");
 
         var rawSrcRoot = @"C:\library\incoming";

@@ -1,9 +1,7 @@
 /**
- * How one edit in the "Per kind" list changes the stored per-kind map.
- *
- * Pure, so the rule can be read and tested without a DOM: a kind at its defaults is absent from the
- * map rather than stored as an entry saying nothing, which is what keeps turning a setting on and
- * back off from leaving the blob different than it started.
+ * How one edit in the "Per kind" list changes the stored per-kind map. A kind at its defaults is
+ * absent from the map rather than stored as an entry saying nothing, so turning a setting on and
+ * back off leaves the blob as it started.
  */
 import { RENAMABLE_KINDS, type Destination, type KindOptions, type RenamableKind } from "./options";
 

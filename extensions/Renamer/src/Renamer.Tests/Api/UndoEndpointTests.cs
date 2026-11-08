@@ -47,7 +47,6 @@ public sealed class UndoEndpointTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, TitleOptions, bus);
 
-            // Forward renamer via the shared batch core - writes one real batch to the journal.
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
@@ -64,24 +63,20 @@ public sealed class UndoEndpointTests
             Assert.Empty(undo.SkippedSample);
             Assert.Equal(0, undo.SkippedCount);
 
-            // Disk restored.
-            Assert.True(File.Exists(oldFull), "file restored to OLD");
-            Assert.False(File.Exists(newFull), "NEW gone after undo");
+            Assert.True(File.Exists(oldFull), "file restored to its old path");
+            Assert.False(File.Exists(newFull), "the new path is gone after undo");
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
-            // DB restored.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("raw clip.mkv", basename);
             Assert.Equal(folderPath + "/raw clip.mkv", path);
 
-            // Event: exactly one VideoUpdated for the parent entity id (≠ fileId).
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.VideoUpdated, evt.Type);
             Assert.Equal("Video", evt.EntityType);
             Assert.Equal(videoId, evt.EntityId);
             Assert.NotEqual(fileId, evt.EntityId);
 
-            // Batch consumed: a second undo is a no-op.
             var second = await ext.UndoAsync(principal, new RecordingAuthorizationService(), default);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
@@ -129,8 +124,6 @@ public sealed class UndoEndpointTests
                 new RecordingAuthorizationService(), default);
             Assert.Equal(1, UndoValue(result).Undone);
 
-            // The published event is ImageUpdated - proving the kind comes from the batch header,
-            // never a hardcoded RenamerFileKind.Video default on the undo path.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.ImageUpdated, evt.Type);
             Assert.Equal("Image", evt.EntityType);
@@ -237,21 +230,18 @@ public sealed class UndoEndpointTests
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            // Before any renamer: no batch.
             var empty = LastBatchValue(await ext.LastBatchAsync(read, default));
             Assert.False(empty.HasBatch);
             Assert.Equal(0, empty.Count);
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
-            // After a renamer: a one-row, not-yet-consumed batch with a real server timestamp.
             var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
             Assert.True(summary.HasBatch);
             Assert.Equal(1, summary.Count);
             Assert.False(summary.Consumed);
             Assert.True(summary.WrittenAtUtcTicks > 0);
 
-            // After an undo: the batch is consumed.
             await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
                 new RecordingAuthorizationService(), default);
@@ -267,8 +257,9 @@ public sealed class UndoEndpointTests
     }
 
     // The moment the panel prints is the moment the purge acts on, checked against the purge itself
-    // rather than against a copy of the window. A second declaration of seven days - in the panel, or
-    // in a test asserting a literal - would pass while disagreeing with the sweep that deletes rows.
+    // rather than against a copy of the window. A second declaration of that window - in the panel,
+    // or in a test asserting a literal - would pass while disagreeing with the sweep that deletes
+    // rows.
     [Fact]
     public async Task LastBatch_AdvertisesTheExpiryThePurgeActuallyEnforces()
     {
@@ -295,7 +286,6 @@ public sealed class UndoEndpointTests
             await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt);
             Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
 
-            // One tick past it, the rows are gone - which is what the advertised moment promised.
             await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt.AddTicks(1));
             Assert.False(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
         }
@@ -344,8 +334,6 @@ public sealed class UndoEndpointTests
         }
     }
 
-    // Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId,
-    // fileId).
     private static async Task<(int imageId, int fileId)> SeedImageAsync(
         DbContext db, string folderPath, string basename, string title)
     {

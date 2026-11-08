@@ -1,9 +1,6 @@
-// Drives the real validate-extension-repo.mjs as a child process against malformed catalog
-// fixtures, asserting exit code and output text.
-//
-// Subprocess rather than an imported function because the validator resolves its root relative to
-// where the executing file lives on disk, not process.cwd(). Each fixture therefore gets a copy of
-// the real validator bytes under its own `scripts/`, so that resolution lands in the fixture tree.
+// Subprocess rather than an imported function: the validator resolves its root relative to where the
+// executing file lives on disk, not process.cwd(). Each fixture therefore gets a copy of the real
+// validator bytes under its own `scripts/`, so that resolution lands in the fixture tree.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -14,9 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// A fully-valid extension.json baseline: id matching the catalog entry, semver version, entryDll,
-// url, non-empty lowercase-kebab categories. Callers override individual fields to create exactly
-// one malformation.
+// A fully-valid extension.json baseline. Callers override one field to create one malformation.
 function validManifest(id, overrides = {}) {
   return {
     id,
@@ -28,11 +23,9 @@ function validManifest(id, overrides = {}) {
   };
 }
 
-// The smallest entry the validator accepts, deliberately independent of the real catalog's shape:
-// every optional path field is left out so a case can drive the zero-subject state of each check,
-// which an entry carrying the real Renamer's four declared paths could not reach. makeFixture plants
-// its project and solution unless a case opts out. Callers override one field to create one
-// malformation.
+// The smallest entry the validator accepts. Every optional path field is left out so a case can
+// drive the zero-subject state of each check. makeFixture plants its project and solution unless a
+// case opts out.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -45,9 +38,8 @@ function validEntry(id, dirName, overrides = {}) {
   };
 }
 
-// The attributed form the real Directory.Build.props uses, which is what exercises
-// readMsBuildProperties' optional-attribute branch. A bare-element fixture would leave the branch
-// that runs in production uncovered.
+// The attributed form the real Directory.Build.props uses. A bare-element fixture would miss
+// readMsBuildProperties' optional-attribute branch, which is the one production takes.
 function buildPropsWithFloor(floor = "1.1.0") {
   return [
     "<Project>",
@@ -60,9 +52,8 @@ function buildPropsWithFloor(floor = "1.1.0") {
   ].join("\n");
 }
 
-// Renders a solution file from a list of project paths. Passing raw text instead lets a case
-// express a solution the path-attribute match cannot read, which must fail loudly rather than
-// report an empty set - an empty set would read as every membership passing.
+// Renders a solution file from a list of project paths. A case passes raw text instead to express a
+// solution the path-attribute match cannot read.
 function solutionXml(projectPaths) {
   return [
     "<Solution>",
@@ -74,20 +65,9 @@ function solutionXml(projectPaths) {
   ].join("\n");
 }
 
-// Builds a temp fixture tree:
-//   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time, with
-//                                                    the sibling modules it imports)
-//   <root>/extensions/catalog.json                (the catalog under test)
-//   <root>/Directory.Build.props                  (defaults to "" - declares no floor, so the
-//                                                    per-entry floor comparison no-ops)
-//   <root>/CoveExtensions.slnx                    (`solution` when supplied, otherwise one listing
-//                                                    every planted project; null leaves it absent)
-//   <root>/<projectPath> for each entry, unless `plantProjects` is false (a case about a missing
-//   project or a solution gap plants its own)
-//   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
-//   on disk for each catalog entry that must not short-circuit on path-existence)
-//   <root>/<relPath> for each [relPath, text] in filesByPath (raw bytes - a .csproj fixture is not
-//   JSON, and only has to exist for the checks that consume it)
+// Builds a temp fixture tree. `buildProps` defaults to "", which declares no floor and so no-ops the
+// per-entry floor comparison. `solution` defaults to one listing every planted project, and null
+// leaves the file absent. `filesByPath` is raw bytes, for fixtures that are not JSON.
 function makeFixture({
   catalog,
   buildProps = "",
@@ -144,8 +124,7 @@ function runValidator(fixtureRoot) {
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
-// One valid entry and its manifest, each carrying the overrides a case supplies. A case changes a
-// single field, so every refusal the run reports follows from that field.
+// One valid entry and its manifest, each carrying the overrides a case supplies.
 function runWith({ entry = {}, manifest = {} } = {}) {
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [validEntry("com.example.foo", "Foo", entry)] },
@@ -160,9 +139,9 @@ function runWith({ entry = {}, manifest = {} } = {}) {
   }
 }
 
-// Two valid entries that differ from each other only in the field a case duplicates. Both need real,
-// distinct, fully-valid fixture dirs so neither short-circuits on the path-existence `continue`
-// before the dedup check on the second entry runs.
+// Two valid entries differing only in the field a case duplicates. Both need real, distinct fixture
+// dirs so neither short-circuits on the path-existence `continue` before the dedup check runs on the
+// second entry.
 function runWithTwoEntries(first, second) {
   const root = makeFixture({
     catalog: {
@@ -180,9 +159,7 @@ function runWithTwoEntries(first, second) {
   }
 }
 
-// A catalog entry with a subject for every counter the report line carries: a floor to compare, four
-// declared optional paths, two projects to find in the solution, and a registry row matching the
-// version its manifest declares.
+// A catalog entry with a subject for every counter the report line carries.
 function maximalFixture() {
   const entry = validEntry("com.example.foo", "Foo", {
     name: "Foo",
@@ -213,10 +190,7 @@ function maximalFixture() {
 }
 
 test("the summary line reports counts, and a check with no subject renders 0 rather than a sentence", () => {
-  // Exit 0 alone cannot distinguish a check that passed from one that never ran, so the counts are
-  // what has to be asserted. Both states are driven, because "this check ran" and "this check had no
-  // subject" reading identically is the failure mode. Asserted as the whole line, since a fragment
-  // matcher cannot see a counter that stopped being printed at all.
+  // Asserted as the whole line: a fragment matcher cannot see a counter that stopped being printed.
   const maximal = maximalFixture();
   try {
     const { status, stdout, stderr } = runValidator(maximal);
@@ -254,9 +228,6 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
 });
 
 test("a manifest floor below the repo floor fails, naming the entry and the floor it fell below", () => {
-  // The surviving floor comparison, driven to failure. It is the only one left with a real
-  // subject - a per-entry manifest value against the repo floor - so if this case cannot fail,
-  // nothing in the file compares versions at all.
   const entry = validEntry("com.example.foo", "Foo");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -280,10 +251,6 @@ test("a manifest floor below the repo floor fails, naming the entry and the floo
 });
 
 test("an entry whose path does not exist fails, and reports no counts at all", () => {
-  // The short-circuit that skips the floor comparison entirely. It is the reason a zero comparison
-  // count cannot be an independent finding - every entry that reaches the comparison increments the
-  // count, so the only way to reach zero is this error, which has already failed the run. The counts
-  // line must not appear at all on a failed run: a count is a claim of coverage.
   const entry = validEntry("com.example.foo", "Missing");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -302,8 +269,6 @@ test("an entry whose path does not exist fails, and reports no counts at all", (
 });
 
 test("a catalog with zero entries is a finding, not a clean pass", () => {
-  // The repo's worked example of "empty input is a hard failure" - validating nothing must never
-  // read as validating everything.
   const root = makeFixture({ catalog: { schemaVersion: 1, extensions: [] } });
   try {
     const { status, stderr } = runValidator(root);
@@ -316,24 +281,18 @@ test("a catalog with zero entries is a finding, not a clean pass", () => {
 
 test("each entry-level malformation is refused with its own reason", () => {
   for (const [overrides, expected] of [
-    // The label falls back through `entry.id ?? entry.name ?? "catalog entry"`, and id is the field
-    // omitted here, so the error is reported against entry.name ("Foo").
     [{ entry: { id: undefined } }, /missing id/],
-    // The tag a release is cut from is `<tagPrefix>v<semver>`, so a prefix missing its separator
-    // produces a tag that matches no release trigger - or worse, matches another extension's. The
-    // catalog is the only place that can say so.
+    // A release tag is `<tagPrefix>v<semver>`, so a prefix missing its separator produces a tag that
+    // matches no release trigger, or matches another extension's.
     [{ entry: { tagPrefix: "foo" } }, /com\.example\.foo: tagPrefix must end with \//],
-    // The catalog id is what CI's matrix, the release tag and the registry all key on, while the
-    // manifest id is what the host loads the extension as. Nothing else compares them, and a
-    // disagreement ships an extension the store and the host each know by a different name.
+    // The catalog id is what CI's matrix, the release tag and the registry key on; the manifest id is
+    // what the host loads the extension as. Nothing else compares them.
     [
       { manifest: { id: "com.example.other" } },
       /com\.example\.foo: catalog id does not match extension\.json id com\.example\.other/,
     ],
     // uiPath/testProjectPath/e2ePath are consumed by the CI build matrix but by none of the
-    // convention-derived checks, so without this a typo in one surfaces only inside a matrix leg: an
-    // `npm ci` in a directory that is not there, or a dotnet restore several steps in. The error must
-    // name the field, because the path value alone does not say which CI step will break.
+    // convention-derived checks, so without this a typo in one surfaces only inside a matrix leg.
     [
       { entry: { uiPath: "extensions/Foo/DoesNotExist.Ui" } },
       /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/,
@@ -370,10 +329,9 @@ test("nonexistent projectPath produces a non-zero exit and the expected error", 
 });
 
 test("nonexistent manifestPath produces a non-zero exit and the expected error", () => {
-  // entry.path (extensionDir) must exist on disk, or the earlier existsSync(extensionDir) check
-  // short-circuits via `continue` before ever reaching the manifestPath check - so a real,
-  // unrelated placeholder file is planted under extensions/Foo/ to satisfy the extensionDir
-  // check, while manifestPath itself stays absent.
+  // entry.path must exist on disk, or the earlier existsSync check short-circuits via `continue`
+  // before reaching the manifestPath check. The placeholder satisfies it while manifestPath stays
+  // absent.
   const entry = validEntry("com.example.foo", "Foo", {
     manifestPath: "extensions/Foo/does-not-exist.json",
   });
@@ -416,11 +374,9 @@ test("a field two entries share where it must be unique is refused, naming that 
   }
 });
 
-// A C#-bearing entry, complete enough that only the membership check can speak: the project files
-// exist, so the existence checks are silent, and the manifest is valid.
-// `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
-// separates the declared-but-missing check from the solution-membership one: both report on the
-// same field, and a case that plants nothing cannot say which of the two spoke.
+// A C#-bearing entry complete enough that only the membership check can speak. `absentOnDisk` names
+// declared paths the fixture does not plant, which is what separates the declared-but-missing check
+// from the solution-membership one: both report on the same field.
 function csharpFixture({
   solution,
   projectPath,
@@ -450,10 +406,8 @@ function csharpFixture({
 }
 
 test("a projectPath absent from the solution fails, naming the entry, the field, the path and the file", () => {
-  // The gap this closes is silent by nature: the format and analyzer gates take their whole subject
-  // list from the solution, so a project missing from it is simply never compiled and nothing says
-  // so. The error therefore has to name which CI step is about to under-cover, not only which string
-  // was absent - hence the field and the solution file alongside the path.
+  // The format and analyzer gates take their whole subject list from the solution, so a project
+  // missing from it is never compiled and nothing else says so.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions/Bar/Bar.csproj"],
@@ -471,9 +425,7 @@ test("a projectPath absent from the solution fails, naming the entry, the field,
 });
 
 test("an entry declaring no projectPath has its convention-derived path checked", () => {
-  // The upstream convention path is a real entry shape, not a legacy one, so an entry that omits
-  // projectPath still compiles something and can still be missing from the solution. The error says
-  // the path was derived, or a reader greps the catalog for it and finds nothing.
+  // The error says the path was derived, or a reader greps the catalog for it and finds nothing.
   const root = csharpFixture({ solution: ["extensions/Bar/Bar.csproj"] });
   try {
     const { status, stderr } = runValidator(root);
@@ -488,9 +440,8 @@ test("an entry declaring no projectPath has its convention-derived path checked"
 });
 
 test("a solution whose project paths cannot be read is a named failure, not a silent pass", () => {
-  // The failure mode that would make this whole check decorative: a match that stops finding path
-  // attributes yields an empty set, and an empty set makes every membership look confirmed. The
-  // element count and the extracted count are compared so that divergence speaks.
+  // A match that stops finding path attributes yields an empty set, and an empty set makes every
+  // membership look confirmed.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: '<Solution>\n  <Project Include="extensions/Foo/Foo.csproj" />\n</Solution>\n',
@@ -506,8 +457,7 @@ test("a solution whose project paths cannot be read is a named failure, not a si
 
 test("a solution declaring backslash separators matches a catalog declaring forward slashes", () => {
   // The repository is authored on Windows and built on Linux, so the two spellings of the same path
-  // must agree. Case is deliberately not folded: a case mismatch breaks the Linux build, so failing
-  // on it is the correct outcome on both platforms.
+  // must agree. Case is not folded: a case mismatch breaks the Linux build.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions\\Foo\\Foo.csproj"],
@@ -515,8 +465,7 @@ test("a solution declaring backslash separators matches a catalog declaring forw
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report,
-    // so only a confirmed membership says the two spellings were reconciled.
+    // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report.
     assert.match(stdout, /1 CoveExtensions\.slnx membership\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -524,9 +473,8 @@ test("a solution declaring backslash separators matches a catalog declaring forw
 });
 
 test("an entry declaring no test project stays valid", () => {
-  // The field is optional to declare, and an extension with no tests at all must not be forced to
-  // grow one. The membership count is asserted rather than exit 0 alone: a run that examined nothing
-  // also exits 0.
+  // The membership count is asserted rather than exit 0 alone: a run that examined nothing also
+  // exits 0.
   const root = csharpFixture({
     projectPath: "extensions/Foo/Foo.csproj",
     solution: ["extensions/Foo/Foo.csproj"],
@@ -541,9 +489,8 @@ test("an entry declaring no test project stays valid", () => {
 });
 
 test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
-  // The drift that has already shipped here once and was corrected by hand. Both files declare a
-  // minCoveVersion, nothing compares them, and the disagreement is invisible until a user on the
-  // version between the two floors is either locked out or offered a zip their host cannot run.
+  // Both files declare a minCoveVersion. A disagreement is invisible until a user on the version
+  // between the two floors is either locked out or offered a zip their host cannot run.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
@@ -575,11 +522,8 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
 });
 
 test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
-  // The case a naive implementation fails, and the only one that can speak for it. An implementation
-  // comparing every row passes every other case in this file while demanding the historical-row edit
-  // releasing.md forbids: each row describes an immutable published zip whose floor is the floor that
-  // zip needs, so the two older rows here are correct precisely by disagreeing with the current one.
-  // The three rows mirror the real manifest's shape (1.1.0 / 1.0.0 / 0.7.1, newest first).
+  // Each registry row describes an immutable published zip whose floor is the floor that zip needs,
+  // so the two older rows here are correct precisely by disagreeing with the current one.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
@@ -605,8 +549,8 @@ test("older versions[] rows with lower floors are not compared, so history stays
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    // one of the three rows was compared. The count is what says so: an implementation comparing
-    // every row also exits 0 on this fixture, because the two older rows agree with themselves.
+    // The count, not exit 0: an implementation comparing every row also exits 0 on this fixture,
+    // because the two older rows agree with themselves.
     assert.match(stdout, /1 registry row\(s\) compared across 1 declared registry manifest\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -614,9 +558,8 @@ test("older versions[] rows with lower floors are not compared, so history stays
 });
 
 test("two versions[] rows carrying the same version fail, naming the duplicated version", () => {
-  // A precondition of the guard above rather than a separate feature: with two rows claiming one
-  // version, "the row describing the current version" is not well defined, and the comparison would
-  // silently take whichever came first - passing or failing on row order alone.
+  // With two rows claiming one version, "the row describing the current version" is not well
+  // defined, and the comparison would take whichever came first.
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });

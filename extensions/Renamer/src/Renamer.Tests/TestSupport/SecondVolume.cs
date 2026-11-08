@@ -10,10 +10,8 @@ public sealed class SecondVolume : IDisposable
 {
     private const string ShmRoot = "/dev/shm";
 
-    // The environment variable naming a directory on a second filesystem.
     public const string OverrideVariable = "COVE_TEST_SECOND_VOLUME";
 
-    // The root to place a cross-volume destination under.
     public string Root { get; }
 
     private readonly SubstDrive? _subst;

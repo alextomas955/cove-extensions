@@ -51,7 +51,6 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(ShortSource, DeepRoot);
-        // The file sits in the short source folder, but routes to the deep root.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
@@ -64,7 +63,6 @@ public sealed class DestAnchoredMaxPathTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, StudioLookup(DeepRoot), default);
 
         var item = Assert.Single(plan.Items);
-        // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
         Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
     }
@@ -72,10 +70,10 @@ public sealed class DestAnchoredMaxPathTests
     [Fact]
     public async Task SameRender_FitsUnderShortSource_WhenNotRouted()
     {
+        // The identical render under the short source folder, unrouted, fits within the same
+        // FullPathMax, so the overflow above comes from the deep routed anchor and not the render.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(ShortSource);
-        // The identical render under the short source folder (no route) fits within the same FullPathMax -
-        // proving the overflow above is caused by the deep routed anchor, not the render itself.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
@@ -85,7 +83,6 @@ public sealed class DestAnchoredMaxPathTests
             FullPathMax = Max,
         };
 
-        // Empty lookups → the default destination → anchored on the short library path.
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, EmptyLookup(), default);
 
         var item = Assert.Single(plan.Items);
@@ -195,7 +192,6 @@ public sealed class DestAnchoredMaxPathTests
             $"resolved absolute path length {BoundaryAbsoluteLength + 4} exceeds "
                 + $"FullPathMax {BoundaryAbsoluteLength}",
             item.Reason);
-        // The item keeps the name and the folder it already has, so nothing over the budget is planned.
         Assert.Equal("raw.mkv", item.NewBasename);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
     }

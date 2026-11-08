@@ -1,6 +1,5 @@
 /**
  * Everything the undo footer says: its status line from `/last-batch` and its feedback from `/undo`.
- * `now` is a parameter so every expiry case is testable.
  *
  * Every number in the feedback comes from a `…Count` field, and a `…Sample` is read only to name the
  * first reason. The response describes at most a few entries per channel, so a count taken from a
@@ -19,9 +18,7 @@ function ticksToEpochMs(ticks: number): number {
   return (ticks - TICKS_AT_EPOCH) / TICKS_PER_MS;
 }
 
-/** What the panel needs to render and to decide whether to offer the button at all. */
 interface UndoPanelStatus {
-  /** The single line stating what happened, what is left, and until when. */
   line: string;
   /** How many files the button would act on. This is the figure the confirm must quote. */
   remaining: number;
@@ -34,7 +31,6 @@ interface UndoPanelStatus {
   expired: boolean;
 }
 
-/** What the panel renders after an undo: the status kind it styles on, and the sentence itself. */
 export type UndoFeedback = { kind: "success"; text: string } | { kind: "error"; text: string };
 
 function plural(n: number, one: string, many: string): string {
@@ -49,7 +45,6 @@ function formatDate(epochMs: number): string {
   });
 }
 
-/** Plain relative time: "just now" / "N minutes ago" / "yesterday" / absolute beyond ~7 days. */
 function relativeTime(epochMs: number, now: number): string {
   const diffMs = now - epochMs;
   const sec = Math.round(diffMs / 1000);
@@ -103,12 +98,9 @@ export function buildUndoStatus(
 }
 
 /**
- * Compose the sentence for a completed undo.
- *
- * Three outcomes: a clean run, a run that restored some of the batch, and a run that restored none of
- * it. A stranded companion rides on the first two rather than replacing them - the media file did come
- * back, which is what undo promises, but a slot the user owns is still occupied and nothing else will
- * say so.
+ * Compose the sentence for a completed undo. A stranded companion is appended to the outcome rather
+ * than replacing it: the media file did come back, which is what undo promises, but a path the user
+ * owns is still occupied and nothing else will say so.
  */
 export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   // The two problem channels are one number to a user, who cares how many files did not come back and
@@ -127,11 +119,9 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
     };
   }
 
-  // The one read of a sample: which reason to name. The failed channel is preferred so the order
-  // matches the panel's long-standing merge. A sample is expected to be non-empty whenever its count
-  // is, because the server's cap is at least one - but that is the server's promise, not something
-  // this module can prove, so the empty case names itself rather than interpolating `undefined` into
-  // a sentence the user reads.
+  // The one read of a sample: which reason to name, the failed channel first. A sample is non-empty
+  // whenever its count is, but that is the server's promise, so the empty case names itself rather
+  // than interpolating `undefined` into a sentence the user reads.
   const firstReason =
     result.failedSample.at(0)?.reason ?? result.skippedSample.at(0)?.reason ?? "unknown reason";
 
@@ -146,15 +136,10 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 }
 
 /**
- * Compose the sentence for an undo whose response never arrived.
- *
- * `/undo` answers every arm it reaches with a body, the "nothing open to undo" arm included, so a
- * bodyless reply is raised as an `ApiError` before this one is asked for. What is left is a request
- * whose fate is unknown: the connection dropped, or the reply would not parse. The server may have
- * moved part or all of the batch back first.
- *
- * So the sentence deliberately omits "Nothing was changed", which would tell the user there is
- * nothing left to re-check, and sends them to the batch instead.
+ * Compose the sentence for an undo whose response never arrived: the connection dropped, or the
+ * reply would not parse. The server may have moved part or all of the batch back first, so the
+ * sentence omits "Nothing was changed", which would tell the user there is nothing left to
+ * re-check, and sends them to the batch instead.
  */
 export function buildUndoUnconfirmed(detail: string): UndoFeedback {
   return {

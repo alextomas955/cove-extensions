@@ -14,7 +14,6 @@ public sealed class FakeRevertJournal : IRevertJournal
     private readonly ConcurrentQueue<(string RunId, string OperationId, RenamerFileKind Kind, long OpenedAtUtcTicks)> _batches = new();
     private long _lastSeq;
 
-    // Every appended row, in append order.
     public IReadOnlyList<RevertRow> Rows => [.. _appended];
 
     // When set, AppendAsync throws this instead of recording the row - the seam that drives the

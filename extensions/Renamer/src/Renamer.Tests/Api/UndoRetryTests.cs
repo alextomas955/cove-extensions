@@ -44,10 +44,8 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
-            // The table is the record of what is left - exactly the row that did not come back. The
-            // previous defect spent the whole batch on the first partial success, which is what made
-            // the remaining work unreachable; row presence is the state, so the read that feeds the
-            // button must still return this batch.
+            // The table is the record of what is left - exactly the row that did not come back. Row
+            // presence is the state, so the read that feeds the button must still return this batch.
             await using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
@@ -88,7 +86,7 @@ public sealed class UndoRetryTests
             // offering an undo that could never complete.
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
-            // …and the aggregate still says how it ended, on the counter that keeps the two apart.
+            // The aggregate still says how it ended, on the counter that keeps the two apart.
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(2, summary.Value.OriginalCount);
@@ -159,7 +157,6 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    // Seeds and forward-renames two files in one batch, returning them in seed order.
     private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
@@ -171,8 +168,7 @@ public sealed class UndoRetryTests
     // batch - so the batch holds one row per file, which is what makes "acts only on what is left"
     // a statement about rows rather than about batches. The forward half runs through the planner
     // and executor directly rather than through the batch endpoint, because that endpoint fans its
-    // files out across per-worker scopes and every scope here resolves the one seeded context. The
-    // subject of these cases is the undo endpoint, which is exercised for real.
+    // files out across per-worker scopes and every scope here resolves the one seeded context.
     private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, IReadOnlyList<string> stems)
     {

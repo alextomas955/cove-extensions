@@ -7,7 +7,6 @@ namespace Renamer.Tests.TestSupport;
 // no-op (the executor only publishes).
 public sealed class CapturingEventBus : IEventBus
 {
-    // Every published event, in publish order.
     public List<CoveEvent> Published { get; } = [];
 
     // When set, Publish throws this instead of recording the event.

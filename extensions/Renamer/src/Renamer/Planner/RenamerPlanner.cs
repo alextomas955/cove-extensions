@@ -18,8 +18,6 @@ public sealed class RenamerPlanner
 
     public RenamerPlanner(IRenamerDataPort port) => _port = port;
 
-    // With empty lookups the resolver always returns Unmatched, so every entity takes the default
-    // destination.
     // Computes the per-file old-to-new plan for the given entity with zero disk or DB mutation, and
     // returns an empty plan when the entity does not exist. Routing is resolved once per entity, and
     // the resolved destination's root is the anchor the per-file confinement measures against, so an
@@ -38,14 +36,10 @@ public sealed class RenamerPlanner
     public async Task<RenamerPlan> PlanLoadedEntity(
         RenamerEntity entity, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
     {
-        // Routing runs once per entity, and before gating. Excludes are evaluated first and beat every
-        // other reason an item could be skipped, gates included, so an item that both matches an
-        // exclude rule and would be gated is attributed to the exclude.
+        // Routing runs before gating, so an item that both matches an exclude rule and would be gated
+        // is attributed to the exclude.
         var route = DestinationResolver.Resolve(entity, options, lookups);
 
-        // An excluded entity is a skip-with-reason for every one of its files, never rendered or
-        // moved. The status is kept apart from SkipGated so the preview and the log attribute an
-        // exclude correctly. The matched exclude rule label travels in the reason.
         if (route.Category == RouteCategory.Excluded)
         {
             var excluded = entity.Files
@@ -65,7 +59,6 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, undecided);
         }
 
-        // A gated item is skipped for every one of its files and never rendered.
         if (TryGate(entity, options, out var gateReason))
         {
             var gated = entity.Files
@@ -78,8 +71,6 @@ public sealed class RenamerPlanner
         // against the one value the executor will record. See MetadataProjector.DerivedTitle.
         string? derivedTitle = MetadataProjector.DerivedTitle(entity, options);
 
-        // One lookup, one destination. A matched rule's destination replaces the default; an item no
-        // rule matched takes the kind's own default when it has one, otherwise the global pair.
         var destination = route.Destination
             ?? options.KindDestination(entity.Kind)
             ?? new Destination { Root = options.FolderRoot, Template = options.FolderTemplate };
@@ -99,9 +90,8 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, orphaned);
         }
 
-        // The destination's template is substituted into the options because the folder template is
-        // what RenamerOptions means by FolderTemplate, and every consumer downstream must see the one
-        // effective value.
+        // The resolved template is substituted into the options so every downstream consumer reads the
+        // one effective value of FolderTemplate.
         var effective = options with { FolderTemplate = destination.Template };
 
         // The destination paths this plan has already handed out. The port's collision check sees only
@@ -143,8 +133,6 @@ public sealed class RenamerPlanner
             && PathConfinement.IsUnderRoot(root, configured)
             && PathConfinement.IsUnderRoot(configured, root));
 
-    // Gating: the kind switch, only-organized, and require-fields. Returns true with a reason when the
-    // item should be gated.
     private static bool TryGate(RenamerEntity entity, RenamerOptions options, out string? reason)
     {
         // The kind switch answers a different question from the other gates: they decide whether this
@@ -189,16 +177,16 @@ public sealed class RenamerPlanner
         return false;
     }
 
-    // Classifies a single file: render, anchor, confine, collision, status. claimedTargets is the
-    // caller's set of destination paths already handed out in this plan, read-only here.
+    // claimedTargets is the caller's set of destination paths already handed out in this plan,
+    // read-only here.
     private async Task<RenamerPlanItem> PlanFileAsync(
         EntityPlanContext context, RenamerFile file, HashSet<string> claimedTargets, CancellationToken ct)
     {
         var (entity, options, route, destination, derivedTitle) = context;
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
-        // Project and render, both pure. The performer records and tag pairs ride alongside the name
-        // side-input so the engine can order and filter by id before the max limit.
+        // The performer records and tag pairs ride alongside the name side-input so the engine can
+        // order and filter by id before the max limit.
         var (tokens, multi) = MetadataProjector.Project(entity, file, options);
         var rendered = TemplateEngine.Render(tokens, multi, options, entity.Performers, entity.TagRefs);
         string newBasename = rendered.Filename + rendered.Ext;

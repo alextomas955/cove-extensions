@@ -19,7 +19,7 @@ public sealed partial class Renamer : FullExtensionBase
     // the property, so an override declared here overrides the manifest silently.
 
     // Assigned in InitializeAsync, not the constructor, hence nullable. The guarded accessors below
-    // are the only way the rest of the extension reads them.
+    // throw rather than hand out a null seam.
     private IServiceScopeFactory? _scopeFactory;
     private IEventBus? _eventBus;
     private CoveConfiguration? _coveConfig;

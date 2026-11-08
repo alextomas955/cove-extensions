@@ -1,6 +1,5 @@
 using Renamer.Engine;
 
-
 namespace Renamer.Planner;
 
 /// <summary>One physical file row in the renamer's own vocabulary.</summary>

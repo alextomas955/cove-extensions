@@ -1,16 +1,8 @@
-/**
- * One sample's old→new diff + advisory flags. The response shape comes from the generated wire
- * module, which is derived from the committed OpenAPI document.
- *
- * security: every filename / folder / flag string is rendered as a React text node -
- * React escapes it. There is no raw-HTML rendering anywhere in this file.
- */
-
 import { useId } from "react";
 
 import type { PreviewSampleResult } from "../wire/api";
 
-/** Maps a backend flag code + the result to the user-facing advisory copy. */
+/** The user-facing copy for one flag the server emits, or null for a flag with no line to show. */
 function flagMessage(flag: string, r: PreviewSampleResult): string | null {
   switch (flag) {
     case "empty":

@@ -1,15 +1,13 @@
-// The only spec that observes Cove's row-level authorization filters. Three host facts put it here
-// rather than in a C# tier, and each one of them makes a cheaper version of this test vacuous.
+// The only spec that observes Cove's row-level authorization filters.
 //
 // The filters install only under Npgsql: `CoveContext.OnModelCreating` configures them inside its
 // provider branch, so a SQLite-backed test has no filters to observe at all. The suite's containers
-// run auth off by default, so every request there resolves to a bypass principal whatever it carries
-// - hence the auth-on instance below. The flag is instance-global, so this file boots its own instance
-// and never uses the worker-shared one.
+// run auth off by default, so every request there resolves to a bypass principal whatever it
+// carries. The flag is instance-global, so this file boots its own auth-on instance.
 //
 // Which principal discriminates, and why this role holds a write permission and still sees nothing,
-// are stated in full on the harness's `createRestrictedUser`. What follows from them here is that
-// this spec's first assertions are that the principal it drives is not the bypass one.
+// are on the harness's `createRestrictedUser`. Hence this spec's first assertions, which are that
+// the principal it drives is not the bypass one.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
@@ -25,9 +23,9 @@ const WIRE_ROUTE_BASE = `/api/extensions/${
   JSON.parse(readFileSync(RENAMER_EXTENSION.manifestPath, "utf8")).id
 }`;
 
-// Small and fixed. Every assertion below compares two live responses to each other, so nothing here
-// depends on this number - it exists only so the library is provably non-empty for the owner, which
-// is what makes the restricted user's empty result mean something.
+// Every assertion below compares two live responses to each other, so nothing depends on this
+// number beyond the library being provably non-empty for the owner, which is what makes the
+// restricted user's empty result mean something.
 const SEEDED_VIDEOS = 3;
 
 const RESTRICTED_PERMISSIONS = ["videos.write"];
@@ -40,9 +38,8 @@ const test = base.extend({
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
       try {
         await harness.bootstrapOwner();
-        // The install reads the id out of the manifest, the one place it is defined, and restarts the
-        // container - which re-mints the owner token. Both the seeding and the restricted user below
-        // therefore happen after it, never before.
+        // The install restarts the container, which re-mints the owner token, so the seeding and
+        // the restricted user below happen after it, never before.
         const { id: extensionId } = await harness.installExtension(RENAMER_EXTENSION);
 
         const videoIds = [];
@@ -96,8 +93,8 @@ test("a preview driven as a restricted principal plans none of the videos its ro
 }) => {
   const { owner, restricted, routeBase, videoIds, fileIds } = authz;
 
-  // The licence for every other assertion in this file: prove the principal being driven is one the
-  // filters apply to. Without this pair, a spec can report green while the host does nothing.
+  // The principal being driven has to be one the filters apply to. Without this pair, the spec
+  // reports green while the host does nothing.
   const me = await restricted.get("/api/auth/me");
   expect(me.status, `GET /api/auth/me as the restricted user answered ${me.status}`).toBe(200);
   const permissions = me.json?.permissions;
@@ -162,17 +159,15 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
 }) => {
   const { owner, harness, routeBase } = authz;
 
-  // `RequireCovePermission` is evaluated against the caller's permissions: the host returns true as
-  // soon as `principal.Has(permission)` does, and never consults role content rules. So it refuses a
-  // caller holding no permission - asserted below - and it does not refuse one that holds the
-  // permission while a content rule denies it rows. The `restricted` fixture user is the second kind
-  // and still reaches these routes; the next test pins that, because it is the host's model rather
-  // than a gap in the declaration.
+  // `RequireCovePermission` is evaluated against the caller's permissions alone and never consults
+  // role content rules. So it refuses a caller holding no permission, and it does not refuse one
+  // that holds the permission while a content rule denies it rows. The `restricted` fixture user is
+  // the second kind and still reaches these routes, which the next test pins.
   //
   // Refusing that caller would need the content-rule check Cove applies to its own routes with
   // [RequiresUnscopedEntityAccess], an MVC action filter that never reaches a minimal-API endpoint.
-  // `IAuthorizationService` offers no unrestricted-access query either, so an extension could only get
-  // there by reading RoleContentRules itself - a host table outside the extension surface.
+  // `IAuthorizationService` offers no unrestricted-access query either, so an extension could only
+  // get there by reading RoleContentRules itself - a host table outside the extension surface.
   const noPermission = await harness.createRestrictedUser({
     username: "e2e-nopermission",
     roleName: "e2e-nopermission",
@@ -207,7 +202,7 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
   }
 
   // Driven as the owner too: the refusals above would all pass against an endpoint broken for
-  // everyone. `renamer-library` is left out - this is about the boundary, not about moving every file.
+  // everyone. `renamer-library` is left out, because this is the boundary and not a rename.
   const asOwner = await owner.post(`${routeBase}/scan-library`, {});
   expect(
     asOwner.status,
@@ -235,9 +230,8 @@ test("a scoped account still reaches what is its own: its rules, and a job it st
 }) => {
   const { restricted, routeBase } = authz;
 
-  // This caller holds a renamer permission; what limits it is a role content rule denying it rows. A
-  // permission policy does not consult those, so it passes every door above - which is the half of the
-  // host's model the previous test does not cover, and the reason these endpoints stay reachable.
+  // This caller holds a renamer permission; what limits it is a role content rule denying it rows.
+  // A permission policy does not consult those, so it passes every door the previous test refuses.
   const ownState = await restricted.get(`${routeBase}/orphaned-rules`);
   expect(
     ownState.status,
@@ -250,13 +244,12 @@ test("a scoped account still reaches what is its own: its rules, and a job it st
     `GET library-paths as the restricted user answered ${roots.status}: ${roots.text}`,
   ).toBe(200);
 
-  // Job status, which is the reason the extension serves its own: Cove gates its job route on an
-  // unrestricted grant, so without this route a scoped caller could start work it could never watch.
+  // Cove gates its own job route on an unrestricted grant, which is why the extension serves job
+  // status itself: without it a scoped caller could start work it could never watch.
   //
-  // Asked with an id no job answers to, deliberately. The two refusals are what separate the door from
-  // the handler: 403 would mean the caller never got past authorization, while 404 is the handler's own
-  // own-jobs check answering - so 404 proves reachability without needing a job to exist, and without a
-  // conditional that could pass by skipping.
+  // Asked with an id no job answers to, deliberately. 403 would mean the caller never got past
+  // authorization, while 404 is the handler's own-jobs check answering, so 404 proves reachability
+  // without needing a job to exist.
   const status = await restricted.get(`${routeBase}/job-status/no-such-job`);
   expect(
     status.status,

@@ -37,7 +37,6 @@ public sealed class CrossVolumeMoverTests
 
         Assert.False(result.Moved);
         Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
-        // The pre-existing destination is never clobbered, and the source survives.
         Assert.Equal("original", File.ReadAllText(dest));
         Assert.True(File.Exists(old));
         Assert.Equal("new bytes", File.ReadAllText(old));
@@ -69,7 +68,6 @@ public sealed class CrossVolumeMoverTests
 
         Assert.False(result.Moved);
         Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
-        // Never clobbered: the racing writer's bytes stand and the source stays where it was.
         Assert.Equal("the racing writer's file", File.ReadAllText(dest));
         Assert.Equal("payload", File.ReadAllText(old));
         AssertMintedPathsGone(minted, "the unpromotable in-flight copy must be removed after a lost race");
@@ -239,12 +237,10 @@ public sealed class CrossVolumeMoverTests
         Assert.Equal("primary bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old));
 
-        // The free sidecar followed copy→verify→delete and is recorded for rollback.
         Assert.Contains(result.MovedSidecars, s => s.From == freeFrom && s.To == freeTo);
         Assert.Equal("free sidecar", File.ReadAllText(freeTo));
         Assert.False(File.Exists(freeFrom));
 
-        // The taken sidecar target is left untouched (skip-not-clobber) and a warning was recorded.
         Assert.Equal("pre-existing sidecar", File.ReadAllText(takenTo));
         Assert.True(File.Exists(takenFrom), "a skipped sidecar's source must be left in place");
         Assert.DoesNotContain(result.MovedSidecars, s => s.From == takenFrom);
@@ -260,10 +256,8 @@ public sealed class CrossVolumeMoverTests
         var mover = new CrossVolumeMover();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel(); // cancelled BEFORE the copy's first ReadAsync → OperationCanceledException
+        cts.Cancel(); // cancelled before the copy's first ReadAsync
 
-        // classify-not-throw: a cancel must not escape MoveAsync (the executor relies on the mover
-        // never throwing out). It must return a classified Cancelled skip.
         var result = await mover.MoveAsync(old, dest, sidecars: null, cts.Token);
 
         Assert.False(result.Moved);
@@ -296,7 +290,6 @@ public sealed class CrossVolumeMoverTests
 
         Assert.True(result.Moved);
         Assert.Equal(MoveOutcome.Moved, result.Outcome);
-        // The final is the fresh verified copy of the source, never the orphan's contents.
         Assert.Equal("the genuine bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old));
         // The orphan is inert, not garbage to collect: this call minted a different name, so it is

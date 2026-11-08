@@ -8,8 +8,8 @@ public sealed class PlanFixedPointTests
 {
     private const string FolderPath = "media/videos";
 
-    // A template rendering more than a bare $title - the shape whose own decorations the derivation
-    // re-consumed.
+    // A template rendering more than a bare $title, so the derivation has decorations of its own to
+    // re-consume on the next pass.
     private const string DecoratedTemplate = "{$date - }$title{ [$resolution]}";
 
     // Enough passes for a runaway to be unmistakable in the failure message; a healthy
@@ -93,8 +93,6 @@ public sealed class PlanFixedPointTests
         };
     }
 
-    // Plans seed, applies the commit the plan describes, and plans again until the item settles or
-    // MaxPasses is spent.
     private static async Task<Replay> ReplayAsync(RenamerOptions options, RenamerEntity seed)
     {
         var port = new FakeRenamerDataPort();

@@ -40,10 +40,10 @@ public sealed class CoveRevertJournal : IRevertJournal, IAsyncDisposable
     private long _lastSeq;
 
     // How many appended rows are held before they are written. A save per row costs a round-trip per
-    // renamed file, which every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
-    // mid-run leaves up to this many already-renamed files with no journal row, so undo cannot put
-    // those back. They are renamed correctly and recorded correctly in Cove's own tables; only their
-    // reversal is lost.
+    // renamed file, which every parallel worker queues behind. What the buffer costs is the crash
+    // window: a host that dies mid-run leaves up to this many already-renamed files with no journal
+    // row, so undo cannot put those back. They are renamed correctly and recorded correctly in Cove's
+    // own tables; only their reversal is lost.
     public const int AppendFlushEvery = 500;
 
     // The appended rows this instance has not written yet, in append order. Bounded by
@@ -338,11 +338,10 @@ public sealed class CoveRevertJournal : IRevertJournal, IAsyncDisposable
         }
     }
 
-    // The context belongs to the scope, so only the write gate is released here.
-    /// <summary>Writes whatever is still buffered, then releases the gate.</summary>
+    /// <summary>Writes whatever is still buffered, then disposes the write gate.</summary>
     /// <remarks>
-    /// A buffered row that never reaches the database is an undo the user was told they have. Every
-    /// production caller disposes asynchronously; the synchronous path is the backstop.
+    /// A buffered row that never reaches the database is an undo the user was told they have. The
+    /// context belongs to the scope and is not disposed here.
     /// </remarks>
     public async ValueTask DisposeAsync()
     {

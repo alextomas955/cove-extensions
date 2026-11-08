@@ -52,14 +52,14 @@ function Host(props: Readonly<{ initial: string[] }>) {
 const rowInputs = () => screen.queryAllByRole<HTMLInputElement>("textbox");
 const rowValues = () => rowInputs().map((el) => el.value);
 
-/** Marks every row's input, so the same node is recognisable wherever it ends up next. */
+// Marks every row's input, so the same node is recognisable wherever it ends up next.
 function stampRows() {
   rowInputs().forEach((el, i) => {
     el.dataset.stamp = `s${String(i)}`;
   });
 }
 
-/** Where each stamped node sits now; a row the editor rebuilt carries no stamp. */
+// Where each stamped node sits now; a row the editor rebuilt carries no stamp.
 const stamps = () => rowInputs().map((el) => el.dataset.stamp ?? "");
 
 function renderRows(initial: string[]) {

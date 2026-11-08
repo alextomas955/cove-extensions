@@ -20,15 +20,11 @@ import {
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
 
-// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
-// hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
-// under test passes however far the two sides drift, and a drift means a row appearing in a segment it
-// was never counted in.
-//
-// Keyed by the generated wire union rather than by `string`, so a status added on the server is a
-// compile error here instead of a table that quietly stops covering it. That does not let the two
-// agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
-// hand transcription this table exists to be.
+// Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed
+// by hand from `ScanBucket.Of`, never derived from `classifyItem`, because an expectation computed
+// from the code under test passes however far the two sides drift. Keyed by the generated wire
+// union, so a status added on the server is a compile error here rather than a table that quietly
+// stops covering it.
 const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   rename: "will-change",
   move: "will-change",
@@ -210,7 +206,7 @@ test("formatEta renders seconds/minutes/hours, null when there's nothing to show
 });
 
 test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plain projection", () => {
-  // Two identical-rate pairs → EWMA of a constant is that constant. 0.1/s, remaining 0.4 → 4s.
+  // Two identical-rate pairs: the EWMA of a constant is that constant, 0.1/s over a remaining 0.4.
   const warmed = etaFromSamples([
     { timeMs: 0, progress: 0.4 },
     { timeMs: 1000, progress: 0.5 },
@@ -264,10 +260,8 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
     `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`,
   );
 
-  // The confidence gate means the first fast poll (only 2 rate observations: slow seed + 1 fast) is
-  // shown, and by then the EWMA already leans toward the fast rate - so it is seconds, not minutes.
-  // slow seed ≈ 0.00139/s; fast instant 0.5/0.2=2.5/s; smoothed = 0.3*2.5 + 0.7*0.00139 ≈ 0.751/s;
-  // remaining from 0.52 ≈ 0.48/0.751 ≈ 0.6s.
+  // The first fast poll is the second rate, so it is shown, and the EWMA already leans toward the
+  // fast rate by then.
   const early = etaFromSamples([
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow seed (rate #1)
@@ -286,7 +280,7 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
     ]),
     null,
   ); // 1 rate
-  // A stalled step between doesn't count as a rate, so 3 samples with one flat gap = still 1 rate → null.
+  // A stalled step is not a rate, so three samples with one flat gap still hold only one rate.
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -295,7 +289,7 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
     ]),
     null,
   );
-  // Two real rates → shown.
+  // Two real rates, so an estimate is shown.
   assert.ok(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -305,11 +299,10 @@ test("etaFromSamples withholds the estimate until it has two smoothed rates", ()
   );
 });
 
-// The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
+// The wire field name for the in-flight overflow flag, transcribed by hand from the
 // `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
-// serializer. Written out here rather than read from the generated wire types, because a key spelled
-// wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
-// not the type-check, not the request, not this suite if it asked the module for the name it already uses.
+// serializer. Written out rather than read from the generated types, because a key spelled wrong
+// reads `undefined`, so the badge would never render and nothing would fail.
 const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
 
 test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
@@ -318,9 +311,9 @@ test("a row the server flagged earns the overflow label, and an unflagged row ea
 });
 
 test("a row that arrives without the overflow field reads as unflagged, not as flagged", () => {
-  // Both wire shapes declare the field, so the case is not a wire that lacks one - it is how a row from a
-  // build that predates it must read. A missing field is `undefined`, and treating that as truthy would
-  // put a red pill on every row of the dry-run table.
+  // Both wire shapes declare the field, so this is the widened parameter type, not a server that
+  // omits it. An absent field is `undefined`, and treating that as truthy would put a red pill on
+  // every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });

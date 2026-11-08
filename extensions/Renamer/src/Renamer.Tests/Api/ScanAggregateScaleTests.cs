@@ -30,8 +30,8 @@ public sealed class ScanAggregateScaleTests
         return (ext, store);
     }
 
-    // Seeds files single-file entities spread evenly across the renamable kinds; every entity
-    // renames in place, so the aggregate's acting counts are the file count.
+    // Seeds single-file entities spread evenly across the renamable kinds. Every entity renames in
+    // place, so the aggregate's acting counts are the file count.
     private static FakeRenamerDataPort SeedLibrary(int files, string folder = "/lib")
     {
         var port = new FakeRenamerDataPort();
@@ -71,8 +71,8 @@ public sealed class ScanAggregateScaleTests
             AllowAll,
             new ScanRun("scale-run", null), new FakeJobProgress(), default);
 
-        // Read the raw stored string: parsing is exactly what would hide growth, and the byte length is
-        // the thing that broke.
+        // Read the raw stored string: parsing is exactly what would hide growth, and the byte length
+        // is what these cases bound.
         string json = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
         var summary = System.Text.Json.JsonSerializer.Deserialize<ScanSummary>(
             json, PreviewContracts.PreviewResponseJsonOptions)!;

@@ -11,8 +11,6 @@ namespace Renamer.Tests.TestSupport;
 // reorder its keys.
 internal static class OptionsJson
 {
-    // The document options persists as. A null instance fails the comparison rather than matching
-    // one.
     public static string Canonical(RenamerOptions? options)
     {
         Assert.NotNull(options);

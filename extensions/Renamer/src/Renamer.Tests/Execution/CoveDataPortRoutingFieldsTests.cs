@@ -16,8 +16,6 @@ public sealed class CoveDataPortRoutingFieldsTests
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
 
-            // A two-level studio chain: grandparent ← parent ← direct. The Video belongs to the direct
-            // studio; the parent (index 0 of the walk) is the immediate parent of the direct studio.
             var grandparent = new Studio { Name = "Grand Network" };
             db.Set<Studio>().Add(grandparent);
             await db.SaveChangesAsync();
@@ -30,7 +28,6 @@ public sealed class CoveDataPortRoutingFieldsTests
             db.Set<Studio>().Add(direct);
             await db.SaveChangesAsync();
 
-            // Attach the direct studio to the seeded video and give the file a known non-zero size.
             var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
             video.StudioId = direct.Id;
             var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId);
@@ -50,11 +47,9 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotEmpty(entity.ParentStudios!);
             Assert.Equal(parent.Id, entity.ParentStudios![0].Id);
             Assert.Equal(parent.Name, entity.ParentStudios[0].Name);
-            // The grandparent follows the parent (bounded eager walk hydrated it).
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
             Assert.Equal(grandparent.Name, entity.ParentStudios[1].Name);
 
-            // Projected bytes for the free-space sum surface from BaseFileEntity.Size.
             Assert.Equal(4096, entity.Files[0].SizeBytes);
         }
         finally
@@ -67,9 +62,9 @@ public sealed class CoveDataPortRoutingFieldsTests
     [Fact]
     public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InJoinOrder()
     {
-        // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,
-        // every tag rule would silently stop matching with no error anywhere - so prove it against a
-        // real entity graph rather than against the fake port the resolver tests use.
+        // Proved against a real entity graph rather than against the fake port the resolver tests
+        // use: a projection that came back empty or misordered would stop every tag rule matching,
+        // with no error anywhere.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -261,7 +256,6 @@ public sealed class CoveDataPortRoutingFieldsTests
 
             var port = new CoveRenamerDataPort(db);
 
-            // classify-not-throw: a missing studio must never raise.
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);

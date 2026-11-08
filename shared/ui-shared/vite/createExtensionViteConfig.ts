@@ -10,9 +10,8 @@ export interface ExtensionViteOptions {
   /** Appended to the host-import-map externals below. */
   extraExternals?: string[];
   /**
-   * The React Vite plugin (`react()` from `@vitejs/plugin-react`), supplied by the caller rather
-   * than imported here: this shared package is consumed as raw source via a Vite alias and has no
-   * own node_modules, so importing the plugin here left it unresolved at each UI's config load.
+   * `react()` from `@vitejs/plugin-react`, supplied by the caller: this package is consumed as raw
+   * source through a Vite alias and has no node_modules, so an import here resolves nowhere.
    */
   reactPlugin: PluginOption;
 }
@@ -24,16 +23,15 @@ export interface ExtensionViteOptions {
 // Both spellings of every module the import map serves: the canonical `@cove/runtime/*` name and the
 // bare alias where one exists. A specifier missing from the list is bundled rather than resolved
 // against the host, and an external is a name match, so the build reports nothing. The set is
-// therefore the host's whole import map, not the spellings this repo happens to import today.
+// therefore the host's whole import map, not the spellings this repo imports today.
 //
-// It sits in JSON so `scripts/check-host-externals.mjs` reads the same bytes this config does and
-// compares them against Cove's own runtime contract, which is where the names come from.
+// It sits in JSON so `scripts/check-host-externals.mjs` reads the same bytes this config does.
 import HOST_EXTERNALS from "./host-externals.json";
 
 /**
  * The Vite library-mode config every extension UI bundle shares: React plugin, the shared-UI-module
  * source alias, the host import-map externals, and the `index.mjs` output the manifest's `jsBundle`
- * points at. The two per-extension configs were byte-identical, so they now call this factory.
+ * points at.
  */
 export function createExtensionViteConfig(options: ExtensionViteOptions): UserConfig {
   const { packageDir, entry = "src/index.ts", extraExternals = [], reactPlugin } = options;
@@ -61,8 +59,8 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
         }),
       },
     ],
-    // Raw TS source, not a node_modules install: Vite runs it through the same transform pipeline as
-    // this bundle's own src/; its react/lucide imports stay externalized by the rollup list below.
+    // Raw TS source, not a node_modules install, so Vite runs it through the same transform pipeline
+    // as this bundle's own src/.
     resolve: {
       // Vite string-alias matching is prefix-based, so every subpath must be listed before the bare
       // barrel entry or the barrel would match it first.

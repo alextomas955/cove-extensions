@@ -47,7 +47,7 @@ public sealed class RenameChunkPlanningLoadTests
         return ext;
     }
 
-    // Plans entities unorganized entities under the only-organized gate and returns how many reader
+    // Plans unorganized entities under the only-organized gate and returns how many reader
     // commands the run issued. The gate makes every file plan as a skip, so the chunk acts on
     // nothing and the reads counted are the planning pass's own. The count is taken after the
     // extension is built, so it excludes setup.

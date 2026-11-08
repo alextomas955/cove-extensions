@@ -1,22 +1,14 @@
 /**
- * useRenamerOptions - the options load/save data layer for the settings page.
+ * The options load and save data layer for the settings page.
  *
  * Both ends of the persistence go through the extension's own `/options` route, so the defaults, the
  * stored spelling, an unreadable blob and the one-time conversions are decided once, on the server
- * that also reads those settings when a rename runs.
+ * that also reads those settings when a rename runs. Every fact about the stored document is read
+ * from the response rather than tracked beside it.
  *
- * Three kinds of state, kept apart:
- *
- * - What the server holds is a query. Every fact about the stored document - the options, whether it
- *   was unreadable, which conversions are outstanding - is read from the response, never tracked
- *   beside it. A save invalidates the query, so those facts come back from the server that just
- *   rewrote them rather than from an assumption made here.
- * - The unsaved edit is one piece of local state: `draft`, null until the user changes something.
- *   `options` is the draft when there is one and the saved document otherwise, so there is no second
- *   copy to seed, no effect to sync it, and nothing to go stale if the query refetches.
- * - `savedFlash` is neither; it is a three-second confirmation the panel renders.
- *
- * The panel consumes this hook and stays presentational: it never issues a request.
+ * The unsaved edit is one piece of local state: `draft`, null until the user changes something.
+ * `options` is the draft when there is one and the saved document otherwise, so there is no second
+ * copy to seed, no effect to sync it, and nothing to go stale if the query refetches.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,10 +20,8 @@ import { api } from "../common/lib/extension";
 const OPTIONS_PATH = api("options");
 const OPTIONS_KEY = ["renamer", "options"] as const;
 
-/** How long the panel shows that a save landed. */
 const SAVED_FLASH_MS = 3000;
 
-/** Sets one option on the unsaved copy. */
 export type SetOption = <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
 
 export interface UseRenamerOptions {
@@ -61,7 +51,6 @@ export function useRenamerOptions(): UseRenamerOptions {
     queryFn: ({ signal }) => requestJson<OptionsView>(OPTIONS_PATH, { signal }),
   });
 
-  // Null while nothing has been edited, so no copy of the saved document is held here to go stale.
   const [draft, setDraft] = useState<RenamerOptions | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -84,8 +73,7 @@ export function useRenamerOptions(): UseRenamerOptions {
   const canSave =
     (dirty || recoveredFromBadBlob) && !pendingNameMigration && !pendingDestinationMigration;
 
-  // Cleared on unmount, so a save that lands just before the panel closes does not set state on a
-  // component that is gone.
+  // Cleared on unmount, so a save that lands as the panel closes sets no state on a gone component.
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(
     () => () => {
@@ -95,22 +83,18 @@ export function useRenamerOptions(): UseRenamerOptions {
   );
 
   const onSave = useCallback(async () => {
-    // Enforced here and not only on the Save button: this is the single call site of the write, so the
-    // refusal holds however onSave is reached. The endpoint refuses too, and a 409 the panel could
-    // have avoided reads to the user as a save that failed.
+    // Enforced here, not only on the Save button, because this is the single call site of the
+    // write. The endpoint refuses too, and a 409 the panel could have avoided reads to the user as
+    // a save that failed.
     if (options === null || pendingNameMigration || pendingDestinationMigration) return;
     setSaving(true);
     setSaveError(null);
     try {
       await request(OPTIONS_PATH, { method: "PUT", body: JSON.stringify(options) });
-      // The edit is now what the server holds, and the stored facts beside it - the unreadable flag
-      // above all - are re-read rather than assumed.
-      //
-      // The draft goes only once that answer is in. Dropping it first falls back to the response
-      // still in the cache, which is the document from before this save: the panel would show the
-      // old values for a round trip and then rewrite whatever the user had typed in the meantime,
-      // under their caret. The cost is that the unsaved mark lingers until the read lands, which is
-      // when the panel can first show the saved values rather than claim them.
+      // The draft goes only once the re-read has landed. Dropping it first falls back to the
+      // response still in the cache, which is the document from before this save: the panel would
+      // show the old values for a round trip and then rewrite what the user typed in the meantime,
+      // under their caret. The cost is that the unsaved mark lingers until the read lands.
       await queryClient.invalidateQueries({ queryKey: OPTIONS_KEY });
       setDraft(null);
       setSavedFlash(true);

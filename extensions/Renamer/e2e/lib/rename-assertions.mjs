@@ -1,7 +1,6 @@
-// Shared exact-target rename assertions for the Renamer e2e specs. A rename is "correct" only when
-// two independent truth sources agree on the exact computed name: the Cove DB record (files[0].path)
-// and the container filesystem. Asserting only one would let a half-applied rename (DB updated but
-// no disk move, or a copy that left the source behind) pass.
+// A rename is correct only when two independent sources agree on the exact computed name: the Cove
+// DB record and the container filesystem. Asserting one would let a half-applied rename - a DB
+// update with no disk move, or a copy that left the source behind - pass.
 import { expect } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
@@ -22,9 +21,9 @@ export async function fileExists(container, path) {
 }
 
 /**
- * Asserts one item landed at exactly `expectedPath`: the DB record says so, the file is on disk there,
- * and the path it came from is gone. `route` is the host's collection for the item's kind (`videos`,
- * `images`, `texts`). Polls the record, so the read-after-write window is honored.
+ * Asserts one item landed at exactly `expectedPath`: the DB record says so, the file is on disk
+ * there, and the path it came from is gone. `route` is the host's collection for the item's kind
+ * (`videos`, `images`, `texts`).
  */
 export async function assertLandedAt({ api, container, route, id, expectedPath, originalPath }) {
   // Polled on having moved at all, not on the expected value: a poll that waits for the answer the
@@ -51,8 +50,7 @@ export async function assertLandedAt({ api, container, route, id, expectedPath, 
 
 /**
  * Asserts a video renamed to exactly `expectedBasename`: the DB record's file basename matches, the
- * file exists on disk at that new path, and `originalPath` is gone from disk. Polls the record so the
- * read-after-write window is honored, then returns the new full path.
+ * file exists on disk at that new path, and `originalPath` is gone from disk. Returns the new path.
  */
 export async function assertRenamedTo({ api, container, videoId, expectedBasename, originalPath }) {
   // Polled on the basename having changed, so the assertion below is what decides whether it changed
@@ -75,9 +73,7 @@ export async function assertRenamedTo({ api, container, videoId, expectedBasenam
     `Renamed file "${newPath}" is missing from disk in the Cove container`,
   ).toBe(0);
 
-  // The old path being gone is proven on disk, never inferred from the DB path: a DB update with no
-  // disk move, or a copy that left the source behind, both leave a stale file while the record reads
-  // correct - only a filesystem check catches that leak.
+  // The old path being gone is proven on disk, never inferred from the DB path.
   const oldOnDisk = await container.exec(["test", "-f", originalPath]);
   expect(
     oldOnDisk.exitCode,
@@ -88,9 +84,8 @@ export async function assertRenamedTo({ api, container, videoId, expectedBasenam
 }
 
 /**
- * Asserts undo restored the byte-identical original: the DB record points back at exactly
- * `originalPath` and the file exists on disk there again. Polls so the undo's read-after-write window
- * is honored.
+ * Asserts undo restored the original: the DB record points back at exactly `originalPath` and the
+ * file exists on disk there again.
  */
 export async function assertRestoredTo({ api, container, videoId, originalPath }) {
   // Polled on the name coming back, so the full-path assertion below is what decides. A restore that

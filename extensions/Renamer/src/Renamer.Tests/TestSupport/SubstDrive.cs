@@ -46,10 +46,6 @@ public sealed class SubstDrive : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort cleanup; a leaked temp dir is harmless */ }
     }
 
-    // Maps a free drive letter to backing, re-probing and retrying across the candidate range on a
-    // subst failure so a parallel-construction collision (the probed letter got claimed by another
-    // instance before our subst ran) just advances to the next free letter. Returns the letter
-    // actually mapped.
     private static char MapFreeDriveWithRetry(string backing)
     {
         var tried = new HashSet<char>();
@@ -73,7 +69,6 @@ public sealed class SubstDrive : IDisposable
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                // The letter was taken between the probe and the subst (or otherwise failed); try the next.
                 last = ex;
             }
         }

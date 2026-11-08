@@ -1,6 +1,5 @@
 // The poll decision both job pollers take stays bounded: a job that stops reporting progress ends the
-// run, and a job id that stops resolving ends it even while the stall budget has room. Time and read
-// outcomes are inputs, so every case is exact with no clock and no fake timers.
+// run, and a job id that stops resolving ends it even while the stall budget has room.
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
@@ -149,10 +148,9 @@ test("an expiry is not a job failure, and its message says which happened", () =
   const expired = decidePoll({ read: "ok", status: "running" }, ctx({ msSinceProgress: 60_001 }));
   const failed = decidePoll({ read: "ok", status: "failed", error: "disk full" }, ctx());
 
-  // The banner has to be able to tell these apart, because only one of them means the work stopped.
-  // An expiry means the UI stopped watching - the job may still be running and may already have
-  // renamed files, so a banner that claimed nothing changed would be stating a falsehood about a
-  // destructive operation.
+  // Only a rejection means the work stopped. An expiry means the UI stopped watching, while the job
+  // may still be running and may already have renamed files, so a banner claiming nothing changed
+  // would be a falsehood about a destructive operation.
   assert.equal(expired.action, "expire");
   assert.equal(failed.action, "reject");
   assert.match(expired.message, /stopped reporting progress/);
@@ -171,19 +169,16 @@ test("the stall clock restarts only when progress actually moves", () => {
 });
 
 test("the shipped bounds are far enough out that a healthy run is never abandoned", () => {
-  // Floors, not equalities, so the numbers can be tuned without editing a test - but a budget set to
-  // something a legitimate library operation would trip fails here. A stall budget of one minute or
-  // less would abandon a large library's finalize step, and an allowance of one or two polls would
-  // end a run on a single blip.
+  // Floors, not equalities, so the numbers can be tuned here. A stall budget of one minute or less
+  // would abandon a large library's finalize step, and an allowance of one or two polls would end a
+  // run on a single blip.
   assert.ok(
     JOB_STALL_BUDGET_MS > 60_000,
     `stall budget ${JOB_STALL_BUDGET_MS}ms would abandon a healthy run`,
   );
   assert.ok(
-    // The floor holds today, so the comparison is statically provable and the rule objects - but what
-    // it guards is a later edit that lowers the constant under the floor, which is precisely when the
-    // comparison stops being provable and this case earns its place. The sibling assertion above
-    // escapes the rule only because its constant is written as arithmetic rather than a literal.
+    // The comparison is statically provable while the constant is above the floor, which is what
+    // the rule objects to. It guards a later edit that lowers the constant under it.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     JOB_FAILURE_ALLOWANCE >= 5,
     `failure allowance ${JOB_FAILURE_ALLOWANCE} would end a run on a transient blip`,

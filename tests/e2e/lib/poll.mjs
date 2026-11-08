@@ -1,7 +1,6 @@
-// The one retry loop in this harness. Some Cove and extension write paths (job completion, undo's DB
-// write) are not read-your-writes on the very next request, and a restarted container answers before
-// its host-side port binding is back. A fixed sleep is not the alternative: it is either too short
-// and flaky, or too long and slow on every run.
+// The one retry loop in this harness. Some Cove and extension write paths (job completion, undo's
+// DB write) are not read-your-writes on the very next request, and a restarted container answers
+// before its host-side port binding is back.
 
 /**
  * Runs `attempt` until it settles or the deadline passes.

@@ -71,11 +71,10 @@ public sealed class ScanAggregator
 
             tally.CrossVolumeFiles++;
 
-            // Counted on the pass that already visits every file. Deriving it afterwards would mean
-            // retaining the items or planning the library a second time, and this class exists to keep
-            // the scan's cost independent of library size. The shared predicate is called so the
-            // comparison has one declaration; its status and same-volume arms are redundant at this point
-            // in the fold.
+            // Counted on the pass that already visits every file: deriving it afterwards would mean
+            // retaining the items or planning the library a second time. The shared predicate is called
+            // so the comparison has one declaration; its status and same-volume arms are redundant at
+            // this point in the fold.
             if (BatchPreview.InFlightPathOverflows(item, _fullPathMax, _mountPoints))
             {
                 tally.InFlightPathOverflowFiles++;

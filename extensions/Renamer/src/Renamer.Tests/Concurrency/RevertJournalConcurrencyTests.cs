@@ -31,8 +31,7 @@ public sealed class RevertJournalConcurrencyTests
         Assert.NotNull(batch);
         Assert.Equal("R-parallel", batch.RunId);
 
-        // Exactly N rows, N distinct sequence numbers, and N distinct file ids: a lost append shows as
-        // a short count, a colliding sequence number as a repeated key.
+        // A lost append shows as a short count, a colliding sequence number as a repeated key.
         Assert.Equal(N, batch.Rows.Count);
         Assert.Equal(N, batch.Rows.Select(r => r.Seq).Distinct().Count());
         Assert.Equal(N, batch.Rows.Select(r => r.FileId).Distinct().Count());
@@ -56,8 +55,6 @@ public sealed class RevertJournalConcurrencyTests
     [Fact]
     public async Task ConcurrentAppendsAndReads_NeverThrow_AndTheReadsSeeAConsistentBatch()
     {
-        // A read interleaved with appends is the ordinary state: the panel polls the summary while a
-        // batch is running. It must never observe a half-built change set, and never throw.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;

@@ -13,11 +13,9 @@ namespace Cove.Extensions.Shared.Testing;
 /// <c>(ParentFolderId, Basename)</c> unique index, and Cove's <c>SaveChangesAsync</c> overrides,
 /// which derive every touched file's <c>Path</c>. Neither is reproducible from <c>Cove.Core</c>.
 ///
-/// why relational SQLite (not EF-InMemory): the EF-InMemory provider does not enforce the
-/// <c>(ParentFolderId, Basename)</c> unique index and treats transactions as a silent no-op, so any test
-/// asserting <em>collision-on-save throws</em> or <em>rollback</em> would false-green on it.
-/// <see cref="CreateSqliteContextAsync"/> is relational (<c>EnsureCreatedAsync</c> materializes the unique
-/// index + real transactions), so it is correct for both those tests and the projection assertions.
+/// Relational SQLite rather than EF-InMemory: the EF-InMemory provider does not enforce that unique
+/// index and treats transactions as a silent no-op, so a test asserting collision-on-save or rollback
+/// would false-green on it.
 /// </summary>
 internal static class CoveContextFactory
 {
@@ -53,12 +51,11 @@ internal static class CoveContextFactory
 
         var options = new DbContextOptionsBuilder<CoveContext>()
             .UseSqlite(connection)
-            // Production's own cache-key factory, copied from Cove.Data's AddCoveData. EF's default key
-            // ignores CoveContext.ModelGeneration, so whichever context is built first in the process
-            // pins the model for every context after it - and a data extension registered later then
-            // has its entity types missing from a model that is never rebuilt. The failure is a
-            // "cannot create a DbSet for X" that depends on test order, which xUnit's per-class
-            // parallelism makes unreproducible. Keyed on the generation, a registration change rebuilds.
+            // Production's own cache-key factory, from Cove.Data's AddCoveData. EF's default key ignores
+            // CoveContext.ModelGeneration, so whichever context is built first in the process pins the
+            // model for every context after it, and a data extension registered later has its entity
+            // types missing from a model that is never rebuilt. The failure is a "cannot create a DbSet
+            // for X" that depends on test order. Keyed on the generation, a registration rebuilds.
             .ReplaceService<IModelCacheKeyFactory, CoveModelCacheKeyFactory>()
             .Options;
 

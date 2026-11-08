@@ -7,9 +7,8 @@ namespace Renamer.Engine;
 // configured separator.
 public static class MultiValue
 {
-    // Values carrying no entity identity: sort, then max, then join. The whitelist and blacklist are
-    // skipped because this overload serves the fixed preview samples, whose values name no library
-    // entity, so matching them against a rule that identifies a real tag could only agree by chance.
+    // Values carrying no entity identity, as the fixed preview samples do: sort, then max, then join.
+    // The whitelist and blacklist match on ids, so they cannot apply here.
     public static string Resolve(IReadOnlyList<string> values, MultiValueOptions m)
     {
         IEnumerable<string> seq = values;
@@ -43,8 +42,7 @@ public static class MultiValue
     {
         var seq = Filtered(performers, p => p.Id, m);
 
-        // Ignored genders drop before the limit, so an ignored gender frees an overflow slot. A
-        // performer with no gender set is kept.
+        // A performer with no gender set is kept.
         if (m.IgnoreGenders.Count > 0)
         {
             seq = seq.Where(p => p.Gender is null

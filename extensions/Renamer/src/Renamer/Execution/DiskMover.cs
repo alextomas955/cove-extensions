@@ -18,16 +18,11 @@ public static class DiskMover
     // TargetExists; the atomic move raises one IOException for both, so they are told apart by testing
     // the destination. In either case the primary move did not happen and no sidecar is touched. A
     // permission failure returns PermissionDenied.
-    //
-    // Those four are the only MoveOutcome members this tier produces. An atomic rename has no copy to
-    // read back and no cancellation point, so VerifyFailed and Cancelled belong to CrossVolumeMover.
     public static MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try
         {
             Movers.EnsureParentDir(newFull);
-            // The two-argument overload throws IOException when the destination exists and when the
-            // source is locked.
             System.IO.File.Move(oldFull, newFull);
         }
         catch (IOException ex)

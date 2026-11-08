@@ -69,7 +69,7 @@ async function mountHook() {
     get current() {
       return hook.result.current;
     },
-    /** Waits for a refetch the last action started. */
+    // Waits for a refetch the last action started.
     settled: (condition: string, holds: () => boolean) =>
       waitFor(() => {
         expect(holds(), `waited for ${condition}, which never became true`).toBe(true);

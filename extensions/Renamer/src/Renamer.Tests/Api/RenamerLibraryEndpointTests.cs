@@ -100,7 +100,6 @@ public sealed class RenamerLibraryEndpointTests
                 Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            // Both kinds actually renamed on disk.
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "Pic.jpg")));
 

@@ -1,7 +1,5 @@
 /**
- * The two controlled collection editors: a list of typed-object rows, and a key-to-value map. Both
- * are render-prop generics, because the row layouts they serve have nothing in common but the
- * add/remove/reorder frame around them.
+ * The two controlled collection editors: a list of typed-object rows, and a key-to-value map.
  *
  * Neither holds the collection. What they do hold is which row is which, so a remove or a reorder
  * carries a row's DOM with it rather than leaving the node in place for the next row's data.
@@ -22,10 +20,8 @@ interface RowIdentity {
 
 /**
  * Keys for a list this editor has not seen before, taken from `from` onwards. A re-seed carries the
- * counter on rather than restarting at nought: a key that repeats one the previous list still holds
- * hands that row's node to whatever now sits at the repeated key's place, which is how a kept node
- * reached a row it had nothing to do with. Carrying the counter means nothing matches, so the whole
- * list is rebuilt - which is what an unrelated list deserves.
+ * counter on rather than restarting at nought: a key repeating one the previous list still holds
+ * would hand that row's node to whatever now sits at the repeated key's place.
  */
 function seedRowIdentity(rows: readonly unknown[], from: number): RowIdentity {
   return { source: rows, keys: rows.map((_, i) => from + i), nextKey: from + rows.length };
@@ -45,15 +41,9 @@ function rowIdentityFor(identity: RowIdentity, rows: readonly unknown[]): RowIde
 }
 
 /**
- * Generic add/remove/reorder editor for a list of typed-object rows. Controlled (`rows`/`onChange`,
- * no internal persistence). The caller supplies the row layout via `renderRow` and a fresh blank row
- * via `makeRow`, so routing (Pattern+IsRegex+Dest), excludes (Pattern+IsRegex), and field-replacers
- * (TargetToken+Find+Replace) all reuse this one editor without forking - the render-prop shape is the
- * only thing that keeps the generic worth its weight over three near-duplicate row components.
- *
- * `renderRow` receives the row, its index, and a typed patch callback so a field edit produces a fresh
- * row object (the update never mutates `rows` in place - it rebuilds the array and calls `onChange`).
- * Reorder (`ordered`) mirrors {@link TagListInput}'s ↑↓ move; empty state renders only the add control.
+ * Controlled add/remove/reorder editor for a list of typed-object rows. The caller supplies the row
+ * layout through `renderRow`, which receives the row, its index and a typed patch callback; an edit
+ * rebuilds the array and calls `onChange` rather than mutating `rows`.
  *
  * `rows` is expected back from `onChange` as the array this editor handed over, which is what tells
  * an edit here from a list arriving from elsewhere.
@@ -73,16 +63,13 @@ export function ObjectArrayEditor<T>({
   addLabel: string;
   ordered?: boolean;
 }) {
-  // A key per row, so a remove or a reorder carries that row's DOM with it instead of leaving the
-  // node in place for the next row's data. The rows are arbitrary typed objects with no id, and an
-  // edit rebuilds the row object, so neither the index nor the object reference is a stable key.
+  // The rows are arbitrary typed objects with no id, and an edit rebuilds the row object, so
+  // neither the index nor the object reference is a stable key.
   //
-  // The keys are only meaningful against the list they were minted for, so they are held with it.
-  // Every edit below records the array it hands to `onChange`, which is the array that comes back as
-  // `rows`; anything else is a list this editor did not produce - a load, a discard, a reset - whose
-  // rows these keys do not name, so identity restarts. Reconciling in render rather than from an
-  // effect is what keeps a key from being read while it still names the previous list, which is how
-  // a kept node reached a row it had nothing to do with.
+  // The keys only mean anything against the list they were minted for, so they are held with it.
+  // Every edit below records the array it hands to `onChange`; anything else arriving as `rows` is a
+  // list this editor did not produce, so identity restarts. Reconciled in render rather than from an
+  // effect, which would let a key be read while it still names the previous list.
   const [identity, setIdentity] = useState(() => seedRowIdentity(rows, 0));
   const current = rowIdentityFor(identity, rows);
   if (current !== identity) setIdentity(current);
@@ -178,19 +165,11 @@ export function ObjectArrayEditor<T>({
 }
 
 /**
- * Generic key→value map editor. Controlled (`map`/`onChange`, no internal persistence). Renders one
- * row per existing entry and a separate "add" row; the caller renders both the key and value controls
- * via render-props (`renderKey`/`renderValue`) so the studio/tag picker can supply a searchable key
- * control while a plain text map supplies a text input - the map editor itself stays agnostic to how a
- * key is chosen.
+ * Controlled key-to-value map editor: one row per existing entry plus a separate add row, with the
+ * key and value controls supplied through render props.
  *
- * De-dupe on add mirrors {@link TagListInput}: adding a key already present is refused rather than
- * silently overwriting the existing value (a silent overwrite would lose the prior mapping). The
- * pending key/value are local draft state; only a successful add commits them through `onChange`.
- * Keys render as React text nodes (auto-escaped).
- *
- * The key column is capped: a key is one short label, while a value cell can hold a whole row of
- * controls.
+ * Adding a key already present is refused rather than overwriting the existing value. The pending
+ * key and value are local draft state; only a successful add commits them through `onChange`.
  */
 export function KeyValueMapEditor<TValue>({
   map,
@@ -204,9 +183,7 @@ export function KeyValueMapEditor<TValue>({
   map: Record<string, TValue>;
   onChange: (map: Record<string, TValue>) => void;
   // What the add row starts from, and what it returns to after a commit. Supplied rather than
-  // assumed because a value is not always a string: an editor whose rows hold a composite would
-  // otherwise have to invent an empty one, and two places would then disagree about what "not
-  // filled in yet" is.
+  // assumed, because a value is not always a string.
   emptyValue: TValue;
   renderKey: (
     draftKey: string,
@@ -214,23 +191,19 @@ export function KeyValueMapEditor<TValue>({
     existingKeys: readonly string[],
   ) => ReactNode;
   renderValue: (value: TValue, setValue: (value: TValue) => void) => ReactNode;
-  // How a committed row's key displays. An opaque-id key (e.g. a studio id) supplies this to show a
-  // human label so a saved rule reads "Studio Name → …" not "42 → …". A nullish result falls back to
-  // the raw key: a renderer resolving an id it cannot find must not blank the cell, which would leave
+  // How a committed row's key displays, for a key that is an opaque id. A nullish result falls back
+  // to the raw key: a renderer that cannot resolve an id must not blank the cell, which would leave
   // the row unidentifiable and so unremovable.
   renderKeyLabel?: (key: string) => ReactNode;
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
-  // The draft holds undefined until the user edits it, and `emptyValue` is read at the moment it is
-  // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
-  // caller's first one forever: `useState` reads its argument on the first render only, so a value
-  // derived from data still being fetched - a destination root derived from Cove's library paths,
-  // say - would commit the placeholder the caller had before the fetch landed.
+  // The draft holds undefined until the user edits it, so `emptyValue` is read when needed rather
+  // than copied at mount. Seeding the state with it would freeze the caller's first one: `useState`
+  // reads its argument on the first render only, so an `emptyValue` derived from data still being
+  // fetched would commit the placeholder the caller held before the fetch landed.
   const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
   const pendingValue = draftValue ?? emptyValue;
-  // Rows render from the entries rather than from the keys, so each row's value arrives paired with
-  // its key out of one traversal instead of being looked back up by index.
   const entries = Object.entries(map);
   const keys = entries.map(([key]) => key);
 
@@ -244,7 +217,7 @@ export function KeyValueMapEditor<TValue>({
 
   function add() {
     const k = draftKey.trim();
-    // Refuse a blank or duplicate key - a duplicate add must not clobber the existing mapping.
+    // A duplicate add must not clobber the existing mapping.
     if (k.length === 0 || k in map) return;
     onChange({ ...map, [k]: pendingValue });
     setDraftKey("");
@@ -280,9 +253,8 @@ export function KeyValueMapEditor<TValue>({
           </button>
         </div>
       ))}
-      {/* Named after the button that commits it, so the controls a new entry is typed into are
-          addressable as a set. Every committed row draws the same pair, so without a name on this
-          one nothing tells the draft controls from the first row's. */}
+      {/* Named after the button that commits it. Every committed row draws the same control pair,
+          so without a name nothing tells the draft controls from the first row's. */}
       <div
         role="group"
         aria-label={addLabel}

@@ -9,14 +9,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Renamer.Tests.TestSupport;
 
-// A throwaway SQLite-backed Cove database, the DI provider an extension loads against it, the
-// principal its contexts read, and a record of which principal was in effect for each SQL command
-// they ran. Its contexts are scoped, not a shared singleton, because the paths under test open
-// scopes of their own; the connection is what keeps the one in-memory database alive across them.
-// The journal tables come from EnsureCreatedAsync under the run-wide data-extension registration,
-// which is the host's own behaviour rather than a fixture-only shortcut. CommandsExecuted is the
-// only seam in the suite that can observe the principal a background read actually executes under,
-// which is what makes an elevation claim checkable at all. Under SQLite the row-level consequence
+// A throwaway SQLite-backed Cove database and the DI provider an extension loads against it. Its
+// contexts are scoped, not a shared singleton, because the paths under test open scopes of their
+// own; the connection is what keeps the one in-memory database alive across them. The journal
+// tables come from EnsureCreatedAsync under the run-wide data-extension registration, which is the
+// host's own behaviour rather than a fixture-only shortcut. Under SQLite the row-level consequence
 // of getting elevation wrong cannot be reproduced - CoveContext installs its authorization filters
 // only under Npgsql - so the proof available at this tier is the principal at the command, which is
 // the fact those filters consult. Assert on CommandsExecuted, never on a row count.
@@ -28,22 +25,17 @@ internal sealed class LibraryDatabase : IAsyncDisposable
 
     public FakePrincipalAccessor Principals { get; } = new();
 
-    // The authorization decision the extension's job bodies consult; configure denials on it and
-    // read back what was asked. Registered as one instance for the fixture, where the host
-    // registers the service scoped, so the asks a run makes across its scopes are observable in one
-    // place. Nothing on these paths reads the service's lifetime.
+    // Registered as one instance for the fixture, where the host registers the service scoped, so
+    // the asks a run makes across its scopes are observable in one place. Nothing on these paths
+    // reads the service's lifetime.
     public RecordingAuthorizationService Authorization { get; } = new();
 
-    // One executed command: the principal in effect when it ran, and the statement itself.
-    // Principal: The principal kind at the command, or null when none was set. Sql: The statement
-    // text, which is what tells one scope's read from another's - a body may hold several scopes
-    // with different elevation, so "which principal" is only half the observation.
+    // Principal is null when none was set. Sql is what tells one scope's read from another's: a
+    // body may hold several scopes with different elevation, so "which principal" is only half the
+    // observation.
     public readonly record struct ExecutedCommand(PrincipalKind? Principal, string Sql);
 
-    // Every command the contexts executed, oldest first. The principal and the statement are
-    // recorded as one value rather than as two parallel lists, because the pair is the observation:
-    // two lists can be cleared or read apart, and a verdict about which principal ran which read
-    // would then be assembled from two facts that can disagree.
+    // Every command the contexts executed, oldest first.
     public List<ExecutedCommand> CommandsExecuted { get; } = [];
 
     public static async Task<LibraryDatabase> CreateAsync()

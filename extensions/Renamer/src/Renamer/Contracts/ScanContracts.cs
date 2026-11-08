@@ -241,8 +241,9 @@ public sealed record ScanRowsPage(
 /// The <c>/scan-rows</c> request body: where to resume, how much to take, and how to filter.
 /// </summary>
 /// <remarks>
-/// <c>Options</c> travels as a JSON string, as it does on <c>/scan-library</c>. <c>Options</c> null plans with the saved options, <c>Kind</c> null starts at the first readable
-/// kind, <c>AfterEntityId</c> null starts at the beginning of the kind, a non-positive <c>Take</c>
+/// <c>Options</c> travels as a JSON string, as it does on <c>/scan-library</c>, and null plans with
+/// the saved options. <c>Kind</c> null starts at the first readable kind,
+/// <c>AfterEntityId</c> null starts at the beginning of the kind, a non-positive <c>Take</c>
 /// falls back to the pager default and is otherwise clamped to its maximum, <c>Query</c> is a
 /// case-insensitive path substring, and <c>Bucket</c> takes a <see cref="ScanBucketKind"/> name or
 /// <c>all</c>.

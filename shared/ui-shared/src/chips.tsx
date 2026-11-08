@@ -9,34 +9,29 @@ import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
-import { availableOptions, type ValueOption } from "./entityPickerLogic";
+import { availableOptions, type ValueOption } from "./primitivesLogic";
 import { INPUT_CLASS, TextInput } from "./fields";
 import { listEditors, nextActiveIndex, suggestionOptions } from "./primitivesLogic";
 
 /**
- * Selectable chip/button styling, matching the TokenLegend / PresetRow chip. Host-compiled classes
- * only - no arbitrary `[…]` values, because the host's Tailwind JIT never scans this bundle.
+ * Selectable chip styling. Host-compiled classes only - no arbitrary `[…]` values, because the
+ * host's Tailwind JIT never scans this bundle.
  *
- * The selected and unselected states must not share a conflicting color utility. Tailwind resolves
- * two utilities targeting the same property by their order in the generated stylesheet, not by the
- * order in the class attribute - and the host emits `.bg-card` / `.text-foreground` / `.border-border`
- * after `.bg-accent` / `.text-accent` / `.border-accent`. So a selected state built by appending accent
- * utilities to the base chip (which carries the card/foreground/border ones) loses every color
- * conflict and renders identically to unselected - the bug that made the selection invisible.
- *
- * The fix: a color-free shape base, plus two mutually exclusive color sets. {@link chipClass} picks one
- * - never both - so no same-property conflict exists and the host's source order is irrelevant.
+ * A color-free shape base plus two mutually exclusive color sets. Tailwind resolves two utilities
+ * targeting the same property by their order in the generated stylesheet, not by the order in the
+ * class attribute, and the host emits `.bg-card` / `.text-foreground` / `.border-border` after
+ * `.bg-accent` / `.text-accent` / `.border-accent`. A selected state built by appending accent
+ * utilities to a base carrying the card ones therefore loses every color conflict and renders as
+ * unselected.
  */
 const CHIP_BASE = "cursor-pointer rounded-lg border px-2 py-1 text-xs";
 
 const CHIP_UNSELECTED =
   "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent";
 
-// Cove's own chip/pill selected state is an accent tint, not a solid fill - `border-accent bg-accent/15`
-// (see CustomFields enum chips / BookmarkButton). The solid `bg-accent text-white` is Cove's idiom for
-// segmented toggle buttons, not chips, and reads too heavy here. The tint still carries selection on the
-// background (a property the unselected set's text/border utilities don't contest), so it stays visible
-// regardless of the host stylesheet's source order - the conflict that hid an earlier border/text tint.
+// Cove's own chip selected state is an accent tint, not the solid `bg-accent text-white` it uses
+// for segmented toggles. The tint carries selection on the background, a property the unselected
+// set's text and border utilities do not contest, so source order cannot hide it.
 const CHIP_SELECTED = "border-accent bg-accent/15 text-foreground";
 
 /** The full chip class for a selected/unselected chip - one color set, never both. */
@@ -44,7 +39,6 @@ function chipClass(selected: boolean): string {
   return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_UNSELECTED}`;
 }
 
-/** Shared selectable-chip button, wrapping {@link chipClass} so every chip site renders identically. */
 export function Chip({
   selected,
   toggle = false,
@@ -83,20 +77,16 @@ const identity = (value: string) => value;
 
 const fold = (value: string) => value.toLowerCase();
 
-/** One known separator option for {@link SeparatorChips}. */
 export interface SeparatorOption {
-  /** The canonical separator value persisted (e.g. `", "`). */
+  /** The separator as persisted, for example `", "`. */
   value: string;
-  /** Human label with the literal whitespace made visible (e.g. `"Comma + space ( , )"`). */
+  /** The label, with any leading or trailing whitespace made visible so no chip reads as empty. */
   label: string;
 }
 
 /**
- * A `flex flex-wrap gap-1` quick-pick chip row of common separators plus a `Custom`
- * chip. The active separator's chip is persistently selected (the filled-accent {@link chipClass}).
- * Each chip label makes leading/trailing whitespace visible (never an apparently-empty chip).
- * The `Custom` chip reveals the existing mono {@link TextInput}, pre-filled, when the saved value
- * matches no preset. Binds the same separator string via `onChange` - no shape change.
+ * A quick-pick chip row of known separators plus a `Custom` chip, which reveals a mono
+ * {@link TextInput} pre-filled with the saved value whenever that value matches no preset.
  */
 export function SeparatorChips({
   value,
@@ -136,7 +126,6 @@ export function SeparatorChips({
           selected={isCustom}
           toggle
           onClick={() => {
-            // Selecting Custom from a preset clears to a fresh custom entry; if already custom, keep.
             if (!isCustom) onChange("");
           }}
         >
@@ -159,12 +148,8 @@ export function SeparatorChips({
 }
 
 /**
- * A two-option segmented control: option A (strip/keep) sets the bound value to `""`;
- * option B ("Replace with") conditionally renders a short inline mono {@link TextInput} bound to
- * the value. Selecting B on an empty value focuses the input. Switching back to A resets the value
- * to `""` and removes the input. Reuses the chip visual vocabulary (selected = the filled-accent
- * {@link chipClass}). Labels and helper copy are caller-supplied. The reveal is
- * conditionally rendered (`mt-2`), not `hidden`.
+ * A two-option segmented control. The strip option binds `""`; the replace option reveals a mono
+ * {@link TextInput} bound to the value, and focuses it when the value is empty.
  */
 export function SegmentedReplace({
   value,
@@ -187,10 +172,9 @@ export function SegmentedReplace({
   ariaLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  // "Replace with" is a mode of its own, not `value !== ""`. Choosing it on an empty value has to
-  // reveal the input or there is nowhere to type, and clearing the field mid-edit must not collapse
-  // the control under the caret. Only a change to "" this control did not make - a load, a reset -
-  // returns it to strip mode, which is what the value the last render saw distinguishes.
+  // Replace is a mode of its own, not `value !== ""`: choosing it on an empty value has to reveal
+  // the input, and clearing the field mid-edit must not collapse the control under the caret. Only a
+  // change to "" this control did not make - a load, a reset - returns it to strip mode.
   const [mode, setMode] = useState(() => ({ seen: value, replace: value !== "" }));
   const current = mode.seen === value ? mode : { seen: value, replace: value !== "" };
   if (current !== mode) setMode(current);
@@ -205,9 +189,8 @@ export function SegmentedReplace({
     // The input is revealed by this render, so the focus waits for it to exist.
     requestAnimationFrame(() => inputRef.current?.focus());
   }
-  // Typing in the field records what it produced, which is the only way an empty field under the
-  // user's caret is told from a value emptied from elsewhere: both reach this control as the same
-  // prop change.
+  // Recording what the field produced is the only way an empty field under the user's caret is told
+  // from a value emptied elsewhere: both reach this control as the same prop change.
   function edit(next: string) {
     setMode({ seen: next, replace: true });
     onChange(next);
@@ -245,14 +228,6 @@ export function SegmentedReplace({
   );
 }
 
-/**
- * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
- * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
- *
- * `suggestions` turns the same input into a combobox offering that set as a filtered list. The set
- * is never closed: free text still commits, because a value outside the set is a legitimate entry
- * the caller warns about rather than refuses.
- */
 /**
  * One entry of a list editor: a removable chip, carrying the ↑↓ pair where the list's order is the
  * user's. `name` is both what the chip reads and what its buttons are named after - the value
@@ -310,6 +285,14 @@ function ListChip({
   );
 }
 
+/**
+ * A string-list editor: removable chips above an add-on-Enter input, with ↑↓ reordering under
+ * `ordered`.
+ *
+ * `suggestions` turns the input into a combobox over that set. The set is never closed: free text
+ * still commits, because a value outside the set is a legitimate entry the caller warns about
+ * rather than refuses.
+ */
 export function TagListInput({
   values,
   onChange,
@@ -333,11 +316,9 @@ export function TagListInput({
 }) {
   const id = useId();
   const listId = `${id}-suggestions`;
-  // When two entries are the same entry. A suggestion set is a vocabulary the rename engine resolves
-  // case-insensitively (`Engine/TemplateEngine.cs` builds its token maps with
-  // `StringComparer.OrdinalIgnoreCase`), so two spellings of one token are one token to it: a
-  // drop-order list holding both makes `Engine/LengthReducer.cs` re-render for each and report the
-  // same field dropped twice. Free-text lists keep exact match, where case is the user's own.
+  // When two entries are the same entry. A suggestion set is a vocabulary its consumer resolves
+  // case-insensitively, so two spellings of one token are one token and a list holding both acts on
+  // it twice. A free-text list keeps exact match, where case is the user's own.
   const sameEntry = suggestions === undefined ? identity : fold;
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
@@ -459,7 +440,7 @@ export function TagListInput({
             {offered.map((option, i) => (
               // The input owns the keyboard: it carries role="combobox" and handles ArrowDown,
               // ArrowUp, Enter and Escape. An option has no tabIndex, so it never takes focus and a
-              // key handler on it could not fire, hence the suppression rather than a missing listener.
+              // key handler on it could not fire. Hence the suppression rather than a listener.
               <li // NOSONAR
                 key={option}
                 id={`${listId}-${i}`}
@@ -485,15 +466,13 @@ export function TagListInput({
 }
 
 /**
- * A toggle-chip multiselect over a fixed option set where order does not matter (the ignore-genders
- * list): clicking a chip toggles its membership, selected chips carry the accent tint via
- * {@link chipClass}. Stores the option values (e.g. the gender enum names), in the option set's order
- * rather than click order - so two configs with the same members serialize identically. Every label
- * is a React text node (auto-escaped).
+ * A toggle-chip multiselect over a fixed option set where order does not matter. Stores the option
+ * values in the option set's order rather than click order, so two configurations with the same
+ * members serialize identically.
  *
- * A stored value not in `options` (e.g. one saved via the old free-text control, or a gender this
- * build doesn't list) is preserved, not silently dropped: it renders as an extra removable chip and
- * toggling a known option keeps it. Otherwise the first toggle would erase a value the user can't see.
+ * A stored value not in `options` is preserved rather than dropped: it renders as an extra removable
+ * chip, and toggling a known option keeps it. Otherwise the first toggle would erase a value the
+ * user cannot see.
  */
 export function ChipMultiSelect({
   options,
@@ -510,8 +489,6 @@ export function ChipMultiSelect({
 
   function toggle(value: string) {
     const has = values.includes(value);
-    // Rebuild known members in the option set's order (order-stable), then re-append any extras so
-    // an out-of-set stored value survives the edit.
     const known = options
       .map((o) => o.value)
       .filter((v) => (v === value ? !has : values.includes(v)));
@@ -558,11 +535,9 @@ export function ChipMultiSelect({
 }
 
 /**
- * An ordered pick-to-add control over a fixed option set where order does matter (the gender-order
- * priority ranking): a `<select>` offers only the not-yet-added options (via {@link availableOptions}),
- * and the chosen values render as ↑↓-reorderable, removable chips in priority order. Stores the option
- * values in user order. Mirrors {@link TagListInput}'s ordered reorder/remove, but the add path is a
- * constrained dropdown rather than free text - so only valid enum names can ever be added.
+ * An ordered pick-to-add control over a fixed option set. The `<select>` offers only the not-yet
+ * added options, so only a value from the set can ever be added, and the chosen values render as
+ * ↑↓-reorderable removable chips in the user's order.
  */
 export function OrderedPickToAdd({
   options,
@@ -603,8 +578,8 @@ export function OrderedPickToAdd({
       ) : null}
       {offerable.length > 0 ? (
         <select
-          // A select with no committed value: it returns to the prompt after each add (the value prop
-          // stays the empty sentinel), so it always reads "Add a …" rather than the last pick.
+          // The value prop stays the empty sentinel, so the select returns to the prompt after each
+          // add rather than reading back the last pick.
           value=""
           aria-label={ariaLabel}
           onChange={(e) => {

@@ -1,22 +1,11 @@
 /**
- * Inline, advisory, non-blocking template/token validators shared by the settings sections.
- *
- * Both render 0..N amber lines and never block Save, remove a value, or feed the persisted shape -
- * purely UX guidance derived from the static token set.
- *
- * security: every string is a React text node (auto-escaped); the "Did you mean" suggestion is
- * derived from the static tokens set, never echoing user markup.
+ * The inline template and token advisories the settings sections share. They never block Save,
+ * remove a value, or reach the persisted shape.
  */
 import { AlertTriangle } from "lucide-react";
 
 import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templateLogic";
 
-/**
- * Renders one amber line for unbalanced braces, one per unknown $token (with a best-effort
- * "Did you mean"), and - for the filename field - one per sample whose /preview-sample flags
- * include "empty" (passed in via emptySamples; reuses the existing debounced preview, no new
- * request). Renders nothing when there are no issues. never feeds Save and never moves the caret.
- */
 export function TemplateAdvisories({
   value,
   emptySamples = [],
@@ -42,12 +31,7 @@ export function TemplateAdvisories({
   return <AdvisoryLines lines={lines} />;
 }
 
-/**
- * Invalid-token flagging for the bare-token fields (RequiredFields / DropOrder). Renders one amber
- * line per chip value that is not a known token (with a best-effort "Did you mean" from the shared
- * `suggestFor`, displayed as a bare name to match these fields' format). Renders nothing when every
- * value is a known token.
- */
+/** Invalid-token flagging for the fields that store a bare token name, without its `$`. */
 export function TokenAdvisory({ values }: Readonly<{ values: string[] }>) {
   const lines: string[] = [];
   for (const value of values) {

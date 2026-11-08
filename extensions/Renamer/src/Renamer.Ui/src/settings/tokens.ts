@@ -1,23 +1,16 @@
 /**
- * The engine's token set, in the canonical `Tokens` constant order from
- * `src/Renamer/Engine/TemplateEngine.cs` (there is no Tokens.cs - TemplateEngine.cs owns the
- * `Tokens` class). Listing the engine's real names keeps the legend and the validator
- * single-sourced with what the engine actually resolves.
- *
- * It sits apart from the legend that renders it so the validator can read it without depending on
- * a view module.
+ * The engine's token set, in the `Tokens` constant order from
+ * `src/Renamer/Engine/TemplateEngine.cs`, which owns that class. Listing the engine's own names
+ * keeps the legend and the validator agreed with what the engine resolves.
  */
 
 /**
- * A legend entry. `kind` drives insertion style; `insert` is the exact string spliced at the
- * caret when the chip is clicked.
+ * A legend entry. `insert` is the exact string spliced in at the caret when the chip is clicked.
  *
- *  - `core` tokens (`$title`, `$ext`) are effectively always-present, so they insert bare.
- *  - `optional` tokens insert pre-wrapped in one `{}` group whose leading separator + literals
- *    live inside the group, so the whole span collapses (engine `RenderGroup`) when the token
- *    resolves empty - no dangling `[]`, no stray separator. Spec-like tokens use the bracket
- *    style `{ [$token]}`; prose-like tokens use the dash style `{ - $token}`. NB: bare `$token`
- *    only - the engine has no `${token}` form.
+ *  - A `core` token is always present, so it inserts bare.
+ *  - An `optional` token inserts pre-wrapped in one `{}` group holding its leading separator and
+ *    literals, so the whole span collapses when the token resolves empty and leaves no stray
+ *    punctuation. The engine has no `${token}` form, so the bare `$token` spelling is the only one.
  */
 export interface TokenEntry {
   token: string;
@@ -26,7 +19,6 @@ export interface TokenEntry {
   insert: string;
 }
 
-/** Canonical token names + short labels, in TemplateEngine.cs `Tokens` declaration order. */
 export const TOKENS: readonly TokenEntry[] = [
   { token: "$title", label: "Title", kind: "core", insert: "$title" },
   { token: "$studio", label: "Studio", kind: "optional", insert: "{ - $studio}" },

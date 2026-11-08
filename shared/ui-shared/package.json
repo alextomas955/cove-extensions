@@ -9,7 +9,6 @@
     ".": "./src/index.ts",
     "./primitivesLogic": "./src/primitivesLogic.ts",
     "./overlay": "./src/overlay.ts",
-    "./entityPickerLogic": "./src/entityPickerLogic.ts",
     "./actions": "./src/actions.ts",
     "./postAction": "./src/postAction.ts",
     "./extensionRequest": "./src/extensionRequest.ts"

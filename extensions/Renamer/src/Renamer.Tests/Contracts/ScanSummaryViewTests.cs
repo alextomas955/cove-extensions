@@ -44,7 +44,6 @@ public sealed class ScanSummaryViewTests
     [Fact]
     public void OverflowCount_LeavesOutTheKindsTheCallerCannotRead()
     {
-        // A video-only reader must not receive image figures.
         var videoOnly = ScanSummaryView.From(ThreeKinds, [RenamerFileKind.Video]);
 
         Assert.Equal(1, videoOnly.BlastRadius.InFlightPathOverflowCount);

@@ -5,9 +5,8 @@
  * a large library's would not fit in the tab. Each page carries the cursor the next one resumes from,
  * which is what `getNextPageParam` hands back, and a page with no cursor ends the walk.
  *
- * Changing `query` or `bucket` is a different walk rather than a subset of the loaded one: the server
- * re-plans from the start of the library for the new filter. That is the query key, so the rows under
- * the old filter are dropped and a page still in flight for it can never append to the new one.
+ * `walkKey` is part of the query key, so changing the query or the bucket drops the rows under the
+ * old filter and a page still in flight for it can never append to the new one.
  */
 import { useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -21,10 +20,9 @@ const SCAN_ROWS_PATH = api("scan-rows");
 
 interface UseScanRows {
   rows: ScanRow[];
-  /** Requests the next page. Safe to call on every scroll frame - overlapping calls collapse into one. */
+  /** Requests the next page. Safe to call on every scroll frame; overlapping calls collapse. */
   loadMore: () => void;
   loading: boolean;
-  /** True once the walk has reached the end of the library; no further page exists. */
   complete: boolean;
   /**
    * The last page stopped on the server's per-request entity budget. More of the library is
@@ -44,8 +42,7 @@ interface UseScanRows {
 /**
  * @param optionsBlob The stringified options the scan was enqueued with, captured once at modal open.
  * @param enabled False until the scan job completes; no page is requested before there is a scan.
- * @param query The path search, sent verbatim - the server reproduces the client's old matching rules.
- * @param bucket The active status filter.
+ * @param query The path search, sent verbatim; the server owns the matching rules.
  */
 export function useScanRows(
   optionsBlob: string,
@@ -72,9 +69,8 @@ export function useScanRows(
       }),
     // A page with no cursor is the end of the last readable kind.
     getNextPageParam: (last) => last.next,
-    // One request per press, as the walk has always been. A retry would issue a second read against a
-    // cursor the user has not asked to advance, and the table already reports the failure and offers
-    // the retry itself.
+    // A retry would issue a second read against a cursor the user has not asked to advance, and the
+    // table already reports the failure and offers the retry itself.
     retry: false,
     // The loaded rows are library-sized, so they are dropped when the modal closes rather than held
     // for the rest of the session. The walk is re-read from the start if it is opened again.

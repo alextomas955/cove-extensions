@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { buildUndoFeedback, buildUndoStatus } from "./undoLogic";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 
-// The gap this fixture puts between a batch opening and expiring. It is test data, not a copy of the
-// server's retention window: the response states the expiry, and nothing here computes it. Seven days
-// only so the two moments fall in different years below, which is what makes the rendered date
+// The gap this fixture puts between a batch opening and expiring. It is test data, not a copy of
+// the server's retention window: the response states the expiry and nothing here computes it. Seven
+// days so the two moments fall in different years below, which is what makes the rendered date
 // readable as the expiry rather than the open timestamp.
 const FIXTURE_WINDOW_MS = 604_800_000;
 
@@ -54,7 +54,7 @@ function error(reason: string) {
   return { fileId: 1, oldPath: "a.mp4", newPath: "b.mp4", reason };
 }
 
-// Written just before New Year so the expiry lands in the FOLLOWING year, whatever the locale.
+// Written just before New Year, so the expiry lands in the following year whatever the locale.
 const WRITTEN_MS = Date.UTC(2026, 11, 30, 12, 0, 0);
 
 // The line without its trailing expiry clause, which is a locale-formatted date.
@@ -281,9 +281,8 @@ test("a stranded companion rides on a partial undo too", () => {
   );
 });
 
-// The expiry is whatever the server said, not seven days after the open moment. If the panel went
-// back to deriving it, this fixture - whose expiry is deliberately nowhere near the open timestamp
-// plus any window - would be ignored and the assertion would read the derived date instead.
+// This fixture's expiry is nowhere near its open timestamp plus any window, so a panel that derived
+// the expiry instead of reading it would fail here.
 test("the expiry shown is the one the response carried, not one worked out here", () => {
   const serverExpiryMs = WRITTEN_MS + 3 * 60 * 60 * 1000;
 

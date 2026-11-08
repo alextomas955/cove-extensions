@@ -5,8 +5,6 @@ namespace Renamer.Tests.Engine;
 
 public class SanitizerTests
 {
-    // ---- CleanSegment: illegal / control chars ----
-
     [Theory]
     [InlineData("a<b")]
     [InlineData("a>b")]
@@ -23,9 +21,6 @@ public class SanitizerTests
         Assert.Equal("ab", Sanitizer.CleanSegment(input, o));
     }
 
-    // ---- CleanSegment: illegal replacement, space replacement, collapse + trim ----
-
-    // A null replacement leaves that option at its default.
     [Theory]
     [InlineData(null, "_", "a:b", "a_b")]
     // Control chars are dropped, not replaced (they are not in the illegal set).
@@ -52,8 +47,6 @@ public class SanitizerTests
 
         Assert.Equal(expected, Sanitizer.CleanSegment(input, o));
     }
-
-    // ---- CleanSegment: reserved device names ----
 
     [Theory]
     [InlineData("CON", "CON_")]
@@ -86,7 +79,6 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_TrimProducesReservedStem_GetsDisambiguatingUnderscore()
     {
-        // The trailing dot is trimmed first, leaving "CON", which the guard then disambiguates.
         var o = new RenamerOptions();
         Assert.Equal("CON_", Sanitizer.CleanSegment("CON.", o));
     }
@@ -94,12 +86,9 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_IllegalStripProducesReservedStem_GetsDisambiguatingUnderscore()
     {
-        // ':' is stripped by default, leaving "CON", which the guard then disambiguates.
         var o = new RenamerOptions();
         Assert.Equal("CON_", Sanitizer.CleanSegment("CON:", o));
     }
-
-    // ---- CleanSegment: character removal ----
 
     [Fact]
     public void CleanSegment_RemoveSet_DropsEveryListedChar()
@@ -124,7 +113,6 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_RemoveSet_DropsBeforeIllegalReplacement()
     {
-        // ':' is both OS-illegal and in the remove-set; it is removed, not turned into "_".
         var o = new RenamerOptions { RemoveCharacters = ":", IllegalReplacement = "_" };
         Assert.Equal("ab", Sanitizer.CleanSegment("a:b", o));
     }
@@ -136,8 +124,6 @@ public class SanitizerTests
         Assert.Equal("a_b_c", Sanitizer.CleanSegment("a, b c", o));
     }
 
-    // ---- ApplyCase ----
-
     [Theory]
     [InlineData("Hello World", CaseTransform.None, "Hello World")]
     [InlineData("Hello World", CaseTransform.Lower, "hello world")]
@@ -147,8 +133,6 @@ public class SanitizerTests
     {
         Assert.Equal(expected, Sanitizer.ApplyCase(input, transform));
     }
-
-    // ---- Transliterate ----
 
     [Theory]
     [InlineData("Beyoncé", "Beyonce")]
@@ -162,8 +146,6 @@ public class SanitizerTests
     {
         Assert.Equal(expected, Sanitizer.Transliterate(input));
     }
-
-    // ---- NormalizePunctuation ----
 
     [Theory]
     [InlineData("It‘s", "It's")]        // U+2018 left single quote

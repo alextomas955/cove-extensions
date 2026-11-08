@@ -5,10 +5,10 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { RenamerJobStatus } from "../wire/api";
 
 const host = vi.hoisted(() => ({
-  /** Resolves or rejects each read in call order; a test pushes one entry per read it expects. */
+  // Resolves or rejects each read in call order; a test pushes one entry per read it expects.
   answers: [] as (() => Promise<unknown>)[],
   calls: [] as string[],
-  /** Reads that have been started and have not settled. */
+  // Reads that have been started and have not settled.
   inFlight: 0,
   maxInFlight: 0,
 }));
@@ -42,7 +42,7 @@ function status(over: Partial<RenamerJobStatus> = {}): RenamerJobStatus {
   };
 }
 
-/** Queues a read that resolves with `value` only after `delayMs` of fake time. */
+// Queues a read that resolves with `value` only after `delayMs` of fake time.
 function slowOk(value: unknown, delayMs: number) {
   return () =>
     new Promise((resolve) => {

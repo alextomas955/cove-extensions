@@ -1,28 +1,25 @@
 import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
 
-// Page Object for a video's detail page (/video/{id}) - specifically its "Edit" tab, which is how
-// a real user changes an item's metadata (title, date, etc.) through the UI.
+// Page Object for a video's detail page and its "Edit" tab, which is how a user changes an item's
+// metadata through the UI.
 
-// The budget for the whole visit, however many navigations it takes, matching the settings page
-// object. One clock rather than a fresh one per navigation, because what has to hold is that this
-// file's own error arrives before the per-test timeout: a wait that outlives the test reports
-// Playwright's generic timeout instead, which names none of the causes below.
+// The budget for the whole visit, however many navigations it takes. One clock rather than a fresh
+// one per navigation, so that this file's own error arrives before the per-test timeout, which
+// names none of the causes below.
 //
 // The harness gates on the host answering /health, which is an API fact. The first browser
 // navigation against a fresh container still pays the app's cold start, and on an isolated harness
-// that is this page, so the budget has to cover a cold container under a loaded runner. A
-// per-navigation budget sized for a warm app spends the whole of it on that one cold start and then
-// reports the page as unreachable.
+// that is this page, so a budget sized for a warm app spends the whole of it on that cold start and
+// then reports the page as unreachable.
 const PAGE_VISIT_BUDGET_MS = 120_000;
 
-// How many times the host may answer with a recoverable signal before the page is called unreachable.
-// The budget bounds waiting for something that will never arrive; a signal is proof the wait was not
-// that, so the navigation it triggers earns a fresh budget. Bounded, because the host can keep giving
-// the same answer, and an unbounded retry turns a permanent failure into a hung test.
+// How many times the host may answer with a recoverable signal before the page is called
+// unreachable. A signal earns another navigation; the bound is there because the host can keep
+// giving the same answer, and an unbounded retry turns a permanent failure into a hung test.
 const MAX_RECOVERIES = 3;
 
 // The host imports its route chunks lazily. A failed fetch leaves it painting this sentence on the
-// correct route, where no locator will ever resolve. It is transient, and a fresh navigation refetches.
+// correct route, where no locator will ever resolve. A fresh navigation refetches.
 const CHUNK_FAILURE_TEXT = /Failed to fetch dynamically imported module/;
 export class VideoDetailPage {
   constructor(page, baseUrl) {
@@ -33,7 +30,6 @@ export class VideoDetailPage {
     this.saveButton = page.getByRole("button", { name: "Save" });
   }
 
-  /** Navigates to the item and waits until its tabs are actually there to be clicked. */
   async goto(videoId) {
     this.itemUrl = `${this.baseUrl}/video/${videoId}`;
     await this.page.goto(this.itemUrl);
@@ -41,18 +37,14 @@ export class VideoDetailPage {
   }
 
   /**
-   * Waits for the detail page's tabs, re-navigating on a failed chunk fetch.
+   * Waits for the detail page's tabs, re-navigating on a failed chunk fetch. Everything else - an
+   * app still starting, a route still resolving - is answered by the tab appearing, so the budget
+   * is what bounds the wait for those.
    *
-   * A chunk failure is a signal rather than a timeout, and a fresh navigation recovers it, so the wait
-   * ends the moment one appears. Everything else - an app still starting, a route still resolving -
-   * is answered by the tab appearing, so the budget is what bounds the wait for those.
-   *
-   * `/video/{id}` is one of the host's own routes, so the host has nothing to resolve it away to and
-   * the route-discard signal the settings panel watches for cannot arise here.
+   * `/video/{id}` is one of the host's own routes, so the host has nothing to resolve it away to
+   * and the route-discard signal the settings panel watches for cannot arise here.
    */
   async waitForTabs() {
-    // Bounded by what the test has left, so this file's error is the one reported rather than the
-    // runner's generic timeout.
     const budgetMs = remainingVisitBudgetMs(PAGE_VISIT_BUDGET_MS);
     const deadline = Date.now() + budgetMs;
     let chunkFailures = 0;
@@ -97,7 +89,7 @@ export class VideoDetailPage {
     await this.titleInput.waitFor({ state: "visible", timeout: 10_000 });
   }
 
-  /** Sets the item's title via the real Edit tab form and clicks Save. */
+  /** Sets the item's title through the Edit tab's own form and waits for the host's write. */
   async setTitle(title) {
     await this.titleInput.fill(title);
     const putResponse = this.page.waitForResponse(

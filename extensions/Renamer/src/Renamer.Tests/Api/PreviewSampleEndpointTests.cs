@@ -26,7 +26,6 @@ public sealed class PreviewSampleEndpointTests
         return ctx.Request;
     }
 
-    // Runs the endpoint with a videos.read principal and a serialized {Options:...} body.
     private static IReadOnlyList<PreviewSampleResult> Preview(RenamerOptions? options)
     {
         // Serialize the body exactly as the panel/host would, via the converter-aware options, so the
@@ -35,7 +34,6 @@ public sealed class PreviewSampleEndpointTests
         return PreviewRaw(json);
     }
 
-    // Runs the endpoint with a videos.read principal and a raw JSON body string.
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
         var ext = RenamerFixture.CreateWithStore();
@@ -113,7 +111,7 @@ public sealed class PreviewSampleEndpointTests
         var all = Preview(new RenamerOptions { FilenameTemplate = "$studio - $title [$resolution]" });
 
         var video = Sample(all, "Video");
-        // 3840 x 2160 → $resolution "4K" (the engine is the source of truth).
+        // The engine buckets the Video sample's 3840 x 2160 frame to $resolution "4K".
         Assert.Equal("Acme Studios - The Example [4K].mp4", video.NewName);
         Assert.Empty(video.Flags);
     }
@@ -141,8 +139,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_RequiredFieldMissing_FlagsGatingSkip()
     {
-        // videoCodec is required, but the image and audio samples have none → gating-skip; the video
-        // sample has videoCodec → not gated.
+        // Only the Video sample carries a videoCodec, so only it survives the gate.
         var all = Preview(new RenamerOptions { RequiredFields = ["videoCodec"] });
 
         Assert.Contains("gating-skip", Sample(all, "Image").Flags);
@@ -153,12 +150,12 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_IllegalCharTemplate_FlagsSanitized()
     {
-        // ':' is illegal and stripped by the sanitizer → the rendered name differs from raw → sanitized.
+        // ':' is illegal, so the sanitizer strips it and the rendered name differs from the raw one.
         var all = Preview(new RenamerOptions { FilenameTemplate = "$title: x" });
 
         var video = Sample(all, "Video");
         Assert.Contains("sanitized", video.Flags);
-        Assert.DoesNotContain(":", video.NewName); // proof the illegal char is gone
+        Assert.DoesNotContain(":", video.NewName);
     }
 
     [Theory]
@@ -186,7 +183,7 @@ public sealed class PreviewSampleEndpointTests
 
         var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), default);
 
-        Assert.Equal(403, StatusOf(result)); // permission denied
+        Assert.Equal(403, StatusOf(result));
     }
 
     [Fact]

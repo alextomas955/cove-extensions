@@ -15,8 +15,7 @@ public sealed class ChunkedRenameTests
     // Nothing is denied here: this suite's subject is what the chunk walk does, not who may reach it.
     private static readonly global::Renamer.AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
 
-    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", with real
-    // bytes on disk. Their entity ids ascend with i, which is the order the walk pages them in.
+    // The seeded entity ids ascend with i, which is the order the walk pages them in.
     private static async Task SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
@@ -58,8 +57,8 @@ public sealed class ChunkedRenameTests
             await using var readDb = shared.NewContext();
             var batches = await readDb.Set<RevertBatchEntity>().AsNoTracking().ToListAsync();
 
-            // Three pages of two, two and one. Every batch belongs to the one operation, so the whole
-            // walk is a single undo.
+            // Three pages of two, two and one, all under the one operation, so the whole walk is a
+            // single undo.
             Assert.Equal(3, batches.Count);
             Assert.All(batches, b => Assert.Equal("op", b.OperationId));
             Assert.Equal(entities, batches.Sum(b => b.OriginalCount));
@@ -90,9 +89,8 @@ public sealed class ChunkedRenameTests
                 shared, options, interceptor: interceptor);
             var progress = new FakeJobProgress();
 
-            // Three chunks of two, two and one, so three batches open under one operation. The sweep is
-            // over every batch in the table rather than over this run's, so repeating it per chunk
-            // re-reads the same rows to delete nothing.
+            // The sweep is over every batch in the table rather than over this run's, so repeating
+            // it per chunk re-reads the same rows to delete nothing.
             await ext.RunRenamerKindAsync(
                 new global::Renamer.RenameRun(
                     RenamerFileKind.Video, entities, "op", options, ChunkEntities: 2),
@@ -150,7 +148,6 @@ public sealed class ChunkedRenameTests
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw 2.mkv")), "the second chunk must not have run");
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw 3.mkv")), "the second chunk must not have run");
 
-            // What the cancelled run did finish is still undoable.
             await using var readDb = shared.NewContext();
             var batch = Assert.Single(await readDb.Set<RevertBatchEntity>().AsNoTracking().ToListAsync());
             Assert.Equal("op", batch.OperationId);
@@ -190,8 +187,6 @@ public sealed class ChunkedRenameTests
                 new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, ChunkEntities: 1),
                 AllowAll, new FakeJobProgress(), default);
 
-            // The second chunk is planned after the first one has already taken "Twin.mkv", so it
-            // suffixes rather than clobbering it, and neither source is left behind.
             Assert.True(File.Exists(Path.Combine(dir.Root, "Twin.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "Twin (1).mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "a.mkv")));

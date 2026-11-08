@@ -9,19 +9,16 @@
  */
 import { TOKENS } from "./tokens";
 
-/** The known token names, lower-cased and without `$`. */
 const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /** The token names without `$`, as the Required fields and Drop order inputs store them. */
 export const BARE_TOKENS: readonly string[] = TOKENS.map((t) => t.token.slice(1));
 
-/** True when `name`, with or without its `$`, is a known token. */
 export function isKnownToken(name: string): boolean {
   const bare = name.startsWith("$") ? name.slice(1) : name;
   return KNOWN.has(bare.toLowerCase());
 }
 
-/** True when every `{` has a matching `}` and no `}` comes before its `{`. */
 export function bracesBalanced(s: string): boolean {
   let depth = 0;
   for (const c of s) {
@@ -36,7 +33,6 @@ export function bracesBalanced(s: string): boolean {
 
 const NAME_CHAR = /[\p{L}\p{N}_]/u;
 
-/** Every token name in `s`, in order and without its `$`. */
 function tokenNames(s: string): string[] {
   const names: string[] = [];
   let i = 0;
@@ -56,7 +52,6 @@ function tokenNames(s: string): string[] {
   return names;
 }
 
-/** The distinct unknown tokens in `s`, each with its `$`, compared without regard to case. */
 export function unknownTokens(s: string): string[] {
   const seen = new Set<string>();
   const unknown: string[] = [];
@@ -70,7 +65,6 @@ export function unknownTokens(s: string): string[] {
   return unknown;
 }
 
-/** True when `token`, with or without its `$`, appears in either template. */
 export function templateUsesToken(
   token: string,
   filenameTemplate: string,
@@ -100,9 +94,8 @@ function editDistance(a: string, b: string): number {
 }
 
 /**
- * Best-effort "Did you mean" for an unknown token name (with or without the leading `$`). Returns
- * the nearest known token (with a leading `$`) only when the edit distance is small (≤ 2);
- * otherwise undefined. Derived purely from the static tokens set - never echoes user markup.
+ * Best-effort "Did you mean" for an unknown token name. The suggestion comes from the static token
+ * set alone, so it never echoes the user's own markup back into the page.
  */
 export function suggestFor(token: string): string | undefined {
   const name = (token.startsWith("$") ? token.slice(1) : token).toLowerCase();

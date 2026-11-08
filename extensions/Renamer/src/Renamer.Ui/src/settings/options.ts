@@ -47,6 +47,19 @@ export const RENAMABLE_KINDS = [
 
 export type RenamableKind = (typeof RENAMABLE_KINDS)[number];
 
+/**
+ * The select options for a wire enum, built from a label map that must cover it.
+ *
+ * A hand-written option list says nothing about the enum it came from: a member added to the C# enum
+ * would simply be missing from the control, with nothing failing. Taking the options from a complete
+ * `Record` makes that a build error instead. Insertion order is the order the control shows.
+ */
+export function optionsFor<T extends string>(
+  labels: Record<T, string>,
+): readonly { value: T; label: string }[] {
+  return (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
+}
+
 /** How each kind is named in the panel. */
 export const KIND_LABELS: Readonly<Record<RenamableKind, string>> = {
   video: "Videos",

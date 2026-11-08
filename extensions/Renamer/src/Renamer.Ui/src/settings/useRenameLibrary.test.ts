@@ -90,12 +90,12 @@ function mountHook() {
     get current() {
       return hook.result.current;
     },
-    /** Whether the last-batch entry has been marked for re-reading. */
+    // Whether the last-batch entry has been marked for re-reading.
     lastBatchStale: () => queryClient.getQueryState(LAST_BATCH_KEY)?.isInvalidated === true,
   };
 }
 
-/** Starts one rename and runs its poll loop to the end on the fake clock. */
+// Starts one rename and runs its poll loop to the end on the fake clock.
 async function renameToSettlement(hook: ReturnType<typeof mountHook>) {
   await act(async () => {
     const run = hook.current.renameLibrary();

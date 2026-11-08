@@ -79,15 +79,12 @@ test("type-only imports are not checked, and an aliased import is checked by its
   try {
     const result = run(f, f.cove);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    // One value import checked: the alias resolved to Plus, and both type-only names were skipped.
     assert.match(result.stdout, /OK \(1 imports across 1 UI bundles/);
   } finally {
     fs.rmSync(f.parent, { recursive: true, force: true });
   }
 });
 
-// react-query is a host-served package on the same terms as lucide-react: the bundle resolves it
-// against the host at load, so a name only the locally installed copy has would kill the whole bundle.
 test("a react-query name the host's version does not export fails too", () => {
   const f = fixture({
     source: 'import { useQuery, useFutureThing } from "@tanstack/react-query";\n',

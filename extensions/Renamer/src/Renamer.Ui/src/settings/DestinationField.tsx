@@ -1,12 +1,7 @@
 /**
- * DestinationField - the one editor every destination in this panel uses: a root chosen from Cove's
- * library paths, plus a relative folder template rendered under it, side by side on one row.
- *
- * No path is ever typed. Cove owns the library paths, so a typed copy of one here would point at
- * nothing the moment the user changed it in Cove; a chosen root is a reference that follows.
- *
- * Presentational - the paths arrive from {@link useLibraryPaths} and every edit flows up through
- * `onChange`.
+ * The one editor every destination in this panel uses. No path is ever typed: Cove owns the library
+ * paths, so a typed copy of one here would point at nothing the moment the user changed it in Cove,
+ * while a chosen root is a reference that follows.
  */
 import type { Ref } from "react";
 
@@ -25,7 +20,7 @@ import {
 interface DestinationFieldProps {
   value: Destination;
   onChange: (value: Destination) => void;
-  /** Cove's configured library paths, from `/library-paths`, as the panel currently knows them. */
+  /** Cove's configured library paths, from `/library-paths`. */
   library: LibraryPathsState;
   /** Shown above the template input; omit inside a row that already names itself. */
   label?: string;
@@ -107,8 +102,8 @@ export function DestinationField({
                 : "This is a folder template, not a path. The whole thing becomes folder names under this destination's root."
             }
           />
-          {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by
-              the one editor they all use, so a new destination cannot ship without it. */}
+          {/* Rendered by the one editor every destination uses, so a new destination cannot ship
+              without the token advisory. */}
           <TemplateAdvisories value={value.template} />
         </>
       )}

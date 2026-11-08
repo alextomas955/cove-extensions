@@ -47,10 +47,9 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-// Past the hook's 250ms debounce. A debounce is a timer, so the wait is a duration rather than a
-// condition; the clock is this test's, so no part of the wait is real time the machine has to spend
-// and a loaded runner cannot change the outcome. Shortening the hook's debounce below this would
-// leave the test correct, and lengthening it past it fails on the request count rather than silently.
+// Past the hook's debounce. A debounce is a timer, so the wait is a duration rather than a
+// condition, and the clock is this test's, so a loaded runner cannot change the outcome. Lengthening
+// the hook's debounce past this fails on the request count rather than silently.
 const PAST_DEBOUNCE_MS = 400;
 
 const runDebounceOut = () =>

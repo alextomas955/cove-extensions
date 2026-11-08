@@ -3,9 +3,8 @@ namespace Renamer.Execution;
 /// <summary>The undo seam between the rename and undo paths and where the revert journal is stored.</summary>
 /// <remarks>
 /// Speaks only in the Renamer-owned records below, never an EF type. A row exists exactly while its
-/// file still needs restoring,
-/// so there is no per-row status to disagree with the row's own presence; the per-batch counters
-/// carry the totals the panel reports.
+/// file still needs restoring, so there is no per-row status to disagree with the row's own
+/// presence; the per-batch counters carry the totals the panel reports.
 /// </remarks>
 public interface IRevertJournal
 {
@@ -40,7 +39,8 @@ public interface IRevertJournal
 
     /// <summary>
     /// The operation an undo would act on: the newest operation that still has rows to restore, or,
-    /// when none has any, the newest operation there is. Null only when nothing was ever journalled.
+    /// when none has any, the newest operation there is. Null when no batch is left, which is also the
+    /// state once retention has swept them all.
     /// </summary>
     /// <remarks>
     /// Both the undo endpoint and the panel's summary endpoint call this, so the sentence the panel

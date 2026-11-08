@@ -150,10 +150,8 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
 
             Assert.Single(result.Renamed);
-            // The DB-tracked caption still moves and renames.
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "caption still moves with an empty list");
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.en.vtt")));
-            // A non-caption neighbor is untouched because the extension list is empty.
             Assert.True(File.Exists(neighbor), "no extension discovery with an empty list");
             Assert.Equal("subs", File.ReadAllText(neighbor));
             Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.srt")));
@@ -179,7 +177,7 @@ public sealed class AssociatedExtensionSidecarTests
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
             File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "mine");
             string occupied = Path.Combine(dir.Root, "Film A.srt");
-            File.WriteAllText(occupied, "theirs"); // pre-existing target
+            File.WriteAllText(occupied, "theirs");
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
@@ -187,7 +185,6 @@ public sealed class AssociatedExtensionSidecarTests
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.mkv")), "primary still moves");
-            // The pre-existing target is left untouched, and the source sidecar remains.
             Assert.Equal("theirs", File.ReadAllText(occupied));
             Assert.True(File.Exists(Path.Combine(dir.Root, "clip.srt")), "skipped sidecar source must remain");
             Assert.Equal("mine", File.ReadAllText(Path.Combine(dir.Root, "clip.srt")));
@@ -223,7 +220,6 @@ public sealed class AssociatedExtensionSidecarTests
 
             Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
-            // The file lands at the new stem exactly once, with its content intact.
             string moved = Path.Combine(dir.Root, "Film A.vtt");
             Assert.True(File.Exists(moved), "the caption lands at the new stem");
             Assert.Equal("caption", File.ReadAllText(moved));

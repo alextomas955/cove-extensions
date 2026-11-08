@@ -15,8 +15,6 @@ public sealed class EndpointPermissionTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // A principal with only videos.read must be forbidden from previewing an image;
-            // the matching images.read principal is allowed (200).
             var ext = RenamerFixture.CreateWithStore();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var denied = await ext.PreviewAsync(
@@ -50,7 +48,6 @@ public sealed class EndpointPermissionTests
             new RecordingAuthorizationService(), default);
 
         Assert.Equal(202, StatusOf(result));
-        // The 202 body carries the enqueued job id the fake returned.
         var body = Assert.IsType<global::Renamer.Contracts.JobEnqueued>(
             Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
         Assert.Equal("job-123", body.JobId);

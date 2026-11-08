@@ -3,19 +3,16 @@
  * keyboard + outside-click hook, and an imperative mounter for overlays opened from a bulk-action
  * handler that owns no React tree.
  *
- * Not a library: the two nav modes below keep semantics that differ for real reasons, and a library
- * would either flatten them or pull in a second focus manager. See each mode's inline note.
- *
- * Not a native `<dialog>` either. `showModal()` makes the rest of the host page inert and draws the
- * dialog above the host's own portalled overlays, such as its toasts. It also turns Escape into a
- * browser close request, which a page cannot always block, so `enabled: false` would not reliably
- * hold a dialog open.
+ * Not a native `<dialog>`. `showModal()` makes the rest of the host page inert and draws the dialog
+ * above the host's own portalled overlays, such as its toasts. It also turns Escape into a browser
+ * close request, which a page cannot always block, so `enabled: false` would not reliably hold a
+ * dialog open.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactElement, RefObject } from "react";
 import { createRoot } from "react-dom/client";
 
-// The tab-order set for the dialog focus trap: the same query the Renamer Dialog used.
+// The tab-order set for the dialog focus trap.
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
@@ -49,15 +46,8 @@ export interface OverlayKeysOptions {
  * Focus-first-on-open + Escape + (arrow roving | Tab trap) + outside-click for a mounted overlay.
  *
  * @remarks
- * The capture-vs-bubble and stopPropagation-vs-preventDefault Escape differences are intentional per
- * mode: a menu takes the key away from every other handler, a dialog only marks it handled. See
- * `nav` for what that mark buys and what it does not.
- *
- * A dialog reads that mark from below it too, so an Escape a control inside already handled - a
- * combobox putting its suggestion list away - leaves the dialog open. One Escape is one action.
- *
- * `enabled` gates only the cancels (Escape + outside-click) - the Tab trap keeps running while
- * suspended - and toggling it never re-runs focus-first nor drops the opener captured for restore.
+ * `enabled` gates only the cancels, Escape and outside-click. The Tab trap keeps running while
+ * suspended, and toggling it re-runs neither focus-first nor the opener captured for restore.
  */
 export function useOverlayKeys(
   ref: RefObject<HTMLElement | null>,
@@ -75,16 +65,15 @@ export function useOverlayKeys(
   //
   // The write must be a layout effect. A passive effect runs after the browser may already have
   // painted and delivered input, so a key event arriving in that gap would read the previous
-  // render's values - which for `enabled` means a cancel suppressed by an operation that has
-  // already finished. `enabled` is likewise read from the ref and kept out of the deps below:
-  // re-subscribing the listener to pick up a new value reintroduces the same gap.
+  // render's values - for `enabled`, a cancel suppressed by an operation that has already finished.
+  // `enabled` is read from the ref and kept out of the deps below for the same reason:
+  // re-subscribing the listener to pick up a new value reintroduces the gap.
   const optsRef = useRef(options);
   useLayoutEffect(() => {
     optsRef.current = options;
   });
 
-  // Focus the first target on open; on dialog cleanup, restore focus to whoever opened it. Runs once
-  // per open (empty deps): re-running on an option change would steal focus back mid-interaction.
+  // Runs once per open: re-running on an option change would steal focus back mid-interaction.
   useLayoutEffect(() => {
     const opener = restoreFocus ? (document.activeElement as HTMLElement | null) : null;
     const sel = nav === "menu" ? itemSelector : FOCUSABLE;
@@ -129,7 +118,6 @@ export function useOverlayKeys(
       list[next]?.focus();
     }
 
-    // dialog: Tab is trapped within the panel (wrap first↔last over the focusable set).
     function trapTab(e: KeyboardEvent) {
       const panel = ref.current;
       if (!panel) return;
@@ -175,10 +163,9 @@ export function useOverlayKeys(
 }
 
 /**
- * Imperatively mount an overlay outside any React tree - for bulk-action handlers, which own no tree
- * of their own. Renders `render(finish)` into a body-attached root; `finish` is single-shot (a
- * settled guard), unmounts the root, removes the container, and resolves the promise. `null` is the
- * cancel value.
+ * Imperatively mount an overlay outside any React tree, for a bulk-action handler that owns no tree
+ * of its own. `finish` is single-shot: it unmounts the root, removes the container and resolves the
+ * promise. `null` is the cancel value.
  *
  * @public
  */

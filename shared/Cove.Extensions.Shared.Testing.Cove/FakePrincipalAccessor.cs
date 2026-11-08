@@ -3,10 +3,10 @@ using Cove.Core.Auth;
 namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
-/// A settable <see cref="ICurrentPrincipalAccessor"/> fake so the endpoint permission tests can hand a
-/// principal that has or lacks a given permission key without a request pipeline (extension minimal-API
-/// endpoints enforce permissions themselves - the host's <c>[RequiresPermission]</c> filter is inert on
-/// minimal-API routes).
+/// A settable <see cref="ICurrentPrincipalAccessor"/> fake, so a test can hand a handler a principal
+/// that has or lacks a permission key without a request pipeline. The host's
+/// <c>[RequiresPermission]</c> attribute is an MVC filter and does not apply to a minimal-API route,
+/// so what these tests drive is the in-handler gate in <c>MinimalApiPermissions</c>.
 /// </summary>
 public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
 {
@@ -15,8 +15,8 @@ public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
     public void Set(CovePrincipal? principal) => Current = principal;
 
     /// <summary>
-    /// Builds an accessor whose <see cref="Current"/> is a User principal granted exactly the given
-    /// permission keys. Roles are empty; a dummy UserId/Username is used.
+    /// An accessor whose <see cref="Current"/> is a User principal granted exactly the given permission
+    /// keys and no roles.
     /// </summary>
     public static FakePrincipalAccessor WithPermissions(params string[] permissions)
     {

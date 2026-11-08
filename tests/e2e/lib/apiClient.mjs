@@ -1,7 +1,6 @@
-// The one JSON-over-HTTP client every caller in the harness uses to talk to a Cove instance.
-//
-// It lives here rather than in fixtures.mjs because that module already imports harness.mjs, which
-// needs the client too, so owning it there would close an import cycle.
+// The one JSON-over-HTTP client every caller in the harness uses to talk to a Cove instance. It is
+// its own module because fixtures.mjs imports harness.mjs, which needs the client too, so owning it
+// in either would close an import cycle.
 
 /**
  * A `{get,post,put,delete}` JSON client over one Cove instance.

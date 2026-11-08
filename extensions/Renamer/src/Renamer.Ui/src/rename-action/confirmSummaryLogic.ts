@@ -1,13 +1,6 @@
 /**
- * The pure window.confirm summary builder for a real-selection `/preview`.
- *
- * critical: `/preview` returns `RenamePlanItem[]` (camelCase over the wire), not the
- * `/preview-sample` `flags[]` array. The warning taxonomy is derived from the `status` string enum
- * (the host serializes the enum as a string) plus the additive `suffixed` / `sanitized` bools the
- * planner sets - there is no `flags[]` field here.
- *
- * `buildConfirmSummary` is intentionally pure (no DOM, no fetch) so the confirm-dialog wording logic
- * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
+ * The window.confirm summary a real-selection `/preview` is worded into. The warning taxonomy comes
+ * from each item's `status` plus the additive `suffixed` and `sanitized` flags the planner sets.
  */
 
 import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
@@ -34,15 +27,9 @@ interface SkipClause {
  * Every status the wire can carry, and whether it counts as a skip in the confirm dialog.
  *
  * Total by type, keyed on the union generated from the extension's own OpenAPI document, so a status
- * the server grows fails this build (TS2741, naming the missing key) rather than going uncounted. One
- * map rather than a filter pass per status: this is the number a user approves a destructive operation
- * against, and independent passes each omitted the same five planner-produced statuses, so a selection
- * skipped entirely by an exclude rule reached the dialog with no reason given at all.
- *
- * declaration order is the rendered clause order.
- *
- * The labels track the row pills in `warningBadgeLogic.ts`, because the two surfaces describe the same
- * outcome to the same user.
+ * the server grows fails this build rather than going uncounted. Declaration order is the rendered
+ * clause order. The labels track the row pills in `warningBadgeLogic.ts`, because the two surfaces
+ * describe the same outcome to the same user.
  */
 const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipGated: { clause: "need a required field", reason: "needs a required field" },
@@ -82,7 +69,6 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
 
 const SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
-/** Render a byte count for the blast-radius lines, in the largest unit that leaves a figure to read. */
 function formatSize(bytes: number): string {
   let value = Math.max(0, bytes);
   let unit = 0;
@@ -98,11 +84,7 @@ function formatSize(bytes: number): string {
     : `${value.toFixed(1)} ${SIZE_UNITS[unit]}`;
 }
 
-/**
- * The per-cross-volume blast-radius lines: one "↪ N items (X MB) move from A to B." line per pair,
- * each size in the largest unit that leaves a figure to read. A same-drive batch has no `volumePairs`
- * and yields none.
- */
+/** One blast-radius line per cross-volume pair. A same-drive batch has no `volumePairs`. */
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
     (p) =>
@@ -110,10 +92,6 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
   );
 }
 
-/**
- * The call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive warning, Standard
- * a plainer cross-drive notice, and Light the plain rename prompt.
- */
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
   switch (level) {
@@ -150,7 +128,7 @@ function tallySkips(items: PreviewItemView[]): SkipTally {
     if (clause === undefined) unclassified += 1;
     else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
   }
-  // Read in the map's declaration order, never the tally's - that one follows whatever order the items
+  // Read in the map's declaration order, never the tally's - that one follows the order the items
   // happened to arrive in, which would let the same selection word its sentence differently twice.
   const kinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
     const count = tally.get(status) ?? 0;
@@ -162,7 +140,6 @@ function tallySkips(items: PreviewItemView[]): SkipTally {
 function skipLine({ kinds, unclassified }: SkipTally): string | null {
   const skipped = kinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
   if (skipped === 0) return null;
-  // If only one reason kind, collapse to the compact "(reason)" form.
   const onlyKind = kinds.length === 1 ? kinds[0] : undefined;
   if (onlyKind && unclassified === 0) return `⚠ ${skipped} skipped (${onlyKind.reason}).`;
   const clauses = kinds.map((kind) => `${kind.count} ${kind.clause}`);
@@ -176,11 +153,9 @@ function warningLines(
   summary?: PreviewSummary,
 ): string[] {
   const lines: string[] = [];
-  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
-  // that will happen differently, while this one describes files the executor will not be able to move
-  // at all. It reads the aggregate count, never a list of paths - a selection reaches library size, and
-  // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
-  // characters: what the user can act on is the remedy, so that is what the line carries.
+  // First, and phrased as a failure rather than an advisory: this is the one line describing files
+  // the executor will not be able to move at all. An aggregate count, never a list of paths - a
+  // selection reaches library size, and this text goes into a native confirm box that cannot scroll.
   const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
   if (inFlightOverflow > 0) {
     const them = inFlightOverflow === 1 ? "it" : "them";
@@ -201,16 +176,8 @@ function warningLines(
 }
 
 /**
- * Build the exact text for the in-flow window.confirm gate shown before a bulk rename runs.
- *
- * - N = items that will actually change (status Rename | Move); M = total selected.
- * - One `⚠` line per non-zero warning kind: skips (split into gated / collision sub-counts),
- *   numbered (suffixed), cleaned (sanitized).
- * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
- * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
- *
- * When the batch moves files across drives, a line per volume pair is added and the call-to-action
- * scales with `summary.confirmLevel`.
+ * The text for the window.confirm gate shown before a bulk rename runs, and the count of items that
+ * will actually change. A zero count still returns text, and the handler cancels even on OK.
  */
 export function buildConfirmSummary(
   items: PreviewItemView[],
@@ -225,8 +192,6 @@ export function buildConfirmSummary(
 
   const warnings = warningLines(items, willRename, summary);
 
-  // Blast-radius lines (additive): one per cross-volume (from → to) pair, when the backend reports
-  // any. A same-drive-only batch has no volumePairs and these lines are absent.
   const blastLines = buildBlastLines(summary);
 
   const warningBlock = warnings.length > 0 ? `${warnings.join("\n")}\n\n` : "";

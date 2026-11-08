@@ -51,7 +51,7 @@ public sealed class AutoRenamerSelfSaveTests
             string atSorted = Path.Combine(sortedFolder, "My Film.mkv");
             string atLibrary = Path.Combine(libraryFolder, "My Film.mkv");
 
-            // (1) One genuine edit, one hop: the first rule matches the file's folder and relocates it.
+            // One genuine edit, one hop: the first rule matches the file's folder and relocates it.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(File.Exists(atSorted), $"the matched rule did not relocate the file to {atSorted}");
@@ -60,9 +60,9 @@ public sealed class AutoRenamerSelfSaveTests
             Assert.Equal($"{sortedFwd}/My Film.mkv", pathAfterFirst.Replace('\\', '/'));
             Assert.Single(bus.Published);
 
-            // (2) The event that save re-raised. The plan is not empty here - the second rule would take
-            //     the file straight back - so nothing but a suppression scoped to this handler's own save
-            //     can stop it.
+            // The event that save re-raised. The plan is not empty here - the second rule would take
+            // the file straight back - so nothing but a suppression scoped to this handler's own save
+            // can stop it.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(
@@ -77,10 +77,10 @@ public sealed class AutoRenamerSelfSaveTests
                 "the re-entrant event saved and re-raised again, which is the runaway: "
                     + $"{bus.Published.Count} events published where one action happened");
 
-            // (3) A later genuine edit, not the re-raised one. It must be processed: the suppression is
-            //     scoped to the action that armed it, not a mode the handler stays in. Without this
-            //     assertion a suppression that never released would pass (1) and (2) and mute the hook
-            //     for this item permanently.
+            // A later genuine edit, not the re-raised one. It must be processed: the suppression is
+            // scoped to the action that armed it, not a mode the handler stays in. Without this
+            // assertion a suppression that never released would satisfy everything above and mute
+            // the hook for this item permanently.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(
@@ -148,9 +148,9 @@ public sealed class AutoRenamerSelfSaveTests
 
             string atLibrary = Path.Combine(libraryFolder, "raw.mkv");
 
-            // (1) A genuine edit. The rule matches, so the plan acts and the executor is called - and the
-            //     occupied destination sends every item to a skip, so nothing is saved and no event is
-            //     raised for the suppression to consume.
+            // A genuine edit. The rule matches, so the plan acts and the executor is called - and the
+            // occupied destination sends every item to a skip, so nothing is saved and no event is
+            // raised for the suppression to consume.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(File.Exists(atLibrary), "the file left its folder even though the move was refused");
@@ -165,7 +165,7 @@ public sealed class AutoRenamerSelfSaveTests
             File.Delete(blocker);
             File.Delete(suffixedBlocker);
 
-            // (2) A later genuine edit, and the assertion this test exists for.
+            // A later genuine edit, with the destination now free.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(

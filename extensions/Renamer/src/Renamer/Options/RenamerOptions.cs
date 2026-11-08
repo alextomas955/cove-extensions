@@ -67,8 +67,6 @@ public sealed record MultiValueOptions
     /// sorts last. Empty does no gender ordering.
     /// </remarks>
     public List<string> GenderOrder { get; init; } = [];
-
-
 }
 
 /// <summary>
@@ -469,8 +467,6 @@ public sealed record RenamerOptions
     /// &lt;= 0 is treated as unbounded.
     /// </remarks>
     public int SameVolumeConcurrency { get; init; } = 8;
-
-
 
     /// <summary>Serializer settings shared by save and load, so the round-trip is symmetric.</summary>
     /// <remarks>

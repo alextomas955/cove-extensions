@@ -15,7 +15,8 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityIdsCapTests
 {
-    // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.
+    // The handler's own MaxEntityIdsPerRequest is private, so this copy has to be kept in step with
+    // it; the refusal carries the bound, so a drift shows up as a mismatched ErrorCode value.
     private const int Cap = 1000;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
@@ -66,7 +67,7 @@ public sealed class EntityIdsCapTests
         var ext = RenamerFixture.CreateWithStore();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-        var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
+        var ids = Enumerable.Range(1, Cap + 1).ToArray();
 
         var result = await ext.RenamerEnqueue(
             new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,

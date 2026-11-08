@@ -48,9 +48,6 @@ public sealed record PreviewSummary(
 // its VolumeKey value, possibly "", and no method here throws on path content.
 public static class BatchPreview
 {
-    // Confirm-level thresholds. A same-drive-only batch is always Light, because an in-place rename is
-    // instant and reversible. A cross-drive batch copies bytes, so it starts at Standard and is Heavy
-    // when it is large by file count, by bytes, or by the number of destination volumes.
     private const int HeavyItemCountThreshold = 50;
     private const long HeavyByteThreshold = 10L << 30;
     private const int HeavyVolumeCountThreshold = 2;
@@ -72,8 +69,6 @@ public static class BatchPreview
             .Where(i => i.Status is RenamerStatus.Rename or RenamerStatus.Move)
             .ToList();
 
-        // The split and the grouping both read VolumeKey(NewFullPath), the value FreeSpaceGuard.Shortfall
-        // sums, so the preview and the guard see the same volumes.
         var volumePairs = acting
             .Where(i => !VolumeClassifier.SameVolume(i.OldFullPath, i.NewFullPath, mountPoints))
             .GroupBy(i => (

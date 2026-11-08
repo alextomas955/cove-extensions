@@ -28,14 +28,12 @@ import {
   type StallClock,
 } from "./jobPollLogic";
 
-/** How a poll ended on the job's own verdict. */
 interface JobOutcome {
   job: RenamerJobStatus;
   /** Why the job reported failure or cancellation; null on completion. */
   failure: string | null;
 }
 
-/** A running poll: the promise the caller awaits, and the handle that stops it. */
 interface JobPoll {
   /**
    * Resolves on the job's own verdict. Rejects with {@link JobUnresponsiveError} when the run ended
@@ -119,8 +117,8 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
         });
     }
 
-    // The first read waits one interval, as the interval it replaces did: the job was enqueued a
-    // moment ago and has nothing to report yet.
+    // The first read waits one interval: the job was enqueued a moment ago and has nothing to
+    // report yet.
     scheduleNext();
 
     stop = () => {

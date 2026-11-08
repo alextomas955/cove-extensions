@@ -3,10 +3,10 @@ using Renamer.Engine;
 namespace Renamer.Api;
 
 // Fixed token sets the live preview renders against, held server-side so the sample count is bounded
-// and a preview request cannot amplify work, and so the samples use the engine's own token names.
+// and a preview request cannot amplify work.
 //
-// The shapes exercise the engine's empty-token and {}-drop behavior: the Image set carries no codecs
-// or duration, and the Audio set carries no video tokens.
+// The Image and Audio sets omit tokens on purpose, to exercise the engine's empty-token and {}-drop
+// behavior.
 public static class SampleTokenSets
 {
     public sealed record Sample(

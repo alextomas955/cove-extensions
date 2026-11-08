@@ -377,9 +377,8 @@ public sealed class OptionsMigrationConvertTests
 
         var conversion = OptionsMigration.Convert(blob, Tags, rows);
 
-        // One report per stored spelling that named the entity, each naming the row the rule now covers
-        // and the rows it no longer does. The pair "Dupe"/"dupe" is a case variant no stored rule names,
-        // and reporting every such pair in a library would bury the ones a rule actually narrows.
+        // One report per stored spelling that named the entity, each naming the row the rule now
+        // covers and the rows it no longer does.
         Assert.Equal(
             ["ADA VEX", "Ada Vex", "ada vex"],
             conversion.CaseCollapses.Select(c => c.Name).Order(StringComparer.Ordinal));

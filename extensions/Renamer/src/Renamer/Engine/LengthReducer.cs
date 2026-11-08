@@ -3,15 +3,12 @@ using Renamer.Options;
 namespace Renamer.Engine;
 
 // Measures two limits together: the filename component (name + ext) against FilenameMax, and the
-// full generated path (folder + "/" + name + ext) against FullPathMax. Over either, it drops fields
-// in DropOrder one at a time, re-rendering without them, and hard-truncates the filename when every
-// drop still leaves it too long.
+// full generated path (folder + "/" + name + ext) against FullPathMax.
 //
 // The caps are a relative-path budget. The executor re-checks the absolute path including the
 // library root, which the engine never sees.
 public static class LengthReducer
 {
-    // The folder separator counts only when a folder is present.
     public static bool FitsBoth(string folder, string name, string ext, RenamerOptions o)
     {
         int filenameLen = name.Length + ext.Length;
@@ -50,7 +47,7 @@ public static class LengthReducer
         return (new RenamerResult(folder, name, ext), dropped);
     }
 
-    // Truncates the name to the tighter of the two budgets, never below zero.
+    // Truncates the name to the tighter of the two budgets.
     private static string HardTruncate(string folder, string name, string ext, RenamerOptions o)
     {
         int byFilename = o.FilenameMax - ext.Length;

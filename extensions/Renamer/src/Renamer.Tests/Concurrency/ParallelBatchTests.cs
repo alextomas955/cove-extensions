@@ -8,8 +8,7 @@ namespace Renamer.Tests.Concurrency;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
-    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", and writes each
-    // source to disk unless skip names its index.
+    // Writes each source to disk unless skip names its index.
     private static async Task<IReadOnlyList<int>> SeedVideosAsync(
         SharedCacheSqlite shared, TempDir dir, int count, int? skip = null)
     {

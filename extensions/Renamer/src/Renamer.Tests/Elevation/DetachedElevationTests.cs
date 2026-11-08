@@ -72,7 +72,7 @@ public sealed class DetachedElevationTests
         {
             // Already correctly named under the pinned template, so the plan is a NoOp: nothing acts,
             // the batch opens nothing, and neither the folder pre-create nor the executor reaches the
-            // database. That isolation is what lets this case attribute a failure to the planning read.
+            // database.
             (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seed, folderPath, "My Film.mkv", "My Film");
         }
 
@@ -120,8 +120,6 @@ public sealed class DetachedElevationTests
 
         await AssertEveryCoveReadRanAsSystemAsync(library);
 
-        // Read back after the assertion: the pre-create made the destination folder row, and the
-        // executor moved the file into it.
         await using var db = library.NewContext();
         Assert.Equal(1, await db.Set<Folder>().AsNoTracking().CountAsync(f => f.Path == folderPath + "/sorted"));
         Assert.True(File.Exists(Path.Combine(dir.Root, "sorted", "My Film.mkv")));
@@ -177,13 +175,10 @@ public sealed class DetachedElevationTests
         return null;
     }
 
-    // Every command recorded since the last clear ran as System, and at least one was recorded -
-    // plus the caller's own principal is back, because elevation is a span and not a mode. library:
-    // The observed database and its principal accessor. expectedPriorKind: The principal kind in
-    // effect when the body was entered, or null when there was none. The restore is asserted
-    // against whatever the caller actually had rather than against a fixed Anonymous, because a
-    // queued body enters with none and putting back a default instead of nothing would be a
-    // different bug wearing the same green.
+    // Elevation is a span, not a mode, so the caller's own principal is back afterwards. The
+    // restore is asserted against whatever the caller actually had rather than a fixed Anonymous,
+    // because a queued body enters with none and putting back a default instead of nothing is a
+    // different bug.
     private static void AssertRanEntirelyAsSystem(
         LibraryDatabase library, PrincipalKind? expectedPriorKind = PrincipalKind.Anonymous)
     {
@@ -196,16 +191,11 @@ public sealed class DetachedElevationTests
         Assert.Equal(expectedPriorKind, library.Principals.Current?.Kind);
     }
 
-    // The batch core's variant: every command against a table COVE owns ran as System, and nothing
-    // that ran unelevated reached one. The batch holds a scope the source states is deliberately
-    // not elevated - the one the shared undo journal owns - on the grounds that the journal's
-    // tables are the extension's own and carry none of Cove's per-principal query filters, so
-    // System has nothing there to unlock. A plain all-System verdict over this window would
-    // therefore assert a property the code does not have, and pass only until someone noticed. The
-    // second assertion is what stops that exception swallowing the rule: a Cove-entity read that
-    // stopped being elevated cannot hide inside it. Both arms ask NamesATableCoveOwns rather than a
-    // question about the extension's own set, and TablesByOwnershipAsync states why that difference
-    // is load-bearing.
+    // The batch holds one scope that is deliberately not elevated: the shared undo journal's, whose
+    // tables are the extension's own and carry none of Cove's per-principal query filters. A plain
+    // all-System verdict over this window would therefore assert a property the code does not have.
+    // The second assertion stops that exception swallowing the rule: a Cove-entity read that
+    // stopped being elevated cannot hide inside it.
     private static async Task AssertEveryCoveReadRanAsSystemAsync(LibraryDatabase library)
     {
         var recorded = library.CommandsExecuted.ToList();
@@ -213,8 +203,8 @@ public sealed class DetachedElevationTests
 
         var coveReads = recorded.Where(c => NamesATableCoveOwns(tables, c)).ToList();
 
-        // Non-empty first, on the set the assertion is about: an all-System verdict over no Cove read at
-        // all is the vacuous pass, and a case whose body never reached Cove's own tables produces one.
+        // Non-empty on the filtered set, not the recording: a body that never reached Cove's own
+        // tables would otherwise pass this.
         Assert.NotEmpty(coveReads);
         Assert.All(coveReads, c => Assert.Equal(PrincipalKind.System, c.Principal));
         Assert.All(
@@ -227,13 +217,9 @@ public sealed class DetachedElevationTests
 
     private readonly record struct TablesByOwnership(IReadOnlySet<string> Own, IReadOnlySet<string> Cove);
 
-    // The model's tables split into this extension's own and - as the complement of that same
-    // enumeration - Cove's, with both sides asserted non-empty before either is handed back.
-    // Ownership is taken from the model the extension itself configures, so no table name is
-    // restated here to go stale when one is renamed; the complement inherits that property rather
-    // than needing a list of its own. Non-empty on both sides, and before either is used: a side
-    // that came back empty turns the predicate over it into a constant, and a verdict resting on a
-    // constant is the same vacuous pass this class's other non-empty assertions exist to refuse.
+    // Ownership comes from the model the extension configures, so no table name is restated here to
+    // go stale when one is renamed. Both sides are asserted non-empty before either is used: an
+    // empty side turns the predicate over it into a constant.
     private static async Task<TablesByOwnership> TablesByOwnershipAsync(LibraryDatabase library)
     {
         HashSet<string> own, cove;
@@ -255,15 +241,13 @@ public sealed class DetachedElevationTests
         return new TablesByOwnership(own, cove);
     }
 
-    // Whether c's SQL reaches a table Cove owns. A command that also names one of this extension's
-    // tables still counts: naming an own table cannot excuse naming a Cove one. The match is a
-    // case-insensitive substring of the statement text.
+    // A command that also names one of this extension's tables still counts: naming an own table
+    // cannot excuse naming a Cove one.
     private static bool NamesATableCoveOwns(TablesByOwnership tables, LibraryDatabase.ExecutedCommand c) =>
         tables.Cove.Any(table => c.Sql.Contains(table, StringComparison.OrdinalIgnoreCase));
 
-    // The shipped extension, loaded over library with options saved, then armed for observation:
-    // the caller's principal set to a present-but-unprivileged one and the recording cleared, so
-    // what a case asserts on is its own exercise and not the load.
+    // Armed for observation after the load: the caller's principal set to a present-but-unprivileged
+    // one and the recording cleared, so a case asserts on its own exercise and not the load.
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> LoadedExtensionAsync(
         LibraryDatabase library, RenamerOptions options, params string[] libraryRoots)
     {
@@ -308,8 +292,6 @@ public sealed class DetachedElevationTests
 
         await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-        // Non-empty first: an all-System verdict over zero commands would be a vacuous pass, and a hook
-        // that never reached the database at all is exactly the failure this is here to catch.
         Assert.NotEmpty(library.CommandsExecuted);
         Assert.All(library.CommandsExecuted, c => Assert.Equal(PrincipalKind.System, c.Principal));
 

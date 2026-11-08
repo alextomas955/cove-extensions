@@ -55,8 +55,6 @@ public sealed class JournalPagingTests
             cursor = page[^1].Seq;
         }
 
-        // 10 rows at 3 a page: the boundary is genuinely crossed, so what follows is a statement about
-        // paging rather than about one page that happened to hold everything.
         Assert.Equal(4, pages.Count);
         Assert.Equal([3, 3, 3, 1], pages.Select(p => p.Count));
 
@@ -243,7 +241,6 @@ public sealed class JournalPagingTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    // The same context CoveContextFactory builds, with a command counter on it.
     private static async Task<(DbContext db, SqliteConnection conn)> ContextWithBudgetAsync(CommandBudget budget)
     {
         var conn = new SqliteConnection("Data Source=:memory:");

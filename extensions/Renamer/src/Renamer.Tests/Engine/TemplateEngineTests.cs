@@ -24,8 +24,6 @@ public class TemplateEngineTests
         return TemplateEngine.Render(tokens ?? NoTokens, multi ?? NoMulti, options);
     }
 
-    // ---- CoreTokens: full token set resolution ----
-
     [Fact]
     public void CoreTokens_ScalarTokens_ResolveFromDict()
     {
@@ -53,7 +51,7 @@ public class TemplateEngineTests
     public void CoreTokens_UnknownToken_ResolvesEmpty()
     {
         var r = Render("a$nope-b", NoTokens);
-        Assert.Equal("a-b", r.Filename); // unknown token -> empty
+        Assert.Equal("a-b", r.Filename);
     }
 
     private static Dictionary<string, string> Dimensions(string title, string? width, string? height)
@@ -105,14 +103,9 @@ public class TemplateEngineTests
         Assert.Equal("Upright [vertical]", r.Filename);
     }
 
-    // One title tag, one derived label: the title's own trailing tag is replaced by the label this
-    // render derives, and survives wherever either side is not a resolution.
     [Theory]
-    // The library-migration case: a title imported from a filename that already ends in its label.
     [InlineData("Bootie From Beijing [1080p]", "1920", "1080", "Bootie From Beijing [1080p]")]
-    // Only a tag at the very end is stripped.
     [InlineData("Shot in [1080p] Glory", "3840", "2160", "Shot in [1080p] Glory [4K]")]
-    // The derived label is authoritative, so a title tag naming a different height still goes.
     [InlineData("Old Rip [720p]", "3840", "2160", "Old Rip [4K]")]
     // A tag no bucket is named for: the generic trailing-[<digits>p] strip removes it anyway.
     [InlineData("Nikki [368p]", "654", "368", "Nikki [360p]")]
@@ -122,9 +115,7 @@ public class TemplateEngineTests
     [InlineData("Old Rip [HUGE]", "3840", "2160", "Old Rip [4K]")]
     // A bracketed number with no 'p' is a serial, index or scene number, never a resolution.
     [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
-    // A hash-like bracketed token is not a resolution tag either.
     [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
-    // A resolution mid-title with a real serial at the end: no trailing res-tag to strip.
     [InlineData("Shot [720p] Take [5]", "1920", "1080", "Shot [720p] Take [5] [1080p]")]
     // A height with no stored width derives no label, so the title's own tag is the only one left.
     [InlineData("Movie [1080p]", null, "1080", "Movie [1080p]")]
@@ -211,9 +202,7 @@ public class TemplateEngineTests
     }
 
     [Theory]
-    // The filename template renders the label and the folder template does not.
     [InlineData("$title{ [$resolution]}", "$title")]
-    // The folder template renders the label and the filename template does not.
     [InlineData("$title", "$title{ [$resolution]}")]
     public void TitleHasResolution_FolderTemplate_CarriesTheLabelExactlyOnce(
         string filenameTemplate, string folderTemplate)
@@ -385,8 +374,6 @@ public class TemplateEngineTests
         Assert.Equal("$ X", r.Filename);
     }
 
-    // ---- OptionalGroup: {} collapse ----
-
     [Fact]
     public void OptionalGroup_AllEmpty_RemovesEntireSpanIncludingInnerLiterals()
     {
@@ -442,13 +429,11 @@ public class TemplateEngineTests
         Assert.Equal("X - Acme", Render("$title {- $studio", withStudio).Filename);
     }
 
-    // ---- grouped template: {$date - }$title{ [$height]} degradation ----
-
     [Theory]
-    [InlineData("2026-03-12", "1080", "2026-03-12 - Title [1080p]")] // both groups render
-    [InlineData("", "1080", "Title [1080p]")]                        // date-less: no leading " - "
-    [InlineData("2026-03-12", "", "2026-03-12 - Title")]             // height-less: no empty brackets
-    [InlineData("", "", "Title")]                                    // bare title only
+    [InlineData("2026-03-12", "1080", "2026-03-12 - Title [1080p]")]
+    [InlineData("", "1080", "Title [1080p]")]
+    [InlineData("2026-03-12", "", "2026-03-12 - Title")]
+    [InlineData("", "", "Title")]
     public void GroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
@@ -467,8 +452,6 @@ public class TemplateEngineTests
         Assert.Equal(expected, r.Filename);
     }
 
-    // ---- FolderTemplate: independent rendering, '/' handling ----
-
     [Fact]
     public void FolderTemplate_KeepsSlashAsSeparator()
     {
@@ -483,7 +466,7 @@ public class TemplateEngineTests
     {
         var tokens = new Dictionary<string, string> { ["title"] = "a/b" };
         var r = Render("$title", tokens);
-        Assert.Equal("ab", r.Filename); // '/' is illegal in a filename segment -> stripped
+        Assert.Equal("ab", r.Filename);
     }
 
     [Fact]
@@ -499,11 +482,8 @@ public class TemplateEngineTests
     {
         var tokens = new Dictionary<string, string> { ["studio"] = "Ac:me", ["year"] = "2026" };
         var r = Render("x", tokens, folder: "$studio/$year");
-        // ':' illegal stripped per-segment, '/' kept as separator
         Assert.Equal("Acme/2026", r.FolderPath);
     }
-
-    // ---- FolderTemplate: always relative, whatever the template looks like ----
 
     [Theory]
     [InlineData("G:/media/$studio", "G/media/Acme")]
@@ -529,8 +509,6 @@ public class TemplateEngineTests
         Assert.Equal("Archive/CWindows", Render("x", tokens, folder: "Archive/$studio").FolderPath);
     }
 
-    // ---- default options ----
-
     [Fact]
     public void DefaultOptions_RenderTheShippedTemplates()
     {
@@ -550,8 +528,6 @@ public class TemplateEngineTests
         Assert.Equal("", r.FolderPath);
         Assert.Equal(".mkv", r.Ext);
     }
-
-    // ---- field rewrites end-to-end ----
 
     [Fact]
     public void FieldRewrites_FlowThroughRender_TitleArticleAndStudioSqueeze()
@@ -575,13 +551,9 @@ public class TemplateEngineTests
         Assert.Equal("RealityKings", r.FolderPath);
     }
 
-    // ---- prevent_title_performer (engine) ----
-
     [Fact]
     public void PreventTitlePerformer_DropsNameInTitle_FreesOverflowSlot()
     {
-        // Eve is named in the title -> dropped from the raw performers list before the MaxCount cap,
-        // so the cap (2, KeepFirst) now admits Carol: a dropped name freed an overflow slot.
         var tokens = new Dictionary<string, string> { ["title"] = "Eve Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -591,9 +563,7 @@ public class TemplateEngineTests
         {
             FilenameTemplate = "$performers",
             PreventTitlePerformer = true,
-            // This test exercises the comma-separated join; opt out of the default RemoveCharacters
-            // (",#") so the separator comma is not stripped by the final sanitize pass.
-            RemoveCharacters = "",
+            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
             Performers = new MultiValueOptions
             {
                 Separator = ", ",
@@ -611,7 +581,6 @@ public class TemplateEngineTests
     [Fact]
     public void PreventTitlePerformer_ComparesAgainstRewrittenTitle()
     {
-        // The article strip turns "The Eve" into "Eve" before the performer match, so Eve is dropped.
         var tokens = new Dictionary<string, string> { ["title"] = "The Eve" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -631,8 +600,6 @@ public class TemplateEngineTests
         Assert.Equal("Bob", r.Filename);
     }
 
-    // ---- prevent_consecutive (engine) ----
-
     [Fact]
     public void PreventConsecutive_CollapsesConsecutiveFolderSegments()
     {
@@ -646,7 +613,7 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, NoMulti, o);
 
-        Assert.Equal("Foo/Bar", r.FolderPath); // Foo/Foo/Bar -> Foo/Bar
+        Assert.Equal("Foo/Bar", r.FolderPath);
     }
 
     [Fact]
@@ -662,16 +629,12 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, NoMulti, o);
 
-        Assert.Equal("Foo Foo", r.Filename); // filename untouched
+        Assert.Equal("Foo Foo", r.Filename);
     }
-
-    // ---- Performer ordering through Render (records carried alongside the name side-input) ----
 
     [Fact]
     public void Performers_RecordOrdering_AppliesBeforeTheLimit_EndToEnd()
     {
-        // A gender ignore should drop a performer before the max-count limit, so two non-ignored
-        // performers survive even though there were three candidates and the limit is two.
         var tokens = new Dictionary<string, string> { ["title"] = "Film" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -758,8 +721,6 @@ public class TemplateEngineTests
 
         Assert.Equal("Carol, Bob", r.Filename);
     }
-
-    // ---- NormalizePunctuation: end-to-end render (default on) ----
 
     [Theory]
     [InlineData("It’s Here", "It's Here")]

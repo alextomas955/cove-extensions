@@ -5,8 +5,6 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CrossVolume;
 
-// A move that did not happen is reported under the status its mover classified it as, not under one
-// status standing for every cause. StatusFor holds the mapping; this asserts the executor asks it.
 // A failed content verify is the cause chosen here because it is the one the movers can be made to
 // produce on demand, through CrossVolumeMover's own post-copy fault seam, rather than by arranging
 // a lock or a permission the host may or may not honour. The expected status is transcribed from
@@ -61,8 +59,6 @@ public sealed class MoveOutcomeReportingTests
             Assert.Equal(RenamerStatus.SkipVerifyFailed, item.Status);
             Assert.Empty(result.Renamed);
 
-            // The file stays where it was and the corrupted copy is not left behind, so the status is the
-            // only thing this run got wrong.
             Assert.True(File.Exists(Path.Combine(src.Root, "clip.mkv")));
             Assert.Equal("the real bytes", File.ReadAllText(Path.Combine(src.Root, "clip.mkv")));
             Assert.False(File.Exists(Path.Combine(dst.Root, "My Film.mkv")));

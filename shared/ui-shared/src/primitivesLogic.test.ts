@@ -9,6 +9,7 @@ import {
   nextActiveIndex,
   numberInputValue,
   suggestionOptions,
+  availableOptions,
 } from "./primitivesLogic";
 
 test("a well-formed pattern is valid", () => {
@@ -124,4 +125,18 @@ test.each([
   ["a field shows nothing for one that is not a number either way", Number.NaN, true, ""],
 ] as const)("%s", (_name, value, blankWhenZero, shown) => {
   assert.equal(numberInputValue(value, blankWhenZero), shown);
+});
+
+test("availableOptions offers only not-yet-picked options, in the canonical order", () => {
+  const opts = [
+    { value: "Male", label: "Male" },
+    { value: "Female", label: "Female" },
+    { value: "Intersex", label: "Intersex" },
+  ];
+  assert.deepEqual(
+    availableOptions(opts, ["Female"]).map((o) => o.value),
+    ["Male", "Intersex"],
+  );
+  assert.deepEqual(availableOptions(opts, []), opts);
+  assert.deepEqual(availableOptions(opts, ["Male", "Female", "Intersex"]), []);
 });

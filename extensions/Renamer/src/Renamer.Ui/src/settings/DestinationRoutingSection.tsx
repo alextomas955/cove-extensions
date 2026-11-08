@@ -1,12 +1,6 @@
 /**
- * DestinationRoutingSection - the "Destination routing" card: the unorganized destination, the
- * per-studio and per-tag destination maps, advanced allowed-roots + source-path rules, the sidecar-
- * extension list, and the empty-folder cleanup toggle.
- *
- * Card order is presentation only (unorganized first, then per-studio, per-tag, advanced,
- * then sidecar and empty-folder); it does not set the engine's rule-evaluation precedence, which is
- * decided server-side, so reordering these cards is safe. Presentational - every field flows up
- * through `set`.
+ * The "Destination routing" card. Card order is presentation only: the engine's rule-evaluation
+ * precedence is decided server-side, so reordering these cards is safe.
  */
 import type { SetOption } from "./useRenamerOptions";
 import { useState } from "react";
@@ -35,7 +29,6 @@ import { DestinationField } from "./DestinationField";
 import { EntityDestinationsEditor } from "./EntityDestinationsEditor";
 import { useOrphanedRules } from "./useOrphanedRules";
 
-/** Strip one leading dot if present, then lowercase - the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
   let v = raw.trim();
   if (v.startsWith(".")) v = v.slice(1);
@@ -54,8 +47,7 @@ export function DestinationRoutingSection({
   set,
   library,
 }: Readonly<DestinationRoutingSectionProps>) {
-  // Live (not-yet-committed) associatedExtensions input, so the sidecar-extension advisory reflects
-  // what the user is currently typing, before Enter commits it.
+  // The uncommitted input, so the advisory reads what is being typed, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");
   // Which rule sets are unfolded. Presentation only: a folded set still routes, and a set holding
   // rules opens so an existing configuration is never hidden behind a closed header.

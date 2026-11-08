@@ -13,9 +13,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Toggle } from "./fields";
 
 /**
- * One of the five field groups. Matches Cove sub-card styling. Named through `aria-labelledby`, so
- * it exposes a `region` that a reader can jump to and a test can address by its title rather than
- * by counting the elements between the heading and the card.
+ * A field group, matching Cove sub-card styling. Named through `aria-labelledby`, so it exposes a
+ * region a reader can jump to and a test can address by its title.
  */
 export function GroupCard({
   title,
@@ -53,11 +52,8 @@ export function GroupCard({
 }
 
 /**
- * A titled block inside a {@link SectionCard}, for a card that holds more than one subject. The
- * `<section>` is named through `aria-labelledby`, so it exposes a `region` an assistive-technology
- * user (and a test locator) can address by its title - the enclosing card's own heading is not wired
- * that way, which is what keeps a nested block unambiguous. `divided` draws the hairline that
- * separates it from the block above.
+ * A titled block inside a {@link SectionCard}, for a card that holds more than one subject. Named
+ * through `aria-labelledby`, so a nested block stays addressable by its own title.
  */
 export function CardSection({
   title,
@@ -86,12 +82,8 @@ export function CardSection({
 }
 
 /**
- * The primary settings section container: Cove's own `SettingsSection` fill
- * (`rounded-2xl border-border bg-surface p-5` plus a long soft drop shadow) under a header that
- * closes with a hairline rule. The panel is a full page of stacked titled cards rather than one
- * embedded settings section, and the rule is what makes a card title read as a header instead of as
- * the body's first line. `badge` is the one addition core lacks: an inline `$token` marker for the
- * token-settings cards. Presentational only.
+ * The primary settings section container, matching Cove's own `SettingsSection` fill under a header
+ * closed with a hairline rule. Presentational only.
  */
 export function SectionCard({
   title,
@@ -113,8 +105,8 @@ export function SectionCard({
       // A card with no title has no name to expose, and an unnamed section is no landmark at all.
       aria-labelledby={title ? headingId : undefined}
       className="rounded-2xl border border-border bg-surface p-5"
-      // The host Tailwind JIT never scans this bundle, so an arbitrary `shadow-[…]` class renders nothing;
-      // the computed shadow goes in an inline style (the same rule as the ProgressBar fill / Toggle knob).
+      // The host Tailwind JIT never scans this bundle, so an arbitrary `shadow-[…]` class would
+      // render nothing.
       style={{ boxShadow: "0 12px 30px -20px rgba(0,0,0,0.7)" }}
     >
       {hasHeader ? (
@@ -139,10 +131,8 @@ export function SectionCard({
 }
 
 /**
- * A card whose header carries an enable {@link Toggle}; the body renders inline only when `enabled`.
- * The design's per-studio / per-tag / advanced-routing pattern - the card stays visible with its
- * title + description, and flipping the header toggle reveals the controls (or an off-state hint).
- * The toggle state is owned by the caller (the same Enable* option), so this is presentational.
+ * A card whose header carries an enable {@link Toggle}. The card stays visible when off and only its
+ * body is withheld. The toggle state is the caller's, so this is presentational.
  */
 export function ToggleHeaderCard({
   title,
@@ -182,10 +172,8 @@ export function ToggleHeaderCard({
 }
 
 /**
- * Progressive-disclosure section (mirrors Cove's native `CollapsibleSection`, which isn't importable
- * from an extension bundle). Collapsed by default; the header always shows the title + a one-line
- * `summary` of what's inside so a closed section still telegraphs its contents (NN/g accordion rule).
- * Self-manages open state. Host-compiled classes only.
+ * Progressive-disclosure section, collapsed by default. The header always shows the title and a
+ * one-line `summary`, so a closed section still says what is inside. Owns its own open state.
  */
 export function CollapsibleSection({
   title,

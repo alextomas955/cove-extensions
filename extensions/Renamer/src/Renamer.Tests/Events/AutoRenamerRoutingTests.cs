@@ -42,7 +42,6 @@ public sealed class AutoRenamerRoutingTests
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            // The matched route relocated the file to destRoot/Films/My Film.mkv - not in place.
             string expected = Path.Combine(destRoot, "Films", "My Film.mkv");
             Assert.True(File.Exists(expected), $"expected routed file at {expected}");
             Assert.False(File.Exists(Path.Combine(srcFolder, "raw.mkv")));

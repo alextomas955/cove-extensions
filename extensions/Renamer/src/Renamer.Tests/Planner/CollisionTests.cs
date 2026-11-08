@@ -22,8 +22,6 @@ public sealed class CollisionTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // "My Film.mkv" is taken by some other file (id 99) in folder 5, and so is every suffix
-        // below the one the loop settles on.
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
         for (int n = 1; n <= occupiedSuffixes; n++)
         {

@@ -1,8 +1,8 @@
-// Behavior coverage for the Cove version resolver. Everything here runs offline: the registry is never
-// contacted, so a red here means the logic is wrong and never that a registry was slow.
+// Everything here runs offline: the registry is never contacted, so a red is the logic and never a
+// slow registry.
 //
-// One case deliberately reads the real Directory.Build.props rather than a fixture, because it pins a
-// seam where a copy would agree with itself forever while the build file drifted.
+// One case reads the real Directory.Build.props rather than a fixture, because a copy would agree
+// with itself forever while the build file drifted.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -59,9 +59,6 @@ test("the real Directory.Build.props declares the image repository", () => {
 // ---- tag parsing, ranking and leg resolution ------------------------------------------------------
 
 test("the strict-semver parser is the whole filter: every non-semver tag spelling parses to null", () => {
-  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere - the
-  // parser rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
-  // through a list nobody updated.
   for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {
     assert.equal(parseSemver(spelling), null, spelling);
   }
@@ -124,8 +121,8 @@ test("the GA/pre-release split puts every tag carrying a pre-release component i
 });
 
 test("a floor tag absent from the registry's tag list is refused, never defaulted to something near it", () => {
-  // A floor leg pointing at a tag that is not there would otherwise fail later, as an image pull or a
-  // checkout, long after the value that caused it was chosen.
+  // A floor leg pointing at a tag that is not there would otherwise fail later, as an image pull or
+  // a checkout, long after the value that caused it was chosen.
   assert.throws(
     () => resolveCoveLegs({ floor: "1.2.0", tags: ["1.1.0", "1.2.0-rc.1", "1.2.0-rc.2"] }),
     (error) => {
@@ -185,10 +182,9 @@ test("a tag list that never stops advertising rel=next is refused at the page ca
   assert.equal(served, 4, "the cap stops the loop rather than the loop stopping itself");
 });
 
-// One arrange: a declared floor and the tag list a registry answered with, against the legs the
-// resolver must make of them. `examined` carries only the counters a row has something to say about;
-// a role with no subject at or above the floor is absent rather than counted, so the role count is
-// what separates an omitted role from a merged one.
+// `examined` carries only the counters a row has something to say about. A role with no subject at or
+// above the floor is absent rather than counted, so the role count is what separates an omitted role
+// from a merged one.
 for (const { name, floor, tags, legs, examined } of [
   {
     name: "the floor leg is the exact floor tag, and a newest GA equal to it collapses the two roles onto one image",

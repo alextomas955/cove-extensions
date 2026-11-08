@@ -43,7 +43,6 @@ public static class MetadataProjector
             Put(tokens, Tokens.Year, date.Year.ToString(CultureInfo.InvariantCulture));
         }
 
-        // Per-file media tokens, emitted only when the kind carries them.
         if (file.Width is int w)
         {
             Put(tokens, Tokens.Width, w.ToString(CultureInfo.InvariantCulture));
@@ -85,8 +84,6 @@ public static class MetadataProjector
 
         Put(tokens, Tokens.Ext, ResolveExt(file));
 
-        // $performers keeps a plain name list so rendering and the title-performer drop stay name-based;
-        // the per-performer records travel as a separate channel for ordering and filtering.
         var multi = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
             [Tokens.Performers] = [.. entity.Performers.Select(p => p.Name)],
@@ -126,7 +123,6 @@ public static class MetadataProjector
         }
     }
 
-    // Omit rather than blank, so the engine's {} groups collapse.
     private static void Put(Dictionary<string, string> tokens, string key, string? value)
     {
         if (!string.IsNullOrEmpty(value))
@@ -139,7 +135,7 @@ public static class MetadataProjector
     // has none. Cove's Format field is the container name, which is often not the file extension: an
     // .mkv file reports Format "matroska", and using it as the extension produces a non-standard
     // extension that breaks player and OS association and Cove's own kind detection. A rename changes
-    // the name, not the container type. A pure string op, to preserve projector purity.
+    // the name, not the container type.
     private static string ResolveExt(RenamerFile file)
     {
         var dot = file.Basename.LastIndexOf('.');

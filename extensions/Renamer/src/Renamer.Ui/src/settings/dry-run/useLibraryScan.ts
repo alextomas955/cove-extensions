@@ -1,10 +1,7 @@
 /**
- * Runs one library scan and reports where it is: POSTs scan-library on mount, polls the host's job
- * until it reaches a verdict, then reads the scan's bounded summary by the run id the POST returned.
- * The caller gets three values and owns none of the lifecycle.
- *
- * Only one scan ever runs per mount. The rows are a separate read (see useScanRows), keyed off the
- * same options blob, so a summary and its rows always describe the same dry run.
+ * Runs one library scan per mount and reports where it is. The rows are a separate read (see
+ * useScanRows), keyed off the same options blob, so a summary and its rows always describe the same
+ * dry run.
  */
 import { useEffect, useRef, useState } from "react";
 import { ApiError, requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
@@ -29,22 +26,19 @@ import {
 const SCAN_LIBRARY_PATH = api("scan-library");
 const LAST_SCAN_PATH = api("last-scan");
 
-// Only the latest scan's figures are kept, and they are served to the caller that ran it alone. So a
-// scan that finished after this one leaves nothing for this one to read, and the reason the figures
-// are gone is worth saying rather than showing a bare 404.
+// Only the latest scan's figures are kept, so a scan that finished after this one leaves nothing
+// here to read and the summary read answers 404.
 const SUPERSEDED =
   "Another library scan finished after this one, so its results replaced yours. Run the dry run again.";
 
-// Memory cap on the ETA sample buffer (a scan is only tens of polls; the EWMA recency-weights, so
-// this bounds retained samples without affecting the estimate).
+// Memory cap on the ETA sample buffer. The EWMA recency-weights, so the cap does not affect the
+// estimate.
 const ETA_MAX_SAMPLES = 60;
 
 /**
- * A scan sample already reduced to display values. The poll handler computes these (not the render)
+ * A scan sample already reduced to display values. The poll handler computes these, not the render,
  * so the wall-clock ETA fallback's `Date.now()` stays out of the render path - the React Compiler
- * forbids impure calls during render. `line` is the host's own phase text when present ("Scanning
- * library… {done}/{total}") or a percent, and reads "Finalizing…" while the scan holds at its 99%
- * persist cap so the bar doesn't look stalled.
+ * forbids impure calls during render.
  */
 export interface ScanDisplay {
   percent: number;
@@ -53,9 +47,7 @@ export interface ScanDisplay {
   eta: string | null;
 }
 
-/** What the scan is doing, as a view renders it. */
 interface LibraryScan {
-  /** The finished scan's aggregate, or null while it is still running or has failed. */
   summary: ScanSummaryView | null;
   /** Set once the scan cannot produce a summary. Terminal: no summary is coming. */
   error: string | null;
@@ -63,9 +55,8 @@ interface LibraryScan {
   progress: ScanDisplay | null;
 }
 
-// Calls onDone with the job's failure, null on completion, once it reaches its own verdict, or
-// onExpire when the run ended on a bound. The poll stops on unmount or a job change; a cancelled poll
-// also rejects, and that is this hook's own cleanup, so only an expiry is passed on.
+// A cancelled poll rejects as well, and cancelling is this hook's own cleanup, so only an expiry is
+// passed on.
 function usePollJob(
   jobId: string | null,
   onDone: (failure: string | null) => void,
@@ -85,52 +76,46 @@ function usePollJob(
     return () => {
       poll.cancel();
     };
-    // The three callbacks are inline arrows, rebuilt on every render, and are left out of the
-    // dependency list on purpose: listing them would restart the poll on each render. What makes the
-    // captured first-render closures safe to keep is that they touch only useState setters and useRef
-    // values, both stable for the component's life. Give one of them a render-scoped value to capture
-    // and the poll would report against a snapshot from the first render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate; see above
+    // The callbacks are inline arrows rebuilt on every render, so listing them would restart the
+    // poll on each render. The first-render closures stay correct only because they touch useState
+    // setters and useRef values alone. Give one a render-scoped value to capture and the poll
+    // reports against the first render's snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [jobId]);
 }
 
 /**
  * Enqueues the scan for `optionsBlob` on mount and tracks it to a summary or an error.
  *
- * `optionsBlob` is read once, at mount: the panel behind the modal stays live, and a scan already
- * running cannot be re-aimed at settings that changed after it started.
+ * `optionsBlob` is read once, at mount: the panel behind the modal stays live, and a running scan
+ * cannot be re-aimed at settings that changed after it started.
  */
 export function useLibraryScan(optionsBlob: string): LibraryScan {
   const [jobId, setJobId] = useState<string | null>(null);
-  // The run the POST minted. Read in the poll handler's first-render closure, so it is a ref rather
-  // than state (see usePollJob).
+  // The run the POST minted. A ref, not state, because the poll handler's first-render closure
+  // reads it (see usePollJob).
   const runId = useRef<string | null>(null);
   const [summary, setSummary] = useState<ScanSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The latest running-scan sample the bar renders, already reduced to display values. Null until
-  // the first progress poll lands (the view shows the bare spinner in that brief window).
   const [progress, setProgress] = useState<ScanDisplay | null>(null);
-  // Highest percent seen so far - the displayed bar is clamped up to this so a backwards poll sample
-  // (the host can revise progress downward) never makes the bar visibly retreat.
+  // Highest percent seen so far. The host can revise progress downward, and the bar is clamped up
+  // to this so it never visibly retreats.
   const maxPercent = useRef(0);
-  // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's
-  // etaSeconds is null. A rolling window (not a since-open anchor) so the estimate tracks the
-  // current scan rate and the slow first sample ages out - otherwise a scan that finishes in
-  // seconds flashes an absurd "~2h left" from the cold-start average.
+  // Trailing samples for the client-side ETA fallback when the host's etaSeconds is null. A rolling
+  // window, so the slow first sample ages out instead of holding an absurd "~2h left" over a scan
+  // that finishes in seconds.
   const samples = useRef<ProgressSample[]>([]);
-  // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
-  // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
-  // synthetic unmount, so it suppresses the second mount's POST without also discarding the
-  // first mount's in-flight response - a `cancelled`-in-cleanup guard would do both, since
-  // StrictMode's synthetic unmount fires the cleanup before the network round-trip resolves.
+  // Guards against StrictMode's dev-only mount/unmount/remount cycle enqueueing the scan twice. A
+  // boolean ref survives the synthetic unmount, so it suppresses the second mount's POST without
+  // discarding the first mount's in-flight response; a `cancelled`-in-cleanup guard would do both,
+  // because the synthetic unmount fires the cleanup before the round-trip resolves.
   const requested = useRef(false);
 
   useEffect(() => {
     if (requested.current) return;
     requested.current = true;
-    // Start each scan from a clean slate so no stale sample/ceiling from a prior scan in this modal
-    // lifecycle leaks into the first ETA (a leftover old-timestamp sample pairs with a fresh one and
-    // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
+    // A sample left from an earlier scan in this modal pairs with a fresh one and computes a rate
+    // from the gap between the two scans, so the buffer and the ceiling start empty.
     samples.current = [];
     maxPercent.current = 0;
     requestJson<ScanEnqueued>(SCAN_LIBRARY_PATH, {
@@ -163,24 +148,16 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
         });
     },
     (job) => {
-      // Advance the monotonic ceiling before storing the sample so the bar never retreats on a
-      // downward-revised poll (see maxPercent). The wall-clock ETA fallback reads Date.now()
-      // here, in the event handler, not at render (the React Compiler forbids impure render calls).
       maxPercent.current = Math.max(maxPercent.current, progressPercent(job.progress));
       const percent = maxPercent.current;
       const finalizing = isFinalizing(job.progress);
-      // Append this poll to the sample buffer that feeds the EWMA ETA. The buffer is capped
-      // generously (a scan is only ~tens of polls) - the EWMA recency-weights anyway, so the cap is
-      // just a memory bound, not part of the estimate.
       samples.current = [
         ...samples.current.slice(-(ETA_MAX_SAMPLES - 1)),
         { timeMs: Date.now(), progress: job.progress },
       ];
-      // Use our own EWMA ETA first, not the host's job.etaSeconds. The host's estimate for a
-      // fraction-reporting job (which the scan is) comes from its legacy fraction path - a since-start
-      // average that folds the slow cold-start sample in, so it flashes an absurd "~2h left" on a scan
-      // that finishes in seconds. Our recency-weighted EWMA tracks the actual current rate. Fall back
-      // to the host value only before we have two samples (a rate needs two points).
+      // The host's etaSeconds for a fraction-reporting job is a since-start average, which folds
+      // the slow cold-start sample in and reads "~2h left" on a scan that finishes in seconds. It
+      // is the fallback until two samples exist, because a rate needs two points.
       const eta = formatEta(etaFromSamples(samples.current)) ?? formatEta(job.etaSeconds);
       setProgress({
         percent,
@@ -190,8 +167,7 @@ export function useLibraryScan(optionsBlob: string): LibraryScan {
       });
     },
     (message) => {
-      // A scan that went quiet or an id that stopped answering. Reported as a scan error because from
-      // the view's side that is what it is - there is no summary to render and none is coming.
+      // A scan that went quiet is a scan error to the view: no summary is coming.
       setError(message);
     },
   );

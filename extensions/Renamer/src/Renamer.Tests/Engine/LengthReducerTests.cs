@@ -12,8 +12,6 @@ public class LengthReducerTests
             ["tags"] = LongTemplateFixture.Tags,
         };
 
-    // ---- FitsBoth: measures both constraints (filename component and full path) ----
-
     [Fact]
     public void FitsBoth_FilenameOverCap_FailsEvenWhenPathWouldFit()
     {
@@ -27,7 +25,7 @@ public class LengthReducerTests
     {
         var o = new RenamerOptions { FilenameMax = 255, FullPathMax = 259 };
         string folder = new string('d', 300);
-        string name = "short"; // name+ext fits 255, but folder+/+name+ext blows 259
+        string name = "short";
         Assert.False(LengthReducer.FitsBoth(folder, name, ".mkv", o));
     }
 
@@ -103,16 +101,12 @@ public class LengthReducerTests
         Assert.Equal("Short", r.Filename);
     }
 
-    // ---- The hard truncate cuts between characters, never through one ----
-
     // "a" ×9, then U+1F600 (a surrogate pair, code units 9 and 10), then filler to force a truncate.
     private static readonly string PairAtNine = new string('a', 9) + "\U0001F600" + new string('b', 40);
 
     [Fact]
     public void Fit_BudgetLandsInsideASurrogatePair_TruncatesOneUnitShorter()
     {
-        // Truncation is the last step of the pipeline, after sanitization, so a lone surrogate cut
-        // here reaches the planner's candidate basename with nothing left to repair it.
         var o = new RenamerOptions { FilenameMax = 14, FullPathMax = 1000 }; // budget 14 - 4 = 10
 
         var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine)).result;

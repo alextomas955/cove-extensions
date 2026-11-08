@@ -139,10 +139,9 @@ labelable descendant - a label wrapped over a chip row turns a click on the head
 chip. So build a form from the shared primitives and the dialog shell from the host's components,
 and do not collapse the first into the second.
 
-The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
-`actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
-applied, not an omission - at this size a `ui/` and `lib/` split would only restate what the filenames
-already say.
+The frontend package's `src/` is **flat**: `index.ts` sits beside the component and logic modules with
+no subdirectory between them. That is the suffix-as-kind rule applied, not an omission - at this size a
+`ui/` and `lib/` split would only restate what the filenames already say.
 
 Code shared by several features of a _single_ extension is not "shared" - it lives in that extension's
 own `common/` folder, which _is_ split into `common/ui/` and `common/lib/`. A component carrying one

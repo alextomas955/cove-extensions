@@ -34,7 +34,6 @@ public sealed record RevertDelta(
     IReadOnlyList<RevertSidecarDelta> Sidecars,
     IReadOnlyList<RevertCaptionDelta> Captions)
 {
-    // The delta of a rename that moved nothing alongside its file.
     public static readonly RevertDelta Empty = new([], []);
 
     private const char RecordSep = '\n';
@@ -45,7 +44,6 @@ public sealed record RevertDelta(
 
     public bool IsEmpty => Sidecars.Count == 0 && Captions.Count == 0;
 
-    // An empty delta renders to the empty string.
     public string Serialize()
     {
         if (IsEmpty)

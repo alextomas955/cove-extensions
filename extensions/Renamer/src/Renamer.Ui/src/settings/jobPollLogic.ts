@@ -1,10 +1,6 @@
 /**
- * The pure decision the job poller takes on each read of the run's status.
- *
- * Elapsed time and the read outcome are parameters, so every boundary is testable without a clock.
- *
- * Two bounds, because a poll can be wedged two ways: the job stops making progress, or its id stops
- * resolving.
+ * The pure decision the job poller takes on each read of the run's status. Two bounds, because a
+ * poll can be wedged two ways: the job stops making progress, or its id stops resolving.
  */
 
 /**
@@ -17,38 +13,29 @@ export const JOB_STALL_BUDGET_MS = 10 * 60 * 1000;
 /**
  * How many consecutive failed status reads end the run: the host restarted and lost the job, or it
  * never existed. Counted in reads, because this module does not own the clock. With the backoff
- * below that is around two minutes of a host that will not answer, well inside the stall budget.
+ * below it stays well inside the stall budget.
  */
 export const JOB_FAILURE_ALLOWANCE = 30;
 
-/** The wait between a settled read and the next one, while the job is answering. */
 const JOB_POLL_INTERVAL_MS = 1000;
 
 /** The longest the backoff waits, so a host that comes back is noticed within a few seconds. */
 const JOB_POLL_MAX_BACKOFF_MS = 4000;
 
-/**
- * How long to wait before the next read, given how many reads in a row have failed.
- *
- * Doubling, capped: a host that is restarting is asked less often, and one that never went away is
- * still read every second. The caller counts the failures, so this needs no clock and no state.
- */
+/** How long to wait before the next read, given how many reads in a row have failed. */
 export function pollDelayMs(consecutiveFailures: number): number {
   if (consecutiveFailures <= 0) return JOB_POLL_INTERVAL_MS;
   return Math.min(JOB_POLL_INTERVAL_MS * 2 ** consecutiveFailures, JOB_POLL_MAX_BACKOFF_MS);
 }
 
-/** The wording used when a job reports a terminal failure but names no reason. */
 const UNNAMED_FAILURE = "the job did not complete";
 
-/** One read of the job endpoint: either a status came back, or the read itself failed. */
 type PollObservation = { read: "ok"; status: string; error?: string | null } | { read: "failed" };
 
 /** What the caller measured up to this read. Both bounds are parameters, never read from a clock. */
 export interface PollContext {
-  /** Milliseconds since progress last CHANGED - not since the job started. */
+  /** Milliseconds since progress last changed, not since the job started. */
   msSinceProgress: number;
-  /** Consecutive status reads that failed. */
   consecutiveFailures: number;
   stallBudgetMs: number;
   failureAllowance: number;
@@ -67,7 +54,6 @@ type PollDecision =
 /** Raised when a poll ends on an `expire` decision, so a caller's catch can tell it from a rejection. */
 export class JobUnresponsiveError extends Error {}
 
-/** The progress value last seen, and when it was first seen, on the caller's clock. */
 export interface StallClock {
   progress: number;
   sinceMs: number;

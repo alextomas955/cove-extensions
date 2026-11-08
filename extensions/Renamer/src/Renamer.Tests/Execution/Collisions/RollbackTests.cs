@@ -19,10 +19,9 @@ public sealed class RollbackTests
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
-            // A second row occupies "taken.mkv" so the save of a→taken hits the unique index.
+            // A second row occupies "taken.mkv", so saving a.mkv onto it hits the unique index.
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 
-            // Disk: "a.mkv" exists; "taken.mkv" does not (so the disk move succeeds first).
             string oldA = Path.Combine(dir.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
             string newPath = Path.Combine(dir.Root, "taken.mkv");
@@ -41,22 +40,17 @@ public sealed class RollbackTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // The save threw after the move → item failed with a rollback reason (proving the catch,
-            // i.e. the move had already happened before the save error - not a pre-move skip).
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
-            Assert.Empty(journal.Rows);   // no success row written
-            Assert.Empty(bus.Published);      // no event for a failed item
+            Assert.Empty(journal.Rows);
+            Assert.Empty(bus.Published);
 
-            // (a) the file is restored to its original path with original content.
             Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
-            // and is not left at the new path.
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
 
-            // (c) the DB row still has the old basename - disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(folderPath + "/a.mkv", pathA);
@@ -80,7 +74,6 @@ public sealed class RollbackTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 
-            // Seed a caption sidecar on file A.
             db.Set<VideoCaption>().Add(new VideoCaption { FileId = fileA, Filename = "a.en.vtt", LanguageCode = "en", CaptionType = "vtt" });
             await db.SaveChangesAsync();
 
@@ -101,7 +94,6 @@ public sealed class RollbackTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             Assert.Single(result.Failed);
-            // Both the primary file and the moved caption sidecar are restored to their old paths.
             Assert.True(File.Exists(oldA), "primary file restored");
             Assert.True(File.Exists(oldCap), "sidecar caption restored");
             Assert.Equal("caption", File.ReadAllText(oldCap));
@@ -126,7 +118,6 @@ public sealed class RollbackTests
             var (_, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
 
-            // Disk: "a.mkv" exists; the target "b.mkv" is free so the disk move succeeds first.
             string oldA = Path.Combine(dir.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
             string newPath = Path.Combine(dir.Root, "b.mkv");
@@ -147,7 +138,6 @@ public sealed class RollbackTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // (a) the item is Failed, and the reason names both the path mismatch and the rollback.
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("recomputed Path", failedItem.Reason);
@@ -155,16 +145,13 @@ public sealed class RollbackTests
             Assert.DoesNotContain("NOT confirmed", failedItem.Reason);
             Assert.Empty(result.Renamed);
 
-            // (c) no revert-log row and no event for a failed item.
             Assert.Empty(journal.Rows);
             Assert.Empty(bus.Published);
 
-            // (b) the file is rolled back to its old path with original content, and not at the new path.
             Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
 
-            // (c) the committed row is back to the old basename, so it names the file's real location.
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basename);
         }
@@ -206,7 +193,6 @@ public sealed class RollbackTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // The file is renamed, not failed and not rolled back.
             Assert.Empty(result.Failed);
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
@@ -221,7 +207,6 @@ public sealed class RollbackTests
             Assert.Equal("A-bytes", File.ReadAllText(newPath));
             Assert.False(File.Exists(oldA), "the old slot must stay empty");
 
-            // The database agrees with the disk - the whole point of not rolling back here.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("b.mkv", basename);
             Assert.Equal(folderPath + "/b.mkv", path);
@@ -266,7 +251,6 @@ public sealed class RollbackTests
             Assert.DoesNotContain("; rolled back", failedItem.Reason);
             Assert.Empty(journal.Rows);
 
-            // The file is still at the new path, and the row still names it, so the two agree.
             Assert.True(File.Exists(newPath), "the rollback could not reclaim the old slot");
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("b.mkv", basename);
@@ -320,7 +304,6 @@ public sealed class RollbackTests
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Contains("rollback warnings", failedItem.Reason);
 
-            // The primary is back and the row names it again, whatever the sidecar did.
             Assert.True(File.Exists(oldA), "the primary file must be back at its old path");
             Assert.False(File.Exists(Path.Combine(dir.Root, "b.mkv")));
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);

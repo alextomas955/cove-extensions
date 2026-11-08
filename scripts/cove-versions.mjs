@@ -18,10 +18,8 @@ const DEFAULT_CATALOG_PATH = path.join(repoRoot, "extensions", "catalog.json");
  * Splits `ghcr.io/yourcove/cove-app` into its registry host and repository path.
  *
  * The registry host is taken from the reference itself and never from an argument, so the token
- * endpoint and the tag endpoint are always the same host the declared image names. A reference
- * with no host component is rejected rather than defaulted to Docker Hub: this repo declares one
- * image, and guessing a different registry for a malformed value is how a fetch ends up somewhere
- * nobody named.
+ * endpoint and the tag endpoint are always the same host the declared image names. A reference with
+ * no host component throws rather than defaulting to Docker Hub.
  */
 export function splitImageReference(reference) {
   const value = String(reference ?? "").trim();
@@ -47,12 +45,11 @@ export function splitImageReference(reference) {
   return { registry, repository };
 }
 
-// ---- Tag resolution: ranking is pure and the paginated read takes its page reader as an argument. ----
+// ---- Tag resolution. ----
 
-// The identifier grammar of strict X.Y.Z[-pre][+build], one rule per identifier kind. The parser
-// below is the filter: it rejects `latest`, `nightly`, the `sha-<hex>` digest tags and the truncated
-// `X.Y` aliases without naming any of them, so an upstream tag convention nobody anticipated cannot
-// leak in through a denylist nobody updated.
+// The identifier grammar of strict X.Y.Z[-pre][+build]. The parser below is the only filter on the
+// registry's tag list: `latest`, `nightly`, `sha-<hex>` digests and truncated `X.Y` aliases fall out
+// by not parsing, so no denylist has to track upstream's tag conventions.
 const CORE_NUMBER = /^(?:0|[1-9]\d*)$/;
 const PRERELEASE_IDENTIFIER = /^(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)$/;
 const BUILD_IDENTIFIER = /^[0-9A-Za-z-]+$/;
@@ -82,7 +79,7 @@ export function parseSemver(tag) {
  *
  * Build metadata is ignored, a release outranks any pre-release of the same version, a numeric
  * identifier ranks below an alphanumeric one, and a longer pre-release outranks a shorter prefix of
- * itself. Those are the rules a naive string sort gets wrong.
+ * itself.
  */
 export function compareSemver(a, b) {
   if (a.major !== b.major) return a.major - b.major;
@@ -151,16 +148,12 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   const { ga, prerelease } = splitReleaseChannels(parsed);
-  // The newest GA at or above the floor, never the newest published: a required leg below the declared
-  // floor boots a host that declines to load the extension, so every route 404s and every browser spec
-  // fails with nothing anywhere naming a version. While the floor is itself the newest GA the two
-  // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
-  // role is omitted rather than pointed at the nearest thing to it - the same refusal to substitute a
-  // plausible answer as the throws above.
+  // The newest GA at or above the floor, never the newest published: a leg below the declared floor
+  // boots a host that declines to load the extension, so every route 404s with nothing naming a
+  // version. When no GA reaches the floor the role is omitted rather than pointed at the nearest tag.
   const newestGa = ga.findLast((version) => compareSemver(version, parsedFloor) >= 0);
-  // A pre-release that sorts below the newest GA is a build that release superseded, and it may sit
-  // below the floor too. Upstream numbers a dev build after the release before it, so the newest
-  // pre-release published can be one of these.
+  // Upstream numbers a dev build after the release before it, so the newest pre-release published can
+  // sort below the newest GA, and below the floor.
   const candidate = prerelease.at(-1);
   const newestPrerelease =
     candidate !== undefined && (newestGa === undefined || compareSemver(candidate, newestGa) > 0)
@@ -171,18 +164,15 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   if (newestGa !== undefined) {
     roles.push({ tag: newestGa.tag, role: "newest-ga", advisory: false });
   }
-  // The pre-release role is advisory: an upstream release-candidate regression is not this
-  // repository's defect, and a gate that can freeze merges for someone else's breakage is a gate that
-  // gets switched off.
+  // The pre-release role is advisory: an upstream release-candidate regression must not gate a merge
+  // here.
   if (newestPrerelease !== undefined) {
     roles.push({ tag: newestPrerelease.tag, role: "newest-prerelease", advisory: true });
   }
 
-  // Dedupe by resolved tag and merge the role labels. Two roles resolving to the same tag are one
-  // image, and a leg silently duplicating another reads as coverage while providing none - so the leg
-  // count equals the distinct-image count and the merged label says what collapsed. A merged leg is
-  // advisory only when every role on it is: a required role landing on a tag does not become
-  // advisory because an advisory one landed there too.
+  // Deduped by resolved tag, so the leg count equals the distinct-image count and a duplicate leg
+  // cannot read as coverage it does not provide. A merged leg is advisory only when every role on it
+  // is.
   const legs = [];
   for (const candidate of roles) {
     const existing = legs.find((leg) => leg.tag === candidate.tag);
@@ -209,9 +199,9 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
 /**
  * Picks the highest floor from what `readExtensionFloors` returned, by semver precedence.
  *
- * Throws on an empty list rather than returning a default, because the caller's next act is to check
- * out a ref: a silent fallback there formats and analyses against a version nothing declared.
- * A floor that does not parse is a hard failure for the same reason.
+ * Throws on an empty list, and on a floor that does not parse, rather than returning a default: the
+ * caller's next act is to check out a ref, and a silent fallback builds against a version nothing
+ * declared.
  */
 export function highestDeclaredFloor(declared) {
   if (!Array.isArray(declared) || declared.length === 0) {
@@ -238,11 +228,11 @@ export function highestDeclaredFloor(declared) {
  * Reads each catalog entry's declared floor, reaching it through that entry's own manifest.
  *
  * `minCoveVersion` is not a catalog field - it lives in the manifest the catalog's `manifestPath`
- * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
+ * points at.
  *
  * `select` narrows which entries are read at all, not which results come back: a manifest that is
  * absent or declares no floor throws, so an entry a caller does not care about could otherwise fail
- * that caller. Omitted, every entry is read, which is what the CI version matrix wants.
+ * that caller. Omitted, every entry is read.
  *
  * @param {(entry: object) => boolean} [select]
  * @param {string} [catalogPath]
@@ -296,11 +286,10 @@ function nextLinkTarget(link) {
 /**
  * Collects a repository's whole tag list, following the registry's `Link: rel="next"` pages.
  *
- * GHCR emits no `Link` header at today's tag count but does implement pagination, so reading one
- * page is correct today and silently truncating later - and a truncated list yields an older
- * "newest", which is a wrong answer with no error. The page cap makes a runaway an error rather than
- * a hang, and a `next` target that is not a `/v2/` path on the same host is refused rather than
- * followed: the header is registry-supplied and is not trusted to say where to go next.
+ * GHCR emits no `Link` header at the current tag count but does implement pagination, so a one-page
+ * read would start truncating silently, and a truncated list yields an older "newest" with no error.
+ * The page cap turns a runaway into an error rather than a hang. A `next` target that is not a `/v2/`
+ * path is refused: the header is registry-supplied and is not trusted to say where to go next.
  */
 export async function collectRegistryTags(readPage, firstPath, pageCap = 50) {
   const collected = [];
@@ -432,8 +421,8 @@ export async function readImageRevision(readJson, repository, tag) {
 /**
  * Resolves each catalog entry's version legs and writes them as one flat matrix on stdout.
  *
- * stdout carries only the JSON, so a report line can never corrupt what a workflow parses; the
- * report goes to stderr, where the runner's log still shows it beside the answer it explains.
+ * stdout carries only the JSON, so a report line cannot corrupt what a workflow parses. The report
+ * goes to stderr.
  */
 async function resolveTags({ report }) {
   const image = readCoveImageReference();
@@ -460,8 +449,6 @@ async function resolveTags({ report }) {
       );
       include.push({ extension: entry, cove: leg });
     }
-    // The load-bearing figure. A resolver whose log prints tags but not a distinct count is exactly
-    // the shape that reads as N version legs while testing fewer images than that.
     lines.push(
       `  ${resolved.legs.length} distinct image(s) from ${resolved.examined.roles} role(s) for ${entry.name}`,
     );

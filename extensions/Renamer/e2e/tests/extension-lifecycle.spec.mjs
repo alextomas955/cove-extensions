@@ -15,8 +15,7 @@ import {
 } from "../lib/renamer-fixtures.mjs";
 
 // The first browser navigation to a settings route pays for the host fetching that route's chunk,
-// which the page objects budget for and the default assertion timeout does not. Bounded by what the
-// test has left, for the reason the page objects document.
+// which the default assertion timeout does not cover.
 const COLD_START_BUDGET_MS = 120_000;
 
 const test = base.extend(isolatedHarnessFixtures(RENAMER_EXTENSION));

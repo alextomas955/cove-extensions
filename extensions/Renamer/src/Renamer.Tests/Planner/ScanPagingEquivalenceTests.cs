@@ -36,9 +36,7 @@ public sealed class ScanPagingEquivalenceTests
         PathRegexRules: [],
         ExcludeTagIds: new HashSet<int> { 102 });
 
-    // Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a
-    // folder move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing
-    // source, and an occupied target that forces the suffix loop - across every renamable kind.
+    // Seeds a fixture that reaches every planner branch, across every renamable kind.
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
@@ -136,10 +134,10 @@ public sealed class ScanPagingEquivalenceTests
                 if (byId.TryGetValue(id, out var entity))
                 {
                     var plan = await planner.PlanLoadedEntity(entity, Options, Lookups, default);
-                    // The overflow flag is sourced exactly as the pager sources it - the same predicate,
-                    // the same budget out of the same options, and no mount table on either side - so a
-                    // difference between the two sequences can only be the traversal, which is what this
-                    // class compares.
+
+                    // The overflow flag is sourced exactly as the pager sources it: the same
+                    // predicate, the same budget out of the same options, and no mount table on
+                    // either side. A difference between the two sequences can only be the traversal.
                     rows.AddRange(plan.Items.Select(item => ScanRow.From(
                         kind, plan.EntityId, item,
                         BatchPreview.InFlightPathOverflows(item, Options.FullPathMax))));

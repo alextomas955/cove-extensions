@@ -18,9 +18,8 @@ public sealed class PreviewRoutingTests
     [Fact]
     public async Task PreviewAsync_RoutedItem_ReportsTheRoutedDestination_AndMutatesNothing()
     {
-        // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
-        // source would be SkipMissingSource, not the routed Move this test asserts). The routed
-        // destination (PathRoot, a fictional different drive) stays a distinct root for routing.
+        // The source lives in a real temp dir so preview's on-disk source probe finds it: a gone
+        // source would be SkipMissingSource, not the routed Move asserted below.
         using var srcDir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -57,12 +56,10 @@ public sealed class PreviewRoutingTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
 
-            // The preview reports the route the saved rule selects.
             Assert.Equal(RenamerStatus.Move, item.Status);
             Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
-            // Still zero mutation.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);

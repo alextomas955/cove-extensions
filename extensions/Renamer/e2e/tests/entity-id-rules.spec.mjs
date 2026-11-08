@@ -1,7 +1,6 @@
-// The host entity selector the panel uses for id-keyed tag rules, asserted against a real host because
-// nothing local can: the extension declares the host component's props in an ambient .d.ts, so a
-// type-check only confirms the call sites agree with that transcription - it would agree just as
-// happily with a wrong one. The one-time conversion of a name-keyed blob is options-migration.spec.mjs.
+// The host entity selector the panel uses for id-keyed tag rules. The extension declares the host
+// component's props in an ambient .d.ts, so a type-check confirms only that the call sites agree
+// with that transcription, and would agree as happily with a wrong one.
 import { test, expect, pollUntil, storedOptions } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 

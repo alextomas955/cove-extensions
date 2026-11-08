@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // The row walk follows a page that carried no rows. `/scan-rows` answers with a scripted sequence in
 // which a zero-row page carries a live cursor, and the test reads the footer, where a user learns
-// whether the walk is finished. The scan-job poller resolves at once. The clock is fake throughout,
-// so the one test that asserts a stopped walk stays stopped can let poll periods pass in no time.
-// Each wait is `vi.waitFor`, which moves that clock: Testing Library's own `findBy*` detects a fake
-// clock only under Jest, so here it would wait on a clock nothing advances.
+// whether the walk is finished.
+//
+// The clock is fake throughout. Each wait is `vi.waitFor`, which moves that clock: Testing Library's
+// own `findBy*` detects a fake clock only under Jest, so here it would wait on a clock nothing
+// advances.
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, act } from "@testing-library/react";
@@ -167,10 +168,9 @@ beforeEach(() => {
   host.scanRunId = RUN_ID;
 });
 
-// The most reads the script below can honestly need. Two requests reach the endpoint on their own
-// account - the walk's primed first page and the continuation's one follow-up - and whichever of them
-// meets the failure ends the walk, so a handful covers every interleaving of the two. A retry loop
-// leaves this behind immediately.
+// The most reads the script below can need. Two requests reach the endpoint on their own account,
+// the walk's primed first page and the continuation's one follow-up, and whichever meets the
+// failure ends the walk. A retry loop would pass this count at once.
 const MOST_READS_A_FAILING_WALK_NEEDS = 4;
 
 test("the walk follows a page that carried no rows and reaches the end of the library", async () => {

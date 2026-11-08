@@ -120,10 +120,10 @@ public sealed class TransportSmokeTests
         Assert.DoesNotContain("\"Status\":", body, StringComparison.Ordinal);
     }
 
-    // Built from the records directly rather than through the planner: this test is about the bytes on
-    // the way out, so the cheapest input that carries one of each wire enum is the honest one.
     private const string SmokeRunId = "smoke-run";
 
+    // Built from the records directly rather than through the planner: these cases are about the
+    // bytes on the way out, so the cheapest input carrying one of each wire enum is enough.
     private static ScanSummary SeededScanSummary(string? ownerKey)
     {
         var blastRadius = new PreviewSummary(

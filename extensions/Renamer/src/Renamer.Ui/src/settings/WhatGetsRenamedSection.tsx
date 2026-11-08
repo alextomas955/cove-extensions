@@ -1,8 +1,3 @@
-/**
- * WhatGetsRenamedSection - the "What gets renamed" card: eligibility toggles (organized-only,
- * filename-as-title) and the required-fields token list. Presentational; every edit flows up through
- * the `set` callback the panel threads in from useRenamerOptions.
- */
 import type { SetOption } from "./useRenamerOptions";
 import { type RenamerOptions } from "./options";
 import { Toggle, TagListInput, SectionCard } from "@cove-extensions/ui-shared";
@@ -10,13 +5,11 @@ import { BARE_TOKENS } from "./templateLogic";
 import { TokenAdvisory } from "./templateAdvisories";
 
 /**
- * The required-fields token list, headed and explained. The heading is a plain element, not a label:
- * a label forwards a click inside it to its first labelable descendant, which for a chip list is a
- * chip's Remove button, so a click on the heading would delete a token.
- *
- * `FieldGroup` is the shared primitive for exactly that, and this block still hand-rolls its heading:
- * the DOM and classes here differ from `FieldGroup`'s, and the e2e field selector reads that DOM.
- * With no label element the input takes its name from `ariaLabel`.
+ * The heading is a plain element, not a label: a label forwards a click inside it to its first
+ * labelable descendant, which for a chip list is a chip's Remove button, so a click on the heading
+ * would delete a token. `FieldGroup` is the shared primitive for that, but its DOM and classes
+ * differ from this block's, and the e2e field selector reads this DOM. With no label element the
+ * input takes its name from `ariaLabel`.
  */
 function RequiredFields({
   values,

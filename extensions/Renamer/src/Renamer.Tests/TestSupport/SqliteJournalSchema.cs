@@ -18,14 +18,12 @@ internal static class SqliteJournalSchema
             ON renamer_revert_batches (operation_id);
         """;
 
-    // Creates the journal tables as they stand after every shipped migration.
     public static async Task CreateAsync(DbContext db)
     {
         await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
         await AddOperationColumnAsync(db);
     }
 
-    // Adds the operation column and its index to a table the first migration created.
     private static Task<int> AddOperationColumnAsync(DbContext db) =>
         db.Database.ExecuteSqlRawAsync(AddOperationIdSql);
 }

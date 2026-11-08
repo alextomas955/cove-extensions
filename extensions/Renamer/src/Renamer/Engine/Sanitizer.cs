@@ -20,9 +20,6 @@ public static class Sanitizer
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     };
 
-    // Order: drop control chars, strip or replace the illegal set per IllegalReplacement, replace
-    // spaces per SpaceReplacement, collapse runs of the active separator, then trim leading and
-    // trailing separators, spaces and dots.
     public static string CleanSegment(string s, RenamerOptions o)
     {
         var sb = new StringBuilder(s.Length);
@@ -127,7 +124,6 @@ public static class Sanitizer
         return s;
     }
 
-    // Trims leading and trailing spaces, dots and any configured space-replacement token.
     private static string TrimEdges(string s, RenamerOptions o)
     {
         var spaceRepl = o.SpaceReplacement;

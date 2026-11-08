@@ -8,8 +8,7 @@ namespace Renamer.Tests.Jobs;
 
 public sealed class AuthorizedPagingTests
 {
-    // Seeds count single-file videos in one folder, titled "Film i" over "raw i.mkv", and returns
-    // their entity ids in the order the walk pages them.
+    // The returned entity ids ascend with i, which is the order the walk pages them in.
     private static async Task<IReadOnlyList<int>> SeedVideosAsync(DbContext db, string dirRoot, int count)
     {
         string folderPath = dirRoot.Replace('\\', '/');
@@ -67,7 +66,6 @@ public sealed class AuthorizedPagingTests
     }
 
     [Theory]
-    // One denial inside the first page of two.
     [InlineData(new[] { 0 }, new[] { 1, 2, 3 })]
     // The whole first page denied: an empty allowed page must not read as the end of the walk.
     [InlineData(new[] { 0, 1 }, new[] { 2, 3 })]

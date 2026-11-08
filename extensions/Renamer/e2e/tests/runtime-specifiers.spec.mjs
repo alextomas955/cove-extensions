@@ -1,22 +1,14 @@
-// Drives the canonical-specifier contract against a real released host: the bundle the host actually
-// serves imports a named symbol from each of "@cove/runtime/api" and "@cove/runtime/components".
+// The canonical-specifier contract against a real released host: the bundle the host serves imports
+// a named symbol from each of "@cove/runtime/api" and "@cove/runtime/components".
 //
-// The rest of this suite does not reliably go red when a canonical specifier stops resolving, and
-// that is the reason this test exists rather than a footnote to it. Measured against a released host:
-// a bundle that fails to link - importing a named export the host no longer provides - takes the
-// panel down with zero page errors and zero console errors, so a pageerror gate is silent for exactly
-// that failure. What does catch it is every assertion that waits for the settings panel to render,
-// this test's own included. What none of them can do is name the specifier that went missing, or
-// notice the imports quietly disappearing from the bundle at all, because a bundle importing nothing
-// links perfectly well.
+// A bundle that fails to link - importing a named export the host no longer provides - takes the
+// panel down with zero page errors and zero console errors, so a pageerror gate is silent for
+// exactly that failure. A bundle that imports nothing links perfectly well, so a panel that renders
+// says nothing either. `scripts/check-host-externals.mjs` proves the specifiers are external and
+// nothing about the built bundle importing them by name.
 //
-// Nothing else in the repo closes that gap either. `scripts/check-host-externals.mjs` holds the rollup
-// externals list to Cove's runtime contract, which proves the specifiers are external and says nothing
-// about the built bundle importing them by name.
-//
-// It reads the installed artifact over HTTP rather than the local dist/, so it covers the
-// build → publish → install → serve path rather than re-asserting a fact about a file the build just
-// wrote.
+// The artifact is read over HTTP rather than from the local dist/, so this covers the build,
+// publish, install and serve path.
 import { test, expect, EXTENSION_ID } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
@@ -27,11 +19,8 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 const NAMED_EXTENSION_FETCH_IMPORT =
   /import\s*\{[^}]*\bextensionFetch\b[^}]*\}\s*from\s*"@cove\/runtime\/api"/;
 
-// The components half, identical in shape. It could not be asserted until a consumer existed: the
-// module was declared but unused, and a specifier nothing imports is served without ever being
-// linked. The settings render below is what makes this more than a string match - a named export
-// missing from a live ESM module is a link-time failure, so the module never evaluates and the
-// whole bundle dies with it, taking every extension's UI on the page down together.
+// The components half, identical in shape. A named export missing from a live ESM module is a
+// link-time failure, so the module never evaluates and the whole bundle dies with it.
 const NAMED_MULTI_SELECTOR_IMPORT =
   /import\s*\{[^}]*\bEntityReferenceMultiSelector\b[^}]*\}\s*from\s*"@cove\/runtime\/components"/;
 
@@ -80,10 +69,9 @@ test("the bundle the host serves imports extensionFetch by name, and the setting
       `${runtimeImports.length ? runtimeImports.join(" | ") : "(none)"}`,
   ).not.toBeNull();
 
-  // Having proven the served artifact carries the imports, prove the host resolves them. The
-  // visibility assertion is what does that work: an unresolvable specifier kills the bundle before
-  // the panel can render, and it does so silently. The pageerror check below is a second, weaker net
-  // for anything that does throw - worth keeping, but it is not what would catch a missing specifier.
+  // The visibility assertion below is what proves the host resolves those imports: an unresolvable
+  // specifier kills the bundle before the panel can render, silently. The pageerror check is a
+  // weaker net for anything that does throw.
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
 

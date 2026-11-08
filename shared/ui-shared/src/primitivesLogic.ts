@@ -1,7 +1,6 @@
 /**
- * Pure, DOM-free logic the primitive components render on top of. Kept free of React and the DOM so
- * it stays L0 - testable with no environment - and so the logic the components render on top of is
- * exactly the logic the suite covers.
+ * Pure logic the primitive components render on top of. Imports neither React nor the DOM, so it
+ * stays testable with no environment.
  */
 /** The outcome of validating a rule pattern. */
 export interface RegexValidity {
@@ -103,6 +102,29 @@ export function listEditors<T>(
   };
 }
 
+/** A fixed option offered by a pick-to-add or multiselect control: the stored value and its label. */
+export interface ValueOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * The subset of a fixed option set still available to add, given what the user has already picked.
+ * The fixed-set order is preserved, so the dropdown always reads in the canonical order rather than
+ * in pick order.
+ *
+ * Exact match, deliberately: the values here are opaque - an entity id, a gender enum name - and two
+ * that differ only in case are two, not one. A control over a vocabulary whose consumer folds case
+ * carries its own identity rule instead ({@link suggestionOptions}).
+ */
+export function availableOptions(
+  options: readonly ValueOption[],
+  picked: readonly string[],
+): ValueOption[] {
+  const taken = new Set(picked);
+  return options.filter((o) => !taken.has(o.value));
+}
+
 /**
  * What a type-to-search control still has to offer: the fixed suggestion set minus what is already a
  * chip, narrowed by the typed query. Result order is the suggestion set's, never the match's, and an
@@ -114,9 +136,9 @@ export function listEditors<T>(
  * the options returned are the originals, because the folded form is an identity, not something to
  * show the user or commit.
  *
- * The exclusion is built here rather than delegated to `availableOptions`, which stays exact-match:
- * that helper serves pickers over opaque entity ids, where folding two ids together would merge two
- * distinct entities.
+ * The exclusion is built here rather than delegated to {@link availableOptions}, which stays
+ * exact-match: that helper serves pickers over opaque entity ids, where folding two ids together
+ * would merge two distinct entities.
  */
 export function suggestionOptions(
   suggestions: readonly string[],

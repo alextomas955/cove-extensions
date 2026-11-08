@@ -7,13 +7,11 @@ export * from "./collectionEditors";
 export * from "./layout";
 export * from "./feedback";
 export * from "./overlay";
-export * from "./entityPickerLogic";
 // `actions` is pure (zero-import), so re-exporting it here costs a consumer nothing. The SDK-touching
 // `postAction` is deliberately not re-exported - it is reached through its own `./postAction` subpath,
 // so importing this barrel never pulls `@cove/extension-sdk` into the consumer's graph.
 export * from "./actions";
-// Re-exported by name: `primitivesLogic` also declares a `RegexValidity`
-// result interface whose name coincides with the `RegexValidity` presentational component in
-// `feedback`, so a blanket `export *` would collide. Consumers use the component by that name; the
-// result interface stays internal to the module (it is only `isRegexValid`'s return shape).
-export { extensionShapeAdvisory } from "./primitivesLogic";
+// Re-exported by name: `primitivesLogic` also declares a `RegexValidity` result interface whose name
+// coincides with the `RegexValidity` presentational component in `feedback`, so a blanket `export *`
+// would collide. Consumers use the component by that name.
+export { extensionShapeAdvisory, type ValueOption } from "./primitivesLogic";

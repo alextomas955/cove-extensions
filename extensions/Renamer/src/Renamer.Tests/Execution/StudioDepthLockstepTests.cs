@@ -76,7 +76,6 @@ public sealed class StudioDepthLockstepTests
             Assert.NotNull(entity!.ParentStudios);
             Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
 
-            // The root ancestor (seeded first, deepest-above the limit) is absent from the loaded chain.
             var overDepthAncestorId = ancestors[0].Id;
             Assert.DoesNotContain(entity.ParentStudios, s => s.Id == overDepthAncestorId);
         }
@@ -87,9 +86,9 @@ public sealed class StudioDepthLockstepTests
         }
     }
 
-    // Seeds count Studio rows root→leaf (each saved before the next references its Id) and returns
-    // them in seed order (index 0 = root, index ^1 = the studio nearest the entity's direct
-    // studio).
+    // Seeds count Studio rows from the root down, each saved before the next references its Id, and
+    // returns them in seed order: index 0 is the root, index ^1 the studio nearest the entity's
+    // direct studio.
     private static async Task<List<Studio>> SeedAncestorChainAsync(DbContext db, int count)
     {
         var chain = new List<Studio>(count);
