@@ -2,16 +2,18 @@ namespace Renamer.Planner;
 
 // The pure path string math the engine, the planner and the execution slice share.
 //
-// Every site deciding whether two paths name the same file applies the one case policy stated here. A
-// second copy diverging from it would let the disk-side self-exclusion and the planner's confinement
-// disagree about a single file. VolumeClassifier is not one of those sites: it compares volume keys,
-// not filenames.
+// PathsEqual and PathComparer carry the case policy for whether two paths name the same file. The
+// executor's self-exclusion and the planner's target claims both key on it, so a second copy
+// diverging from it would let them disagree about a single file.
+//
+// Sites that deliberately do not use it: VolumeClassifier compares volume keys rather than
+// filenames, and RenamerPlanner compares a computed path against its source ordinally, because a
+// target differing only by case is a rename the user asked for.
 internal static class PathOps
 {
     // Paths are compared and split in forward-slash form, whatever separator they arrived with.
     internal static string NormalizeSlash(string p) => p.Replace('\\', '/');
 
-    // Converts back to the platform separator for a call that reaches the filesystem.
     internal static string ToNative(string p) => p.Replace('/', Path.DirectorySeparatorChar);
 
     // Empty when the path has no directory portion.

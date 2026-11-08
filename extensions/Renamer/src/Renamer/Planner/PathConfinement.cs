@@ -70,12 +70,10 @@ public static class PathConfinement
 
         string rootAbs = ToAbsolute(anchor);
 
-        // The anchor itself when the engine emitted no folder; else anchor plus folder.
         string targetAbs = string.IsNullOrEmpty(destinationFolder)
             ? rootAbs
             : ToAbsolute(Combine(rootAbs, destinationFolder));
 
-        // The resolved target must be the anchor or a directory under it.
         if (!IsUnderRoot(targetAbs, rootAbs))
         {
             return new(
@@ -138,7 +136,6 @@ public static class PathConfinement
 
     private static string ToAbsolute(string path)
     {
-        // GetFullPath(path, basePath) is pure and anchors a relative path deterministically.
         string native = path.Replace('/', Path.DirectorySeparatorChar);
         return Path.GetFullPath(native, Anchor);
     }
@@ -146,16 +143,17 @@ public static class PathConfinement
     private static string Combine(string a, string b)
         => a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
 
-
-    // True when candidate is root itself or lies under it. Separators are normalized and the compare is
-    // ordinal with a trailing separator on the root, so a sibling ".../rootEvil" is not mistaken for a
-    // child of ".../root".
+    // True when candidate is root itself or lies under it. Separators are normalized and the compare
+    // carries a trailing separator on the root, so a sibling ".../rootEvil" is not mistaken for a child
+    // of ".../root". Case folds on PathOps.PathsIgnoreCase, the one policy for whether two paths name
+    // the same location: a second rule here would refuse a target whose only difference from its root
+    // is case the volume does not distinguish.
     internal static bool IsUnderRoot(string candidate, string root)
     {
         string c = NormalizeSlash(candidate).TrimEnd('/');
         string r = NormalizeSlash(root).TrimEnd('/');
 
-        var cmp = OperatingSystem.IsWindows()
+        var cmp = PathsIgnoreCase
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
