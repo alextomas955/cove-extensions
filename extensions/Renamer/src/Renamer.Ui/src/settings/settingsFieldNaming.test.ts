@@ -236,7 +236,7 @@ test("every label names exactly one control, by an id that resolves", async () =
   const view = await renderPanel();
 
   const unpaired: string[] = [];
-  const notOne: string[] = [];
+  const wrapsSeveral: string[] = [];
   for (const label of view.container.querySelectorAll("label")) {
     const forId = label.getAttribute("for");
     const resolved =
@@ -246,14 +246,17 @@ test("every label names exactly one control, by an id that resolves", async () =
     if (resolved.length !== 1) {
       unpaired.push(`${sectionOf(label)} / ${cardOf(label)} / "${headingOf(label)}"`);
     }
+    // Wrapping none is correct and is what `Field` does: a control inside the label naming it has
+    // its own value read into that name by Chrome. What stays a defect is wrapping several, where a
+    // click lands on whichever is drawn first.
     const labelable = label.querySelectorAll(LABELABLE).length;
-    if (labelable !== 1) {
-      notOne.push(
+    if (labelable > 1) {
+      wrapsSeveral.push(
         `${sectionOf(label)} / ${cardOf(label)} / "${headingOf(label)}" wraps ${String(labelable)}`,
       );
     }
   }
 
   expect(unpaired, "a label whose for names no single control").toEqual([]);
-  expect(notOne, "a label wrapping other than one control").toEqual([]);
+  expect(wrapsSeveral, "a label wrapping more than one control").toEqual([]);
 });

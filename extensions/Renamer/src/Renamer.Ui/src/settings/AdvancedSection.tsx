@@ -121,9 +121,10 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
             />
           </FieldGroup>
           <Field label="Remove characters" helper="Deleted from the name.">
-            {(id) => (
+            {(id, describedBy) => (
               <TextInput
                 id={id}
+                describedBy={describedBy}
                 value={options.removeCharacters}
                 onChange={(v) => {
                   set("removeCharacters", v);
@@ -238,9 +239,10 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
             label="Cross-volume concurrency"
             helper="Files copied across drives at once. 2 for hard drives; 4–8 if both are SSDs. Higher isn't always faster."
           >
-            {(id) => (
+            {(id, describedBy) => (
               <NumberInput
                 id={id}
+                describedBy={describedBy}
                 value={options.crossVolumeConcurrency}
                 min={1}
                 max={16}
@@ -254,9 +256,10 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
             label="Same-volume concurrency"
             helper="Same-drive renames are instant; the default is fine."
           >
-            {(id) => (
+            {(id, describedBy) => (
               <NumberInput
                 id={id}
+                describedBy={describedBy}
                 value={options.sameVolumeConcurrency}
                 min={1}
                 max={16}
@@ -378,9 +381,10 @@ export function AdvancedSection({ options, set }: Readonly<AdvancedSectionProps>
                     )}
                   </Field>
                   <Field label="Find" helper="Literal text to match. Empty does nothing.">
-                    {(id) => (
+                    {(id, describedBy) => (
                       <TextInput
                         id={id}
+                        describedBy={describedBy}
                         value={row.find}
                         onChange={(v) => {
                           update({ find: v });

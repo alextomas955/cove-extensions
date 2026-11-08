@@ -51,9 +51,8 @@ test("the host tag selector stores the picked tag's id and renders its name back
   // two controls, so an unscoped lookup would reach whichever one happens to render first. The row
   // is named after the button that commits it, so the scope is a query rather than a hop upward.
   const addRow = page.getByRole("group", { name: "Add tag rule", exact: true });
-  // Named, not just scoped: the tag search box in the same row is a combobox too, and the root
-  // select's label carries a parenthetical hint after the word the field is known by.
-  await addRow.getByRole("combobox", { name: /^Under/ }).selectOption("/data");
+  // Named, not just scoped: the tag search box in the same row is a combobox too.
+  await addRow.getByRole("combobox", { name: "Under", exact: true }).selectOption("/data");
   await addRow.getByPlaceholder("$studio/$year").fill("routed");
   await page.getByRole("button", { name: /Add tag rule/i }).click();
   await settings.save();

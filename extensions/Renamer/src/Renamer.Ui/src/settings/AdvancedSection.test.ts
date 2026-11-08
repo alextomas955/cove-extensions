@@ -86,3 +86,16 @@ test("each exclude control is named once", async () => {
     expect(screen.queryAllByText(label), label).toHaveLength(1);
   }
 });
+
+test("a field's helper describes its control rather than joining its name", async () => {
+  await renderAdvanced();
+
+  // A control takes its name from the whole text of the label that names it, so a helper rendered
+  // inside that label is read out as part of the name. The exact-name query is what catches it:
+  // the loose one matches either way.
+  const control = screen.getByRole("textbox", { name: "Remove characters" });
+
+  const describedBy = control.getAttribute("aria-describedby");
+  expect(describedBy, "the helper reaches the control as nothing at all").not.toBeNull();
+  expect(document.getElementById(describedBy ?? "")?.textContent).toBe("Deleted from the name.");
+});

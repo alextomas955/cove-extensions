@@ -266,8 +266,9 @@ function MultiValueGroup({
   const noun = entityType === "performer" ? "Performer" : "Tag";
   const sort = (
     <Field label="Sort" helper={sortHelper}>
-      {(id) => (
+      {(id, describedBy) => (
         <Select
+          describedBy={describedBy}
           id={id}
           value={options.sort}
           onChange={(v) => {

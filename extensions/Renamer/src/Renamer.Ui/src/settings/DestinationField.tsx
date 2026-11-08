@@ -82,10 +82,11 @@ export function DestinationField({
 
   const templateField = (
     <Field label={label} helper={helper}>
-      {(id) => (
+      {(id, describedBy) => (
         <>
           <TextInput
             id={id}
+            describedBy={describedBy}
             value={value.template}
             onChange={(template) => {
               onChange({ ...value, template });

@@ -343,26 +343,26 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toHaveValue(legacyBlob.FilenameTemplate);
   const advancedRouting = card(page, "Source-path destinations");
   await expect(
-    field(advancedRouting, "Source path").getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Source path" }),
     "the stored source-path rule did not survive the conversion",
   ).toHaveValue("/data/legacy");
   // The rule's destination splits the same way the per-tag one above does, so both halves are read: a
   // row preserved in name only fails the first, and a path dropped whole into the folder field fails
   // the second.
   await expect(
-    field(advancedRouting, "Under").getByRole("combobox"),
+    advancedRouting.getByRole("combobox", { name: "Under" }),
     "the source-path rule survived but its destination root did not",
   ).toHaveValue("/data");
   await expect(
-    field(advancedRouting, "Folder template").getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Folder template" }),
     "the source-path rule's destination root survived but the folder under it did not",
   ).toHaveValue("archive");
 
   // The label element's own behaviour, kept on every field whose control does not name itself.
-  const sourcePathField = field(advancedRouting, "Source path");
-  await sourcePathField.getByText("Source path", { exact: true }).click();
+  // `htmlFor` carries the pairing, so this holds whether or not the label wraps its control.
+  await advancedRouting.getByText("Source path", { exact: true }).click();
   await expect(
-    sourcePathField.getByRole("textbox"),
+    advancedRouting.getByRole("textbox", { name: "Source path" }),
     "clicking a plain field's heading text no longer put the cursor in its input, so the label element was taken off every Field rather than off the entity selectors alone",
   ).toBeFocused();
 
