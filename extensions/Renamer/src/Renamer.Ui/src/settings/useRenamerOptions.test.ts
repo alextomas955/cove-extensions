@@ -44,14 +44,12 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-// Apply a synchronous change and return once React has committed it and the effects it started have
-// settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
-// caller reads committed state rather than whatever a fixed wait happened to catch.
-const commit = (change: () => void) =>
-  act(async () => {
-    change();
-    await Promise.resolve();
-  });
+// Apply a synchronous change and return once React has committed it. `set` and `discard` are plain
+// state writes, so the commit is all there is to wait for; anything a change starts is waited for by
+// the condition it settles, not by a yield.
+const commit = (change: () => void) => {
+  act(change);
+};
 
 afterEach(cleanup);
 
@@ -98,7 +96,7 @@ test("an edit is sent back as the whole settings document", async () => {
   const hook = await mountHook();
 
   expect(hook.current.canSave).toBe(false);
-  await commit(() => {
+  commit(() => {
     hook.current.set("filenameTemplate", "$studio - $title");
   });
   expect(hook.current.dirty).toBe(true);
@@ -123,7 +121,7 @@ test.each([["pendingNameMigration" as const], ["pendingDestinationMigration" as 
     answers({ [pending]: true });
     const hook = await mountHook();
 
-    await commit(() => {
+    commit(() => {
       hook.current.set("filenameTemplate", "$studio - $title");
     });
 
@@ -167,10 +165,10 @@ test("an unreadable stored blob offers a save although nothing is edited", async
 test("discard restores what the endpoint answered with", async () => {
   const hook = await mountHook();
 
-  await commit(() => {
+  commit(() => {
     hook.current.set("filenameTemplate", "$studio");
   });
-  await commit(() => {
+  commit(() => {
     hook.current.discard();
   });
 
@@ -185,7 +183,7 @@ test("a saved edit stays on screen while the re-read it starts is still in fligh
   const hook = await mountHook();
   const edited = "$studio - $title";
 
-  await commit(() => {
+  commit(() => {
     hook.current.set("filenameTemplate", edited);
   });
   expect(hook.current.options?.filenameTemplate).toBe(edited);
@@ -195,7 +193,9 @@ test("a saved edit stays on screen while the re-read it starts is still in fligh
   const save = hook.current.onSave().then(() => {
     settled = true;
   });
-  await commit(() => undefined);
+  // The re-read clears the flag as it begins, so waiting for that is waiting for the moment the two
+  // assertions below are about: the write has landed and the read it started has not answered.
+  await hook.settled("the save's re-read to reach the endpoint", () => !endpoint.holdNextRead);
 
   // The positive control for the assertion below: without a read still outstanding, the panel would
   // be past this moment and reading the saved document either way.

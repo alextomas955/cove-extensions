@@ -36,13 +36,13 @@ function Host(props: Readonly<{ initial: string }>) {
 
 const field = () => screen.queryByRole<HTMLInputElement>("textbox", { name: "Replacement" });
 // `pressed` is part of the query, so a mode that is on screen but not announced as chosen is not
-// found at all, rather than found and then asserted about.
+// found at all: the call below is the assertion, and it throws when no such button exists.
 const chosen = (label: string) => screen.getByRole("button", { name: label, pressed: true });
 
 test("a stored replacement opens in replace mode with the field showing it", () => {
   render(<Host initial="_" />);
 
-  expect(chosen("Replace with")).toBeDefined();
+  chosen("Replace with");
   expect(field()?.value).toBe("_");
 });
 
@@ -54,7 +54,7 @@ test("choosing Replace with on an empty value reveals the field to type into", a
   await user.click(screen.getByRole("button", { name: "Replace with" }));
 
   expect(field()).not.toBeNull();
-  expect(chosen("Replace with")).toBeDefined();
+  chosen("Replace with");
 });
 
 test("emptying the field while typing leaves it on screen", async () => {
@@ -65,7 +65,7 @@ test("emptying the field while typing leaves it on screen", async () => {
 
   // Collapsing here would take the caret out of a field the user is still in.
   expect(field()?.value).toBe("");
-  expect(chosen("Replace with")).toBeDefined();
+  chosen("Replace with");
 });
 
 test("choosing Strip clears the value and puts the field away", async () => {
@@ -75,7 +75,7 @@ test("choosing Strip clears the value and puts the field away", async () => {
   await user.click(screen.getByRole("button", { name: "Strip" }));
 
   expect(field()).toBeNull();
-  expect(chosen("Strip")).toBeDefined();
+  chosen("Strip");
 });
 
 test("a value emptied from outside the control returns it to strip mode", async () => {
@@ -86,5 +86,5 @@ test("a value emptied from outside the control returns it to strip mode", async 
   await user.click(screen.getByRole("button", { name: "Reset from outside" }));
 
   expect(field()).toBeNull();
-  expect(chosen("Strip")).toBeDefined();
+  chosen("Strip");
 });

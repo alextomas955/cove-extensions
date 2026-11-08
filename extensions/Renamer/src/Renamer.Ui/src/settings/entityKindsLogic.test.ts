@@ -44,7 +44,6 @@ test("an edit sends back no null entry, so a save cannot restate one", () => {
   const next = nextKinds({ text: null }, "video", false, null);
 
   assert.deepEqual(next, { video: { enabled: false, destination: null } });
-  assert.ok(!Object.values(next).includes(null as never));
 });
 
 // A kind this panel does not render still belongs to the stored document. Rebuilding the map from

@@ -34,7 +34,8 @@ test("the control is named by its heading and nothing else", () => {
 
   // The role query matches on the accessible name, so a name assembled any other way - a wrapping
   // label, an `aria-labelledby`, a second visible string - fails here as an `aria-label` read would
-  // not. Named from the heading element's own text, so the two drifting apart is what fails.
-  const heading = screen.getByText(HEADING);
-  expect(screen.getByRole("combobox", { name: heading.textContent })).toBeDefined();
+  // not. Both queries are made against the constant rather than against each other, so a heading and
+  // a label that drifted together would not agree here. Each query throws when it finds nothing.
+  screen.getByText(HEADING);
+  screen.getByRole("combobox", { name: HEADING });
 });

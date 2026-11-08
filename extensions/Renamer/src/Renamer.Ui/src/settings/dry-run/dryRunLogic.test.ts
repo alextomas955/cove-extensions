@@ -57,12 +57,9 @@ test("classifyItem agrees with ScanBucket.Of on every status the server can emit
   for (const [status, bucket] of Object.entries(SERVER_BUCKETS)) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
-  // The three buckets are covered, so no arm of the map is left unexercised.
-  assert.deepEqual([...new Set(Object.values(SERVER_BUCKETS))].sort(), [
-    "attention",
-    "no-change",
-    "will-change",
-  ]);
+  // Every arm of classifyItem was reached, read off its answers rather than off the table above.
+  const reached = new Set(Object.keys(SERVER_BUCKETS).map((status) => classifyItem({ status })));
+  assert.deepEqual([...reached].sort(), ["attention", "no-change", "will-change"]);
 });
 
 test("classifyItem surfaces an unknown/future status as attention rather than hiding it", () => {
@@ -87,19 +84,19 @@ const STALLED_WALK = {
   hasError: false,
 } as const;
 
-test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+test.each([
   // The end of the library is the one honest reason to stop short of the target.
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
-});
-
-test("a walk that has covered its row target does not continue", () => {
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
-});
-
-test("a page already in flight does not continue", () => {
-  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
+  [
+    "a walk whose cursor has gone null does not continue, however few rows it loaded",
+    { hasMore: false },
+    false,
+  ],
+  ["a walk short of its row target continues", { loadedRows: 34 }, true],
+  ["a walk that has reached its row target does not continue", { loadedRows: 35 }, false],
+  ["a walk past its row target does not continue", { loadedRows: 36 }, false],
+  ["a page already in flight does not continue", { loading: true }, false],
+] as const)("%s", (_name, flipped, continues) => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, ...flipped }), continues);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
@@ -328,35 +325,37 @@ test("a row that arrives without the overflow field reads as unflagged, not as f
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });
 
-test("a finished walk states its total once, from the rows it actually loaded", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 5, total: 5, searching: false, complete: true, examined: 40 }),
+test.each([
+  [
+    "a finished walk states its total once, from the rows it actually loaded",
+    { loaded: 5, total: 5, searching: false, complete: true, examined: 40 },
     "All 5 rows, in scan order",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 5, total: 5, searching: true, complete: true, examined: 40 }),
+  ],
+  [
+    "a finished search says the rows it states are the matching ones",
+    { loaded: 5, total: 5, searching: true, complete: true, examined: 40 },
     "All 5 matching rows, in scan order",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 1, total: 1, searching: false, complete: true, examined: 40 }),
+  ],
+  [
+    "one row is one row",
+    { loaded: 1, total: 1, searching: false, complete: true, examined: 40 },
     "All 1 row, in scan order",
-  );
-});
-
-test("a finished walk prefers the rows it loaded over the count the scan predicted", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 7, total: 3, searching: false, complete: true, examined: 40 }),
+  ],
+  [
+    "a finished walk prefers the rows it loaded over the count the scan predicted",
+    { loaded: 7, total: 3, searching: false, complete: true, examined: 40 },
     "All 7 rows, in scan order",
-  );
-});
-
-test("an unfinished walk keeps the denominator and the progress clause", () => {
-  assert.equal(
-    rowsFooterText({ loaded: 2, total: 5, searching: false, complete: false, examined: 40 }),
+  ],
+  [
+    "an unfinished walk keeps the denominator and the progress clause",
+    { loaded: 2, total: 5, searching: false, complete: false, examined: 40 },
     "2 of 5 rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
-  );
-  assert.equal(
-    rowsFooterText({ loaded: 2, total: 5, searching: true, complete: false, examined: 40 }),
+  ],
+  [
+    "an unfinished search drops the denominator, which only the whole scan has",
+    { loaded: 2, total: 5, searching: true, complete: false, examined: 40 },
     "2 matching rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
-  );
+  ],
+] as const)("%s", (_name, given, text) => {
+  assert.equal(rowsFooterText(given), text);
 });

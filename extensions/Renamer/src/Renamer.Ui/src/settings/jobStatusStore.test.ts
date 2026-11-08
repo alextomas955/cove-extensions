@@ -2,6 +2,8 @@
 // flight, when the next one starts, and what a read that settles after the poll stopped does.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+import type { RenamerJobStatus } from "../wire/api";
+
 const host = vi.hoisted(() => ({
   /** Resolves or rejects each read in call order; a test pushes one entry per read it expects. */
   answers: [] as (() => Promise<unknown>)[],
@@ -28,8 +30,16 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
 const { pollJob } = await import("./jobStatusStore");
 const { JOB_FAILURE_ALLOWANCE, JobUnresponsiveError } = await import("./jobPollLogic");
 
-function status(over: Partial<{ status: string; progress: number; error: string | null }> = {}) {
-  return { id: "j1", status: "running", progress: 0.5, subTask: null, error: null, ...over };
+function status(over: Partial<RenamerJobStatus> = {}): RenamerJobStatus {
+  return {
+    id: "j1",
+    status: "running",
+    progress: 0.5,
+    subTask: null,
+    error: null,
+    etaSeconds: null,
+    ...over,
+  };
 }
 
 /** Queues a read that resolves with `value` only after `delayMs` of fake time. */

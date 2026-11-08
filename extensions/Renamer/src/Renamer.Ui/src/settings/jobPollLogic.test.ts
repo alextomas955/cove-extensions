@@ -6,8 +6,6 @@ import assert from "node:assert/strict";
 
 import {
   JOB_FAILURE_ALLOWANCE,
-  JOB_POLL_INTERVAL_MS,
-  JOB_POLL_MAX_BACKOFF_MS,
   JOB_STALL_BUDGET_MS,
   advanceStallClock,
   decidePoll,
@@ -26,57 +24,125 @@ function ctx(overrides: Partial<PollContext> = {}): PollContext {
   };
 }
 
-test("a completed job resolves however long it took", () => {
+// The two expiry sentences, transcribed from the wording the panel ships rather than read off the
+// module, so a reworded message is a change a reader has to make here too.
+const STALL_EXPIRY =
+  "the job stopped reporting progress. It may still be running, so check your library before trying again";
+const UNANSWERED_EXPIRY =
+  "Cove stopped answering when asked about this job. It may still be running, so check your library before trying again";
+
+interface PollCase {
+  name: string;
+  observation: Parameters<typeof decidePoll>[0];
+  context: Partial<PollContext>;
+  expected: ReturnType<typeof decidePoll>;
+}
+
+const POLL_CASES: PollCase[] = [
   // A terminal status beats the budget. The budget bounds how long the UI waits for news, and news
   // that the job is done is the news it was waiting for.
-  assert.deepEqual(decidePoll({ read: "ok", status: "completed" }, ctx()), { action: "resolve" });
-  assert.deepEqual(
-    decidePoll({ read: "ok", status: "completed" }, ctx({ msSinceProgress: 9_999_999 })),
-    { action: "resolve" },
-  );
-});
-
-test("a failed or cancelled job rejects carrying the job's own error text", () => {
-  assert.deepEqual(decidePoll({ read: "ok", status: "failed", error: "disk full" }, ctx()), {
-    action: "reject",
-    message: "disk full",
-  });
-  assert.deepEqual(
-    decidePoll({ read: "ok", status: "cancelled", error: "Cove shut down" }, ctx()),
-    {
-      action: "reject",
-      message: "Cove shut down",
-    },
-  );
-});
-
-test("a failed job with no error text still names something", () => {
-  assert.deepEqual(decidePoll({ read: "ok", status: "failed" }, ctx()), {
-    action: "reject",
-    message: "the job did not complete",
-  });
-  assert.deepEqual(decidePoll({ read: "ok", status: "failed", error: null }, ctx()), {
-    action: "reject",
-    message: "the job did not complete",
-  });
-});
-
-test("a running or pending job inside the stall budget keeps polling", () => {
-  assert.deepEqual(
-    decidePoll({ read: "ok", status: "running" }, ctx({ msSinceProgress: 59_999 })),
-    { action: "continue" },
-  );
-  assert.deepEqual(decidePoll({ read: "ok", status: "pending" }, ctx({ msSinceProgress: 0 })), {
-    action: "continue",
-  });
-});
-
-test("a job silent for exactly the stall budget expires", () => {
+  {
+    name: "a completed job resolves",
+    observation: { read: "ok", status: "completed" },
+    context: {},
+    expected: { action: "resolve" },
+  },
+  {
+    name: "a completed job resolves however long it took",
+    observation: { read: "ok", status: "completed" },
+    context: { msSinceProgress: 9_999_999 },
+    expected: { action: "resolve" },
+  },
+  {
+    name: "a failed job rejects carrying the job's own error text",
+    observation: { read: "ok", status: "failed", error: "disk full" },
+    context: {},
+    expected: { action: "reject", message: "disk full" },
+  },
+  {
+    name: "a cancelled job rejects carrying the job's own error text",
+    observation: { read: "ok", status: "cancelled", error: "Cove shut down" },
+    context: {},
+    expected: { action: "reject", message: "Cove shut down" },
+  },
+  {
+    name: "a failed job with no error text still names something",
+    observation: { read: "ok", status: "failed" },
+    context: {},
+    expected: { action: "reject", message: "the job did not complete" },
+  },
+  {
+    name: "a failed job whose error text is null still names something",
+    observation: { read: "ok", status: "failed", error: null },
+    context: {},
+    expected: { action: "reject", message: "the job did not complete" },
+  },
+  {
+    name: "a running job inside the stall budget keeps polling",
+    observation: { read: "ok", status: "running" },
+    context: { msSinceProgress: 59_999 },
+    expected: { action: "continue" },
+  },
+  {
+    name: "a pending job keeps polling",
+    observation: { read: "ok", status: "pending" },
+    context: { msSinceProgress: 0 },
+    expected: { action: "continue" },
+  },
   // The boundary is inclusive: at the budget the run ends. One millisecond earlier it continues (the
-  // case above), which is what pins the comparison rather than leaving >= versus > to a reading.
-  const decision = decidePoll({ read: "ok", status: "running" }, ctx({ msSinceProgress: 60_000 }));
+  // row above), which is what pins the comparison rather than leaving >= versus > to a reading.
+  {
+    name: "a job silent for exactly the stall budget expires",
+    observation: { read: "ok", status: "running" },
+    context: { msSinceProgress: 60_000 },
+    expected: { action: "expire", message: STALL_EXPIRY },
+  },
+  // A transient blip is one or two unanswered polls.
+  {
+    name: "a read failure inside the allowance keeps polling",
+    observation: { read: "failed" },
+    context: { consecutiveFailures: 1 },
+    expected: { action: "continue" },
+  },
+  {
+    name: "read failures one short of the allowance keep polling",
+    observation: { read: "failed" },
+    context: { consecutiveFailures: 4 },
+    expected: { action: "continue" },
+  },
+  // A job id that stops resolving is not a job that is still running, and no amount of stall budget
+  // makes it one. msSinceProgress is 0 here so the stall bound cannot be what ends the run.
+  {
+    name: "read failures at the allowance expire even while the stall budget has room",
+    observation: { read: "failed" },
+    context: { consecutiveFailures: 5, msSinceProgress: 0 },
+    expected: { action: "expire", message: UNANSWERED_EXPIRY },
+  },
+  // A status this UI does not know is not a success. This module takes the status as a plain string,
+  // so a vocabulary it has not been told about arrives as an unknown one - and it must degrade to an
+  // expiry with a message, never to a false "renamed" banner.
+  {
+    name: "an unrecognised status keeps polling",
+    observation: { read: "ok", status: "queued" },
+    context: {},
+    expected: { action: "continue" },
+  },
+  {
+    name: "an empty status keeps polling",
+    observation: { read: "ok", status: "" },
+    context: {},
+    expected: { action: "continue" },
+  },
+  {
+    name: "a status in another casing never resolves, and expires on the budget",
+    observation: { read: "ok", status: "Completed" },
+    context: { msSinceProgress: 60_000 },
+    expected: { action: "expire", message: STALL_EXPIRY },
+  },
+];
 
-  assert.equal(decision.action, "expire");
+test.each(POLL_CASES)("$name", ({ observation, context, expected }) => {
+  assert.deepEqual(decidePoll(observation, ctx(context)), expected);
 });
 
 test("an expiry is not a job failure, and its message says which happened", () => {
@@ -91,41 +157,6 @@ test("an expiry is not a job failure, and its message says which happened", () =
   assert.equal(failed.action, "reject");
   assert.match(expired.message, /stopped reporting progress/);
   assert.match(expired.message, /may still be running/);
-});
-
-test("read failures inside the allowance keep polling", () => {
-  // A transient blip is one or two unanswered polls.
-  assert.deepEqual(decidePoll({ read: "failed" }, ctx({ consecutiveFailures: 1 })), {
-    action: "continue",
-  });
-  assert.deepEqual(decidePoll({ read: "failed" }, ctx({ consecutiveFailures: 4 })), {
-    action: "continue",
-  });
-});
-
-test("read failures at the allowance expire even while the stall budget has room", () => {
-  // A job id that stops resolving is not a job that is still running, and no amount of stall budget
-  // makes it one. msSinceProgress is 0 here so the stall bound cannot be what ends the run.
-  const decision = decidePoll(
-    { read: "failed" },
-    ctx({ consecutiveFailures: 5, msSinceProgress: 0 }),
-  );
-
-  assert.equal(decision.action, "expire");
-  assert.match(decision.message, /stopped answering/);
-  assert.match(decision.message, /may still be running/);
-});
-
-test("an unrecognised status keeps polling and never resolves", () => {
-  // A status this UI does not know is not a success. This module takes the status as a plain string,
-  // so a vocabulary it has not been told about arrives as an unknown one - and it must degrade to an
-  // expiry with a message, never to a false "renamed" banner.
-  assert.deepEqual(decidePoll({ read: "ok", status: "queued" }, ctx()), { action: "continue" });
-  assert.deepEqual(decidePoll({ read: "ok", status: "" }, ctx()), { action: "continue" });
-  assert.equal(
-    decidePoll({ read: "ok", status: "Completed" }, ctx({ msSinceProgress: 60_000 })).action,
-    "expire",
-  );
 });
 
 test("the stall clock restarts only when progress actually moves", () => {
@@ -160,12 +191,12 @@ test("the shipped bounds are far enough out that a healthy run is never abandone
 });
 
 test("the wait doubles while reads fail and stops at the cap", () => {
-  assert.equal(pollDelayMs(0), JOB_POLL_INTERVAL_MS);
+  assert.equal(pollDelayMs(0), 1000);
   assert.equal(pollDelayMs(1), 2000);
   assert.equal(pollDelayMs(2), 4000);
   // Capped from here on, so a host that comes back is noticed within the cap rather than hours later.
-  assert.equal(pollDelayMs(3), JOB_POLL_MAX_BACKOFF_MS);
-  assert.equal(pollDelayMs(JOB_FAILURE_ALLOWANCE), JOB_POLL_MAX_BACKOFF_MS);
+  assert.equal(pollDelayMs(3), 4000);
+  assert.equal(pollDelayMs(JOB_FAILURE_ALLOWANCE), 4000);
 });
 
 test("the whole failure allowance is spent well inside the stall budget", () => {

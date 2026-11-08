@@ -99,7 +99,7 @@ test("moving a row down carries its node with it, so a second press moves the sa
   expect(rowValues()).toEqual(["B", "C", "A"]);
 });
 
-test("a list replaced from outside never moves a surviving node to another row's place", async () => {
+test("a list replaced from outside rebuilds every row, so no node lands on another row's place", async () => {
   const view = renderRows(["A", "B", "C", "D", "E"]);
 
   // Two removes leave the editor's row identities out of step with the row positions, which is the
@@ -113,13 +113,8 @@ test("a list replaced from outside never moves a surviving node to another row's
   await view.press("Replace from outside");
 
   expect(rowValues()).toEqual(["W", "X", "Y", "Z"]);
-  // The replacement rows are unrelated to what was there, so the editor may rebuild any row. What it
-  // must never do is hand a kept node to a different row: a node that survives stays where it was,
-  // or the caret, the selection and anything else the DOM holds follows the wrong row.
-  for (const [index, stamp] of stamps().entries()) {
-    expect(
-      stamp === "" || stamp === `s${String(index)}`,
-      `row ${String(index)} holds ${stamp}`,
-    ).toBe(true);
-  }
+  // The replacement rows share no identity with what was there, so every row is rebuilt and no stamp
+  // survives. Asserted position by position, as the two cases above do: any stamp reappearing here is
+  // a kept node handed to a row it did not belong to, which drags the caret and the selection with it.
+  expect(stamps()).toEqual(["", "", "", ""]);
 });
