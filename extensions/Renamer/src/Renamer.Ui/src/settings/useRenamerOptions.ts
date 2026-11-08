@@ -48,10 +48,14 @@ export function useRenamerOptions(): UseRenamerOptions {
 
   const query = useQuery({
     ...renamerGetOptionsOptions(),
-    // The generator marks every member of the settings record optional, because a request may omit
-    // one. A response never does: the server writes all of them, and a backend test holds it to
-    // that. `Complete` in ./options is where that claim is stated; this is the one place a response
-    // takes it on, so a control below reads a value rather than a possible undefined.
+    // The one assertion in this bundle, and it cannot be made a check. The schema marks every
+    // settings member optional because a request may omit one, which a backend test covers; a
+    // response never does, because the server fills them before it writes, which another backend
+    // test covers. Those two facts cannot be told apart in one schema, and no runtime check here
+    // can stand in for the second: a member the server stopped filling is an absent key, not an
+    // undefined value, so nothing in the parsed response distinguishes it from a member that was
+    // never declared. Verifying it would need the schema itself at runtime. The guarantee is held
+    // on the server, where it is testable; this states where the panel relies on it.
     select: (view): OptionsView => view as OptionsView,
   });
 
