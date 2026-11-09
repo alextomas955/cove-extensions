@@ -63,7 +63,7 @@ public sealed partial class Renamer
     // Upper bound on how many ids a single /preview or /renamer request may carry. Preview plans each
     // id on the request thread and /renamer fans the same ids into one job, so a caller-supplied array
     // is an unbounded fan-out; an oversized one is refused with a 400 before any per-id work.
-    internal const int MaxEntityIdsPerRequest = 1000;
+    private const int MaxEntityIdsPerRequest = 1000;
 
     // The "Rename selected" bulk action, registered once per entity kind so each carries its own
     // RequiredPermission. The host allows one RequiredPermission per action and filters visibility by

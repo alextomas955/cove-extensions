@@ -14,10 +14,10 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityIdsCapTests
 {
-    // The handler's own bound, read from it rather than transcribed. A copy here would be a second
-    // declaration of the same number, and the only thing keeping the two in step would be a test
-    // comparing them.
-    private const int Cap = global::Renamer.Renamer.MaxEntityIdsPerRequest;
+    // The bound the route publishes, transcribed rather than read from the handler. Read from it, this
+    // would sit on both sides of the assertions below and agree with any value the handler declares,
+    // including one that lifts the fan-out limit the refusal exists to impose.
+    private const int Cap = 1000;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
