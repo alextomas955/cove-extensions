@@ -318,7 +318,7 @@ public sealed class JournalPagingTests
         return journal;
     }
 
-    private static Task<(global::Renamer.Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
+    private static Task<(Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, int count)
         => RenamedBatchFixture.CreateAsync(dir, db, RunId, count, undoPageSize: PageLimit);
 }

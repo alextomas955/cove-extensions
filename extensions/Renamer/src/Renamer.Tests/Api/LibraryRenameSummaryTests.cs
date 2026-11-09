@@ -27,9 +27,9 @@ public sealed class LibraryRenameSummaryTests
     // The catch that keeps a completed run completed when its counts cannot be stored.
     private const int SummaryNotStoredEvent = 1075;
 
-    private static async Task<(global::Renamer.Renamer Ext, FakeStore Store)> NewExtensionAsync(
+    private static async Task<(Renamer Ext, FakeStore Store)> NewExtensionAsync(
         SqliteConnection conn, Func<IExtensionStore, IExtensionStore>? wrap = null,
-        ILogger<global::Renamer.Renamer>? log = null)
+        ILogger<Renamer>? log = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ =>
@@ -64,7 +64,7 @@ public sealed class LibraryRenameSummaryTests
 
     private static Task StoreAsync(FakeStore store, LibraryRenameSummary summary) =>
         store.SetAsync(
-            global::Renamer.Renamer.LastLibraryRenameSummaryKey,
+            Renamer.LastLibraryRenameSummaryKey,
             JsonSerializer.Serialize(summary, PreviewContracts.PreviewResponseJsonOptions));
 
     private static async Task SeedThreeVideosAsync(DbContext db, TempDir dir)
@@ -78,7 +78,7 @@ public sealed class LibraryRenameSummaryTests
         }
     }
 
-    private static Task RunLibraryAsync(global::Renamer.Renamer ext) =>
+    private static Task RunLibraryAsync(Renamer ext) =>
         ext.RunRenamerLibraryJobAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite).Current,
             [RenamerFileKind.Video], new FakeJobProgress(), default, runId: RunId, ownerKey: OwnerKey);
@@ -138,7 +138,7 @@ public sealed class LibraryRenameSummaryTests
         try
         {
             await SeedThreeVideosAsync(db, dir);
-            var log = new CapturingLogger<global::Renamer.Renamer>();
+            var log = new CapturingLogger<Renamer>();
             var (ext, _) = await NewExtensionAsync(conn, inner => new FailingSummaryStore(inner), log);
 
             await RunLibraryAsync(ext);
@@ -198,7 +198,7 @@ public sealed class LibraryRenameSummaryTests
 
             Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
 
-            await store.SetAsync(global::Renamer.Renamer.LastLibraryRenameSummaryKey, "{not json");
+            await store.SetAsync(Renamer.LastLibraryRenameSummaryKey, "{not json");
             Assert.Equal(404, StatusOf(await ext.LibraryRenameResultAsync(RunId, VideoReader, default)));
 
             await StoreAsync(store, new LibraryRenameSummary(99, RunId, OwnerKey, 0, []));
@@ -255,7 +255,7 @@ public sealed class LibraryRenameSummaryTests
         public Task<string?> GetAsync(string key, CancellationToken ct = default) => inner.GetAsync(key, ct);
 
         public Task SetAsync(string key, string value, CancellationToken ct = default) =>
-            key == global::Renamer.Renamer.LastLibraryRenameSummaryKey
+            key == Renamer.LastLibraryRenameSummaryKey
                 ? throw new InvalidOperationException("the summary write failed")
                 : inner.SetAsync(key, value, ct);
 

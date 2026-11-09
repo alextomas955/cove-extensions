@@ -38,7 +38,7 @@ public sealed class UndoReplayerTests
             Assert.Equal(2, batch.Rows.Count);
 
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch);
 
             Assert.Equal(2, result.Undone);
             // The two published events carry exactly the two entity ids (each from its own row),
@@ -73,7 +73,7 @@ public sealed class UndoReplayerTests
             await db.SaveChangesAsync();
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
 
-            var result = await new UndoReplayer(port, new CapturingEventBus()).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, new CapturingEventBus()).RevertAsync(batch);
 
             Assert.Equal(UndoStopReason.OriginalLocationOccupied, Assert.Single(result.Skipped).Stop);
             Assert.False(await db.Set<Folder>().AnyAsync(f => f.Path == folderPath));
@@ -106,7 +106,7 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
 
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -150,7 +150,7 @@ public sealed class UndoReplayerTests
             // A port that throws on the reverse save forces the rollback path.
             var throwingPort = new ThrowOnSaveDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(throwingPort, undoBus).RevertAsync(batch, default);
+            var result = await new UndoReplayer(throwingPort, undoBus).RevertAsync(batch);
 
             Assert.Equal(0, result.Undone);
             Assert.Single(result.Failed);
@@ -189,7 +189,7 @@ public sealed class UndoReplayerTests
             // A reverse save that cancels forces the OCE path: rollback to new, then propagate.
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(new CancelOnSaveDataPort(db), undoBus);
-            await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch, default));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch));
 
             Assert.True(File.Exists(newFull), "disk rolled back to new on a cancelled reverse save");
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")), "old slot must not hold the file after rollback");
@@ -235,7 +235,7 @@ public sealed class UndoReplayerTests
 
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, cross: recordingCross)
-                .RevertAsync(batch, default);
+                .RevertAsync(batch);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -275,7 +275,7 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var result = await new UndoReplayer(new MisreportingSaveDataPort(db), new CapturingEventBus())
-                .RevertAsync(batch, default);
+                .RevertAsync(batch);
 
             var failure = Assert.Single(result.Failed);
             Assert.Equal(UndoStopReason.RestoredPathMismatch, failure.Stop);
@@ -316,7 +316,7 @@ public sealed class UndoReplayerTests
             Assert.NotNull(batch);
             var result = await new UndoReplayer(
                     new ReoccupySlotThenMisreportDataPort(db, renamed), new CapturingEventBus())
-                .RevertAsync(batch, default);
+                .RevertAsync(batch);
 
             var failure = Assert.Single(result.Failed);
             Assert.Contains("did not return to the renamed path", failure.Reason);
@@ -351,7 +351,7 @@ public sealed class UndoReplayerTests
             var plan = await new RenamerPlanner(port)
                 .PlanAsync(RenamerFileKind.Video, entityId, options, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
-                .ExecuteAsync(plan, options, default);
+                .ExecuteAsync(plan, options);
         }
 
         var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
@@ -369,7 +369,7 @@ public sealed class UndoReplayerTests
         ]);
         var result = await new RenamerExecutor(
                 new CoveRenamerDataPort(db), new CapturingEventBus(), journal, RunId)
-            .ExecuteAsync(plan, new RenamerOptions(), default);
+            .ExecuteAsync(plan, new RenamerOptions());
         Assert.Empty(result.Failed);
     }
 

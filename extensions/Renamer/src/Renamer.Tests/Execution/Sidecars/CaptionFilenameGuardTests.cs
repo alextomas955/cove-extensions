@@ -43,7 +43,7 @@ public sealed class CaptionFilenameGuardTests
 
             var result = await RealExecutor(db).ExecuteAsync(
                 MovePlan(videoId, fileId, srcFolder, "clip.mkv", dstFolder, "My Film.mkv"),
-                new RenamerOptions(), default);
+                new RenamerOptions());
 
             var moved = Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
@@ -96,7 +96,7 @@ public sealed class CaptionFilenameGuardTests
 
             var result = await RealExecutor(db).ExecuteAsync(
                 MovePlan(videoId, fileId, srcFolder, "clip.mkv", dstFolder, "My Film.mkv"),
-                new RenamerOptions(), default);
+                new RenamerOptions());
 
             var moved = Assert.Single(result.Renamed);
             Assert.Null(moved.Reason);

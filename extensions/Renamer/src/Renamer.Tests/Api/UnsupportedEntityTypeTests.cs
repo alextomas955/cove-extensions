@@ -1,5 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Renamer.Api;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
@@ -23,7 +24,7 @@ public sealed class UnsupportedEntityTypeTests
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest(Unsupported, [1]), db, principal, default);
+                new RenamerRequest(Unsupported, [1]), db, principal, default);
 
             var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
             Assert.Equal("UNSUPPORTED_ENTITY_TYPE", bad.Problem.Code);
@@ -43,7 +44,7 @@ public sealed class UnsupportedEntityTypeTests
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest(Unsupported, [1]), principal, jobs,
+            new RenamerRequest(Unsupported, [1]), principal, jobs,
             new RecordingAuthorizationService(), default);
 
         var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));

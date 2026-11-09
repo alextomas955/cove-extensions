@@ -106,7 +106,7 @@ public sealed class RequestPathPrincipalTests
         Permissions = new HashSet<string>(permissions),
     };
 
-    private static async Task<global::Renamer.Renamer> LoadedExtensionAsync(LibraryDatabase library)
+    private static async Task<Renamer> LoadedExtensionAsync(LibraryDatabase library)
     {
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(

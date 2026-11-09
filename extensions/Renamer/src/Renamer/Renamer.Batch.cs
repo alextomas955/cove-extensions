@@ -48,7 +48,7 @@ public sealed partial class Renamer
     // and re-checks free space in flight; the entity id is for per-item logging.
     private readonly record struct BatchUnit(
         int EntityId,
-        Planner.RenamerPlan Plan,
+        RenamerPlan Plan,
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
     // What one chunk did. Skipped counts move-time skips and the contested files, PlanSkipped the
@@ -414,7 +414,7 @@ public sealed partial class Renamer
             {
                 done++;
                 double percent = (double)done / totalUnits;
-                progress.Report(PlanningProgressShare + percent * (1d - PlanningProgressShare), null);
+                progress.Report(PlanningProgressShare + percent * (1d - PlanningProgressShare));
             }
         }
 

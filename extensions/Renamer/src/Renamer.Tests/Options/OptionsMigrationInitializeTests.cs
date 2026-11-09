@@ -15,10 +15,10 @@ public sealed class OptionsMigrationInitializeTests
         {"FilenameTemplate":"$title","ExcludeTags":["spoiler"],"TagDestinations":{"drama":"/drama"}}
         """;
 
-    private static async Task<global::Renamer.Renamer> LoadAsync(
+    private static async Task<Renamer> LoadAsync(
         LibraryDatabase library, FakeStore store, params string[] libraryPaths)
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = new Renamer();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(library.BuildProvider(libraryPaths));
         return ext;
@@ -29,7 +29,7 @@ public sealed class OptionsMigrationInitializeTests
     // seam's failure path.
     private static async Task LoadWithoutLibraryTablesAsync(JournalOnlyDatabase db, IExtensionStore store)
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = new Renamer();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(db.BuildProvider());
     }
@@ -198,10 +198,10 @@ public sealed class OptionsMigrationInitializeTests
 
         await using var library = await LibraryDatabase.CreateAsync();
         await SeedTagsAsync(library, (13, "spoiler"));
-        var log = new CapturingLogger<global::Renamer.Renamer>();
+        var log = new CapturingLogger<Renamer>();
         library.Log = log;
 
-        var ext = new global::Renamer.Renamer();
+        var ext = new Renamer();
         ((IStatefulExtension)ext).SetStore(failing);
         await ext.InitializeAsync(library.BuildProvider(DramaRoot));
 

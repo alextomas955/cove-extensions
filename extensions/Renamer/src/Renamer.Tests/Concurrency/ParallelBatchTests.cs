@@ -1,3 +1,4 @@
+using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
@@ -99,7 +100,7 @@ public sealed class ParallelBatchTests
             }
 
             await using var readDb = shared.NewContext();
-            var missingRow = await readDb.Set<Cove.Core.Entities.VideoFile>().AsNoTracking()
+            var missingRow = await readDb.Set<VideoFile>().AsNoTracking()
                 .SingleAsync(f => f.VideoId == ids[missing]);
             Assert.Equal($"raw {missing}.mkv", missingRow.Basename);
             Assert.Equal(1d, progress.LastPercent);
@@ -162,7 +163,7 @@ public sealed class ParallelBatchTests
 
             // The guard measures the recorded size, and a seeded row records zero, which no probe
             // value is short of.
-            var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
+            var fileRow = await seedDb.Set<VideoFile>().FirstAsync(f => f.Id == fileId);
             fileRow.Size = 4096;
             await seedDb.SaveChangesAsync();
 

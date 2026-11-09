@@ -94,7 +94,7 @@ public sealed class TransportSmokeTests
         var principals = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var store = new FakeStore();
         await store.SetAsync(
-            global::Renamer.Renamer.LastScanSummaryKey,
+            Renamer.LastScanSummaryKey,
             JsonSerializer.Serialize(
                 SeededScanSummary(JobOwner.FromPrincipal(principals.Current)?.Key),
                 PreviewContracts.PreviewResponseJsonOptions));

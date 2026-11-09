@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Renamer.Planner;
 
 // The pure path string math the engine, the planner and the execution slice share.
@@ -71,7 +73,7 @@ internal static class PathOps
     // Inserts the suffix counter before the extension, so "name", " ({n})" and ".mkv" give "name (1).mkv".
     internal static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
         => filename
-            + suffixFormat.Replace("{n}", counter.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            + suffixFormat.Replace("{n}", counter.ToString(CultureInfo.InvariantCulture))
             + ext;
 
     // Whether two paths name the same location, ignoring case on the platforms whose default

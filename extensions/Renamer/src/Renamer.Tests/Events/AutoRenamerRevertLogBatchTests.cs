@@ -33,7 +33,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             };
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
@@ -50,7 +50,7 @@ public sealed class AutoRenamerRevertLogBatchTests
 
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);

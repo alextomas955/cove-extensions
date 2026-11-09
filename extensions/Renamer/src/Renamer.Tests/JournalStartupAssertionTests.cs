@@ -1,3 +1,4 @@
+using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.Data.Sqlite;
@@ -49,7 +50,7 @@ public sealed class JournalStartupAssertionTests
                 new CoveContext(
                     new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options,
                     principalAccessor: null));
-            services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+            services.AddSingleton<IEventBus>(new CapturingEventBus());
             return services.BuildServiceProvider();
         }
 

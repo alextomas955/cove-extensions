@@ -36,7 +36,7 @@ public sealed class CaseOnlyRenameTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
@@ -85,7 +85,7 @@ public sealed class CaseOnlyRenameTests
             var executor = new RenamerExecutor(
                 new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             // Where MOVIE.mkv and Movie.mkv are one slot the occupant takes it, so the loop suffixes;
             // where they are two, MOVIE.mkv is a free name of its own.

@@ -16,7 +16,7 @@ namespace Renamer.Tests.Api;
 
 public sealed class UndoOperationTests
 {
-    private static async Task<global::Renamer.Renamer> NewExtensionAsync(
+    private static async Task<Renamer> NewExtensionAsync(
         SqliteConnection conn, RecordingAuthorizationService authz, RenamerOptions? options = null,
         params string[] libraryPaths)
     {

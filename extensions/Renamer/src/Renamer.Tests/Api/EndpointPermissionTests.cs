@@ -1,5 +1,9 @@
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Renamer.Api;
+using Renamer.Contracts;
+using Renamer.Options;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
@@ -17,15 +21,15 @@ public sealed class EndpointPermissionTests
             var ext = RenamerFixture.CreateWithStore();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var denied = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
+                new RenamerRequest("image", [1]), db, videoOnly, default);
             Assert.Equal(403, StatusOf(denied));
 
             // The matching images.read principal is not forbidden and the preview proceeds. Asserted as
             // the Ok variant, because the refusal this endpoint also returns is an IValueHttpResult too.
             var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesRead);
             var allowed = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
-            Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.PreviewResponse>>(
+                new RenamerRequest("image", [1]), db, imageOk, default);
+            Assert.IsType<Ok<PreviewResponse>>(
                 Unwrap(allowed));
         }
         finally
@@ -43,11 +47,11 @@ public sealed class EndpointPermissionTests
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs,
+            new RenamerRequest("video", [1, 2]), principal, jobs,
             new RecordingAuthorizationService(), default);
 
         Assert.Equal(202, StatusOf(result));
-        var body = Assert.IsType<global::Renamer.Contracts.JobEnqueued>(
+        var body = Assert.IsType<JobEnqueued>(
             Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
         Assert.Equal("job-123", body.JobId);
 
@@ -69,14 +73,14 @@ public sealed class EndpointPermissionTests
         var jobs = new RecordingJobService();
 
         var denied = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest(entityType, [1]),
+            new RenamerRequest(entityType, [1]),
             FakePrincipalAccessor.WithPermissions(otherKindsWrite), jobs,
             new RecordingAuthorizationService(), default);
         Assert.Equal(403, StatusOf(denied));
         Assert.Empty(jobs.Enqueued);
 
         var allowed = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest(entityType, [1]),
+            new RenamerRequest(entityType, [1]),
             FakePrincipalAccessor.WithPermissions(ownWrite), jobs,
             new RecordingAuthorizationService(), default);
         Assert.Equal(202, StatusOf(allowed));
@@ -90,11 +94,11 @@ public sealed class EndpointPermissionTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new global::Renamer.Options.RenamerOptions());
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new RenamerOptions());
 
             var result = await ext.LastBatchAsync(FakePrincipalAccessor.WithPermissions(Permissions.TextsRead), default);
 
-            Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<global::Renamer.Contracts.LastBatchSummary>>(result.Result);
+            Assert.IsType<Ok<LastBatchSummary>>(result.Result);
         }
         finally
         {

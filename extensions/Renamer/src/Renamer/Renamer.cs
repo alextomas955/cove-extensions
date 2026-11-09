@@ -1,9 +1,11 @@
+using Cove.Core.Auth;
 using Cove.Core.Events;
 using Cove.Extensions.Shared;
 using Cove.Sdk;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -27,7 +29,7 @@ public sealed partial class Renamer : FullExtensionBase
     // Defaults to a no-op logger and is replaced in InitializeAsync when the host supplies one, so
     // the source-generated [LoggerMessage] methods never dereference null and a missing host logger
     // never blocks a rename. The generator binds to this field by its ILogger type.
-    private ILogger _log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+    private ILogger _log = NullLogger.Instance;
 
     private IServiceScopeFactory ScopeFactory =>
         _scopeFactory ?? throw new InvalidOperationException(
@@ -303,10 +305,10 @@ public sealed partial class Renamer : FullExtensionBase
     // video permission. Throws for a kind this extension does not rename.
     internal static (string Read, string Write) PermissionsFor(RenamerFileKind kind) => kind switch
     {
-        RenamerFileKind.Image => (Cove.Core.Auth.Permissions.ImagesRead, Cove.Core.Auth.Permissions.ImagesWrite),
-        RenamerFileKind.Audio => (Cove.Core.Auth.Permissions.AudiosRead, Cove.Core.Auth.Permissions.AudiosWrite),
-        RenamerFileKind.Text => (Cove.Core.Auth.Permissions.TextsRead, Cove.Core.Auth.Permissions.TextsWrite),
-        RenamerFileKind.Video => (Cove.Core.Auth.Permissions.VideosRead, Cove.Core.Auth.Permissions.VideosWrite),
+        RenamerFileKind.Image => (Permissions.ImagesRead, Permissions.ImagesWrite),
+        RenamerFileKind.Audio => (Permissions.AudiosRead, Permissions.AudiosWrite),
+        RenamerFileKind.Text => (Permissions.TextsRead, Permissions.TextsWrite),
+        RenamerFileKind.Video => (Permissions.VideosRead, Permissions.VideosWrite),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a renamable kind"),
     };
 }

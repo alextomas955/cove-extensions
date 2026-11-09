@@ -1,7 +1,10 @@
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Plugins;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -12,13 +15,13 @@ namespace Renamer.Tests.Api;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class PreviewEndpointTests
 {
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync()
+    private static async Task<Renamer> BuildExtensionAsync()
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // "$title" keeps the seeded video, which has no height, from gaining a resolution suffix.
         await new OptionsStore(store).SaveAsync(new RenamerOptions { FilenameTemplate = "$title" });
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
+        ((IStatefulExtension)ext).SetStore(store);
         return ext;
     }
 
@@ -34,14 +37,14 @@ public sealed class PreviewEndpointTests
     // Drives /preview for one video as a caller who may read videos, and unwraps the one success
     // shape the route answers with. Asserted as the Ok variant, because the refusal this endpoint
     // also returns is an IValueHttpResult too.
-    private static async Task<global::Renamer.Contracts.PreviewResponse> PreviewVideoAsync(
-        global::Renamer.Renamer ext, DbContext db, int videoId)
+    private static async Task<PreviewResponse> PreviewVideoAsync(
+        Renamer ext, DbContext db, int videoId)
     {
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var result = await ext.PreviewAsync(
-            new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
+            new RenamerRequest("video", [videoId]), db, principal, default);
 
-        return Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result)).Value!;
+        return Assert.IsType<Ok<PreviewResponse>>(Unwrap(result)).Value!;
     }
 
     // Preview plans and answers; it writes nothing. The row is read before the call and compared
@@ -77,7 +80,7 @@ public sealed class PreviewEndpointTests
 
             // The UI's confirm summary reads it.status === "rename" and it.fileId, so a numeric enum or a
             // PascalCase key reads as nothing to rename and the rename never fires.
-            var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
+            var json = JsonSerializer.Serialize(response, PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"rename\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
@@ -231,7 +234,7 @@ public sealed class PreviewEndpointTests
 
             // The UI matches on camelCase keys and camelCase enum strings, so a PascalCase key or a
             // numeric enum reads as nothing to do.
-            var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
+            var json = JsonSerializer.Serialize(response, PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"items\":", json);
             Assert.Contains("\"summary\":", json);
             Assert.Contains("\"status\":\"move\"", json);
@@ -282,7 +285,7 @@ public sealed class PreviewEndpointTests
             // A skip does not act, so the blast radius counts nothing.
             Assert.Equal(0, response.Summary.TotalCount);
 
-            var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
+            var json = JsonSerializer.Serialize(response, PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 
             await AssertFileUnchangedAsync(db, fileId, before);

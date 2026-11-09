@@ -53,7 +53,7 @@ public sealed class MoveOutcomeReportingTests
                     fileId, oldFull, newFull, RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var item = Assert.Single(result.Skipped);
             Assert.Equal(RenamerStatus.SkipVerifyFailed, item.Status);

@@ -13,7 +13,7 @@ public sealed class RenamableKindsTests
     [InlineData(RenamerFileKind.Text, Permissions.TextsRead, Permissions.TextsWrite)]
     public void EveryRenamableKind_IsGatedOnItsOwnPermissionPair(RenamerFileKind kind, string read, string write)
     {
-        Assert.Equal((read, write), global::Renamer.Renamer.PermissionsFor(kind));
+        Assert.Equal((read, write), Renamer.PermissionsFor(kind));
     }
 
     [Theory]
@@ -41,7 +41,7 @@ public sealed class RenamableKindsTests
     {
         Assert.False(RenamableKinds.Includes(RenamerFileKind.Gallery));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => global::Renamer.Renamer.PermissionsFor(RenamerFileKind.Gallery));
+            () => Renamer.PermissionsFor(RenamerFileKind.Gallery));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => KindEvents.EventTypeFor(RenamerFileKind.Gallery));
         Assert.Throws<ArgumentOutOfRangeException>(

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -75,10 +76,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
     }
 
     /// <inheritdoc />
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+    [SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
         Justification = "ToLower() here is never executed in .NET - it is translated to the provider's " +
             "own lower() in SQL, and the culture-taking overloads have no translation.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture",
+    [SuppressMessage("Globalization", "CA1311:Specify a culture",
         Justification = "Same as CA1304: this call is translated to SQL, not run by the CLR.")]
     public async Task<NameResolution> ResolveNamesAsync(
         RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default)
@@ -317,10 +318,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
             .Select(g => new PathClaims(g.Key, g.Count()))
             .ToListAsync(ct);
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+    [SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
         Justification = "ToUpper() here is never executed in .NET - it is translated to the provider's " +
             "own upper() in SQL, and the culture-taking overloads have no translation.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture",
+    [SuppressMessage("Globalization", "CA1311:Specify a culture",
         Justification = "Same as CA1304: this call is translated to SQL, not run by the CLR.")]
     private Task<List<PathClaims>> FoldedClaimsAsync(string[] paths, CancellationToken ct)
     {
@@ -387,7 +388,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
     {
-        return Task.FromResult(System.IO.File.Exists(PathOps.ToNative(fullPath)));
+        return Task.FromResult(File.Exists(PathOps.ToNative(fullPath)));
     }
 
     // Returns the tracked folder entity, creating and saving one when the path has none.

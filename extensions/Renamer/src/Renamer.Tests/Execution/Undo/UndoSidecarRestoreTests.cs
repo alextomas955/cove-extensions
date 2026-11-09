@@ -185,7 +185,7 @@ public sealed class UndoSidecarRestoreTests
 
         var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
         var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId)
-            .ExecuteAsync(plan, options, default);
+            .ExecuteAsync(plan, options);
         Assert.Single(forward.Renamed);
 
         if (betweenRenameAndUndo is not null)

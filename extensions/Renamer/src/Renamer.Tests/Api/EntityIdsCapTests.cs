@@ -7,6 +7,7 @@ using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Api;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
@@ -50,7 +51,7 @@ public sealed class EntityIdsCapTests
             var ids = Enumerable.Range(1, Cap + 1).ToArray();
 
             var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", ids), db, principal, default);
+                new RenamerRequest("video", ids), db, principal, default);
 
             AssertTooManyIds(result);
             Assert.Equal(0, interceptor.ReaderCount);
@@ -70,7 +71,7 @@ public sealed class EntityIdsCapTests
         var ids = Enumerable.Range(1, Cap + 1).ToArray();
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,
+            new RenamerRequest("video", ids), principal, jobs,
             new RecordingAuthorizationService(), default);
 
         AssertTooManyIds(result);
@@ -87,7 +88,7 @@ public sealed class EntityIdsCapTests
         var ids = Enumerable.Range(1, Cap).ToArray();
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,
+            new RenamerRequest("video", ids), principal, jobs,
             new RecordingAuthorizationService(), default);
 
         Assert.Equal(202, StatusOf(result));

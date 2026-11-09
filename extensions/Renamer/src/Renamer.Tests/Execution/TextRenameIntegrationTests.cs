@@ -82,7 +82,7 @@ public sealed class TextRenameIntegrationTests
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
-            var result = await executor.ExecuteAsync(plan, options, default);
+            var result = await executor.ExecuteAsync(plan, options);
 
             string newFull = Path.Combine(dir.Root, "A Manual.pdf");
             Assert.True(File.Exists(newFull), "renamed file must exist on disk");
@@ -131,13 +131,13 @@ public sealed class TextRenameIntegrationTests
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
             var forward = await new RenamerExecutor(
                 port, new CapturingEventBus(), journal, "run-text")
-                .ExecuteAsync(plan, options, default);
+                .ExecuteAsync(plan, options);
             Assert.Single(forward.Renamed);
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus).RevertAsync(batch!);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);

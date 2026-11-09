@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Security.Cryptography;
 using Renamer.Planner;
 
 namespace Renamer.Execution;
@@ -65,7 +67,7 @@ public sealed class CrossVolumeMover
     private async Task MoveSidecarAsync(
         SidecarMove sc, List<SidecarMove> moved, List<string> warnings, CancellationToken ct)
     {
-        if (System.IO.File.Exists(sc.To))
+        if (File.Exists(sc.To))
         {
             warnings.Add($"sidecar target exists, skipped: {sc.To}");
             return;
@@ -122,7 +124,7 @@ public sealed class CrossVolumeMover
         string finalFull,
         CancellationToken ct)
     {
-        if (System.IO.File.Exists(finalFull))
+        if (File.Exists(finalFull))
         {
             return (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {finalFull}", null);
         }
@@ -152,14 +154,14 @@ public sealed class CrossVolumeMover
 
             try
             {
-                System.IO.File.Move(inFlightFull, finalFull);
+                File.Move(inFlightFull, finalFull);
             }
             catch (IOException ex)
             {
                 TryDelete(inFlightFull);
                 // A racing writer that took the final name and a locked in-flight copy arrive as the
                 // same IOException, so the destination is measured to tell them apart.
-                return System.IO.File.Exists(finalFull)
+                return File.Exists(finalFull)
                     ? (false, MoveOutcome.TargetExists, $"target exists at promote, not overwritten: {ex.Message}", null)
                     : (false, MoveOutcome.Locked, $"promote refused, in-flight copy locked: {ex.Message}", null);
             }
@@ -169,7 +171,7 @@ public sealed class CrossVolumeMover
             // file again and suffix past the survivor, with nothing bounding the pile.
             try
             {
-                System.IO.File.Delete(srcFull);
+                File.Delete(srcFull);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -191,7 +193,7 @@ public sealed class CrossVolumeMover
             TryDelete(inFlightFull);
             // A destination present here is a racing writer that took the final name, not a promoted
             // copy: a post-promote delete failure is caught beside the delete and never reaches here.
-            return System.IO.File.Exists(finalFull)
+            return File.Exists(finalFull)
                 ? (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {ex.Message}", null)
                 : (false, MoveOutcome.Locked, $"source locked/in-use: {ex.Message}", null);
         }
@@ -211,7 +213,7 @@ public sealed class CrossVolumeMover
     private static string MintInFlightPath(string finalFull) =>
         finalFull
         + PathOps.InFlightMarker
-        + System.Security.Cryptography.RandomNumberGenerator.GetHexString(PathOps.InFlightRandomChars, lowercase: true);
+        + RandomNumberGenerator.GetHexString(PathOps.InFlightRandomChars, lowercase: true);
 
     // Reads the source once, feeding each slice to both the destination stream and a running hash, so
     // the source is never read a second time. XxHash3 is an integrity check, not a security control.
@@ -220,7 +222,7 @@ public sealed class CrossVolumeMover
         string inFlightNative,
         CancellationToken ct)
     {
-        var hash = new System.IO.Hashing.XxHash3();
+        var hash = new XxHash3();
         long total = 0;
 
         await using var src = new FileStream(
@@ -258,7 +260,7 @@ public sealed class CrossVolumeMover
     // buffer held.
     private static async Task<(long Size, byte[] Hash)> HashFileAsync(string native, CancellationToken ct)
     {
-        var hash = new System.IO.Hashing.XxHash3();
+        var hash = new XxHash3();
         await using var s = new FileStream(
             native, FileMode.Open, FileAccess.Read, FileShare.Read,
             BufferSize, FileOptions.Asynchronous);
@@ -281,12 +283,12 @@ public sealed class CrossVolumeMover
     {
         try
         {
-            if (!System.IO.File.Exists(from))
+            if (!File.Exists(from))
             {
                 warnings.Add($"rollback source missing, cannot restore: {from}");
                 return;
             }
-            if (System.IO.File.Exists(to))
+            if (File.Exists(to))
             {
                 warnings.Add($"rollback target re-occupied, leaving as-is: {to}");
                 return;
@@ -315,9 +317,9 @@ public sealed class CrossVolumeMover
     {
         try
         {
-            if (System.IO.File.Exists(path))
+            if (File.Exists(path))
             {
-                System.IO.File.Delete(path);
+                File.Delete(path);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

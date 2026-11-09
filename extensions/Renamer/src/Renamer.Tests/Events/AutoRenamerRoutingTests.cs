@@ -40,7 +40,7 @@ public sealed class AutoRenamerRoutingTests
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
                 db, options, bus, srcPathFwd, destRootFwd);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             string expected = Path.Combine(destRoot, "Films", "My Film.mkv");
             Assert.True(File.Exists(expected), $"expected routed file at {expected}");
@@ -86,7 +86,7 @@ public sealed class AutoRenamerRoutingTests
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
                 db, options, bus, srcPathFwd, defaultRootFwd);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(File.Exists(Path.Combine(defaultRoot, "My Film.mkv")));
             Assert.False(File.Exists(Path.Combine(srcFolder, "raw.mkv")));

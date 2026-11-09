@@ -2,8 +2,8 @@ using Cove.Core.Events;
 using Renamer.Options;
 using Renamer.Planner;
 
-using static global::Renamer.Execution.KindEvents;
-using static global::Renamer.Planner.PathOps;
+using static Renamer.Execution.KindEvents;
+using static Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 
@@ -128,7 +128,7 @@ public sealed class RenamerExecutor
         // FileNotFoundException or a DirectoryNotFoundException, both of which derive from IOException
         // and so bucket as SkipLocked, labelling a gone file "in use". This check runs before the folder
         // resolve, the collision loop and the mover, and nothing has been moved or saved yet.
-        if (!System.IO.File.Exists(ToNative(item.OldFullPath)))
+        if (!File.Exists(ToNative(item.OldFullPath)))
         {
             buckets.Skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
                 RenamerStatus.SkipMissingSource, "skipped: source file is missing on disk"));
@@ -250,7 +250,7 @@ public sealed class RenamerExecutor
         // volume File.Exists("Movie.mkv") is true while "movie.mkv" exists, and a case-only rename of
         // the file onto itself is the move the OS performs, not a clobber. A different file at that name
         // still collides. The database check already excludes the source row.
-        while ((System.IO.File.Exists(ToNative(newFull)) && !IsSelfPath(newFull, item.OldFullPath))
+        while ((File.Exists(ToNative(newFull)) && !IsSelfPath(newFull, item.OldFullPath))
                || await _port.CollisionExistsAsync(targetFolderId, candidate, item.FileId, ct))
         {
             attempt++;
@@ -329,8 +329,8 @@ public sealed class RenamerExecutor
         // caption that could not come back leave the row naming a location the media file has left. A
         // case-only rename is its own target on a case-insensitive volume, so the vacated-target half of
         // the check is skipped for one.
-        bool primaryBack = System.IO.File.Exists(moved.NativeOld)
-            && (IsSelfPath(moved.NewFull, item.OldFullPath) || !System.IO.File.Exists(moved.NativeNew));
+        bool primaryBack = File.Exists(moved.NativeOld)
+            && (IsSelfPath(moved.NewFull, item.OldFullPath) || !File.Exists(moved.NativeNew));
 
         if (!primaryBack)
         {
@@ -538,14 +538,14 @@ public sealed class RenamerExecutor
     {
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string nativeDir = ToNative(dir);
-        if (!System.IO.Directory.Exists(nativeDir))
+        if (!Directory.Exists(nativeDir))
         {
             return found;
         }
 
-        foreach (string path in System.IO.Directory.EnumerateFiles(nativeDir, stem + ".*"))
+        foreach (string path in Directory.EnumerateFiles(nativeDir, stem + ".*"))
         {
-            string name = System.IO.Path.GetFileName(path);
+            string name = Path.GetFileName(path);
             if (name.Length <= stem.Length + 1
                 || name[stem.Length] != '.'
                 || !name.AsSpan(0, stem.Length).Equals(stem, StringComparison.OrdinalIgnoreCase))

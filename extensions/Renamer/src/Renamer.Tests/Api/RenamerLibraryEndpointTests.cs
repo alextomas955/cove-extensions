@@ -1,10 +1,12 @@
 using Cove.Core.Auth;
+using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
@@ -15,7 +17,7 @@ namespace Renamer.Tests.Api;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class RenamerLibraryEndpointTests
 {
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync(
+    private static async Task<(Renamer ext, FakeStore store)> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions? renamerOptions = null, string[]? libraryPaths = null)
     {
         var services = new ServiceCollection();
@@ -24,7 +26,7 @@ public sealed class RenamerLibraryEndpointTests
             var options = new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options;
             return new CoveContext(options, principalAccessor: null);
         });
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IEventBus>(new CapturingEventBus());
         services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         if (libraryPaths is not null)
         {
@@ -73,7 +75,7 @@ public sealed class RenamerLibraryEndpointTests
         var result = ext.RenamerLibraryEnqueue(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), jobs);
 
         Assert.Equal(202, StatusOf(result));
-        var enqueued = Assert.IsType<global::Renamer.Contracts.LibraryRenameEnqueued>(
+        var enqueued = Assert.IsType<LibraryRenameEnqueued>(
             Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
         Assert.Equal("job-123", enqueued.JobId);
         Assert.False(string.IsNullOrEmpty(enqueued.RunId));

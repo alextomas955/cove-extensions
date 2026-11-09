@@ -119,7 +119,7 @@ public sealed class EmptySourceFolderCleanerTests
             var (_, plan, _) = await SeedMoveOutOfSrcAsync(db, dir);
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            var result = await NewExecutor(db).ExecuteAsync(plan, options, default);
+            var result = await NewExecutor(db).ExecuteAsync(plan, options);
 
             var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
@@ -146,7 +146,7 @@ public sealed class EmptySourceFolderCleanerTests
             var (_, plan, _) = await SeedMoveOutOfSrcAsync(db, dir);
             var options = new RenamerOptions(); // RemoveEmptyFolder defaults to false
 
-            var result = await NewExecutor(db).ExecuteAsync(plan, options, default);
+            var result = await NewExecutor(db).ExecuteAsync(plan, options);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")));
@@ -175,14 +175,14 @@ public sealed class EmptySourceFolderCleanerTests
 
             await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, DateTime.UtcNow);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
-                .ExecuteAsync(plan, options, default);
+                .ExecuteAsync(plan, options);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus());
-            var undo = await replayer.RevertAsync(batch!, default);
+            var undo = await replayer.RevertAsync(batch!);
 
             Assert.Equal(0, undo.Undone);
             var skip = Assert.Single(undo.Skipped);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cove.Core.Auth;
 
 namespace Renamer.Tests.TestSupport;
@@ -25,7 +26,7 @@ public sealed class RecordingAuthorizationService : IAuthorizationService
             return Task.FromResult(AuthorizationResult.Allow());
         }
 
-        int id = int.Parse(target.Id, System.Globalization.CultureInfo.InvariantCulture);
+        int id = int.Parse(target.Id, CultureInfo.InvariantCulture);
         Asked.Add((permission, target.Kind, id));
 
         return Task.FromResult(Denied.Contains((target.Kind, id))

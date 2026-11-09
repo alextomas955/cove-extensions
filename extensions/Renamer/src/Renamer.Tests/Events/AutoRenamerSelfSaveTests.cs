@@ -42,7 +42,7 @@ public sealed class AutoRenamerSelfSaveTests
             string atLibrary = Path.Combine(libraryFwd, "My Film.mkv");
 
             // One genuine edit, one hop: the first rule matches the file's folder and relocates it.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(File.Exists(atSorted), $"the matched rule did not relocate the file to {atSorted}");
             Assert.False(File.Exists(Path.Combine(libraryFwd, "raw.mkv")));
@@ -53,7 +53,7 @@ public sealed class AutoRenamerSelfSaveTests
             // The event that save re-raised. The plan is not empty here - the second rule would take
             // the file straight back - so nothing but a suppression scoped to this handler's own save
             // can stop it.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(
                 File.Exists(atSorted),
@@ -71,7 +71,7 @@ public sealed class AutoRenamerSelfSaveTests
             // scoped to the action that armed it, not a mode the handler stays in. Without this
             // assertion a suppression that never released would satisfy everything above and mute
             // the hook for this item permanently.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(
                 File.Exists(atLibrary),
@@ -130,7 +130,7 @@ public sealed class AutoRenamerSelfSaveTests
             // A genuine edit. The rule matches, so the plan acts and the executor is called - and the
             // occupied destination sends every item to a skip, so nothing is saved and no event is
             // raised for the suppression to consume.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(File.Exists(atLibrary), "the file left its folder even though the move was refused");
             Assert.Equal("someone else's bytes", File.ReadAllText(blocker));
@@ -145,7 +145,7 @@ public sealed class AutoRenamerSelfSaveTests
             File.Delete(suffixedBlocker);
 
             // A later genuine edit, with the destination now free.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(
                 File.Exists(blocker),
