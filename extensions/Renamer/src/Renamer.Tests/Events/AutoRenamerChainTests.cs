@@ -16,7 +16,7 @@ public sealed class AutoRenamerChainTests
     // Delivers every event the hook raised, round by round, until a round raises nothing. Returns how
     // many rounds that took.
     private static async Task<int> DeliverUntilSettledAsync(
-        global::Renamer.Renamer ext, CapturingEventBus bus, int videoId)
+        Renamer ext, CapturingEventBus bus, int videoId)
     {
         int delivered = 0;
         int generations = 0;
@@ -26,7 +26,7 @@ public sealed class AutoRenamerChainTests
             int frontier = bus.Published.Count;
             for (; delivered < frontier; delivered++)
             {
-                await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+                await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
             }
         }
 
@@ -52,7 +52,7 @@ public sealed class AutoRenamerChainTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
@@ -64,7 +64,7 @@ public sealed class AutoRenamerChainTests
 
             // The re-raised event was the hook's own save. This one is a genuine edit, planned against
             // a name that already matches, so the hook stops before opening an undo batch.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             var (basenameAfterEdit, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basenameAfterEdit);
@@ -103,7 +103,7 @@ public sealed class AutoRenamerChainTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus, folderFwd);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
             int generations = await DeliverUntilSettledAsync(ext, bus, videoId);
 
             // A further generation means the surplus file planned as a move onto its own path, so the
@@ -160,7 +160,7 @@ public sealed class AutoRenamerChainTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus, folderFwd);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
             int generations = await DeliverUntilSettledAsync(ext, bus, videoId);
 
             Assert.True(

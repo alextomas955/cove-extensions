@@ -1,9 +1,11 @@
+using Cove.Core.Entities;
 using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Jobs;
@@ -15,7 +17,7 @@ public sealed class RenamerBatchJobTests
     // context over the same database. A singleton registration would hand every parallel worker the
     // one seeded context, and a DbContext is not thread-safe. The seed and assert context shares the
     // connection, so rows the workers save are visible to the test's read-backs.
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(SqliteConnection conn, IEventBus bus)
+    private static async Task<Renamer> BuildExtensionAsync(SqliteConnection conn, IEventBus bus)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ =>
@@ -31,8 +33,8 @@ public sealed class RenamerBatchJobTests
         // "$title" keeps the seed videos, which have no height, from gaining a resolution suffix.
         // SameVolumeConcurrency=1 because every DI scope here shares one in-memory SQLite connection,
         // and two DbContexts racing on one connection throw inside EF.
-        await new global::Renamer.Options.OptionsStore(store).SaveAsync(
-            new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
+        await new OptionsStore(store).SaveAsync(
+            new RenamerOptions { FilenameTemplate = "$title", SameVolumeConcurrency = 1 });
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(provider);
         return ext;
@@ -78,11 +80,11 @@ public sealed class RenamerBatchJobTests
 
             // A second folder row for the same directory, spelled with a trailing separator, carrying
             // its own file row for the same basename.
-            var twin = new Cove.Core.Entities.Folder { Path = folderPath + "/", ModTime = DateTime.UtcNow };
-            db.Set<Cove.Core.Entities.Folder>().Add(twin);
+            var twin = new Folder { Path = folderPath + "/", ModTime = DateTime.UtcNow };
+            db.Set<Folder>().Add(twin);
             await db.SaveChangesAsync();
-            var video2 = new Cove.Core.Entities.Video { Title = "Second Film", Organized = true };
-            db.Set<Cove.Core.Entities.Video>().Add(video2);
+            var video2 = new Video { Title = "Second Film", Organized = true };
+            db.Set<Video>().Add(video2);
             await db.SaveChangesAsync();
             int file2 = await ExecutorTestSeed.SeedAdditionalFileAsync(db, twin.Id, video2.Id, "a.mkv");
 

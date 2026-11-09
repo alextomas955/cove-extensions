@@ -23,13 +23,13 @@ public static class DiskMover
         try
         {
             Movers.EnsureParentDir(newFull);
-            System.IO.File.Move(oldFull, newFull);
+            File.Move(oldFull, newFull);
         }
         catch (IOException ex)
         {
             // The exception cannot say which cause it carries, so the destination is tested. The
             // message is never read; see MoveOutcome.TargetExists.
-            return System.IO.File.Exists(newFull)
+            return File.Exists(newFull)
                 ? new MoveResult(false, MoveOutcome.TargetExists, [], [], $"target exists, not overwritten: {ex.Message}")
                 : new MoveResult(false, MoveOutcome.Locked, [], [], $"source locked/in-use: {ex.Message}");
         }
@@ -52,7 +52,7 @@ public static class DiskMover
     // failure. A pre-existing target is left untouched.
     private static void MoveSidecar(SidecarMove sc, List<SidecarMove> moved, List<string> warnings)
     {
-        if (System.IO.File.Exists(sc.To))
+        if (File.Exists(sc.To))
         {
             warnings.Add($"sidecar target exists, skipped: {sc.To}");
             return;
@@ -61,7 +61,7 @@ public static class DiskMover
         try
         {
             Movers.EnsureParentDir(sc.To);
-            System.IO.File.Move(sc.From, sc.To);
+            File.Move(sc.From, sc.To);
             moved.Add(sc);
         }
         catch (IOException ex)
@@ -98,18 +98,18 @@ public static class DiskMover
     {
         try
         {
-            if (!System.IO.File.Exists(from))
+            if (!File.Exists(from))
             {
                 warnings.Add($"rollback source missing, cannot restore: {from}");
                 return;
             }
-            if (System.IO.File.Exists(to))
+            if (File.Exists(to))
             {
                 warnings.Add($"rollback target re-occupied, leaving as-is: {to}");
                 return;
             }
             Movers.EnsureParentDir(to);
-            System.IO.File.Move(from, to);
+            File.Move(from, to);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

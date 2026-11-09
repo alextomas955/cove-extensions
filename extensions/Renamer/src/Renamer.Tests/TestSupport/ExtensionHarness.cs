@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Events;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -13,12 +14,12 @@ internal static class ExtensionHarness
     // Every scope resolves the one seeded context the test also reads, so a test asserts on the rows
     // the extension wrote. Only single-scope paths may use it: a path that opens one scope per worker
     // would race on a DbContext that is not thread-safe.
-    internal static Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
+    internal static Task<(Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
         DbContext db, RenamerOptions options, params string[] libraryPaths)
         => CreateWithSharedContextAsync(db, options, new CapturingEventBus(), libraryPaths);
 
-    internal static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
-        DbContext db, RenamerOptions options, Cove.Core.Events.IEventBus bus, params string[] libraryPaths)
+    internal static async Task<(Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
+        DbContext db, RenamerOptions options, IEventBus bus, params string[] libraryPaths)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -39,7 +40,7 @@ internal static class ExtensionHarness
     // Every scope resolves a context of its own over its own connection to the shared database, the
     // production shape, so the parallel workers of a batch genuinely run at once. The interceptor is
     // attached to every context, because the work a caller counts is spread over those scopes.
-    internal static async Task<(global::Renamer.Renamer Extension, CapturingEventBus Bus)> CreateWithScopedContextsAsync(
+    internal static async Task<(Renamer Extension, CapturingEventBus Bus)> CreateWithScopedContextsAsync(
         SharedCacheSqlite shared,
         RenamerOptions options,
         string[]? libraryPaths = null,
@@ -58,7 +59,7 @@ internal static class ExtensionHarness
         });
         services.AddLibraryPaths(libraryPaths ?? []);
         var bus = new CapturingEventBus();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(bus);
+        services.AddSingleton<IEventBus>(bus);
         if (authorization is not null)
         {
             services.AddSingleton(authorization);

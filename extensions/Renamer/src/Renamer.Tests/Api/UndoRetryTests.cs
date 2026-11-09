@@ -149,14 +149,14 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    private static async Task<(global::Renamer.Renamer ext, Renamed first, Renamed second)> RenameTwoAsync(
+    private static async Task<(Renamer ext, Renamed first, Renamed second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
         var (ext, seeded) = await RenameManyAsync(db, dir, ["one", "two"]);
         return (ext, seeded[0], seeded[1]);
     }
 
-    private static Task<(global::Renamer.Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
+    private static Task<(Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, IReadOnlyList<string> stems)
         => RenamedBatchFixture.CreateAsync(dir, db, RunId, stems);
 }

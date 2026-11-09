@@ -25,7 +25,7 @@ public sealed class AutoRenamerGateTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("raw.mkv", basename);
@@ -63,7 +63,7 @@ public sealed class AutoRenamerGateTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("raw.mkv", basename);

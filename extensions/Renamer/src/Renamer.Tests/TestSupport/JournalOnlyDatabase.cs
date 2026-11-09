@@ -1,3 +1,4 @@
+using Cove.Core.Events;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +31,7 @@ internal sealed class JournalOnlyDatabase : IAsyncDisposable
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => NewContext());
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IEventBus>(new CapturingEventBus());
         return services.BuildServiceProvider();
     }
 

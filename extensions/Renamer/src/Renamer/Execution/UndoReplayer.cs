@@ -1,8 +1,8 @@
 using Cove.Core.Events;
 using Renamer.Planner;
 
-using static global::Renamer.Execution.KindEvents;
-using static global::Renamer.Planner.PathOps;
+using static Renamer.Execution.KindEvents;
+using static Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 
@@ -258,8 +258,8 @@ public sealed class UndoReplayer
         // rollback's warning list: that list folds the sidecars in, so a caption that could not come
         // back would stop the row returning to the file it names. A case-only undo is its own target, so
         // the vacated-old-slot half of the check cannot hold for one and is skipped.
-        bool primaryBack = System.IO.File.Exists(nativeNew)
-            && (PathsEqual(entry.OldPath, currentPath) || !System.IO.File.Exists(nativeOld));
+        bool primaryBack = File.Exists(nativeNew)
+            && (PathsEqual(entry.OldPath, currentPath) || !File.Exists(nativeOld));
 
         if (!primaryBack)
         {
@@ -334,7 +334,7 @@ public sealed class UndoReplayer
         // The old slot must be free on both disk and database; an occupied slot is skipped, never
         // clobbered. A folder with no row holds no database collision.
         int? existingFolderId = await _port.TryGetFolderIdAsync(oldDir, ct);
-        if (System.IO.File.Exists(ToNative(entry.OldPath))
+        if (File.Exists(ToNative(entry.OldPath))
             || (existingFolderId is int folderId
                 && await _port.CollisionExistsAsync(folderId, oldBasename, entry.FileId, ct)))
         {

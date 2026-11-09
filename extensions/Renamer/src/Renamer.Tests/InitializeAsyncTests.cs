@@ -1,3 +1,4 @@
+using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
@@ -37,15 +38,15 @@ public sealed class InitializeAsyncTests
     public async Task InitializeAsync_WithALegacyScanValue_DeletesIt_WithoutEverReadingIt()
     {
         var store = new FakeStore();
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[a legacy per-file array]");
+        await store.SetAsync(Renamer.LastScanResultKey, "[a legacy per-file array]");
         store.GetKeys.Clear();
 
         await InitializeWithStoreAsync(store);
 
         // Reading the value to decide whether to delete it is the one operation guaranteed to hurt: the
         // host's bulk read already fails on it, and its own delete materializes the row it removes.
-        Assert.DoesNotContain(global::Renamer.Renamer.LastScanResultKey, store.GetKeys);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
+        Assert.DoesNotContain(Renamer.LastScanResultKey, store.GetKeys);
+        Assert.Null(await store.GetAsync(Renamer.LastScanResultKey));
     }
 
     [Fact]
@@ -63,13 +64,13 @@ public sealed class InitializeAsyncTests
     public async Task InitializeAsync_LeavesAPreExistingScanSummaryUntouched()
     {
         var store = new FakeStore();
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{\"schemaVersion\":1}");
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
+        await store.SetAsync(Renamer.LastScanSummaryKey, "{\"schemaVersion\":1}");
+        await store.SetAsync(Renamer.LastScanResultKey, "[legacy]");
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Equal("{\"schemaVersion\":1}", await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey));
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
+        Assert.Equal("{\"schemaVersion\":1}", await store.GetAsync(Renamer.LastScanSummaryKey));
+        Assert.Null(await store.GetAsync(Renamer.LastScanResultKey));
     }
 
     [Fact]
@@ -80,12 +81,12 @@ public sealed class InitializeAsyncTests
         await db.DisposeAsync();
         try
         {
-            var log = new CapturingLogger<global::Renamer.Renamer>();
+            var log = new CapturingLogger<Renamer>();
             var services = new ServiceCollection();
             services.AddScoped<DbContext>(_ => new CoveContext(
                 new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options, principalAccessor: null));
-            services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-            services.AddSingleton<ILogger<global::Renamer.Renamer>>(log);
+            services.AddSingleton<IEventBus>(new CapturingEventBus());
+            services.AddSingleton<ILogger<Renamer>>(log);
 
             var ext = RenamerFixture.Create();
             ((IStatefulExtension)ext).SetStore(new ThrowingDeleteStore());

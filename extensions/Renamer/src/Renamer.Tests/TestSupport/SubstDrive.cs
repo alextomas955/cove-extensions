@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Renamer.Tests.TestSupport;
@@ -38,7 +39,7 @@ public sealed class SubstDrive : IDisposable
         if (_mapped)
         {
             try { Run($"{_letter}: /d"); }
-            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { /* best-effort unmap */ }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { /* best-effort unmap */ }
             _mapped = false;
         }
 
@@ -67,7 +68,7 @@ public sealed class SubstDrive : IDisposable
                 Run($"{candidate.Value}: \"{backing}\"");
                 return candidate.Value;
             }
-            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
             {
                 last = ex;
             }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Renamer.Contracts;
 using Renamer.Planner;
 using static Renamer.Tests.TestSupport.VolumePaths;
@@ -163,7 +164,7 @@ public sealed class ScanAggregatorTests
                     new Dictionary<int, long> { [i] = 10L });
             }
 
-            return System.Text.Json.JsonSerializer.Serialize(
+            return JsonSerializer.Serialize(
                 aggregator.ToSummary("run", "user:1", 0L), PreviewContracts.PreviewResponseJsonOptions);
         }
 

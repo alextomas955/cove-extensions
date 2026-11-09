@@ -9,9 +9,14 @@ import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
-import { availableOptions, type ValueOption } from "./primitivesLogic";
+import {
+  availableOptions,
+  listEditors,
+  nextActiveIndex,
+  suggestionOptions,
+  type ValueOption,
+} from "./primitivesLogic";
 import { INPUT_CLASS, TextInput } from "./fields";
-import { listEditors, nextActiveIndex, suggestionOptions } from "./primitivesLogic";
 
 /**
  * Selectable chip styling. Host-compiled classes only - no arbitrary `[…]` values, because the

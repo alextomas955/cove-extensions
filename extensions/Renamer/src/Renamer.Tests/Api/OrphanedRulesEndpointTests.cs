@@ -1,5 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -17,7 +18,7 @@ public sealed class OrphanedRulesEndpointTests
 {
     // Builds the extension over the seeded connection, so the handler's own elevated scope resolves
     // a context on the same database.
-    private static async Task<global::Renamer.Renamer> NewExtensionAsync(
+    private static async Task<Renamer> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions options, CommandCountingInterceptor? interceptor = null)
     {
         var ext = RenamerFixture.Create();
@@ -36,7 +37,7 @@ public sealed class OrphanedRulesEndpointTests
 
             return new CoveContext(builder.Options, principalAccessor: null);
         });
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IEventBus>(new CapturingEventBus());
         await ext.InitializeAsync(services.BuildServiceProvider());
         return ext;
     }

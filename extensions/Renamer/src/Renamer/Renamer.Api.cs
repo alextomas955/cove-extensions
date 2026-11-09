@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
@@ -18,6 +19,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
 using static Renamer.Contracts.PreviewContracts;
+using IJobProgress = Cove.Core.Interfaces.IJobProgress;
 
 namespace Renamer;
 
@@ -440,11 +442,11 @@ public sealed partial class Renamer
 
                 List<int> liveStudios = studioIds.Length == 0
                     ? []
-                    : await db.Set<Cove.Core.Entities.Studio>()
+                    : await db.Set<Studio>()
                         .Where(x => studioIds.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
                 List<int> liveTags = tagIds.Length == 0
                     ? []
-                    : await db.Set<Cove.Core.Entities.Tag>()
+                    : await db.Set<Tag>()
                         .Where(x => tagIds.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
 
                 return (
@@ -962,7 +964,7 @@ public sealed partial class Renamer
 
     // Adapts the host's core IJobProgress, handed to the IJobService.Enqueue delegate, to the
     // extension IJobProgress the batch methods consume.
-    private sealed class HostProgress(Cove.Core.Interfaces.IJobProgress core) : Cove.Plugins.IJobProgress
+    private sealed class HostProgress(IJobProgress core) : Cove.Plugins.IJobProgress
     {
         public void Report(double percent, string? message = null) => core.Report(percent, message);
     }

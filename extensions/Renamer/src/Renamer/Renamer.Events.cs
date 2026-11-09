@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +28,7 @@ public sealed partial class Renamer
     /// entry is claimed before the executor runs and consumed by the first event that follows, so the
     /// worst case is one skipped rename on an entity edited in the same instant its own save returned.
     /// </remarks>
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<(RenamerFileKind Kind, int EntityId), byte> _selfSaved = new();
+    private readonly ConcurrentDictionary<(RenamerFileKind Kind, int EntityId), byte> _selfSaved = new();
 
     // Registered by the base constructor, before InitializeAsync captures the seams, so this wires
     // only the routing. The handler bodies run later and touch the scope and store.

@@ -79,7 +79,7 @@ public sealed class DerivedTitleWriteTests
                     port, new CapturingEventBus(), journal, "run-test")
                 .ExecuteAsync(
                     await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default),
-                    options, default);
+                    options);
             Assert.Single(forward.Renamed);
             Assert.True(
                 File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip.mkv")),
@@ -88,7 +88,7 @@ public sealed class DerivedTitleWriteTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undone = await new UndoReplayer(port, new CapturingEventBus())
-                .RevertAsync(batch!, default);
+                .RevertAsync(batch!);
             Assert.Equal(1, undone.Undone);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw clip.mkv")), "undo must restore the name");

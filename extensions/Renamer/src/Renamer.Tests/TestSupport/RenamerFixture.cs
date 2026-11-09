@@ -20,14 +20,14 @@ internal static class RenamerFixture
 
     internal static ExtensionManifestFile Manifest => SharedManifest.Value;
 
-    internal static global::Renamer.Renamer Create()
+    internal static Renamer Create()
     {
-        var extension = new global::Renamer.Renamer();
+        var extension = new Renamer();
         ((IManifestAware)extension).ApplyManifest(Manifest);
         return extension;
     }
 
-    internal static global::Renamer.Renamer CreateWithStore()
+    internal static Renamer CreateWithStore()
     {
         var extension = Create();
         ((IStatefulExtension)extension).SetStore(new FakeStore());

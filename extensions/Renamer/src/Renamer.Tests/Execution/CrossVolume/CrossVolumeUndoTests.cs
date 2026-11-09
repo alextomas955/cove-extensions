@@ -1,3 +1,4 @@
+using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Planner;
@@ -31,7 +32,7 @@ public sealed class CrossVolumeUndoTests
             var minted = new List<string>();
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover(InFlightCopies.Recorder(minted)));
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -82,7 +83,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, cross: faultMover);
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch);
 
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Failed);
@@ -124,7 +125,7 @@ public sealed class CrossVolumeUndoTests
             var minted = new List<string>();
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(throwingPort, undoBus, cross: new CrossVolumeMover(InFlightCopies.Recorder(minted)));
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch);
 
             Assert.Equal(0, result.Undone);
             Assert.Single(result.Failed);
@@ -166,7 +167,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch);
 
             // Directory.Exists answers false on an unmapped drive without throwing, so an offline drive
             // stops at the missing-directory check before any move is tried.
@@ -198,8 +199,8 @@ public sealed class CrossVolumeUndoTests
 
         // Pre-seed the old folder (the reverse target) so GetOrCreateFolderId resolves it and the
         // recomputed Path after the reverse save equals the old path.
-        var oldFolderRow = new Cove.Core.Entities.Folder { Path = oldFolder, ModTime = DateTime.UtcNow };
-        db.Set<Cove.Core.Entities.Folder>().Add(oldFolderRow);
+        var oldFolderRow = new Folder { Path = oldFolder, ModTime = DateTime.UtcNow };
+        db.Set<Folder>().Add(oldFolderRow);
         await db.SaveChangesAsync();
 
         var (_, videoId, fileId) =

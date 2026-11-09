@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
@@ -33,7 +34,7 @@ public sealed partial class Renamer
     // body and cannot re-resolve the principal.
     internal async Task RunScanLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
-        ScanRun run, Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        ScanRun run, IJobProgress progress, CancellationToken ct)
     {
         var options = overrideOptions ?? await StoredOptions.LoadAsync(ct);
 
@@ -61,7 +62,7 @@ public sealed partial class Renamer
     // every key this extension owns. /scan-rows serves the rows a page at a time.
     internal async Task RunScanCoreAsync(
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
-        AllowedIds allowedIds, ScanRun run, Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        AllowedIds allowedIds, ScanRun run, IJobProgress progress, CancellationToken ct)
     {
         // A kind turned off in the options is dropped before it is walked. Planning it would fill the
         // scan with library-many rows whose only content is that the kind is off.
@@ -186,7 +187,7 @@ public sealed partial class Renamer
     // whole run is one undoable action. A kind with no entities opens no batch.
     internal async Task RunRenamerLibraryJobAsync(
         CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
-        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
+        IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
         string? runId = null, string? ownerKey = null)
     {
         var options = await StoredOptions.LoadAsync(ct);

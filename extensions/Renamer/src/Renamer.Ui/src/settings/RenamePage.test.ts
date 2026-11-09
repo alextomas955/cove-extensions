@@ -13,8 +13,7 @@ import userEvent from "@testing-library/user-event";
 
 import { withQueryClient } from "../common/lib/testQueryClient";
 import type { UseRenamePreview } from "./useRenamePreview";
-import type { LibraryPathsState } from "./options";
-import type { OptionsView, RenamerOptions } from "./options";
+import type { LibraryPathsState, OptionsView, RenamerOptions } from "./options";
 import { jsonResponse } from "../common/lib/testResponses";
 
 const endpoint = vi.hoisted(() => ({

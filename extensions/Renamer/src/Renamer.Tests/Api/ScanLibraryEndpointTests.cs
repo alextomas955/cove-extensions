@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Core.Events;
 using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Extensions.Shared;
@@ -9,6 +10,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -18,7 +21,7 @@ namespace Renamer.Tests.Api;
 
 public sealed class ScanLibraryEndpointTests
 {
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync()
+    private static async Task<(Renamer ext, FakeStore store)> NewExtensionAsync()
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
@@ -33,7 +36,7 @@ public sealed class ScanLibraryEndpointTests
     // over conn, so the job body's own scope resolves a context over the same database the test
     // seeded. The scan job never touches IEventBus, but InitializeAsync requires both seams to be
     // resolvable.
-    private static async Task InitializeOverSharedConnectionAsync(global::Renamer.Renamer ext, SqliteConnection conn)
+    private static async Task InitializeOverSharedConnectionAsync(Renamer ext, SqliteConnection conn)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ =>
@@ -41,7 +44,7 @@ public sealed class ScanLibraryEndpointTests
             var options = new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options;
             return new CoveContext(options, principalAccessor: null);
         });
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IEventBus>(new CapturingEventBus());
         services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         var provider = services.BuildServiceProvider();
         await ext.InitializeAsync(provider);
@@ -96,10 +99,10 @@ public sealed class ScanLibraryEndpointTests
                 caller, [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null,
                 RunFor(caller), progress, default);
 
-            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
+            var json = await store.GetAsync(Renamer.LastScanSummaryKey);
             Assert.False(string.IsNullOrEmpty(json));
 
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions)!;
+            var summary = JsonSerializer.Deserialize<ScanSummary>(json!, PreviewContracts.PreviewResponseJsonOptions)!;
 
             // Per kind, not flat - that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
@@ -156,8 +159,8 @@ public sealed class ScanLibraryEndpointTests
             await ext.RunScanLibraryJobAsync(
                 caller, [RenamerFileKind.Video], null, RunFor(caller), progress, default);
 
-            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions)!;
+            var json = await store.GetAsync(Renamer.LastScanSummaryKey);
+            var summary = JsonSerializer.Deserialize<ScanSummary>(json!, PreviewContracts.PreviewResponseJsonOptions)!;
 
             var kind = Assert.Single(summary.Kinds);
             Assert.Equal(RenamerFileKind.Video, kind.Kind);
@@ -192,7 +195,7 @@ public sealed class ScanLibraryEndpointTests
 
             // The saved "$title" renames raw.mkv to One.mkv. The posted template renders the name the
             // file already has, so only a job that received the body counts it as unchanged.
-            var body = new global::Renamer.Api.ScanLibraryRequest(
+            var body = new ScanLibraryRequest(
                 JsonSerializer.Serialize(new RenamerOptions { FilenameTemplate = "raw" }, RenamerOptions.JsonOptions));
             var accepted = ext.ScanLibraryEnqueue(body, principal, jobs);
             Assert.Equal(202, StatusOf(accepted));
@@ -241,7 +244,7 @@ public sealed class ScanLibraryEndpointTests
 
             // The page plans with the options the caller sends, so passing the same override reproduces
             // the scanned name: the literal prefix proves the unsaved options were previewed, not "$title".
-            var page = await ReadRowsAsync(ext, principal, new global::Renamer.Contracts.ScanRowsRequest(
+            var page = await ReadRowsAsync(ext, principal, new ScanRowsRequest(
                 Options: JsonSerializer.Serialize(overrideOptions, RenamerOptions.JsonOptions),
                 Kind: null, AfterEntityId: null, Take: null, Query: null, Bucket: null));
             var row = Assert.Single(page.Rows);
@@ -274,7 +277,7 @@ public sealed class ScanLibraryEndpointTests
 
             var principal = FakePrincipalAccessor.WithPermissions(
                 Permissions.VideosRead, Permissions.ImagesRead);
-            var page = await ReadRowsAsync(ext, principal, new global::Renamer.Contracts.ScanRowsRequest(
+            var page = await ReadRowsAsync(ext, principal, new ScanRowsRequest(
                 Options: JsonSerializer.Serialize(options, RenamerOptions.JsonOptions),
                 Kind: null, AfterEntityId: null, Take: null, Query: null, Bucket: null));
 
@@ -302,50 +305,50 @@ public sealed class ScanLibraryEndpointTests
         Assert.IsType<NotFound>(Unwrap(result));
     }
 
-    private static async Task<global::Renamer.Contracts.ScanSummaryView> ReadSummaryAsync(
-        global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal, string runId = RunId)
+    private static async Task<ScanSummaryView> ReadSummaryAsync(
+        Renamer ext, ICurrentPrincipalAccessor principal, string runId = RunId)
     {
         var result = await ext.ScanLibraryResultAsync(runId, principal, default);
-        return Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
+        return Assert.IsType<Ok<ScanSummaryView>>(Unwrap(result)).Value!;
     }
 
     // The run id the enqueue minted, which is the only handle its caller has on the figures.
     private static string EnqueuedRunId(IResult accepted) =>
-        Assert.IsType<global::Renamer.Contracts.ScanEnqueued>(
+        Assert.IsType<ScanEnqueued>(
             Assert.IsType<IValueHttpResult>(Unwrap(accepted), exactMatch: false).Value).RunId;
 
-    private static async Task<global::Renamer.Contracts.ScanRowsPage> ReadRowsAsync(
-        global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal,
-        global::Renamer.Contracts.ScanRowsRequest? body = null)
+    private static async Task<ScanRowsPage> ReadRowsAsync(
+        Renamer ext, ICurrentPrincipalAccessor principal,
+        ScanRowsRequest? body = null)
     {
         var result = await ext.ScanRowsAsync(body, principal, default);
-        return Assert.IsType<Ok<global::Renamer.Contracts.ScanRowsPage>>(Unwrap(result)).Value!;
+        return Assert.IsType<Ok<ScanRowsPage>>(Unwrap(result)).Value!;
     }
 
     // A one-kind aggregate whose per-status counts are the only thing the readback merges.
-    private static global::Renamer.Contracts.ScanKindSummary MakeKind(
+    private static ScanKindSummary MakeKind(
         RenamerFileKind kind, int files, RenamerStatus status) =>
         new(kind, Entities: files, Files: files,
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
-                .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
+                .Select(s => new ScanStatusCount(s, s == status ? files : 0))],
             BlastRadius: new PreviewSummary(
                 files, files, 0, 0, [], ConfirmLevel.Light, InFlightPathOverflowCount: 0),
             VolumePairsTruncated: false);
 
     // Stores an aggregate as the run these tests read back, owned by the principal they read it as.
     private static Task StoreSummaryAsync(
-        FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
+        FakeStore store, params ScanKindSummary[] kinds)
         => StoreSummaryAsAsync(store, RunFor(Caller()), kinds);
 
     private static Task StoreSummaryAsAsync(
-        FakeStore store, ScanRun run, params global::Renamer.Contracts.ScanKindSummary[] kinds)
+        FakeStore store, ScanRun run, params ScanKindSummary[] kinds)
         => store.SetAsync(
-            global::Renamer.Renamer.LastScanSummaryKey,
+            Renamer.LastScanSummaryKey,
             JsonSerializer.Serialize(
-                new global::Renamer.Contracts.ScanSummary(
-                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey,
+                new ScanSummary(
+                    ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey,
                     42L, kinds),
-                global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
+                PreviewContracts.PreviewResponseJsonOptions));
 
     [Fact]
     public async Task ScanLibraryResultAsync_VideoOnlyCaller_ReturnsOnlyVideoFigures_NotImageOrAudio()
@@ -427,17 +430,17 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
 
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
+        await store.SetAsync(Renamer.LastScanSummaryKey, "{not json");
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
 
         await store.SetAsync(
-            global::Renamer.Renamer.LastScanSummaryKey,
+            Renamer.LastScanSummaryKey,
             JsonSerializer.Serialize(
-                new global::Renamer.Contracts.ScanSummary(
-                    global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, RunId,
+                new ScanSummary(
+                    ScanSummary.CurrentSchemaVersion + 1, RunId,
                     JobOwner.FromPrincipal(Caller())?.Key, 0L, []),
-                global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions));
+                PreviewContracts.PreviewResponseJsonOptions));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             RunId, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
     }
@@ -449,15 +452,15 @@ public sealed class ScanLibraryEndpointTests
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var run = RunFor(Caller());
         string current = JsonSerializer.Serialize(
-            new global::Renamer.Contracts.ScanSummary(
-                global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey, 42L,
+            new ScanSummary(
+                ScanSummary.CurrentSchemaVersion, run.RunId, run.OwnerKey, 42L,
                 [MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename)]),
-            global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current);
+            PreviewContracts.PreviewResponseJsonOptions);
+        await store.SetAsync(Renamer.LastScanSummaryKey, current);
         Assert.IsNotType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, principal, default)));
 
         Assert.Contains("\"rename\"", current);
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, current.Replace("\"rename\"", "\"renamer\""));
+        await store.SetAsync(Renamer.LastScanSummaryKey, current.Replace("\"rename\"", "\"renamer\""));
 
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, principal, default)));
     }
@@ -473,7 +476,7 @@ public sealed class ScanLibraryEndpointTests
 
         // A null bucket parses as "no filter", so this request reaches the kind check.
         var result = await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, "gallery", null, null, null, null),
+            new ScanRowsRequest(null, "gallery", null, null, null, null),
             principal, default);
 
         var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
@@ -488,7 +491,7 @@ public sealed class ScanLibraryEndpointTests
 
         // The bucket is read before the kind, so a request naming no kind still stops here.
         var result = await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, null, null, null, null, "nonsense"),
+            new ScanRowsRequest(null, null, null, null, null, "nonsense"),
             principal, default);
 
         var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));

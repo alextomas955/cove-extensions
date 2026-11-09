@@ -1,10 +1,13 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -44,7 +47,7 @@ public sealed class EntityAuthorizationTests
     }
 
     private static int EntitiesIn(IResult result) =>
-        Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!.TotalEntities;
+        Assert.IsType<Ok<ScanSummaryView>>(Unwrap(result)).Value!.TotalEntities;
 
     [Fact]
     public async Task RenamerEnqueue_OneUnwritableId_Returns403_AndEnqueuesNothing()
@@ -55,7 +58,7 @@ public sealed class EntityAuthorizationTests
         authz.Denied.Add((EntityKinds.Video, 8));
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [7, 8, 9]),
+            new RenamerRequest("video", [7, 8, 9]),
             FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), jobs, authz, default);
 
         Assert.Equal(403, StatusOf(result));
@@ -70,7 +73,7 @@ public sealed class EntityAuthorizationTests
         var authz = new RecordingAuthorizationService();
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [7, 8, 9]),
+            new RenamerRequest("video", [7, 8, 9]),
             FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), jobs, authz, default);
 
         Assert.Equal(202, StatusOf(result));
@@ -91,14 +94,14 @@ public sealed class EntityAuthorizationTests
         var authz = new RecordingAuthorizationService();
 
         var result = await ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [7, 8, 9]),
+            new RenamerRequest("video", [7, 8, 9]),
             FakePrincipalAccessor.WithPermissions(Permissions.All), jobs, authz, default);
 
         Assert.Equal(202, StatusOf(result));
         Assert.Empty(authz.Asked);
     }
 
-    private static async Task<(global::Renamer.Renamer Ext, FakeStore Store)> LoadedExtensionAsync(
+    private static async Task<(Renamer Ext, FakeStore Store)> LoadedExtensionAsync(
         LibraryDatabase library)
     {
         var store = new FakeStore();
@@ -132,7 +135,7 @@ public sealed class EntityAuthorizationTests
 
     // Reads the stored scan aggregate with the wire's camelCase and string enums.
     private static readonly JsonSerializerOptions EnumJson =
-        new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+        new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     [Fact]
     public async Task RunRenamerLibraryJobAsync_DeniedEntity_LeavesItsFileUntouched_ButRenamesTheAllowedOne()
@@ -206,8 +209,8 @@ public sealed class EntityAuthorizationTests
         await ext.RunScanLibraryJobAsync(
             caller, [RenamerFileKind.Video], null, RunFor(caller), new FakeJobProgress(), default);
 
-        var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
-        var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
+        var json = await store.GetAsync(Renamer.LastScanSummaryKey);
+        var summary = JsonSerializer.Deserialize<ScanSummary>(json!, EnumJson)!;
 
         var kind = Assert.Single(summary.Kinds);
         Assert.Equal(1, kind.Entities);

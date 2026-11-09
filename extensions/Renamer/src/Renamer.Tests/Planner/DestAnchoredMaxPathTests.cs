@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
@@ -31,14 +32,14 @@ public sealed class DestAnchoredMaxPathTests
             new Dictionary<int, Destination> { [42] = Dest.At(dest) },
             new Dictionary<int, Destination>(),
             new Dictionary<string, Destination>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
+            Array.Empty<(Regex, Destination)>());
 
     private static RouteLookups EmptyLookup() =>
         new(
             new Dictionary<int, Destination>(),
             new Dictionary<int, Destination>(),
             new Dictionary<string, Destination>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
+            Array.Empty<(Regex, Destination)>());
 
     // A title chosen so its rendered absolute path fits under the short source but overflows the deep root.
     private static string Title => new('N', 60);
@@ -118,7 +119,7 @@ public sealed class DestAnchoredMaxPathTests
             new Dictionary<int, Destination> { [42] = Dest.At(BoundaryRoot, BoundaryFolder) },
             new Dictionary<int, Destination>(),
             new Dictionary<string, Destination>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
+            Array.Empty<(Regex, Destination)>());
 
     private static async Task<RenamerPlanItem> PlanAtBudgetAsync(int fullPathMax)
     {

@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Events;
 using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Plugins;
@@ -71,7 +72,7 @@ public sealed class TransportHost : IAsyncDisposable
         var jobs = new RecordingJobService();
         builder.Services.AddSingleton<IJobService>(jobs);
         builder.Services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
-        builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        builder.Services.AddSingleton<IEventBus>(new CapturingEventBus());
         builder.Services.AddRouting();
 
         var ext = RenamerFixture.Create();

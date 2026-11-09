@@ -36,7 +36,7 @@ public sealed class RenameChunkPlanningLoadTests
         return (connection, db, interceptor, services.BuildServiceProvider());
     }
 
-    private static async Task<global::Renamer.Renamer> BuildAsync(
+    private static async Task<Renamer> BuildAsync(
         ServiceProvider provider, RenamerOptions options)
     {
         var ext = RenamerFixture.Create();

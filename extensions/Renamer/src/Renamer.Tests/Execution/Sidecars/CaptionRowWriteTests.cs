@@ -41,7 +41,7 @@ public sealed class CaptionRowWriteTests
             db.ChangeTracker.Clear();
 
             var result = await RealExecutor(db).ExecuteAsync(
-                Plan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
+                Plan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions());
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "the caption file moves");

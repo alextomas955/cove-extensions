@@ -152,6 +152,13 @@ export default defineConfig(
       // entry and each vite config legitimately default-exports (the bundle entry object / Vite's
       // config contract) and is exempted in the override block below.
       "import-x/no-default-export": "error",
+      // One import statement per module. Two statements for the same specifier type-check and run
+      // fine, so nothing else reports them. Under the default options the rule groups by resolved
+      // path AND by kind, where a statement carrying an inline `type` specifier counts as its own
+      // kind, so a mixed pair - one value import with an inline `type`, one plain value import -
+      // goes unreported. Closing that needs `prefer-inline`, which also bans the standalone
+      // `import type { … }` statement this tree mostly uses.
+      "import-x/no-duplicates": "error",
       // No internal barrels: import the concrete module, not an index re-export. The pattern matches
       // only index-file names - deliberately not ".", "./", ".." (a group containing those degenerates
       // via minimatch into match-everything, 127 false positives). The alias

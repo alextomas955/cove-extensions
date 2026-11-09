@@ -37,7 +37,7 @@ public sealed class RollbackTests
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
@@ -90,7 +90,7 @@ public sealed class RollbackTests
             var executor = new RenamerExecutor(
                 new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             Assert.Single(result.Failed);
             Assert.True(File.Exists(oldA), "primary file restored");
@@ -135,7 +135,7 @@ public sealed class RollbackTests
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(port, bus, journal, "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
@@ -190,7 +190,7 @@ public sealed class RollbackTests
             var executor = new RenamerExecutor(
                 new CoveRenamerDataPort(db), bus, journal, "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             Assert.Empty(result.Failed);
             var renamedItem = Assert.Single(result.Renamed);
@@ -243,7 +243,7 @@ public sealed class RollbackTests
                 new ReoccupySlotThenMisreportDataPort(db, oldA), new CapturingEventBus(), journal,
                 "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Contains("did NOT return to its old path", failedItem.Reason);
@@ -297,7 +297,7 @@ public sealed class RollbackTests
                 new ReoccupySlotThenMisreportDataPort(db, oldCaption), new CapturingEventBus(),
                 new FakeRevertJournal(), "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Contains("rolled back", failedItem.Reason);
@@ -338,7 +338,7 @@ public sealed class RollbackTests
             var executor = new RenamerExecutor(
                 new CoveRenamerDataPort(db), bus, journal, "run-test");
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions());
 
             var renamedItem = Assert.Single(result.Renamed);
             Assert.NotNull(renamedItem.Reason);

@@ -1,4 +1,4 @@
-using static global::Renamer.Planner.PathOps;
+using static Renamer.Planner.PathOps;
 
 namespace Renamer.Execution;
 

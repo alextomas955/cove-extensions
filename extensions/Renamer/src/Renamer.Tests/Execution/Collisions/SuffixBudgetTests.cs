@@ -49,8 +49,7 @@ public sealed class SuffixBudgetTests
 
             var result = await executor.ExecuteAsync(
                 plan,
-                new RenamerOptions { FullPathMax = plannedFullPath.Length + budgetOverPlanned },
-                default);
+                new RenamerOptions { FullPathMax = plannedFullPath.Length + budgetOverPlanned });
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             return new Run(result, bus, basename);

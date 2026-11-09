@@ -35,7 +35,7 @@ public sealed class AssociatedExtensionSidecarTests
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
@@ -78,7 +78,7 @@ public sealed class AssociatedExtensionSidecarTests
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(neighbor), "the neighbor must be left at its source");
@@ -114,7 +114,7 @@ public sealed class AssociatedExtensionSidecarTests
             // ever built from it and nothing can escape the folder.
             var options = new RenamerOptions { AssociatedExtensions = ["srt/../../elsewhere", "..mp4"] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(traversal), "a malformed extension must move nothing");
@@ -147,7 +147,7 @@ public sealed class AssociatedExtensionSidecarTests
             File.WriteAllText(neighbor, "subs");
 
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions());
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "caption still moves with an empty list");
@@ -181,7 +181,7 @@ public sealed class AssociatedExtensionSidecarTests
 
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.mkv")), "primary still moves");
@@ -216,7 +216,7 @@ public sealed class AssociatedExtensionSidecarTests
 
             var options = new RenamerOptions { AssociatedExtensions = ["vtt"] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
@@ -251,7 +251,7 @@ public sealed class AssociatedExtensionSidecarTests
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             // Same basename in and out: the primary is a no-op move and the sidecar's source == target.
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "clip.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "clip.mkv"), options);
 
             // No item failed, and no bucket carries a skip-not-clobber sidecar warning for the
             // source-equals-target sidecar the discovery guard suppressed.
@@ -297,7 +297,7 @@ public sealed class AssociatedExtensionSidecarTests
 
             var options = new RenamerOptions { AssociatedExtensions = [configured] };
             var result = await RealExecutor(db).ExecuteAsync(
-                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options);
 
             Assert.Single(result.Renamed);
             Assert.Equal(expectedNames, NamesOnDisk(dir.Root));

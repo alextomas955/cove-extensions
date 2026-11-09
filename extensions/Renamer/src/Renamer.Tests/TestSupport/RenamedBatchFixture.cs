@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
@@ -17,12 +18,12 @@ internal static class RenamedBatchFixture
     // One file of the batch: the ids the journal records and the two paths it moved between.
     internal sealed record Renamed(int EntityId, int FileId, string OldFull, string NewFull);
 
-    internal static Task<(global::Renamer.Renamer Extension, IReadOnlyList<Renamed> Files)> CreateAsync(
+    internal static Task<(Renamer Extension, IReadOnlyList<Renamed> Files)> CreateAsync(
         TempDir dir, DbContext db, string runId, int count, int? undoPageSize = null)
         => CreateAsync(dir, db, runId, [.. Enumerable.Range(1, count).Select(i => i.ToString(
-            System.Globalization.CultureInfo.InvariantCulture))], undoPageSize);
+            CultureInfo.InvariantCulture))], undoPageSize);
 
-    internal static async Task<(global::Renamer.Renamer Extension, IReadOnlyList<Renamed> Files)> CreateAsync(
+    internal static async Task<(Renamer Extension, IReadOnlyList<Renamed> Files)> CreateAsync(
         TempDir dir, DbContext db, string runId, IReadOnlyList<string> stems, int? undoPageSize = null)
     {
         string folderPath = dir.Root.Replace('\\', '/');
@@ -65,7 +66,7 @@ internal static class RenamedBatchFixture
                 var plan = await new RenamerPlanner(port)
                     .PlanAsync(RenamerFileKind.Video, renamed.EntityId, options, default);
                 var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId)
-                    .ExecuteAsync(plan, options, default);
+                    .ExecuteAsync(plan, options);
                 Assert.Single(forward.Renamed);
             }
         }

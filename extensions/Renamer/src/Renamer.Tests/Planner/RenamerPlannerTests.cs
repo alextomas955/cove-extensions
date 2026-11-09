@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Renamer.Engine;
 using Renamer.Options;
 using Renamer.Planner;
@@ -94,7 +95,7 @@ public sealed class RenamerPlannerTests
     private static readonly RouteLookups EmptyLookups = new(
         new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
         new Dictionary<string, Destination>(),
-        Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
+        Array.Empty<(Regex, Destination)>());
 
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()

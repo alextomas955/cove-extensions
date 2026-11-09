@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Cove.Core.Auth;
+using Cove.Core.Events;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +59,7 @@ internal sealed class LibraryDatabase : IAsyncDisposable
 
     // Registered as the extension's logger when set. The host forwards one and the extension falls
     // back to NullLogger, so a suite whose subject is what the load recorded has to supply its own.
-    public ILogger<global::Renamer.Renamer>? Log { get; set; }
+    public ILogger<Renamer>? Log { get; set; }
 
     public ServiceProvider BuildProvider(params string[] libraryPaths)
     {
@@ -66,7 +67,7 @@ internal sealed class LibraryDatabase : IAsyncDisposable
         services.AddSingleton<ICurrentPrincipalAccessor>(Principals);
         services.AddSingleton<IAuthorizationService>(Authorization);
         services.AddScoped<DbContext>(_ => NewContext());
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IEventBus>(new CapturingEventBus());
         services.AddLibraryPaths(libraryPaths);
         if (Log is not null)
         {

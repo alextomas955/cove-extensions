@@ -12,7 +12,7 @@ public sealed class ExtensionManifestFileTests
         Assert.Equal("com.alextomas955.renamer", manifest.Id);
         Assert.Equal("Renamer", manifest.Name);
         // entryDll/jsBundle are the key-links the host uses to load the assembly and bundle.
-        Assert.Equal(typeof(global::Renamer.Renamer).Assembly.GetName().Name + ".dll", manifest.EntryDll);
+        Assert.Equal(typeof(Renamer).Assembly.GetName().Name + ".dll", manifest.EntryDll);
         Assert.Equal("index.mjs", manifest.JsBundle);
         // The host adds every enabled cssBundle to every page it serves, the host's own pages included.
         Assert.Null(manifest.CssBundle);

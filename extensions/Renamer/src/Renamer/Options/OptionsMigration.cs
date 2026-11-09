@@ -1,7 +1,8 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-
-using static global::Renamer.Planner.PathOps;
+using Renamer.Planner;
+using static Renamer.Planner.PathOps;
 
 namespace Renamer.Options;
 
@@ -310,7 +311,7 @@ public static class OptionsMigration
                 continue;
             }
 
-            string? containing = Planner.PathConfinement.ContainingRoot(stored, libraryRoots);
+            string? containing = PathConfinement.ContainingRoot(stored, libraryRoots);
             if (containing is null)
             {
                 site.Drop();
@@ -534,7 +535,7 @@ public static class OptionsMigration
                 }
 
                 claimedBy[id] = key;
-                converted[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] =
+                converted[id.ToString(CultureInfo.InvariantCulture)] =
                     map[key]?.DeepClone();
             }
         }
@@ -573,8 +574,8 @@ public static class OptionsMigration
     private static bool IsId(string key) => IsId(key, out _);
 
     private static bool IsId(string key, out int id)
-        => int.TryParse(key, System.Globalization.NumberStyles.Integer,
-            System.Globalization.CultureInfo.InvariantCulture, out id);
+        => int.TryParse(key, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out id);
 
     private static JsonObject? TryParse(string? json)
     {

@@ -48,12 +48,12 @@ public sealed class AuthorizedPagingTests
                 shared, options, authorization: authz);
 
             var caller = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite).Current;
-            global::Renamer.AllowedIds allowedIds = (kind, pageIds, token) =>
-                global::Renamer.EntityAccessGuard.AllowedOnlyAsync(
+            AllowedIds allowedIds = (kind, pageIds, token) =>
+                EntityAccessGuard.AllowedOnlyAsync(
                     authz, caller, kind, Permissions.VideosWrite, pageIds, token);
 
             await ext.RunRenamerKindAsync(
-                new global::Renamer.RenameRun(
+                new RenameRun(
                     RenamerFileKind.Video, count, "op", options, ChunkEntities: chunkEntities),
                 allowedIds, new FakeJobProgress(), default);
 

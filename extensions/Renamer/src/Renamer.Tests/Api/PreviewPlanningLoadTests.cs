@@ -1,7 +1,9 @@
 using Cove.Core.Auth;
 using Cove.Data;
+using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Api;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -30,11 +32,11 @@ public sealed class PreviewPlanningLoadTests
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(new RenamerOptions { OnlyOrganized = true });
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
+        ((IStatefulExtension)ext).SetStore(store);
 
         interceptor.ReaderCount = 0;
         await ext.PreviewAsync(
-            new global::Renamer.Api.RenamerRequest("video", [.. ids]), db,
+            new RenamerRequest("video", [.. ids]), db,
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default);
         return interceptor.ReaderCount;
     }

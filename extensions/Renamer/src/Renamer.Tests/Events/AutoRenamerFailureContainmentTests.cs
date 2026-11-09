@@ -39,11 +39,11 @@ public sealed class AutoRenamerFailureContainmentTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var log = new CapturingLogger<global::Renamer.Renamer>();
+            var log = new CapturingLogger<Renamer>();
             var services = new ServiceCollection();
             services.AddSingleton<DbContext>(db);
             services.AddSingleton<IEventBus>(new CapturingEventBus());
-            services.AddSingleton<ILogger<global::Renamer.Renamer>>(log);
+            services.AddSingleton<ILogger<Renamer>>(log);
             var provider = services.BuildServiceProvider();
 
             var ext = RenamerFixture.Create();
@@ -56,7 +56,7 @@ public sealed class AutoRenamerFailureContainmentTests
             // The inner option load throws. The host's dispatch loop would be handed an exception
             // naming no item, so the handler records the entity and swallows it.
             var thrown = await Record.ExceptionAsync(
-                () => ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default));
+                () => ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1)));
             Assert.Null(thrown);
 
             var entry = Assert.Single(log.Entries);
@@ -114,11 +114,11 @@ public sealed class AutoRenamerFailureContainmentTests
         var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
         File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-        var log = new CapturingLogger<global::Renamer.Renamer>();
+        var log = new CapturingLogger<Renamer>();
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);
         services.AddSingleton<IEventBus>(new CapturingEventBus());
-        services.AddSingleton<ILogger<global::Renamer.Renamer>>(log);
+        services.AddSingleton<ILogger<Renamer>>(log);
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(
             new RenamerOptions { AutoRenamerOnUpdate = true, FilenameTemplate = "$title" });
@@ -135,7 +135,7 @@ public sealed class AutoRenamerFailureContainmentTests
         Assert.DoesNotContain(log.Entries, e => e.EventId == AutoRenamerErrorEventId);
 
         // A claim left behind would swallow this genuine edit as the hook's own save.
-        await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+        await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
         Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")),
             "the edit after a cancelled run was swallowed - the cancelled run left its claim behind");

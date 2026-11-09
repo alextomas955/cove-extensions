@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Cove.Plugins;
 using Renamer.Contracts;
 using Renamer.Options;
@@ -22,7 +23,7 @@ public sealed class ScanAggregateScaleTests
 
     // An extension wired with a store and nothing else. The scan core takes its data port as a
     // parameter and needs neither the scope factory nor the event bus, so InitializeAsync is skipped.
-    private static (global::Renamer.Renamer Ext, FakeStore Store) NewExtension()
+    private static (Renamer Ext, FakeStore Store) NewExtension()
     {
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
@@ -60,7 +61,7 @@ public sealed class ScanAggregateScaleTests
     }
 
     // Nothing is denied here: this suite's subject is that the stored aggregate stays bounded.
-    private static readonly global::Renamer.AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
+    private static readonly AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
 
     private static async Task<(string Json, ScanSummary Summary, FakeStore Store)> ScanAsync(
         FakeRenamerDataPort port, RenamerOptions? options = null)
@@ -73,8 +74,8 @@ public sealed class ScanAggregateScaleTests
 
         // Read the raw stored string: parsing is exactly what would hide growth, and the byte length
         // is what these cases bound.
-        string json = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
-        var summary = System.Text.Json.JsonSerializer.Deserialize<ScanSummary>(
+        string json = (await store.GetAsync(Renamer.LastScanSummaryKey))!;
+        var summary = JsonSerializer.Deserialize<ScanSummary>(
             json, PreviewContracts.PreviewResponseJsonOptions)!;
         return (json, summary, store);
     }

@@ -227,7 +227,7 @@ public sealed class DetachedElevationTests
         {
             var byOwnership = db.Model.GetEntityTypes()
                 .Select(t => (
-                    Own: t.ClrType.Assembly == typeof(global::Renamer.Renamer).Assembly,
+                    Own: t.ClrType.Assembly == typeof(Renamer).Assembly,
                     Table: t.GetTableName()))
                 .Where(x => x.Table is not null)
                 .ToList();
@@ -248,7 +248,7 @@ public sealed class DetachedElevationTests
 
     // Armed for observation after the load: the caller's principal set to a present-but-unprivileged
     // one and the recording cleared, so a case asserts on its own exercise and not the load.
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> LoadedExtensionAsync(
+    private static async Task<(Renamer ext, FakeStore store)> LoadedExtensionAsync(
         LibraryDatabase library, RenamerOptions options, params string[] libraryRoots)
     {
         var store = new FakeStore();
@@ -290,7 +290,7 @@ public sealed class DetachedElevationTests
         library.Principals.Set(CovePrincipal.Anonymous());
         library.CommandsExecuted.Clear();
 
-        await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+        await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId));
 
         Assert.NotEmpty(library.CommandsExecuted);
         Assert.All(library.CommandsExecuted, c => Assert.Equal(PrincipalKind.System, c.Principal));
