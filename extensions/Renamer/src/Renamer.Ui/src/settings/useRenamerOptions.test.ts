@@ -275,12 +275,15 @@ test("a save whose re-read fails keeps the saved values on screen and says so", 
   expect(hook.current.dirty, "the confirmed save still reads as unsaved").toBe(false);
 });
 
+// Discard goes back to what is stored, which the two cases disagree about: a write that failed stored
+// nothing, so the server's copy is still the panel's; a write that landed past a failed read stored
+// what was sent, and the cache's older copy is not what Discard may show.
 test.each([
-  ["a save that failed", { failWrite: true }],
-  ["a save the page could not read back", { failWrite: false }],
+  ["a save that failed", { failWrite: true, restores: someOptions().filenameTemplate }],
+  ["a save the page could not read back", { failWrite: false, restores: "$studio - $title" }],
 ])(
   "discard after %s leaves no message about changes that are gone",
-  async (_case, { failWrite }) => {
+  async (_case, { failWrite, restores }) => {
     // Discard takes the edit off screen. A sentence about it that outlives it describes a state the
     // user can no longer see, and the save bar has no other condition to hide on.
     const hook = await mountHook();
@@ -306,9 +309,41 @@ test.each([
     expect(hook.current.saveError).toBeNull();
     expect(hook.current.savedFlash).toBe(false);
     expect(hook.current.dirty).toBe(false);
-    expect(hook.current.options?.filenameTemplate).toBe(someOptions().filenameTemplate);
+    expect(hook.current.options?.filenameTemplate).toBe(restores);
   },
 );
+
+test("a later edit builds on a save the page could not read back, not on the copy before it", async () => {
+  // The write landed and the read after it did not, so the cache still holds the document from
+  // before the save and only the panel knows what the server took. An edit that rebased on the
+  // cache would send those older values back and undo a save that worked.
+  const hook = await mountHook();
+  const stored = "$studio - $title";
+
+  commit(() => {
+    hook.current.set("filenameTemplate", stored);
+  });
+
+  endpoint.failNextRead = true;
+  await act(async () => {
+    await hook.current.onSave();
+  });
+
+  commit(() => {
+    hook.current.discard();
+  });
+  commit(() => {
+    hook.current.set("folderTemplate", "$studio");
+  });
+  await act(async () => {
+    await hook.current.onSave();
+  });
+
+  expect(endpoint.sent, "the second save never went out").toHaveLength(2);
+  const second = endpoint.sent[1].body as RenamerOptions;
+  expect(second.filenameTemplate, "the second save put the pre-save template back").toBe(stored);
+  expect(second.folderTemplate).toBe("$studio");
+});
 
 test("an edit made while the save is in flight survives it", async () => {
   // Only the save bar's own two buttons go disabled for a save, so every field stays editable

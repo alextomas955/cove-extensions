@@ -10,9 +10,11 @@
  * `options` is the draft when there is one and the saved document otherwise, so there is no second
  * copy to seed, no effect to sync it, and nothing to go stale if the query refetches.
  *
- * A save is a write and then a re-read, and the two can end differently. The draft is dropped only
- * once a re-read has succeeded, because until then the cache holds the document from before the
- * save and falling back to it would put the old values back over a save that worked.
+ * A save is a write and then a re-read, and the two can end differently. A write that landed past a
+ * read that did not is remembered as `written`, because from then until a read lands the cache holds
+ * the document from before the save and the panel is the only thing that knows what the server took.
+ * Everything measured against what is stored - whether there is an unsaved edit, what Discard goes
+ * back to, what a further edit rebases on - reads `stored`, never the cache directly.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -60,12 +62,19 @@ export function useRenamerOptions(): UseRenamerOptions {
   });
 
   const [draft, setDraft] = useState<RenamerOptions | null>(null);
+  const [written, setWritten] = useState<{ options: RenamerOptions; pastRead: number } | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const saved = query.data?.options ?? null;
-  const options = draft ?? saved;
+  // Held against the read it was written past, so the next read to land supersedes it with nothing to
+  // clear: a successful read is the only thing that moves `dataUpdatedAt`.
+  const stored =
+    written !== null && written.pastRead === query.dataUpdatedAt ? written.options : saved;
+  const options = draft ?? stored;
 
   // The stored blob could not be read and the server answered with defaults. Non-blocking: the panel
   // renders so a Save rewrites a clean blob over the bad data.
@@ -77,7 +86,8 @@ export function useRenamerOptions(): UseRenamerOptions {
 
   const loadError = query.error === null ? null : errorText(query.error);
 
-  const dirty = draft !== null && saved !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+  const dirty =
+    draft !== null && stored !== null && JSON.stringify(draft) !== JSON.stringify(stored);
   // After recovering from an unreadable blob, the loaded options are the defaults and nothing looks
   // "dirty" - but a Save is still needed to overwrite the bad stored data, so allow it explicitly.
   const canSave =
@@ -125,12 +135,18 @@ export function useRenamerOptions(): UseRenamerOptions {
       setSavedFlash(false);
     }, SAVED_FLASH_MS);
 
-    // The draft goes only once a read has confirmed what is stored, and only while it still holds
-    // what was sent. A failed read leaves the cache on the document from before the save, so
-    // dropping the draft onto it would put the old values back over a save that worked. No form
-    // input is disabled while a save runs either, so an edit made across the round trips is newer
-    // than what was written and must survive it.
-    if (refreshed.isError) return;
+    // A read that did not land leaves the cache on the document from before the save, so what was
+    // sent is recorded as what is stored. Without it the panel measures against that older copy:
+    // Discard goes back to it, and a further edit rebases on it and sends it back, undoing a save
+    // that worked.
+    if (refreshed.isError) {
+      setWritten({ options, pastRead: refreshed.dataUpdatedAt });
+      return;
+    }
+
+    // The draft goes only while it still holds what was sent. No form input is disabled while a save
+    // runs, so an edit made across the round trips is newer than what was written and must survive
+    // it.
     setDraft((d) => (d === null || JSON.stringify(d) === JSON.stringify(options) ? null : d));
   }, [options, pendingNameMigration, pendingDestinationMigration, refetch]);
 
@@ -146,21 +162,21 @@ export function useRenamerOptions(): UseRenamerOptions {
   const set = useCallback(
     <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => {
       setDraft((d) => {
-        const base = d ?? saved;
+        const base = d ?? stored;
         return base === null ? null : { ...base, [key]: value };
       });
     },
-    [saved],
+    [stored],
   );
 
   const setMulti = useCallback(
     (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => {
       setDraft((d) => {
-        const base = d ?? saved;
+        const base = d ?? stored;
         return base === null ? null : { ...base, [group]: { ...base[group], ...patch } };
       });
     },
-    [saved],
+    [stored],
   );
 
   return {
