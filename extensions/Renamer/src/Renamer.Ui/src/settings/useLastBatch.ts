@@ -15,8 +15,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { renamerGetLastBatchOptions, renamerGetLastBatchQueryKey } from "../common/lib/wireQueries";
-import { renamerUndo } from "../wire";
+import { renamerGetLastBatchOptions, renamerGetLastBatchQueryKey, renamerUndo } from "../wire";
 import type { LastBatchSummary } from "../wire";
 import {
   buildUndoFeedback,

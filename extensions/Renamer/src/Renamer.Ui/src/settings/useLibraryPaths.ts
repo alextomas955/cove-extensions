@@ -10,7 +10,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { renamerGetLibraryPathsOptions } from "../common/lib/wireQueries";
+import { renamerGetLibraryPathsOptions } from "../wire";
 import type { LibraryPathsState } from "./options";
 
 export function useLibraryPaths(): LibraryPathsState {

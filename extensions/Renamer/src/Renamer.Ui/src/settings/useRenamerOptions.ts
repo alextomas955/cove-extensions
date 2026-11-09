@@ -15,8 +15,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { OptionsView, RenamerOptions, MultiValueOptions } from "./options";
-import { renamerGetOptionsOptions, renamerGetOptionsQueryKey } from "../common/lib/wireQueries";
-import { renamerSaveOptions } from "../wire";
+import { renamerGetOptionsOptions, renamerGetOptionsQueryKey, renamerSaveOptions } from "../wire";
 
 const OPTIONS_KEY = renamerGetOptionsQueryKey();
 

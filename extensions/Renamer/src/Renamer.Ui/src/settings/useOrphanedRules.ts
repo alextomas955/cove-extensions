@@ -10,7 +10,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { renamerGetOrphanedRulesOptions } from "../common/lib/wireQueries";
+import { renamerGetOrphanedRulesOptions } from "../wire";
 
 /** Rule keys whose entity is gone, as sets for a per-row lookup. */
 interface OrphanedRules {
