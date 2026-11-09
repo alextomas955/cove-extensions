@@ -27,6 +27,8 @@ interface EndpointScript {
   progress: number;
   // What /last-library-rename answers with, or null to fail that read.
   summary: LibraryRenameSummaryView | null;
+  // What POST /renamer-library answers with, or null to accept the job the other cases poll.
+  enqueue: { status: number; body: string } | null;
 }
 
 const host = vi.hoisted((): EndpointScript => ({
@@ -34,15 +36,17 @@ const host = vi.hoisted((): EndpointScript => ({
   status: "running",
   progress: 0.25,
   summary: null,
+  enqueue: null,
 }));
 
 // The seam is the host's own fetch, which the generated client reaches through the adapter in
 // common/lib/wireClient, so what is scripted here is the request the hook really issues.
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (path: string) => {
+    // A string body is sent as it stands, so a case can script a reply that will not parse.
     const json = (value: unknown, status = 200) =>
       Promise.resolve(
-        new Response(value === undefined ? null : JSON.stringify(value), {
+        new Response(typeof value === "string" ? value : JSON.stringify(value), {
           status,
           headers: { "Content-Type": "application/json" },
         }),
@@ -51,18 +55,19 @@ vi.mock("@cove/runtime/api", () => ({
     if (path.includes("/last-library-rename")) {
       return host.summary === null ? json("boom", 500) : json(host.summary);
     }
-    return json(
-      path.includes("/job-status/")
-        ? ({
-            id: "job-under-test",
-            status: host.status,
-            progress: host.progress,
-            subTask: null,
-            error: null,
-            etaSeconds: null,
-          } satisfies RenamerJobStatus)
-        : ({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued),
-    );
+    if (path.includes("/job-status/")) {
+      return json({
+        id: "job-under-test",
+        status: host.status,
+        progress: host.progress,
+        subTask: null,
+        error: null,
+        etaSeconds: null,
+      } satisfies RenamerJobStatus);
+    }
+    return host.enqueue === null
+      ? json({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued)
+      : json(host.enqueue.body, host.enqueue.status);
   },
 }));
 
@@ -119,6 +124,7 @@ beforeEach(() => {
   host.status = "running";
   host.progress = 0.25;
   host.summary = null;
+  host.enqueue = null;
 });
 
 test("a job that stops reporting progress ends the run instead of polling forever", async () => {
@@ -188,6 +194,33 @@ test("a completed job whose counts cannot be read still reports the rename as fi
   // renameLibraryBannerLogic's.
   expect(hook.current.runLibraryFeedback?.kind).toBe("success");
   expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
+});
+
+test("a refused rename is the one arm that reports the library as untouched", async () => {
+  // 403 is the route's only refusal, and it is decided before anything is enqueued.
+  host.enqueue = { status: 403, body: "forbidden" };
+  const hook = mountHook();
+
+  await renameToSettlement(hook);
+
+  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+  expect(hook.current.runLibraryFeedback?.text).toContain("Nothing was changed");
+});
+
+// Neither of these says the job did not start. A 500 can follow an accepted job, and a 202 whose
+// body would not parse is a job that was accepted and whose id was lost.
+test.each([
+  ["a server that failed while enqueueing", { status: 500, body: "boom" }],
+  ["an acceptance that would not parse", { status: 202, body: "{ not json" }],
+])("a rename lost to %s never claims the library is untouched", async (_case, enqueue) => {
+  host.enqueue = enqueue;
+  const hook = mountHook();
+
+  await renameToSettlement(hook);
+
+  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+  expect(hook.current.runLibraryFeedback?.text).not.toContain("Nothing was changed");
+  expect(hook.current.runLibraryFeedback?.text).toContain("Some files may already be renamed");
 });
 
 test("a job that fails after it started is reported as a rename that stopped part-way", async () => {

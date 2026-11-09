@@ -5,12 +5,13 @@
 // fetch. What stays here is the shape a failure arrives in, which every error branch reads.
 
 /**
- * A request that reached the server and was refused.
+ * A request the server answered with a status outside 2xx.
  *
  * Thrown by the interceptor each extension registers over its generated client, so an error branch
- * can read the status the server sent rather than infer one. A failure that never reached the
- * server - a dropped connection, an abort - is not one of these, which is what lets a `catch` tell
- * "the server said no" from "nobody knows".
+ * can read the status the server sent rather than infer one. Two failures are deliberately not one
+ * of these: a request that never completed - a dropped connection, an abort - and a 2xx reply the
+ * client could not read. Neither carries a status the server chose, and an ApiError would claim it
+ * did. That is what lets a `catch` tell "the server said no" from "nobody knows".
  */
 export class ApiError extends Error {
   /** The status the server answered with. */
@@ -29,6 +30,23 @@ export class ApiError extends Error {
     this.path = path;
     this.name = "ApiError";
   }
+}
+
+/**
+ * Whether the server declined the request before acting on it, so the work it asked for did not
+ * begin.
+ *
+ * A 4xx is the server stating it will not do the work: an extension route authorizes, validates and
+ * checks for a pending conversion before it touches anything, so a status in that range is a
+ * decision taken in front of the side effect. A 5xx is the server failing while carrying the work
+ * out, which says nothing about how far it got. A failure with no status at all - a dropped
+ * connection, an abort, a reply that would not parse - says less still.
+ *
+ * A caller reporting a destructive operation may tell the user nothing changed only when this is
+ * true. Every other failure leaves the outcome unknown and has to say so.
+ */
+export function isRefusal(err: unknown): boolean {
+  return err instanceof ApiError && err.status < 500;
 }
 
 /** A request failure as a user reads it: an ApiError's status and body, else the error's message. */

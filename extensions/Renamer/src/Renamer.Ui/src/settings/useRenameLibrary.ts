@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText, isRefusal } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { RenamerJobStatus } from "../wire";
 import { JobUnresponsiveError } from "./jobPollLogic";
@@ -77,11 +77,8 @@ export function useRenameLibrary(): UseRenameLibrary {
     setRenamingLibrary(true);
     setRunLibraryFeedback(null);
     setRenameProgress(null);
-    // Whether the job was accepted. From then on a failure may follow renames that already happened.
-    let started = false;
     try {
       const { jobId, runId } = (await renamerRenameLibrary({ throwOnError: true })).data;
-      started = true;
       await runPoll(jobId, (job) => {
         if (mounted.current)
           setRenameProgress({
@@ -109,7 +106,11 @@ export function useRenameLibrary(): UseRenameLibrary {
           text:
             err instanceof JobUnresponsiveError
               ? buildRenameLibraryUnconfirmed(err.message)
-              : buildRenameLibraryError(text, started),
+              : // Only a refusal is a statement that no rename began: the route authorizes before it
+                // enqueues anything. Every other failure may follow an accepted job - including one
+                // whose acceptance was never read back - so the banner cannot claim the library is
+                // untouched.
+                buildRenameLibraryError(text, !isRefusal(err)),
         });
       }
     } finally {

@@ -7,22 +7,34 @@ import { test, expect, vi, beforeEach, afterEach } from "vitest";
 const host = vi.hoisted(() => ({
   calls: [] as { path: string; init: RequestInit }[],
   reply: null as Response | null,
+  // Set to fail the request before any reply, the way a dropped connection or an abort does.
+  rejectWith: null as Error | null,
 }));
 
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (path: string, init: RequestInit) => {
     host.calls.push({ path, init });
+    if (host.rejectWith) return Promise.reject(host.rejectWith);
     return Promise.resolve(host.reply ?? new Response("{}", { status: 200 }));
   },
 }));
 
-const { renamerGetJobStatus, renamerSaveOptions } = await import("../../wire/sdk.gen");
-const { ApiError } = await import("@cove-extensions/ui-shared/extensionRequest");
+const { renamerGetJobStatus, renamerSaveOptions, renamerUndo } = await import("../../wire/sdk.gen");
+const { ApiError, isRefusal } = await import("@cove-extensions/ui-shared/extensionRequest");
 await import("./wireErrors");
+
+// Drive one real generated operation and hand back whatever it failed with.
+function failureOf(call: Promise<unknown>): Promise<unknown> {
+  return call.then(
+    () => null,
+    (e: unknown) => e,
+  );
+}
 
 beforeEach(() => {
   host.calls.length = 0;
   host.reply = null;
+  host.rejectWith = null;
 });
 
 afterEach(() => {
@@ -93,10 +105,57 @@ test("a route answering something other than a problem still reads as what it se
   const { errorText } = await import("@cove-extensions/ui-shared/extensionRequest");
   host.reply = new Response("upstream exploded", { status: 502, statusText: "Bad Gateway" });
 
-  const err = await renamerSaveOptions({ body: {}, throwOnError: true }).then(
-    () => null,
-    (e: unknown) => e,
-  );
+  const err = await failureOf(renamerSaveOptions({ body: {}, throwOnError: true }));
 
   expect(errorText(err)).toBe("502 upstream exploded");
+});
+
+// The one the client cannot tell apart on its own: it runs the whole request in a single `try`, so
+// a body that will not parse surfaces beside the 200 the server already sent. Nothing downstream
+// could recover the difference, so the boundary has to keep it.
+test("a 2xx reply the client could not read is not an answer the server gave", async () => {
+  host.reply = new Response("{ not json", {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+
+  const err = await failureOf(renamerUndo({ throwOnError: true }));
+
+  expect(err, "an unreadable 200 arrived as a status the server chose").not.toBeInstanceOf(
+    ApiError,
+  );
+  expect(isRefusal(err), "an unreadable 200 read as a refusal").toBe(false);
+  // Says a reply came back and could not be read, which is the one fact that separates this from a
+  // request that never arrived, and keeps the parser's own reason.
+  expect((err as Error).message).toContain("reply could not be read");
+  expect((err as Error).message).toMatch(/JSON/);
+});
+
+test("a server that failed while working is not a refusal", async () => {
+  host.reply = new Response("boom", { status: 500, statusText: "Internal Server Error" });
+
+  const err = await failureOf(renamerUndo({ throwOnError: true }));
+
+  // Still an ApiError: the status is real and a reader is shown it. It is the claim that the work
+  // did not begin that a 500 cannot support.
+  expect(err).toBeInstanceOf(ApiError);
+  expect((err as InstanceType<typeof ApiError>).status).toBe(500);
+  expect(isRefusal(err), "a 500 read as a refusal").toBe(false);
+});
+
+test("a refusal the server stated is one", async () => {
+  host.reply = new Response("forbidden", { status: 403, statusText: "Forbidden" });
+
+  const err = await failureOf(renamerUndo({ throwOnError: true }));
+
+  expect(isRefusal(err), "a 403 did not read as a refusal").toBe(true);
+});
+
+test("a request that never reached the server carries no status", async () => {
+  host.rejectWith = new TypeError("Failed to fetch");
+
+  const err = await failureOf(renamerUndo({ throwOnError: true }));
+
+  expect(err).toBe(host.rejectWith);
+  expect(isRefusal(err), "a dropped connection read as a refusal").toBe(false);
 });

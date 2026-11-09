@@ -13,7 +13,7 @@
  */
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText, isRefusal } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { renamerGetLastBatchOptions, renamerGetLastBatchQueryKey, renamerUndo } from "../wire";
 import type { LastBatchSummary } from "../wire";
@@ -48,8 +48,11 @@ export function useLastBatch(): LastBatch {
       const { data } = await renamerUndo({ throwOnError: true });
       return buildUndoFeedback(data);
     } catch (err) {
-      // A refusal moved nothing. Any other failure leaves the outcome of a destructive call unknown.
-      return err instanceof ApiError
+      // A refusal moved nothing. Any other failure leaves the outcome of a destructive call
+      // unknown: the replay moves the batch back a page at a time, so a server that failed part way
+      // answers 500 over files already restored, and a reply that would not read is a restore whose
+      // account was lost rather than one that did not happen.
+      return isRefusal(err)
         ? buildUndoRefused(errorText(err))
         : buildUndoUnconfirmed(errorText(err));
     } finally {

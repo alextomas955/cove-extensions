@@ -13,9 +13,9 @@ import { withQueryClient } from "../common/lib/testQueryClient";
 import type { LastBatchSummary, UndoResult } from "../wire";
 
 const server = vi.hoisted(() => ({
-  // How the undo POST ends: an Error the request fails with before any reply, a status the server
-  // answers with, or null for a clean full restore. The two failures are different arms - only a
-  // status means the server was reached and said no.
+  // How the undo POST ends: an Error the request fails with before any reply, a status and body the
+  // server answers with, or null for a clean full restore. A status alone does not settle the arm -
+  // the panel may say the batch is untouched only where the server refused to act on it.
   undoFailure: null as Error | { status: number; body: string } | null,
 }));
 
@@ -84,25 +84,33 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-// A request that failed before any reply has an unknown fate: the connection dropped, or the body
-// would not parse. The server may already have moved part or all of the batch back.
+// Every arm where the server may already have moved part or all of the batch back. The reply that
+// will not parse is sent as a real 200 the client then fails to read, because that is the shape the
+// generated client produces: a rejection handed straight to the panel would pass whatever the
+// boundary does with a reply it did receive.
 test.each([
-  ["a dropped connection", new TypeError("Failed to fetch")],
-  ["a malformed body", new SyntaxError("Unexpected token < in JSON at position 0")],
-])("an undo lost to %s is not reported as a completed undo", async (_case, rejection) => {
-  server.undoFailure = rejection;
+  [
+    "a dropped connection",
+    new TypeError("Failed to fetch") as Error | { status: number; body: string },
+  ],
+  ["a reply that would not parse", { status: 200, body: "{ not json" }],
+  ["a server that failed part way", { status: 500, body: "boom" }],
+])("an undo lost to %s is not reported as a completed undo", async (_case, failure) => {
+  server.undoFailure = failure;
   const text = await undoAndReadFeedback();
 
   expect(text).not.toContain("Undone: ");
   expect(text).toMatch(/couldn't confirm/i);
   // Not "nothing was changed": that would say there is nothing left to re-check, which is the one
-  // claim this arm cannot make.
+  // claim this arm cannot make. The replay moves the batch back a page at a time, so a 500 can
+  // arrive over files that are already restored.
   expect(text).not.toMatch(/nothing was changed/i);
   expect(text).toMatch(/check the batch/i);
 });
 
 test("a refusal the server answered still reads as a failure that changed nothing", async () => {
-  // The server answered that it refused, so the batch is untouched and saying so is correct here.
+  // 403 is the undo's only refusal, and it is decided before the first file is touched, so the
+  // batch really is untouched and saying so is correct here.
   server.undoFailure = { status: 403, body: "forbidden" };
   const text = await undoAndReadFeedback();
 
