@@ -36,6 +36,12 @@ public abstract class ExtensionOpenApiDocumentTests
     private const string PinnedTitle = "cove extension wire contract";
     private const string PinnedVersion = "1.0.0";
 
+    private const string DocumentDescription =
+        "The HTTP surface one Cove extension adds to its host. Every route is mounted under "
+        + "/api/extensions/<extension id> and is reached same-origin from the host page.";
+
+    private const string BearerScheme = "coveBearer";
+
     /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
     public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
 
@@ -60,14 +66,61 @@ public abstract class ExtensionOpenApiDocumentTests
         builder.WebHost.UseTestServer();
         ConfigureBindingServices(builder.Services);
         builder.Services.AddRouting();
-        builder.Services.AddOpenApi(DocumentName, options => options.AddDocumentTransformer(
-            (document, _, _) =>
+        builder.Services.AddOpenApi(DocumentName, options =>
+        {
+            // What Cove's authorization middleware and ASP.NET Core's body binding write in front of
+            // the handler, which the handler's declared return type cannot express.
+            options.AddOperationTransformer((operation, operationContext, _) =>
             {
+                HostWrittenResponses.Apply(operation, operationContext);
+                return Task.CompletedTask;
+            });
+            options.AddDocumentTransformer(async (document, documentContext, cancellationToken) =>
+            {
+                await HostWrittenResponses
+                    .RegisterSchemasAsync(document, documentContext, cancellationToken)
+                    .ConfigureAwait(false);
+
                 document.Info ??= new OpenApiInfo();
                 document.Info.Title = PinnedTitle;
                 document.Info.Version = PinnedVersion;
-                return Task.CompletedTask;
-            }));
+                document.Info.Description = DocumentDescription;
+
+                // Relative, because an extension's routes are only ever reached same-origin: the host
+                // page serves them, and its own fetch refuses any other origin. A deployment host name
+                // here would be one this document cannot know.
+                document.Servers = [new OpenApiServer { Url = "/", Description = "The Cove host." }];
+
+                // Nothing in the paths says how a caller authenticates, which leaves a reader and a
+                // generated client to read every 403 as arbitrary. The host attaches the bearer token;
+                // an extension never sees or issues one.
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>(
+                    StringComparer.Ordinal);
+                document.Components.SecuritySchemes[BearerScheme] = new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    Description =
+                        "Issued by the Cove host and attached by its own authenticated fetch. "
+                        + "Required only where the host has authentication turned on, which is not "
+                        + "its default; where it is on, a caller without one is refused by the host "
+                        + "before the extension is reached.",
+                };
+                // Two alternatives, because the host's own authentication is a setting and is off by
+                // default. Listing only the bearer would declare a credential mandatory on a
+                // deployment that accepts none; listing only the empty requirement would tell a
+                // generated client it never needs one. Either is accepted, which is what is true.
+                document.Security =
+                [
+                    new OpenApiSecurityRequirement
+                    {
+                        [new OpenApiSecuritySchemeReference(BearerScheme, document)] = [],
+                    },
+                    [],
+                ];
+            });
+        });
 
         // Strict, not the Web default: the Web default also accepts numbers written as strings, which
         // the generator reports as an integer-or-string union on every numeric field. The server only
@@ -113,6 +166,19 @@ public abstract class ExtensionOpenApiDocumentTests
 
         Assert.Empty(withoutResponseSchema);
 
+        // Both alternatives, by name. An empty requirement object is valid OpenAPI and means the
+        // routes are reachable anonymously, which is one of the two arms here - and is also what an
+        // unresolvable scheme reference serializes to. A reference carries whatever id it was built
+        // with, so the id alone cannot tell those apart; it is checked against the schemes the
+        // document actually declares.
+        var security = document.Security ?? [];
+        Assert.Equal(2, security.Count);
+        var referenced = security[0].Keys.Select(key => key.Reference?.Id).ToList();
+        Assert.Equal([BearerScheme], referenced);
+        var declared = document.Components?.SecuritySchemes?.Keys ?? [];
+        Assert.All(referenced, id => Assert.Contains(id, declared, StringComparer.Ordinal));
+        Assert.Empty(security[1]);
+
         var writer = new StringWriter();
         document.SerializeAsV31(new OpenApiJsonWriter(writer));
         var json = NormalizeForCommit(writer.ToString());
@@ -142,7 +208,12 @@ public abstract class ExtensionOpenApiDocumentTests
     private static string NormalizeForCommit(string serialized)
     {
         Assert.NotEmpty(serialized);
-        return serialized.ReplaceLineEndings("\n");
+
+        // The second replace works inside the JSON strings rather than between them. A schema
+        // description taken from a multi-line /// comment carries the source file's own line ending,
+        // escaped, where the first replace never sees it; left alone, the Windows and Linux runs each
+        // rewrite a document neither of them changed.
+        return serialized.ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <summary>The committed wire document's path for <paramref name="extensionId"/>.</summary>

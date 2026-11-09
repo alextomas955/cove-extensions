@@ -19,7 +19,7 @@ namespace Cove.Extensions.Shared;
 /// declaration opens the endpoint on a fresh auth-disabled host.
 /// </para>
 /// <para>
-/// The <see cref="ForbiddenCode"/> return arm is also what publishes the 403 schema in the emitted wire
+/// The <see cref="ForbiddenProblem"/> return arm is also what publishes the 403 schema in the emitted wire
 /// document; the host middleware's own denial body is a different shape.
 /// </para>
 /// </remarks>
@@ -29,8 +29,8 @@ public static class MinimalApiPermissions
     /// Returns a <c>403 FORBIDDEN</c> result when the principal is null or lacks
     /// <paramref name="permission"/>, otherwise <c>null</c> (proceed).
     /// </summary>
-    public static ForbiddenCode? Forbidden(ICurrentPrincipalAccessor principal, string permission)
+    public static ForbiddenProblem? Forbidden(ICurrentPrincipalAccessor principal, string permission)
         => principal.Current is null || !principal.Current.Has(permission)
-            ? new ForbiddenCode()
+            ? new ForbiddenProblem()
             : null;
 }

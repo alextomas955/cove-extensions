@@ -28,7 +28,8 @@ components for the dialog shell around them, and do not collapse the first into 
 
 `@cove/runtime/api` has `extensionFetch`, the host's authenticated same-origin fetch. A bare
 `fetch`, and the SDK's own `request`, carry no credential, so every call answers 401 on an instance
-with auth enabled. Reach it through `@cove-extensions/ui-shared/extensionRequest`.
+with auth enabled. Nothing reaches it directly: `common/lib/wireClient.ts` binds it into the
+generated client once, and every request goes through that client.
 
 The host import map serves `@tanstack/react-query` and `shared/ui-shared/vite/host-externals.json`
 externalizes it, so it adds nothing to a bundle, and the host mounts the `QueryClientProvider` above
@@ -61,10 +62,13 @@ repeated Escape close it while the page is blocking a close.
 
 ## Types tell the truth
 
-- Named exports only. The one default export is `defineExtension` in `index.ts`.
-- Wire types come from the generated `src/wire/api.ts`, consumed with `import type`. Never
-  hand-write one. Where a type cannot be generated, pin the values in a test whose expected value
-  you copied from the server rather than computed from the module under test.
+- Named exports only. The one default export is the bundle entry object in `index.ts`.
+- Everything about a route comes from the generated `src/wire/`: the types (`import type`), one
+  function per operation, and the TanStack Query helpers over them. Call
+  `useQuery(renamerGetOptionsOptions())`, never a hand-written path, method, query key or response
+  type. The client's fetch is bound once in `common/lib/wireClient.ts`; nothing else calls `fetch`.
+- Where a type cannot be generated, pin the values in a test whose expected value you copied from
+  the server rather than computed from the module under test.
 - A value the server may omit is optional in the type and handled where it is read. Do not widen a
   type, assert with `as`, add a non-null `!`, or disable a rule to make a build pass. Where a
   generated type contradicts the code, the code is wrong, or the server is.

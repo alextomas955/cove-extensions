@@ -151,7 +151,7 @@ jobs:
         env:
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # openapi-typescript's dependency closure declares no install hooks, so --ignore-scripts is safe.
+      # The wire generator's dependency closure declares no install hooks, so --ignore-scripts is safe.
       - name: Install root tooling (wire-type generator)
         if: matrix.extension.uiPath != ''
         run: npm ci --no-workspaces --ignore-scripts

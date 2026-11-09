@@ -5,13 +5,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { requestJson, errorText } from "@cove-extensions/ui-shared/extensionRequest";
+import { errorText, isRefusal } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type {
-  LibraryRenameEnqueued,
-  LibraryRenameSummaryView,
-  RenamerJobStatus,
-} from "../wire/api";
+import type { RenamerJobStatus } from "../wire";
 import { JobUnresponsiveError } from "./jobPollLogic";
 import { pollJob } from "./jobStatusStore";
 import {
@@ -19,10 +15,8 @@ import {
   buildRenameLibraryResult,
   buildRenameLibraryUnconfirmed,
 } from "./renameLibraryBannerLogic";
-import { api } from "../common/lib/extension";
+import { renamerGetLibraryRenameResult, renamerRenameLibrary } from "../wire";
 import { LAST_BATCH_KEY } from "./useLastBatch";
-
-const RENAME_LIBRARY_PATH = api("renamer-library");
 
 export type RunLibraryFeedback =
   { kind: "success"; text: string } | { kind: "error"; text: string } | null;
@@ -83,13 +77,11 @@ export function useRenameLibrary(): UseRenameLibrary {
     setRenamingLibrary(true);
     setRunLibraryFeedback(null);
     setRenameProgress(null);
-    // Whether the job was accepted. From then on a failure may follow renames that already happened.
-    let started = false;
+    // Only a refusal is a statement that no rename began; see the catch. Every other ending may
+    // have journalled rows, so it changes what an undo would put back.
+    let mayHaveRenamed = true;
     try {
-      const { jobId, runId } = await requestJson<LibraryRenameEnqueued>(RENAME_LIBRARY_PATH, {
-        method: "POST",
-      });
-      started = true;
+      const { jobId, runId } = (await renamerRenameLibrary({ throwOnError: true })).data;
       await runPoll(jobId, (job) => {
         if (mounted.current)
           setRenameProgress({
@@ -100,16 +92,19 @@ export function useRenameLibrary(): UseRenameLibrary {
       });
       // The job has completed, so a failed read of its counts must not land in the catch below,
       // which reports the library as untouched.
-      const summary = await requestJson<LibraryRenameSummaryView>(
-        `${api("last-library-rename")}/${encodeURIComponent(runId)}`,
-      ).catch(() => null);
+      const summary = await renamerGetLibraryRenameResult({ path: { runId }, throwOnError: true })
+        .then(({ data }) => data)
+        .catch(() => null);
 
       if (!mounted.current) return;
       setDryRunOpen(false);
       setRunLibraryFeedback(buildRenameLibraryResult(summary));
-      // The rename changed what an undo would put back, whoever is rendering that line.
-      void queryClient.invalidateQueries({ queryKey: LAST_BATCH_KEY });
     } catch (err) {
+      // The route authorizes before it enqueues anything, so a refusal is the one failure that
+      // followed no accepted job. Every other failure may follow one - including one whose
+      // acceptance was never read back - so neither the banner nor the undo line may treat the
+      // library as untouched.
+      mayHaveRenamed = !isRefusal(err);
       if (mounted.current) {
         const text = errorText(err);
         setRunLibraryFeedback({
@@ -117,10 +112,17 @@ export function useRenameLibrary(): UseRenameLibrary {
           text:
             err instanceof JobUnresponsiveError
               ? buildRenameLibraryUnconfirmed(err.message)
-              : buildRenameLibraryError(text, started),
+              : buildRenameLibraryError(text, mayHaveRenamed),
         });
       }
     } finally {
+      // Every arm but a refusal reaches here with files possibly moved and journalled, so the undo
+      // line re-reads from the success, failure, cancellation and unconfirmed endings alike. Not
+      // awaited: the banner reports the rename and not what undo now holds. An unmount leaves the
+      // query inactive, so this marks it stale and starts no read.
+      if (mayHaveRenamed) {
+        void queryClient.invalidateQueries({ queryKey: LAST_BATCH_KEY });
+      }
       if (mounted.current) {
         setRenamingLibrary(false);
         setRenameProgress(null);

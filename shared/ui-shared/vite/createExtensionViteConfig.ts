@@ -17,8 +17,6 @@ export interface ExtensionViteOptions {
 }
 
 // The host import-map provides these; a second React bundled here would break hook identity.
-// `@cove/extension-sdk` is intentionally absent - it is not in the host import-map, so it must ship
-// bundled.
 //
 // Both spellings of every module the import map serves: the canonical `@cove/runtime/*` name and the
 // bare alias where one exists. A specifier missing from the list is bundled rather than resolved
@@ -38,11 +36,7 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
   // Anchored on the factory's own location so no consumer restates the relative climb to shared/.
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");
-  const sharedSrcPostAction = path.resolve(factoryDir, "../src/postAction.ts");
   const sharedSrcExtensionRequest = path.resolve(factoryDir, "../src/extensionRequest.ts");
-  // The SDK is vendored per-UI (this package has no node_modules), so its bare specifier will not
-  // resolve from the aliased shared source unless it is pinned to the consuming UI's own copy.
-  const sdkDir = path.resolve(packageDir, "node_modules/@cove/extension-sdk");
 
   return {
     plugins: [
@@ -65,10 +59,8 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
       // Vite string-alias matching is prefix-based, so every subpath must be listed before the bare
       // barrel entry or the barrel would match it first.
       alias: {
-        "@cove-extensions/ui-shared/postAction": sharedSrcPostAction,
         "@cove-extensions/ui-shared/extensionRequest": sharedSrcExtensionRequest,
         "@cove-extensions/ui-shared": sharedSrcIndex,
-        "@cove/extension-sdk": sdkDir,
       },
     },
     build: {

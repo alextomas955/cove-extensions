@@ -6,6 +6,8 @@
 // The clock is fake throughout. Each wait is `vi.waitFor`, which moves that clock: Testing Library's
 // own `findBy*` detects a fake clock only under Jest, so here it would wait on a clock nothing
 // advances.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../../common/lib/wireErrors";
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, act } from "@testing-library/react";
@@ -15,7 +17,7 @@ import { createTestQueryClient, withQueryClient } from "../../common/lib/testQue
 import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
 import { someOptions } from "../testOptions";
-import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
+import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire";
 
 // The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
 const RUN_ID = "run-under-test";
@@ -29,41 +31,37 @@ const host = vi.hoisted(() => ({
   scanRunId: "run-under-test",
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => {
-  class ApiError extends Error {
-    constructor(
-      readonly status: number,
-      message: string,
-    ) {
-      super(message);
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient. A refusal is scripted as the status the server answers with, and the
+// interceptor imported above is what turns it into the ApiError the modal branches on.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (path: string) => {
+    const json = (value: unknown, status = 200) =>
+      Promise.resolve(
+        new Response(value === undefined ? null : JSON.stringify(value), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    if (path.endsWith("/scan-library"))
+      return json({ jobId: "scan-under-test", runId: host.scanRunId });
+    // Only one scan's figures are kept, and only for the caller that ran it. Any other run id is
+    // the 404 the server answers once a later scan has replaced them.
+    if (path.includes("/last-scan/")) {
+      return path.endsWith(`/last-scan/${RUN_ID}`) ? json(summary()) : json("Not Found", 404);
     }
-  }
-  return {
-    ApiError,
-    errorText: (err: unknown) => String(err),
-    requestJson: (path: string) => {
-      if (path.endsWith("/scan-library"))
-        return Promise.resolve({ jobId: "scan-under-test", runId: host.scanRunId });
-      // Only one scan's figures are kept, and only for the caller that ran it. Any other run id is
-      // the 404 the server answers once a later scan has replaced them.
-      if (path.includes("/last-scan/")) {
-        return path.endsWith(`/last-scan/${RUN_ID}`)
-          ? Promise.resolve(summary())
-          : Promise.reject(new ApiError(404, "Not Found"));
-      }
-      if (path.endsWith("/scan-rows")) {
-        const page =
-          host.rowReads < host.pages.length
-            ? host.pages[host.rowReads]
-            : host.pages[host.pages.length - 1];
-        host.rowReads += 1;
-        if (host.rowReads > host.readCap) return new Promise(() => undefined);
-        return page === null ? Promise.reject(new Error("500 boom")) : Promise.resolve(page);
-      }
-      return Promise.reject(new Error(`unscripted path ${path}`));
-    },
-  };
-});
+    if (path.endsWith("/scan-rows")) {
+      const page =
+        host.rowReads < host.pages.length
+          ? host.pages[host.rowReads]
+          : host.pages[host.pages.length - 1];
+      host.rowReads += 1;
+      if (host.rowReads > host.readCap) return new Promise<Response>(() => undefined);
+      return page === null ? json("boom", 500) : json(page);
+    }
+    return Promise.reject(new Error(`unscripted path ${path}`));
+  },
+}));
 
 // The scan job's completion is not what is under test, so the poll resolves at once with the verdict
 // the modal reads before it requests the summary.

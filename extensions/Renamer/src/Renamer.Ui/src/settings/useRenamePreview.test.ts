@@ -8,7 +8,7 @@ import { renderHook, act, cleanup } from "@testing-library/react";
 import { useRenamePreview } from "./useRenamePreview";
 import { type RenamerOptions } from "./options";
 import { someOptions } from "./testOptions";
-import type { PreviewSampleResult } from "../wire/api";
+import type { PreviewSampleResult } from "../wire";
 
 // Every POST the hook issued, each holding its own settle handles.
 const host = vi.hoisted(() => ({
@@ -22,23 +22,28 @@ const host = vi.hoisted(() => ({
 }));
 const { noop } = host;
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (_path: string, init: RequestInit) => {
-    let settle: { resolve: (rows: unknown) => void; reject: (err: unknown) => void };
-    const promise = new Promise((resolve, reject) => {
+// The seam is the host's own fetch, which is what the generated client calls through the adapter in
+// common/lib/wireClient. Mocking there means the request the hook really issues is the one measured.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (_path: string, init: RequestInit) => {
+    let settle: { resolve: (res: Response) => void; reject: (err: unknown) => void };
+    const promise = new Promise<Response>((resolve, reject) => {
       settle = { resolve, reject };
     });
     host.calls.push({
       aborted: () => init.signal?.aborted === true,
       resolve: (rows) => {
-        settle.resolve(rows);
+        settle.resolve(
+          new Response(JSON.stringify(rows), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
       },
       reject: (err) => {
         settle.reject(err);
       },
-      // The hook registered its handler on this promise first, so a continuation added here runs
+      // The hook registered its handler on this request first, so a continuation added here runs
       // after it. That is what lets a test read a decision the hook made and then discarded, which
       // changes nothing on screen and so offers nothing to wait for.
       handled: () => promise.then(noop, noop),

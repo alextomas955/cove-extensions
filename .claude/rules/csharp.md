@@ -31,6 +31,14 @@ read, which a scoped account does not have. That is the standard: a named reason
   Inside, rely on the invariants the boundary established. A guard against a state the framework
   rules out hides the real failure when one arrives.
 
+## Endpoints
+
+Every route carries a `.WithName()`. It is the ASP.NET endpoint name and the `operationId` in the
+emitted document at once. Endpoint names must be unique across the host process every installed
+extension shares, so prefix each with the extension's own: `RenamerGetOptions`, never `GetOptions`.
+A generator names its output from the `operationId` and falls back to the method and path without
+one, so a rename is a breaking change to the generated client.
+
 ## Layout
 
 Capability slices at the project root beside the foundation folders (`Api/`, `Contracts/`,

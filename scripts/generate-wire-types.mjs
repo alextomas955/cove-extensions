@@ -9,22 +9,43 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
 import { readJson } from "./repo-files.mjs";
 
 const scriptRoot = path.resolve(import.meta.dirname, "..");
 
-// These are what make the output top-level aliases (`export type LastBatchSummary = …`) rather than
-// a nest under components['schemas'], so a call site imports the name the C# type has.
-const GENERATOR_FLAGS = [
-  "--root-types",
-  "--root-types-no-schema-prefix",
-  "--root-types-keep-casing",
+// Types, the fetch client, one function per operation, and the TanStack Query helpers over them.
+// Everything the UI needs to reach a route comes from the document: the path, the method, the
+// request body, the response, the error, and the query key.
+//
+// The client plugin takes a runtime config module from the consuming UI. That module is what binds
+// the host's authenticated `extensionFetch` in, so nothing generated here ever calls `fetch`
+// directly, where a request would carry no credential and answer 401.
+const CLIENT_CONFIG_SUBPATH = "src/common/lib/wireClient.ts";
+
+const generatorPlugins = (clientConfigPath) => [
+  "@hey-api/typescript",
+  { name: "@hey-api/client-fetch", runtimeConfigPath: clientConfigPath },
+  "@hey-api/sdk",
+  // exportFromIndex, so the query helpers leave through the same barrel as the types and the
+  // operations. Without it the generator's own file name is the import path, and
+  // `wire/@tanstack/react-query.gen` reads like the npm package next to it in the same file.
+  { name: "@tanstack/react-query", exportFromIndex: true },
 ];
 
 // Repo-relative and POSIX-spelled: path.join normalizes the separator, and the same string spells
 // the message a reader has to match against the catalog.
-const OUTPUT_SUBPATH = "src/wire/api.ts";
+//
+// A directory, not a file: the generator owns everything inside it and empties it on every run.
+const OUTPUT_SUBPATH = "src/wire";
+// Written by the generator; named here so a run that produced none of them fails by name rather
+// than as an unresolved import several steps later. The query helpers are included because a
+// consuming hook imports them: a plugin that silently emitted nothing would otherwise exit 0.
+const REQUIRED_OUTPUT = [
+  "types.gen.ts",
+  "sdk.gen.ts",
+  "client.gen.ts",
+  "@tanstack/react-query.gen.ts",
+];
 const DOCUMENT_SUBPATH = "wire/openapi.json";
 
 /**
@@ -34,21 +55,26 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
  * injects a fake in its place, and the catalog-validation job installs nothing yet runs every
  * scripts/*.test.mjs.
  *
- * openapi-typescript declares an older TypeScript as a peer than this repo is on, so `npm install`
- * refuses the pair without the root package.json `overrides` entry that forces it. The combination is
- * unsupported by the package: it drives the TypeScript compiler API, so a bump on either side can
- * break the emit for reasons the error will not name. Check whether the peer range has widened before
- * debugging anything else; the override can be retired as soon as it has.
+ * The generator writes a directory it owns, and names the file inside it for itself. The output is
+ * renamed to one module at a fixed path, so no call site imports a name the generator chose and
+ * swapping generators again stays a change to this function.
  */
-async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }) {
-  const { default: openapiTS, astToString } = await import("openapi-typescript");
-  const ast = await openapiTS(pathToFileURL(documentPath), {
-    rootTypes: flags.includes("--root-types"),
-    rootTypesNoSchemaPrefix: flags.includes("--root-types-no-schema-prefix"),
-    rootTypesKeepCasing: flags.includes("--root-types-keep-casing"),
+async function generateWithHeyApi({ documentPath, outputPath, plugins }) {
+  const { createClient } = await import("@hey-api/openapi-ts");
+
+  await createClient({
+    input: documentPath,
+    output: outputPath,
+    plugins,
+    logs: { level: "silent" },
   });
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, astToString(ast));
+
+  // The emit reports success for a run that wrote nothing a call site can import.
+  for (const required of REQUIRED_OUTPUT) {
+    if (!fs.existsSync(path.join(outputPath, required))) {
+      throw new Error(`the generator wrote no ${required} in ${outputPath}`);
+    }
+  }
 }
 
 /**
@@ -57,7 +83,7 @@ async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }
  * @param {object} opts
  * @param {string} [opts.root] - the repo root holding `extensions/catalog.json`.
  * @param {string|null} [opts.extension] - restrict to one entry by `id` or `name`.
- * @param {(step: {documentPath: string, outputPath: string, flags: string[], entry: object}) => Promise<void>} [opts.generate]
+ * @param {(step: {documentPath: string, outputPath: string, plugins: string[], entry: object}) => Promise<void>} [opts.generate]
  *        the document-to-types step; injected by the tooling test so the catalog logic is covered
  *        without the generator package.
  * @param {(line: string) => void} [opts.log]
@@ -66,7 +92,7 @@ async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }
 export async function generateWireTypes({
   root = scriptRoot,
   extension = null,
-  generate = generateWithOpenApiTypescript,
+  generate = generateWithHeyApi,
   log = console.log,
 } = {}) {
   const failures = [];
@@ -101,7 +127,24 @@ export async function generateWireTypes({
       continue;
     }
 
-    await generate({ documentPath, outputPath, flags: GENERATOR_FLAGS, entry });
+    // Resolved against this entry's own UI, so the generated client binds that bundle's host fetch.
+    const clientConfigPath = path.join(absoluteRoot, entry.uiPath, CLIENT_CONFIG_SUBPATH);
+    if (!fs.existsSync(clientConfigPath)) {
+      failures.push(
+        `MISSING: ${entry.id} declares a uiPath, so ${entry.uiPath}/${CLIENT_CONFIG_SUBPATH} must exist; it does not. Without it the generated client calls fetch directly and every request answers 401.`,
+      );
+      continue;
+    }
+
+    await generate({
+      documentPath,
+      outputPath,
+      // Without the extension: the generator echoes this path into the import it writes, and a
+      // generated `.ts` import would need allowImportingTsExtensions turned on for the whole bundle.
+      plugins: generatorPlugins(clientConfigPath.replace(/\.ts$/, "")),
+      entry,
+    });
+
     generated.push({ id: entry.id, documentPath, outputPath });
   }
 

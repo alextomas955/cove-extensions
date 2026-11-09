@@ -9,19 +9,12 @@
  * whether the read has landed.
  */
 import { useQuery } from "@tanstack/react-query";
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { LibraryPathsView } from "../wire/api";
-import { api } from "../common/lib/extension";
+import { renamerGetLibraryPathsOptions } from "../wire";
 import type { LibraryPathsState } from "./options";
 
-const LIBRARY_PATHS_PATH = api("library-paths");
-
 export function useLibraryPaths(): LibraryPathsState {
-  const query = useQuery({
-    queryKey: ["renamer", "library-paths"],
-    queryFn: ({ signal }) => requestJson<LibraryPathsView>(LIBRARY_PATHS_PATH, { signal }),
-  });
+  const query = useQuery(renamerGetLibraryPathsOptions());
 
   return {
     paths: query.data?.paths ?? [],

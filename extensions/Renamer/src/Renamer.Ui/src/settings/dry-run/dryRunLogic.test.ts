@@ -18,7 +18,7 @@ import {
   rowsFooterText,
   type DryRunBucket,
 } from "./dryRunLogic";
-import type { RenamerStatus } from "../../wire/api";
+import type { RenamerStatus } from "../../wire";
 
 // Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed
 // by hand from `ScanBucket.Of`, never derived from `classifyItem`, because an expectation computed

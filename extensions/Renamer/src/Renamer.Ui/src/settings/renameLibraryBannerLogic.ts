@@ -1,6 +1,6 @@
 /** The banner a whole-library rename leaves behind. */
 
-import type { LibraryRenameSummaryView } from "../wire/api";
+import type { LibraryRenameSummaryView } from "../wire";
 import { KIND_LABELS, type RenamableKind } from "./options";
 
 export interface RenameLibraryBanner {
@@ -52,12 +52,14 @@ export function buildRenameLibraryResult(
 }
 
 /**
- * The banner for a rename that failed. Before the job was accepted nothing can have changed. After,
- * the job may have renamed some chunks before it failed or was cancelled, so the banner never says
- * nothing changed.
+ * The banner for a rename that failed.
+ *
+ * `mayHaveRun` is false only where the failure is itself the statement that no rename began, which
+ * is a refusal the server answered. Anywhere else the job may have renamed some chunks before it
+ * failed or was cancelled, and the banner never says nothing changed.
  */
-export function buildRenameLibraryError(detail: string, started: boolean): string {
-  return started
+export function buildRenameLibraryError(detail: string, mayHaveRun: boolean): string {
+  return mayHaveRun
     ? `The rename stopped before it finished: ${detail}. Some files may already be renamed; check the undo line and run a dry run before you try again.`
     : `Couldn't rename: ${detail}. Nothing was changed; you can try again.`;
 }

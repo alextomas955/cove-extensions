@@ -3,6 +3,9 @@
 // loop over a scripted job-status route, with the two tuning constants shrunk so a bound is reached
 // on the second poll, and asserts what a user notices: the requests stop and the button comes back
 // with a banner. The clock is fake, so the test that asserts nothing happens meanwhile costs nothing.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { renderHook, cleanup, act } from "@testing-library/react";
@@ -12,11 +15,7 @@ import { createTestQueryClient } from "../common/lib/testQueryClient";
 
 import { useRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
-import type {
-  LibraryRenameEnqueued,
-  LibraryRenameSummaryView,
-  RenamerJobStatus,
-} from "../wire/api";
+import type { LibraryRenameEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
 interface EndpointScript {
@@ -28,6 +27,8 @@ interface EndpointScript {
   progress: number;
   // What /last-library-rename answers with, or null to fail that read.
   summary: LibraryRenameSummaryView | null;
+  // What POST /renamer-library answers with, or null to accept the job the other cases poll.
+  enqueue: { status: number; body: string } | null;
 }
 
 const host = vi.hoisted((): EndpointScript => ({
@@ -35,30 +36,38 @@ const host = vi.hoisted((): EndpointScript => ({
   status: "running",
   progress: 0.25,
   summary: null,
+  enqueue: null,
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  ApiError: class ApiError extends Error {},
-  errorText: (err: unknown) => String(err),
-  requestJson: (path: string) => {
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the hook really issues.
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (path: string) => {
+    // A string body is sent as it stands, so a case can script a reply that will not parse.
+    const json = (value: unknown, status = 200) =>
+      Promise.resolve(
+        new Response(typeof value === "string" ? value : JSON.stringify(value), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     host.reads.push(path);
     if (path.includes("/last-library-rename")) {
-      return host.summary === null
-        ? Promise.reject(new Error("500 boom"))
-        : Promise.resolve(host.summary);
+      return host.summary === null ? json("boom", 500) : json(host.summary);
     }
-    return Promise.resolve(
-      path.includes("/job-status/")
-        ? ({
-            id: "job-under-test",
-            status: host.status,
-            progress: host.progress,
-            subTask: null,
-            error: null,
-            etaSeconds: null,
-          } satisfies RenamerJobStatus)
-        : ({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued),
-    );
+    if (path.includes("/job-status/")) {
+      return json({
+        id: "job-under-test",
+        status: host.status,
+        progress: host.progress,
+        subTask: null,
+        error: null,
+        etaSeconds: null,
+      } satisfies RenamerJobStatus);
+    }
+    return host.enqueue === null
+      ? json({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued)
+      : json(host.enqueue.body, host.enqueue.status);
   },
 }));
 
@@ -115,6 +124,7 @@ beforeEach(() => {
   host.status = "running";
   host.progress = 0.25;
   host.summary = null;
+  host.enqueue = null;
 });
 
 test("a job that stops reporting progress ends the run instead of polling forever", async () => {
@@ -141,6 +151,9 @@ test("a job that stops reporting progress ends the run instead of polling foreve
   expect(hook.current.runLibraryFeedback?.kind).toBe("error");
   expect(hook.current.runLibraryFeedback?.text).toContain("Couldn't confirm the rename");
   expect(hook.current.dryRunOpen).toBe(false);
+  // A job nobody can read the end of may have journalled rows, and the footer is the only place
+  // that would say so.
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
 });
 
 test("a completed job still resolves through the same poll", async () => {
@@ -168,9 +181,9 @@ test("a completed job still resolves through the same poll", async () => {
   // The rename POST, exactly one job read, then the job's own counts. No scan runs first. The paths
   // are written out rather than built from the route helper the code under test uses.
   expect(host.reads).toEqual([
-    "/extensions/com.alextomas955.renamer/renamer-library",
-    "/extensions/com.alextomas955.renamer/job-status/job-under-test",
-    "/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
+    "/api/extensions/com.alextomas955.renamer/renamer-library",
+    "/api/extensions/com.alextomas955.renamer/job-status/job-under-test",
+    "/api/extensions/com.alextomas955.renamer/last-library-rename/run-under-test",
   ]);
 });
 
@@ -186,14 +199,53 @@ test("a completed job whose counts cannot be read still reports the rename as fi
   expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
 });
 
-test("a job that fails after it started is reported as a rename that stopped part-way", async () => {
-  host.status = "failed";
+test("a refused rename is the one arm that reports the library as untouched", async () => {
+  // 403 is the route's only refusal, and it is decided before anything is enqueued.
+  host.enqueue = { status: 403, body: "forbidden" };
   const hook = mountHook();
 
   await renameToSettlement(hook);
 
-  // The started branch of the error builder, not the refused one: which of the two ran is the hook's
-  // decision, and what each says is renameLibraryBannerLogic's.
   expect(hook.current.runLibraryFeedback?.kind).toBe("error");
-  expect(hook.current.runLibraryFeedback?.text).toContain("The rename stopped before it finished");
+  expect(hook.current.runLibraryFeedback?.text).toContain("Nothing was changed");
+  // And the one arm that starts no re-read. The other arms above show the entry does go stale, so
+  // this is not an absence nothing could have produced.
+  expect(hook.lastBatchStale(), "a refused rename still re-read the undo line").toBe(false);
 });
+
+// Neither of these says the job did not start. A 500 can follow an accepted job, and a 202 whose
+// body would not parse is a job that was accepted and whose id was lost.
+test.each([
+  ["a server that failed while enqueueing", { status: 500, body: "boom" }],
+  ["an acceptance that would not parse", { status: 202, body: "{ not json" }],
+])("a rename lost to %s never claims the library is untouched", async (_case, enqueue) => {
+  host.enqueue = enqueue;
+  const hook = mountHook();
+
+  await renameToSettlement(hook);
+
+  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+  expect(hook.current.runLibraryFeedback?.text).not.toContain("Nothing was changed");
+  expect(hook.current.runLibraryFeedback?.text).toContain("Some files may already be renamed");
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
+});
+
+// A library rename journals each file as it moves and the journal is flushed as the run unwinds, so
+// both endings leave rows an undo would act on.
+test.each(["failed", "cancelled"] as const)(
+  "a job that ends %s after it started is reported as a rename that stopped part-way",
+  async (status) => {
+    host.status = status;
+    const hook = mountHook();
+
+    await renameToSettlement(hook);
+
+    // The started branch of the error builder, not the refused one: which of the two ran is the
+    // hook's decision, and what each says is renameLibraryBannerLogic's.
+    expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+    expect(hook.current.runLibraryFeedback?.text).toContain(
+      "The rename stopped before it finished",
+    );
+    expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
+  },
+);

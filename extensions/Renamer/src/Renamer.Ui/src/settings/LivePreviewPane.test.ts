@@ -7,7 +7,7 @@ import { createElement } from "react";
 import { render, cleanup } from "@testing-library/react";
 
 import { LivePreviewPane } from "./LivePreviewPane";
-import type { PreviewSampleResult } from "../wire/api";
+import type { PreviewSampleResult } from "../wire";
 
 const SAMPLE: PreviewSampleResult[] = [
   {

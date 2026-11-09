@@ -7,7 +7,7 @@ import { render, cleanup } from "@testing-library/react";
 import { badgesFor, type Badgeable } from "./warningBadgeLogic";
 import { WarningBadges } from "./WarningBadge";
 import { classifyItem } from "./dryRunLogic";
-import type { RenamerStatus } from "../../wire/api";
+import type { RenamerStatus } from "../../wire";
 
 // Every status the wire can carry, keyed by the server's `RenamerStatus`, with the label a user reads
 // for it, written out rather than read from the module's own map. `null` earns no badge.

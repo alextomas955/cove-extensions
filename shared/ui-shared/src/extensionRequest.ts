@@ -1,66 +1,52 @@
-// Not in the barrel: this module reaches the host runtime and the SDK, and keeping it behind the
-// `./extensionRequest` subpath is what lets a consumer import the barrel without taking either.
-import { extensionFetch } from "@cove/runtime/api";
-import { ApiError } from "@cove/extension-sdk";
-
-// Re-exported so every `instanceof ApiError` branch keeps testing the SDK's own class.
-export { ApiError };
+// Not in the barrel: a consumer reaches this through the `./extensionRequest` subpath, so importing
+// the barrel never takes the error class with it.
+//
+// The requests themselves are each extension's generated client, bound to the host's authenticated
+// fetch. What stays here is the shape a failure arrives in, which every error branch reads.
 
 /**
- * Sends one request through the host's authenticated fetch, which attaches the signed-in user's
- * credential and constrains the request to same-origin `/api`, and returns the raw response text
- * alongside its status. Any non-ok response raises {@link ApiError}, carrying status, response body
- * and the unprefixed path.
+ * A request the server answered with a status outside 2xx.
+ *
+ * Thrown by the interceptor each extension registers over its generated client, so an error branch
+ * can read the status the server sent rather than infer one. Two failures are deliberately not one
+ * of these: a request that never completed - a dropped connection, an abort - and a 2xx reply the
+ * client could not read. Neither carries a status the server chose, and an ApiError would claim it
+ * did. That is what lets a `catch` tell "the server said no" from "nobody knows".
  */
-async function send(path: string, options: RequestInit): Promise<{ status: number; body: string }> {
-  // The `/api` prefix belongs here rather than at each call site: `extensionFetch` throws a
-  // TypeError for a path outside `/api/`, and a TypeError is not an ApiError, so a mis-prefixed
-  // path falls through every `instanceof ApiError` branch into the generic string-error arm and
-  // reads as an unrelated failure.
-  //
-  // `HeadersInit` is a union whose arms do not survive an object spread: spreading a `Headers`
-  // instance yields `{}` (its entries are internal, not own enumerable properties) and spreading the
-  // entry-array form yields index keys, so in both cases the caller's headers vanish with no error.
-  // Going through `Headers` also collapses the casing, so a caller passing a lowercase
-  // `content-type` overrides the default instead of producing both spellings, which `fetch` would
-  // send as one comma-joined value.
-  const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+export class ApiError extends Error {
+  /** The status the server answered with. */
+  readonly status: number;
+
+  /** What a reader is shown: a problem body's `detail`, else whatever the route sent. */
+  readonly body: string;
+
+  /** The route, as a path. Not the absolute url: this is the spelling the server's own logs use. */
+  readonly path: string;
+
+  constructor(status: number, body: string, path: string) {
+    super(`API ${String(status)} ${path}: ${body}`);
+    this.status = status;
+    this.body = body;
+    this.path = path;
+    this.name = "ApiError";
   }
-
-  const res = await extensionFetch(`/api${path}`, { ...options, headers });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new ApiError(res.status, text || res.statusText, path);
-  }
-
-  // A 204's body is null and reads as "", the same as the bodyless 200 the host answers its
-  // extension-data put with, so both arrive at the callers below as one empty-body case.
-  return { status: res.status, body: await res.text() };
 }
 
 /**
- * Request an extension route that may legitimately answer with no body, resolving `undefined` in
- * that case: an empty body is a success here, not a parse error, and handing it to the JSON parser
- * would raise a SyntaxError a caller could only read as failure.
+ * Whether the server declined the request before acting on it, so the work it asked for did not
+ * begin.
+ *
+ * A 4xx is the server stating it will not do the work: an extension route authorizes, validates and
+ * checks for a pending conversion before it touches anything, so a status in that range is a
+ * decision taken in front of the side effect. A 5xx is the server failing while carrying the work
+ * out, which says nothing about how far it got. A failure with no status at all - a dropped
+ * connection, an abort, a reply that would not parse - says less still.
+ *
+ * A caller reporting a destructive operation may tell the user nothing changed only when this is
+ * true. Every other failure leaves the outcome unknown and has to say so.
  */
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T | undefined> {
-  const { body } = await send(path, options);
-  return body ? (JSON.parse(body) as T) : undefined;
-}
-
-/**
- * Request an extension route that must answer with a JSON body. An empty body raises
- * {@link ApiError}, rather than resolving a value the declared type forbids.
- */
-export async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const { status, body } = await send(path, options);
-  if (!body) {
-    throw new ApiError(status, "response carried no body, but JSON was expected", path);
-  }
-  return JSON.parse(body) as T;
+export function isRefusal(err: unknown): boolean {
+  return err instanceof ApiError && err.status < 500;
 }
 
 /** A request failure as a user reads it: an ApiError's status and body, else the error's message. */

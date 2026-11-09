@@ -40,8 +40,7 @@ updates:
   # The JS workspaces root (the shared e2e harness and every extension's e2e workspace, one lockfile)
   # and every extension's UI package (each with its own lockfile). One block, so a package both
   # declare arrives in one pull request: syncpack requires them to match, and one pull request per
-  # directory fails that check on each side. @cove/extension-sdk is a vendored tarball, updated by
-  # re-vendoring rather than by Dependabot.
+  # directory fails that check on each side.
   - package-ecosystem: "npm"
     directories:
       - "/"

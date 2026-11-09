@@ -13,10 +13,9 @@
  * Every verdict, both bounds and the wait between reads are `jobPollLogic.ts`'s. The clock is read
  * here so that module needs none.
  */
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import { api } from "../common/lib/extension";
-import type { RenamerJobStatus } from "../wire/api";
+import { renamerGetJobStatus } from "../wire";
+import type { RenamerJobStatus } from "../wire";
 
 import {
   JOB_FAILURE_ALLOWANCE,
@@ -75,7 +74,8 @@ export function pollJob(jobId: string, onProgress?: (job: RenamerJobStatus) => v
     };
 
     function read() {
-      requestJson<RenamerJobStatus>(api(`job-status/${jobId}`))
+      renamerGetJobStatus({ path: { jobId }, throwOnError: true })
+        .then(({ data }): RenamerJobStatus => data)
         .then((job) => {
           if (settled) return;
           const now = Date.now();

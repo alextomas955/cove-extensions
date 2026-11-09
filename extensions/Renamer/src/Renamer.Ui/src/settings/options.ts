@@ -7,7 +7,7 @@
  * which state each rule more fully than a mirrored copy could.
  */
 
-import type * as Wire from "../wire/api";
+import type * as Wire from "../wire";
 
 /**
  * A generated wire shape with the optional markers dropped.

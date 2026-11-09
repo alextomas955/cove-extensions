@@ -4,7 +4,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildConfirmSummary } from "./confirmSummaryLogic";
-import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../wire";
 
 const RENAME_ITEM: PreviewItemView = {
   fileId: 1,

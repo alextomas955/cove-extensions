@@ -19,7 +19,7 @@ public sealed partial class Renamer
     // The journal rows an undo reads per page, in both the authorization walk and the replay.
     internal int UndoPageSize { get; set; } = CoveRevertJournal.DefaultPageSize;
 
-    internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
+    internal async Task<Results<Ok<UndoResult>, ForbiddenProblem>> UndoAsync(
         ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
     {
         // Refuse a caller holding no write permission before any journal read or disk touch, so an
@@ -27,7 +27,7 @@ public sealed partial class Renamer
         // batch's kinds, so it cannot be this gate.
         if (!HasAnyWritePermission(principal))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         await using var scope = ScopeFactory.CreateAsyncScope();
@@ -77,7 +77,7 @@ public sealed partial class Renamer
         if (!await AuthorizeOperationEntitiesAsync(
                 journal, operationId, batch.Value, principal, authz, UndoPageSize, ct))
         {
-            return new ForbiddenCode();
+            return new ForbiddenProblem();
         }
 
         // Undo restores the paths the journal recorded and renders no name, so it loads no options.

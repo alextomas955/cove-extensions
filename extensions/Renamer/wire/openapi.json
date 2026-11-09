@@ -2,14 +2,24 @@
   "openapi": "3.1.1",
   "info": {
     "title": "cove extension wire contract",
+    "description": "The HTTP surface one Cove extension adds to its host. Every route is mounted under /api/extensions/<extension id> and is reached same-origin from the host page.",
     "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The Cove host."
+    }
+  ],
   "paths": {
     "/api/extensions/com.alextomas955.renamer/preview": {
       "post": {
         "tags": [
           "Renamer"
         ],
+        "summary": "Preview the rename of a named selection",
+        "description": "Plans every file of the given entities against the saved settings and returns the planned move for each, plus the totals a confirmation needs. Touches no disk.",
+        "operationId": "RenamerPreview",
         "requestBody": {
           "content": {
             "application/json": {
@@ -32,24 +42,42 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -59,6 +87,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Rename a named selection",
+        "description": "Enqueues the rename of the given entities and returns at once with the job to poll. Every id is authorized before anything is enqueued, and one the caller may not write refuses the whole request, so an accepted job renames all of them or none were accepted.",
+        "operationId": "RenamerRenameSelected",
         "requestBody": {
           "content": {
             "application/json": {
@@ -81,24 +112,42 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -108,6 +157,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Preview sample names for unsaved settings",
+        "description": "Renders the sample set against settings that have not been saved, which is what the settings page shows as the user types. An empty body, or one naming no settings, previews the defaults rather than what is stored.",
+        "operationId": "RenamerPreviewSample",
         "requestBody": {
           "content": {
             "application/json": {
@@ -115,8 +167,7 @@
                 "$ref": "#/components/schemas/PreviewSampleRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -135,22 +186,40 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -160,6 +229,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Undo the last rename batch",
+        "description": "Moves the files of the most recent batch back to the names they had. Every arm that answers carries counts, including the one where there was nothing left to undo, so a caller never has to infer what happened. A refusal is the exception and answers 403 with none: the caller may hold no write permission at all, or not the permission for a kind the batch touched, or not the right to an entity in it.",
+        "operationId": "RenamerUndo",
         "responses": {
           "200": {
             "description": "OK",
@@ -172,11 +244,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -189,6 +276,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Summarize the last rename batch",
+        "description": "What an undo would act on, and whether it still can: a batch expires, and one already undone reports as consumed.",
+        "operationId": "RenamerGetLastBatch",
         "responses": {
           "200": {
             "description": "OK",
@@ -201,11 +291,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -218,6 +323,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Scan the whole library for planned renames",
+        "description": "Enqueues the scan and returns the job to poll, along with the run id its totals are later read under. Rows are not read by run: they are paged from the settings the scan ran with.",
+        "operationId": "RenamerScanLibrary",
         "requestBody": {
           "content": {
             "application/json": {
@@ -246,14 +354,35 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
+          },
+          "400": {
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below."
           }
         }
       }
@@ -263,6 +392,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a finished scan's totals",
+        "description": "Only the most recent run's figures are kept, so a run replaced by a later scan answers 404.",
+        "operationId": "RenamerGetScanResult",
         "parameters": [
           {
             "name": "runId",
@@ -288,11 +420,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -305,6 +452,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a page of a scan's planned renames",
+        "description": "A POST because the cursor, the search and the settings the scan ran under travel in the body. A page carries the cursor the next one resumes from; a page without one ends the walk. A page may also stop on the server's per-request budget with the library only partly examined, which is not the same as having no more results.",
+        "operationId": "RenamerGetScanRows",
         "requestBody": {
           "content": {
             "application/json": {
@@ -333,24 +483,42 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -360,6 +528,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read a finished library rename's counts",
+        "description": "Only the most recent run's counts are kept, so a run replaced by a later rename answers 404.",
+        "operationId": "RenamerGetLibraryRenameResult",
         "parameters": [
           {
             "name": "runId",
@@ -385,11 +556,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -402,6 +588,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Rename the whole library",
+        "description": "Enqueues the rename of every entity the caller may write and returns the job to poll.",
+        "operationId": "RenamerRenameLibrary",
         "responses": {
           "202": {
             "description": "Accepted",
@@ -414,11 +603,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -431,6 +635,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "List the library paths Cove is configured with",
+        "description": "The roots a destination rule may send files to. Host configuration, not library data.",
+        "operationId": "RenamerGetLibraryPaths",
         "responses": {
           "200": {
             "description": "OK",
@@ -443,11 +650,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -460,6 +682,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read the status of a job this extension started",
+        "description": "Scoped to the caller who started it wherever the host identifies one, which it does not when authentication is turned off. The extension answers this itself because the host's own job route requires unrestricted read, which a scoped account does not have.",
+        "operationId": "RenamerGetJobStatus",
         "parameters": [
           {
             "name": "jobId",
@@ -485,11 +710,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -502,6 +742,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "List routing rules whose entity no longer exists",
+        "description": "Answered by the server because a browser cannot tell a deleted entity from one this viewer may not read.",
+        "operationId": "RenamerGetOrphanedRules",
         "responses": {
           "200": {
             "description": "OK",
@@ -514,11 +757,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -531,6 +789,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Read the saved rename settings",
+        "description": "Returns every member, filling any the stored document omits with its default. An unreadable stored document answers with the defaults and says so rather than failing.",
+        "operationId": "RenamerGetOptions",
         "responses": {
           "200": {
             "description": "OK",
@@ -543,11 +804,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -558,6 +834,9 @@
         "tags": [
           "Renamer"
         ],
+        "summary": "Replace the saved rename settings",
+        "description": "The body replaces the whole document; a member it omits takes its default. Refused with 409 while a one-time conversion of the stored document is still pending.",
+        "operationId": "RenamerSaveOptions",
         "requestBody": {
           "content": {
             "application/json": {
@@ -575,9 +854,9 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
@@ -585,22 +864,40 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -622,6 +919,36 @@
           "heavy"
         ]
       },
+      "CoveAuthorizationDenial": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable SCREAMING_SNAKE token: `UNAUTHORIZED` or `FORBIDDEN`."
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Written with `UNAUTHORIZED`. Absent from a permission refusal."
+          },
+          "missing": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The permissions the caller holds none of. Written with `FORBIDDEN`."
+          }
+        },
+        "description": "The body Cove's own extension-endpoint authorization middleware writes when it refuses a request\nbefore the extension's handler runs."
+      },
       "Destination": {
         "type": "object",
         "properties": {
@@ -633,12 +960,54 @@
           }
         }
       },
-      "ErrorCode": {
+      "ExcludeRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExtensionProblemDetails": {
         "required": [
           "code"
         ],
         "type": "object",
         "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },
@@ -648,17 +1017,6 @@
               "integer"
             ],
             "format": "int32"
-          }
-        }
-      },
-      "ExcludeRule": {
-        "type": "object",
-        "properties": {
-          "pattern": {
-            "type": "string"
-          },
-          "isRegex": {
-            "type": "boolean"
           }
         }
       },
@@ -1760,8 +2118,21 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "coveBearer": {
+        "type": "http",
+        "description": "Issued by the Cove host and attached by its own authenticated fetch. Required only where the host has authentication turned on, which is not its default; where it is on, a caller without one is refused by the host before the extension is reached.",
+        "scheme": "bearer"
+      }
     }
   },
+  "security": [
+    {
+      "coveBearer": [ ]
+    },
+    { }
+  ],
   "tags": [
     {
       "name": "Renamer"

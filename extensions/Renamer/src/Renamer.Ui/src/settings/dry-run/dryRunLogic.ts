@@ -1,4 +1,4 @@
-import type { RenamerFileKind } from "../../wire/api";
+import type { RenamerFileKind } from "../../wire";
 
 export type DryRunBucket = "will-change" | "attention" | "no-change";
 

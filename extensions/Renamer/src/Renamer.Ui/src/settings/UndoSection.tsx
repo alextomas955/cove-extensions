@@ -41,9 +41,16 @@ function UndoStatusRow({
     );
   }
 
+  const feedbackLine = feedback ? (
+    <StatusText kind={feedback.kind}>{feedback.text}</StatusText>
+  ) : null;
+
+  // The verdict stays beside the failed read: an undo re-reads the summary as it ends, so this arm
+  // holds the only account of a destructive call.
   if (summaryError) {
     return (
       <div className="flex flex-wrap items-center justify-end gap-3">
+        {feedbackLine}
         <StatusText kind="error">
           Couldn&apos;t check for a recent rename: {summaryError}.
         </StatusText>
@@ -53,10 +60,6 @@ function UndoStatusRow({
       </div>
     );
   }
-
-  const feedbackLine = feedback ? (
-    <StatusText kind={feedback.kind}>{feedback.text}</StatusText>
-  ) : null;
 
   if (hasUndoable && status) {
     return (

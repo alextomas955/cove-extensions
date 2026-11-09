@@ -17,7 +17,12 @@ const EXT_PATH = "extensions/" + NAME;
 const UI_PATH = EXT_PATH + "/src/" + NAME + ".Ui";
 const DOC_PATH = EXT_PATH + "/wire/openapi.json"; // derived, never declared in the catalog
 
-function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
+function fixtureRoot({
+  entry = {},
+  writeDocument = true,
+  paths = {},
+  writeClientConfig = true,
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "generate-wire-types-"));
   const catalogEntry = {
     name: NAME,
@@ -31,9 +36,17 @@ function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
     path.join(root, "extensions", "catalog.json"),
     JSON.stringify({ schemaVersion: 1, extensions: [catalogEntry] }, null, 2),
   );
+  if (writeClientConfig) {
+    // The generated client takes its fetch from here, so the generator refuses an entry without it.
+    fs.mkdirSync(path.join(root, UI_PATH, "src", "common", "lib"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, UI_PATH, "src", "common", "lib", "wireClient.ts"),
+      "export const createClientConfig = (c) => c;\n",
+    );
+  }
   if (writeDocument) {
     fs.mkdirSync(path.join(root, EXT_PATH, "wire"), { recursive: true });
-    fs.writeFileSync(path.join(root, DOC_PATH), JSON.stringify({ openapi: "3.1.1", paths: {} }));
+    fs.writeFileSync(path.join(root, DOC_PATH), JSON.stringify({ openapi: "3.1.1", paths }));
   }
   return root;
 }
@@ -68,12 +81,24 @@ test("a declaring entry is generated from, with the document as input and the UI
     // The arguments, not merely that it was called: a call count passes just as happily when the
     // generator is pointed at the wrong document or writes to the wrong path.
     assert.equal(calls[0].documentPath, path.join(root, DOC_PATH));
-    assert.equal(calls[0].outputPath, path.join(root, UI_PATH, "src", "wire", "api.ts"));
-    assert.deepEqual(calls[0].flags, [
-      "--root-types",
-      "--root-types-no-schema-prefix",
-      "--root-types-keep-casing",
-    ]);
+    assert.equal(calls[0].outputPath, path.join(root, UI_PATH, "src", "wire"));
+    // The plugin list, not merely that one was passed: the client entry carries the path to the
+    // module that binds the host's authenticated fetch, and without it the generated client would
+    // call `fetch` directly and every request would answer 401.
+    assert.deepEqual(
+      calls[0].plugins.map((plugin) => (typeof plugin === "string" ? plugin : plugin.name)),
+      ["@hey-api/typescript", "@hey-api/client-fetch", "@hey-api/sdk", "@tanstack/react-query"],
+    );
+    const clientPlugin = calls[0].plugins.find(
+      (plugin) => typeof plugin !== "string" && plugin.name === "@hey-api/client-fetch",
+    );
+    // Without the extension: the generator echoes this path into the import it writes into
+    // client.gen.ts, and a generated `.ts` import compiles only with allowImportingTsExtensions
+    // turned on for the whole bundle.
+    assert.equal(
+      clientPlugin.runtimeConfigPath,
+      path.join(root, UI_PATH, "src", "common", "lib", "wireClient"),
+    );
     assert.equal(calls[0].entry.id, ID);
 
     assert.match(lines.join("\n"), /Examined 1 catalog entry; generated from 1 of 1/);
@@ -137,6 +162,24 @@ test("--extension scopes the run to one entry, and an unknown id is a failure", 
     assert.equal(miss.ok, false);
     assert.equal(missed.calls.length, 0);
     assert.match(miss.failures[0], /no catalog entry matches id\/name: com\.example\.absent/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a UI with no client config module is refused rather than generated against a bare fetch", async () => {
+  const root = fixtureRoot({ writeClientConfig: false });
+  try {
+    const { calls, generate } = recordingGenerate();
+    const { log } = silent();
+
+    const result = await generateWireTypes({ root, generate, log });
+
+    assert.equal(result.ok, false);
+    // Refused before the generator runs: the output it would write binds its fetch to that module,
+    // and a client left on the global one answers 401 for every request.
+    assert.equal(calls.length, 0);
+    assert.match(result.failures[0], /wireClient\.ts must exist/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
