@@ -1,25 +1,17 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Options;
-using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
+using Renamed = Renamer.Tests.TestSupport.RenamedBatchFixture.Renamed;
 
 namespace Renamer.Tests.Api;
 
 public sealed class UndoRetryTests
 {
     private const string RunId = "retry-run";
-    // Relative, never a calendar date. The undo path refuses a batch outside the retention window, and
-    // these cases are about retry accounting rather than expiry - so a fixed date would hold while it
-    // was written and then start failing these tests on its own, for a reason none of them names.
-    private static readonly DateTime Opened = DateTime.UtcNow;
-
-    private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
     [Fact]
     public async Task APartialUndo_RetiresOnlyTheRowsThatCameBack_AndLeavesTheRestInTheTable()
@@ -34,7 +26,7 @@ public sealed class UndoRetryTests
             // reverse move refuses to clobber, so that entry stops and its row must survive.
             File.WriteAllText(stays.OldFull, "someone else's file");
 
-            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
+            var undo = ValueOf<UndoResult>(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(1, undo.Undone);
             Assert.Single(undo.SkippedSample);
@@ -73,7 +65,7 @@ public sealed class UndoRetryTests
             db.Set<VideoFile>().Remove(await db.Set<VideoFile>().SingleAsync(f => f.Id == gone.FileId));
             await db.SaveChangesAsync();
 
-            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
+            var undo = ValueOf<UndoResult>(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(1, undo.Undone);
             Assert.Equal(1, undo.SkippedCount);
@@ -157,75 +149,14 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
+    private static async Task<(global::Renamer.Renamer ext, Renamed first, Renamed second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
         var (ext, seeded) = await RenameManyAsync(db, dir, ["one", "two"]);
         return (ext, seeded[0], seeded[1]);
     }
 
-    // Seeds one folder holding one video per stems entry, then really renames each into one journal
-    // batch - so the batch holds one row per file, which is what makes "acts only on what is left"
-    // a statement about rows rather than about batches. The forward half runs through the planner
-    // and executor directly rather than through the batch endpoint, because that endpoint fans its
-    // files out across per-worker scopes and every scope here resolves the one seeded context.
-    private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
+    private static Task<(global::Renamer.Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, IReadOnlyList<string> stems)
-    {
-        string folderPath = dir.Root.Replace('\\', '/');
-        var folder = new Folder { Path = folderPath, ModTime = DateTime.UtcNow };
-        db.Set<Folder>().Add(folder);
-        await db.SaveChangesAsync();
-
-        var seeded = new List<Seeded>();
-        foreach (string stem in stems)
-        {
-            var video = new Video { Title = $"{stem} film", Organized = true };
-            db.Set<Video>().Add(video);
-            await db.SaveChangesAsync();
-
-            var file = new VideoFile
-            {
-                Basename = $"raw {stem}.mkv",
-                ParentFolderId = folder.Id,
-                Format = "mkv",
-                VideoId = video.Id,
-            };
-            db.Set<VideoFile>().Add(file);
-            await db.SaveChangesAsync();
-
-            string oldFull = Path.Combine(dir.Root, $"raw {stem}.mkv");
-            File.WriteAllText(oldFull, $"{stem}-bytes");
-            seeded.Add(new Seeded(video.Id, file.Id, oldFull, Path.Combine(dir.Root, $"{stem} film.mkv")));
-        }
-
-        var options = new RenamerOptions { FilenameTemplate = "$title" };
-        var port = new CoveRenamerDataPort(db);
-        await using (var journal = new CoveRevertJournal(db))
-        {
-            await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
-            foreach (var s in seeded)
-            {
-                var plan = await new RenamerPlanner(port)
-                    .PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
-                var forward = await new RenamerExecutor(
-                        port, new CapturingEventBus(), journal, RunId)
-                    .ExecuteAsync(plan, options, default);
-                Assert.Single(forward.Renamed);
-            }
-        }
-
-        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options: options);
-
-        foreach (var s in seeded)
-        {
-            Assert.True(File.Exists(s.NewFull), $"forward rename landed at {s.NewFull}");
-            Assert.False(File.Exists(s.OldFull));
-        }
-
-        return (ext, seeded);
-    }
-
-    private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
+        => RenamedBatchFixture.CreateAsync(dir, db, RunId, stems);
 }

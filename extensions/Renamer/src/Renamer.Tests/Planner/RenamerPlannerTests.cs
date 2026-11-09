@@ -125,4 +125,33 @@ public sealed class RenamerPlannerTests
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
     }
+
+    [Fact]
+    public async Task FreeCleanName_IsNeitherSuffixedNorSanitized()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
+        var planner = new RenamerPlanner(port);
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
+        Assert.False(item.Suffixed);
+        Assert.False(item.Sanitized);
+    }
+
+    [Fact]
+    public async Task IllegalChars_Sanitized()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(VideoEntity("My: Film", VideoFile(1, "raw.mkv")));
+        var planner = new RenamerPlanner(port);
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.True(item.Sanitized);
+        Assert.DoesNotContain(':', item.NewBasename);
+    }
 }

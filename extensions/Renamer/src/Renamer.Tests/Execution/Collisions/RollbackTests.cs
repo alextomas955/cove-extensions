@@ -1,5 +1,4 @@
 using Cove.Core.Entities;
-using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -131,7 +130,7 @@ public sealed class RollbackTests
 
             // Port that commits the real save (new basename persisted) but reports a RecomputedPath that
             // does not match the on-disk destination, tripping the post-save assertion.
-            var port = new MismatchedRecomputedPathDataPort(db);
+            var port = new MisreportingSaveDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(port, bus, journal, "run-test");
@@ -241,7 +240,7 @@ public sealed class RollbackTests
 
             var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(
-                new ReoccupyOldSlotThenMisreportDataPort(db, oldA), new CapturingEventBus(), journal,
+                new ReoccupySlotThenMisreportDataPort(db, oldA), new CapturingEventBus(), journal,
                 "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -295,7 +294,7 @@ public sealed class RollbackTests
             // The port runs after the disk move and before the rollback, so occupying the caption's old
             // slot there makes the sidecar rollback warn while the primary's own slot stays free.
             var executor = new RenamerExecutor(
-                new ReoccupyOldSlotThenMisreportDataPort(db, oldCaption), new CapturingEventBus(),
+                new ReoccupySlotThenMisreportDataPort(db, oldCaption), new CapturingEventBus(),
                 new FakeRevertJournal(), "run-test");
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -359,29 +358,4 @@ public sealed class RollbackTests
             await conn.DisposeAsync();
         }
     }
-
-    private sealed class MismatchedRecomputedPathDataPort(DbContext db) : CoveRenamerDataPort(db)
-    {
-        private int _saves;
-
-        public override async Task<string> ApplyAndSaveAsync(
-            RenamerFileMutation mutation, CancellationToken ct = default)
-        {
-            string recomputed = await base.ApplyAndSaveAsync(mutation, ct);
-            return ++_saves == 1 ? recomputed + ".WRONG" : recomputed;
-        }
-    }
-
-    private sealed class ReoccupyOldSlotThenMisreportDataPort(DbContext db, string oldSlot)
-        : CoveRenamerDataPort(db)
-    {
-        public override async Task<string> ApplyAndSaveAsync(
-            RenamerFileMutation mutation, CancellationToken ct = default)
-        {
-            string recomputed = await base.ApplyAndSaveAsync(mutation, ct);
-            File.WriteAllText(oldSlot, "intruder bytes re-occupying the old slot");
-            return recomputed + ".WRONG";
-        }
-    }
-
 }

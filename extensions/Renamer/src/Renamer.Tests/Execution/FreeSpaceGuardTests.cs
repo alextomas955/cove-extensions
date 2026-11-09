@@ -1,21 +1,10 @@
 using Renamer.Execution;
-using Renamer.Planner;
+using static Renamer.Tests.TestSupport.VolumePaths;
 
 namespace Renamer.Tests.Execution;
 
 public sealed class FreeSpaceGuardTests
 {
-    // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.
-    private static string OnVol(string vol, string name) =>
-        OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
-
-    // Every Unix path shares the "/" root. These mounts carry the volume identity a cross-volume test needs,
-    // standing in for the C:/D:/E: drives the Windows literals use.
-    private static readonly IReadOnlyCollection<string>? Mounts =
-        OperatingSystem.IsWindows() ? null : ["/", "/c", "/d", "/e"];
-
-    private static string RootOf(string vol) => VolumeClassifier.VolumeKey(OnVol(vol, "x"), Mounts);
-
     [Theory]
     [MemberData(nameof(Batches))]
     public void Shortfall_SumsOnlyCrossVolumeBytes_AgainstTheDestinationVolumesFreeSpacePlusHeadroom(

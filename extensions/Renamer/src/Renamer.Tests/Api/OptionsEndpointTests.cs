@@ -202,6 +202,11 @@ public sealed class OptionsEndpointTests
 
         var put = await host.Client.PutAsync(Route, JsonBody("{not json"));
         Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+
+        // The code as well as the status, because the panel reads the code to decide what it says. A
+        // refusal that kept the status and lost the code would read here as the same answer.
+        var problem = await put.Content.ReadFromJsonAsync<JsonElement>(Web);
+        Assert.Equal("INVALID_OPTIONS", problem.GetProperty(Problems.CodeMember).GetString());
         Assert.Equal(0, store.SetCallCount);
     }
 

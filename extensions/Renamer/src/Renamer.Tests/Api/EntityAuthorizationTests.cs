@@ -13,7 +13,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityAuthorizationTests
 {
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     private const string RunId = "scan-under-test";
 

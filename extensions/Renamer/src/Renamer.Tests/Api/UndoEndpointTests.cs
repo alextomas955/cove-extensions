@@ -1,7 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Contracts;
 using Renamer.Execution;
@@ -17,13 +16,8 @@ public sealed class UndoEndpointTests
 {
     private static readonly RenamerOptions TitleOptions = new() { FilenameTemplate = "$title" };
 
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
-    private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
-    private static LastBatchSummary LastBatchValue(IResult result) =>
-        Assert.IsType<LastBatchSummary>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     [Fact]
     public async Task Undo_RoundTrip_RestoresDiskAndDb_PublishesEntityEvent_AndConsumesBatch()
@@ -56,7 +50,7 @@ public sealed class UndoEndpointTests
             var result = await ext.UndoAsync(principal, new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
-            var undo = UndoValue(result);
+            var undo = ValueOf<UndoResult>(result);
             Assert.Equal(1, undo.Undone);
             Assert.Empty(undo.FailedSample);
             Assert.Equal(0, undo.FailedCount);
@@ -78,7 +72,7 @@ public sealed class UndoEndpointTests
             Assert.NotEqual(fileId, evt.EntityId);
 
             var second = await ext.UndoAsync(principal, new RecordingAuthorizationService(), default);
-            var secondUndo = UndoValue(second);
+            var secondUndo = ValueOf<UndoResult>(second);
             Assert.Equal(0, secondUndo.Undone);
             Assert.Empty(secondUndo.FailedSample);
             Assert.Equal(0, secondUndo.FailedCount);
@@ -103,7 +97,8 @@ public sealed class UndoEndpointTests
             // Offset the Image id sequence so imageId != fileId.
             db.Set<Image>().Add(new Image { Title = "decoy", Organized = true });
             await db.SaveChangesAsync();
-            var (imageId, fileId) = await SeedImageAsync(db, folderPath, "raw shot.jpg", "My Photo");
+            var (_, imageId, fileId) = await ExecutorTestSeed.SeedImageAsync(
+                db, folderPath, "raw shot.jpg", "My Photo");
             Assert.NotEqual(imageId, fileId);
 
             string oldFull = Path.Combine(dir.Root, "raw shot.jpg");
@@ -122,7 +117,7 @@ public sealed class UndoEndpointTests
             var result = await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite),
                 new RecordingAuthorizationService(), default);
-            Assert.Equal(1, UndoValue(result).Undone);
+            Assert.Equal(1, ValueOf<UndoResult>(result).Undone);
 
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.ImageUpdated, evt.Type);
@@ -152,7 +147,7 @@ public sealed class UndoEndpointTests
                 new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
-            var undo = UndoValue(result);
+            var undo = ValueOf<UndoResult>(result);
             Assert.Equal(0, undo.Undone);
             Assert.Empty(undo.FailedSample);
             Assert.Equal(0, undo.FailedCount);
@@ -198,7 +193,7 @@ public sealed class UndoEndpointTests
                 new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
-            var undo = UndoValue(result);
+            var undo = ValueOf<UndoResult>(result);
             Assert.Equal(0, undo.Undone);
 
             // The claim is about the disk and the DB, not only about the reported count: a restore that
@@ -230,13 +225,13 @@ public sealed class UndoEndpointTests
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var empty = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var empty = ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default));
             Assert.False(empty.HasBatch);
             Assert.Equal(0, empty.Count);
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
-            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var summary = ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default));
             Assert.True(summary.HasBatch);
             Assert.Equal(1, summary.Count);
             Assert.False(summary.Consumed);
@@ -245,7 +240,7 @@ public sealed class UndoEndpointTests
             await ext.UndoAsync(
                 FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
                 new RecordingAuthorizationService(), default);
-            var consumed = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var consumed = ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default));
             Assert.True(consumed.HasBatch);
             Assert.True(consumed.Consumed);
         }
@@ -276,7 +271,7 @@ public sealed class UndoEndpointTests
 
             await ext.RunRenamerBatchAsync(RenamerFileKind.Video, [videoId], new FakeJobProgress(), default);
 
-            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var summary = ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default));
             Assert.True(summary.ExpiresAtUtcTicks > summary.WrittenAtUtcTicks);
 
             var expiresAt = new DateTime(summary.ExpiresAtUtcTicks, DateTimeKind.Utc);
@@ -284,10 +279,10 @@ public sealed class UndoEndpointTests
             // At the advertised moment the batch is still there: the sweep drops what opened strictly
             // before the cutoff, so the panel withholding the button here is early rather than wrong.
             await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt);
-            Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
+            Assert.True(ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default)).HasBatch);
 
             await new CoveRevertJournal(db).PurgeExpiredAsync(expiresAt.AddTicks(1));
-            Assert.False(LastBatchValue(await ext.LastBatchAsync(read, default)).HasBatch);
+            Assert.False(ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default)).HasBatch);
         }
         finally
         {
@@ -324,7 +319,7 @@ public sealed class UndoEndpointTests
             var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsWrite);
             var result = await ext.UndoAsync(textsOnly, new RecordingAuthorizationService(), default);
 
-            Assert.Equal(1, UndoValue(result).Undone);
+            Assert.Equal(1, ValueOf<UndoResult>(result).Undone);
             Assert.True(File.Exists(oldFull), "file restored to old path");
         }
         finally
@@ -332,28 +327,5 @@ public sealed class UndoEndpointTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
-    }
-
-    private static async Task<(int imageId, int fileId)> SeedImageAsync(
-        DbContext db, string folderPath, string basename, string title)
-    {
-        var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
-        db.Set<Folder>().Add(folder);
-        await db.SaveChangesAsync();
-
-        var image = new Image { Title = title, Organized = true };
-        db.Set<Image>().Add(image);
-        await db.SaveChangesAsync();
-
-        var file = new ImageFile
-        {
-            Basename = basename,
-            ParentFolderId = folder.Id,
-            Format = basename.Contains('.') ? basename[(basename.LastIndexOf('.') + 1)..] : "",
-            ImageId = image.Id,
-        };
-        db.Set<ImageFile>().Add(file);
-        await db.SaveChangesAsync();
-        return (image.Id, file.Id);
     }
 }

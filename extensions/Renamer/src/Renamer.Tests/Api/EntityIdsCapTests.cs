@@ -14,13 +14,13 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityIdsCapTests
 {
-    // The handler's own MaxEntityIdsPerRequest is private, so this copy has to be kept in step with
-    // it; the refusal carries the bound, so a drift shows up as a mismatched ErrorCode value.
+    // The bound the route publishes, transcribed rather than read from the handler. Read from it, this
+    // would sit on both sides of the assertions below and agree with any value the handler declares,
+    // including one that lifts the fan-out limit the refusal exists to impose.
     private const int Cap = 1000;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     // The cap's own refusal, not one of the other 400s, carrying the bound so a caller can batch to fit.
     private static void AssertTooManyIds(IResult result)

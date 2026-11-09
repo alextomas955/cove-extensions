@@ -14,7 +14,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class PreviewSampleEndpointTests
 {
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     // The endpoint binds the raw request and parses the body itself, so tests hand it a real body
     // stream rather than a pre-bound typed record.

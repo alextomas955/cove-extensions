@@ -147,6 +147,33 @@ internal static class ExecutorTestSeed
         return (folder.Id, text.Id, file.Id);
     }
 
+    // Seeds one entity of kind with one file, and returns the entity and file ids. The per-kind
+    // seeders above differ in the entity type they create, so a case that is about a rule holding for
+    // every kind reaches them through here rather than restating the switch.
+    public static async Task<(int EntityId, int FileId)> SeedEntityAsync(
+        DbContext db, RenamerFileKind kind, string folderPath, string basename, string? title,
+        CancellationToken ct = default)
+    {
+        var (_, entityId, fileId) = kind switch
+        {
+            RenamerFileKind.Video => await SeedVideoAsync(db, folderPath, basename, title!, ct: ct),
+            RenamerFileKind.Image => await SeedImageAsync(db, folderPath, basename, title!, ct: ct),
+            RenamerFileKind.Audio => await SeedAudioAsync(db, folderPath, basename, title!, ct: ct),
+            RenamerFileKind.Text => await SeedTextAsync(db, folderPath, basename, title!, ct: ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
+
+        return (entityId, fileId);
+    }
+
+    // One throwaway Video, so the next seeded entity's id runs ahead of its file's id. A case asserting
+    // that a record carries an entity id cannot tell the two apart while they are equal.
+    public static async Task SeedDecoyVideoAsync(DbContext db, CancellationToken ct = default)
+    {
+        db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
+        await db.SaveChangesAsync(ct);
+    }
+
     // A height of 0 renders no $resolution label.
     public static async Task<int> SeedAdditionalFileAsync(
         DbContext db, int folderId, int videoId, string basename, int height = 0, int width = 0,

@@ -20,6 +20,11 @@ invariants, concurrency, e2e.
 Mirroring places a test; it does not require one per module. Group tests around behavior and the
 failure modes that matter. A module with no behavior of its own is covered through its caller.
 
+A C# test file holds one top-level test class and is named for it. One production type with
+several separable behaviors takes a class per behavior, each named for the type and the behavior
+(`OptionsMigrationScanTests`, `OptionsMigrationConvertTests`). A test covering no single production
+type is named for the behavior. So a `--filter-class` pattern built from a filename matches.
+
 Never extract a helper so a test can reach it. That moves the seam rather than testing the thing,
 and it leaves production code shaped by the test. Drive the view, the handler or the endpoint.
 

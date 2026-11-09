@@ -456,11 +456,4 @@ public sealed class RenamerExecutorIntegrationTests
             throw new InvalidOperationException("forced save failure");
         }
     }
-
-    private sealed class CancelOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
-    {
-        public override Task<string> ApplyAndSaveAsync(
-            RenamerFileMutation mutation, CancellationToken ct = default)
-            => throw new OperationCanceledException("host shutting down mid-save");
-    }
 }

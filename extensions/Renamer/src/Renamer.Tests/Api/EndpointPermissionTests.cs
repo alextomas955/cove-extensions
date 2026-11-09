@@ -7,7 +7,6 @@ namespace Renamer.Tests.Api;
 
 public sealed class EndpointPermissionTests
 {
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
     public async Task PreviewAsync_ImageRequest_RequiresImagesRead_NotVideosRead()

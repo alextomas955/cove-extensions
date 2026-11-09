@@ -5,11 +5,57 @@ namespace Renamer.Tests.Engine;
 
 public class LengthReducerTests
 {
+    // A filename template referencing many tokens, including the multi-value $performers/$tags
+    // fields and every default drop-order field.
+    private const string FilenameTemplate =
+        "$studio - $studioCode - $title - $performers " +
+        "[$resolution $videoCodec $audioCodec $frameRate] {$tags} ($date)";
+
+    // A deliberately long title, so that even after every drop-order field is removed the title
+    // alone still exceeds the 255-char filename cap and forces the hard-truncate last resort.
+    private const string LongTitle =
+        "The Exceedingly Verbose And Deliberately Overlong Documentary Title That Keeps " +
+        "Going Well Past Any Reasonable Filesystem Component Length Limit In Order To " +
+        "Exercise Every Single Field Drop And Then The Final Hard Truncate Of The Title " +
+        "Itself So That Even With Every Other Drop-Order Field Removed The Bare Title " +
+        "Alone Still Exceeds Two Hundred And Fifty Five Characters And Must Be Cut Short";
+
+    private static readonly Dictionary<string, string> Tokens = new()
+    {
+        ["title"] = LongTitle,
+        ["studio"] = "Some Very Long Studio Production Company Name International",
+        ["studioCode"] = "STUDIOCODE-0000000001",
+        ["resolution"] = "2160p",
+        ["videoCodec"] = "h265-hevc-main10",
+        ["audioCodec"] = "truehd-atmos-7point1",
+        ["frameRate"] = "59.94fps",
+        ["date"] = "2026-06-27",
+        ["ext"] = "mkv",
+    };
+
+    private static readonly IReadOnlyList<string> Performers =
+    [
+        "Alexandria Featherstonehaugh",
+        "Bartholomew Fitzgerald-Montgomery",
+        "Cassandra Wollstonecraft-Bennett",
+        "Demetrius Aurelius Constantinopoulos",
+        "Evangeline Marchetti-Hawthorne",
+    ];
+
+    private static readonly IReadOnlyList<string> Tags =
+    [
+        "documentary-feature-length",
+        "remastered-restoration-4k",
+        "criterion-collection-edition",
+        "behind-the-scenes-commentary",
+        "extended-directors-cut",
+    ];
+
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> FixtureMulti =
         new Dictionary<string, IReadOnlyList<string>>
         {
-            ["performers"] = LongTemplateFixture.Performers,
-            ["tags"] = LongTemplateFixture.Tags,
+            ["performers"] = Performers,
+            ["tags"] = Tags,
         };
 
     [Fact]
@@ -55,28 +101,28 @@ public class LengthReducerTests
     {
         var options = new RenamerOptions
         {
-            FilenameTemplate = LongTemplateFixture.FilenameTemplate,
+            FilenameTemplate = FilenameTemplate,
             FolderTemplate = "",
             FilenameMax = 255,
         };
 
-        var (r, dropped) = TemplateEngine.RenderWithDropped(LongTemplateFixture.Tokens, FixtureMulti, options);
+        var (r, dropped) = TemplateEngine.RenderWithDropped(Tokens, FixtureMulti, options);
 
         // The fixture exhausts every drop-order field, so the reducer reports the full DropOrder in order.
         Assert.Equal(options.DropOrder, dropped);
         foreach (var field in new[] { "studio", "studioCode", "resolution", "videoCodec", "audioCodec", "frameRate", "date" })
         {
-            Assert.DoesNotContain(LongTemplateFixture.Tokens[field], r.Filename);
+            Assert.DoesNotContain(Tokens[field], r.Filename);
         }
 
-        Assert.All(LongTemplateFixture.Performers, p => Assert.DoesNotContain(p, r.Filename));
-        Assert.All(LongTemplateFixture.Tags, t => Assert.DoesNotContain(t, r.Filename));
+        Assert.All(Performers, p => Assert.DoesNotContain(p, r.Filename));
+        Assert.All(Tags, t => Assert.DoesNotContain(t, r.Filename));
 
         // The bare title still overruns, so the hard truncate cuts the name to exactly the filename
         // budget: FilenameMax less the extension, which is tighter than the full-path budget here.
         Assert.Equal(".mkv", r.Ext);
         Assert.Equal(251, r.Filename.Length);
-        Assert.Contains(LongTemplateFixture.LongTitle[..100], r.Filename);
+        Assert.Contains(LongTitle[..100], r.Filename);
         Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
     }
 

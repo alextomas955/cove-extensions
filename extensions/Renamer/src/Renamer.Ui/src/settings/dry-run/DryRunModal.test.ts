@@ -18,6 +18,7 @@ import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
 import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire";
+import { jsonResponse } from "../../common/lib/testResponses";
 
 // The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
 const RUN_ID = "run-under-test";
@@ -36,19 +37,14 @@ const host = vi.hoisted(() => ({
 // interceptor imported above is what turns it into the ApiError the modal branches on.
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (path: string) => {
-    const json = (value: unknown, status = 200) =>
-      Promise.resolve(
-        new Response(value === undefined ? null : JSON.stringify(value), {
-          status,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
     if (path.endsWith("/scan-library"))
-      return json({ jobId: "scan-under-test", runId: host.scanRunId });
+      return jsonResponse({ jobId: "scan-under-test", runId: host.scanRunId });
     // Only one scan's figures are kept, and only for the caller that ran it. Any other run id is
     // the 404 the server answers once a later scan has replaced them.
     if (path.includes("/last-scan/")) {
-      return path.endsWith(`/last-scan/${RUN_ID}`) ? json(summary()) : json("Not Found", 404);
+      return path.endsWith(`/last-scan/${RUN_ID}`)
+        ? jsonResponse(summary())
+        : jsonResponse("Not Found", 404);
     }
     if (path.endsWith("/scan-rows")) {
       const page =
@@ -57,7 +53,7 @@ vi.mock("@cove/runtime/api", () => ({
           : host.pages[host.pages.length - 1];
       host.rowReads += 1;
       if (host.rowReads > host.readCap) return new Promise<Response>(() => undefined);
-      return page === null ? json("boom", 500) : json(page);
+      return page === null ? jsonResponse("boom", 500) : jsonResponse(page);
     }
     return Promise.reject(new Error(`unscripted path ${path}`));
   },

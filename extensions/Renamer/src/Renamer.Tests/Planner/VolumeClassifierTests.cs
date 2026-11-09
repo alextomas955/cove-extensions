@@ -38,6 +38,22 @@ public sealed class VolumeClassifierTests
         Assert.Equal(sameVolume, VolumeClassifier.SameVolume(a, b, Mounts));
     }
 
+    // The key itself, not just the same-volume answer it feeds. It is published: VolumePairDelta
+    // carries it as `from` and `to`, so the panel renders these strings. SameVolume compares two keys
+    // and agrees with itself whatever they spell, which is why the spelling is stated here.
+    // A UNC root carries no trailing separator and a drive root does, which Path.GetPathRoot decides
+    // and this asserts rather than tidies: the key is only ever compared with another key built the
+    // same way, so the asymmetry is harmless, and a reader who "fixes" it changes what the panel shows.
+    [Theory]
+    [InlineData(@"C:\media\a.mkv", @"C:\")]
+    [InlineData(@"c:\media\a.mkv", @"c:\")]
+    [InlineData(@"\\server\share\a.mkv", @"\\server\share")]
+    public void OnWindows_TheVolumeKeyIsThePathRoot(string path, string key)
+    {
+        WindowsOnly();
+        Assert.Equal(key, VolumeClassifier.VolumeKey(path));
+    }
+
     [Fact]
     public void PathOnNoListedMount_FallsBackToRoot()
     {

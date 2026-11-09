@@ -1,35 +1,11 @@
 using Renamer.Contracts;
-using Renamer.Options;
 using Renamer.Planner;
+using static Renamer.Tests.TestSupport.VolumePaths;
 
 namespace Renamer.Tests.Planner;
 
 public sealed class ScanAggregatorTests
 {
-    // Volume identity is per-platform (VolumeClassifier): the path root on Windows, the enclosing mount
-    // point on Unix. A POSIX-only literal therefore has the single "\" root on Windows and every item
-    // would fold as same-volume, so distinct volumes come from drive letters there and from a fixed
-    // synthetic mount table here - the real table would make the cross-volume assertions
-    // machine-dependent.
-    private static readonly IReadOnlyCollection<string>? Mounts =
-        OperatingSystem.IsWindows() ? null : ["/", "/c", "/d"];
-
-    private static string OnVol(string vol, string name) =>
-        OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
-
-    // The shipped path budget, read from the options rather than transcribed. The overflow cases are
-    // positioned relative to it and to the minted segment's own declaration, so a change to either
-    // moves them rather than leaving them beside a boundary they no longer sit on.
-    private static readonly int Budget = new RenamerOptions().FullPathMax;
-
-    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - seven characters either way,
-    // which is what lets one arithmetic land on the same absolute length on both platforms.
-    private const int OnVolPrefixLength = 7;
-
-    // A basename that makes OnVol(vol, name) exactly `total` characters long.
-    private static string NameForPathLength(int total) =>
-        new string('n', total - OnVolPrefixLength - ".mkv".Length) + ".mkv";
-
     private static string FolderOf(string path) => Path.GetDirectoryName(path)!.Replace('\\', '/');
 
     private static RenamerPlanItem Acting(int fileId, string oldPath, string newPath) =>

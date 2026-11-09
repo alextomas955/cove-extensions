@@ -1,18 +1,15 @@
 using System.Data.Common;
 using Cove.Core.Auth;
-using Cove.Core.Entities;
 using Cove.Data;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Renamer.Contracts;
 using Renamer.Execution;
-using Renamer.Options;
-using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
+using Renamed = Renamer.Tests.TestSupport.RenamedBatchFixture.Renamed;
 
 namespace Renamer.Tests.Execution.Journal;
 
@@ -159,7 +156,7 @@ public sealed class JournalPagingTests
             UndoResult undo;
             try
             {
-                undo = UndoValue(await ext.UndoAsync(
+                undo = ValueOf<UndoResult>(await ext.UndoAsync(
                     Write, new RecordingAuthorizationService(), budget.Token));
             }
             catch (OperationCanceledException)
@@ -202,7 +199,7 @@ public sealed class JournalPagingTests
         {
             var (ext, seeded) = await RenameManyAsync(db, dir, UndoRowCount);
 
-            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
+            var undo = ValueOf<UndoResult>(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(UndoRowCount, undo.Undone);
             Assert.Equal(0, undo.SkippedCount);
@@ -306,10 +303,6 @@ public sealed class JournalPagingTests
         }
     }
 
-    private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
-
-    private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
     private static async Task<CoveRevertJournal> SeedRowsAsync(DbContext db, int rows)
     {
@@ -325,59 +318,7 @@ public sealed class JournalPagingTests
         return journal;
     }
 
-    // Seeds one folder holding count videos and really renames each into one batch, so the batch
-    // holds one row per file and the paging is over rows rather than over batches. The returned
-    // extension reads the journal PageLimit rows at a time, so a handful of rows spans several pages.
-    // The batch opens now rather than at Opened, because the undo refuses a batch past retention.
-    private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
+    private static Task<(global::Renamer.Renamer ext, IReadOnlyList<Renamed> seeded)> RenameManyAsync(
         DbContext db, TempDir dir, int count)
-    {
-        string folderPath = dir.Root.Replace('\\', '/');
-        var folder = new Folder { Path = folderPath, ModTime = DateTime.UtcNow };
-        db.Set<Folder>().Add(folder);
-        await db.SaveChangesAsync();
-
-        var seeded = new List<Seeded>();
-        for (int i = 1; i <= count; i++)
-        {
-            var video = new Video { Title = $"film {i}", Organized = true };
-            db.Set<Video>().Add(video);
-            await db.SaveChangesAsync();
-
-            var file = new VideoFile
-            {
-                Basename = $"raw {i}.mkv",
-                ParentFolderId = folder.Id,
-                Format = "mkv",
-                VideoId = video.Id,
-            };
-            db.Set<VideoFile>().Add(file);
-            await db.SaveChangesAsync();
-
-            string oldFull = Path.Combine(dir.Root, $"raw {i}.mkv");
-            File.WriteAllText(oldFull, $"bytes-{i}");
-            seeded.Add(new Seeded(video.Id, file.Id, oldFull, Path.Combine(dir.Root, $"film {i}.mkv")));
-        }
-
-        var options = new RenamerOptions { FilenameTemplate = "$title" };
-        var port = new CoveRenamerDataPort(db);
-        await using (var journal = new CoveRevertJournal(db))
-        {
-            await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, DateTime.UtcNow);
-
-            foreach (var s in seeded)
-            {
-                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
-                var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
-                    .ExecuteAsync(plan, options, default);
-                Assert.Single(forward.Renamed);
-                Assert.True(File.Exists(s.NewFull), $"forward rename landed at {s.NewFull}");
-                Assert.False(File.Exists(s.OldFull));
-            }
-        }
-
-        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options: options);
-        ext.UndoPageSize = PageLimit;
-        return (ext, seeded);
-    }
+        => RenamedBatchFixture.CreateAsync(dir, db, RunId, count, undoPageSize: PageLimit);
 }

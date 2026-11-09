@@ -3,7 +3,6 @@ using Cove.Core.Entities;
 using Cove.Core.Events;
 using Cove.Data;
 using Cove.Plugins;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,14 +44,8 @@ public sealed class UndoOperationTests
     private static CovePrincipal Caller(params string[] permissions)
         => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
-    private static int StatusOf(IResult result) =>
-        Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
-    private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
-    private static LastBatchSummary LastBatchValue(IResult result) =>
-        Assert.IsType<LastBatchSummary>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);
 
     // Seeds one video and one image, each in its own folder with real bytes on disk.
     private static async Task<(int VideoId, int ImageId, int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(
@@ -88,7 +81,7 @@ public sealed class UndoOperationTests
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var summary = ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default));
 
             // Both kinds' files, summed - not the last kind's batch alone. A run whose kinds opened
             // batches under different operations would report only the latest kind's one file here.
@@ -125,7 +118,7 @@ public sealed class UndoOperationTests
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "Pic.jpg")));
 
-            var undo = UndoValue(await ext.UndoAsync(WritesBoth, authz, default));
+            var undo = ValueOf<UndoResult>(await ext.UndoAsync(WritesBoth, authz, default));
 
             Assert.Equal(2, undo.Undone);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "raw.mkv")));
@@ -176,7 +169,7 @@ public sealed class UndoOperationTests
             // world can clear and stay in the journal.
             Directory.Delete(Path.Combine(dir.Root, "images"), recursive: true);
 
-            var partial = UndoValue(await ext.UndoAsync(WritesBoth, authz, default));
+            var partial = ValueOf<UndoResult>(await ext.UndoAsync(WritesBoth, authz, default));
             Assert.Equal(1, partial.Undone);
             Assert.Equal(1, partial.SkippedCount);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "raw.mkv")));
@@ -185,12 +178,12 @@ public sealed class UndoOperationTests
             // The batch whose rows all stopped still holds them, so the batch cursor - not their
             // absence - is what ends the loop. A second undo over the same state terminates and acts
             // only on what is still outstanding.
-            var again = UndoValue(await ext.UndoAsync(WritesBoth, authz, default));
+            var again = ValueOf<UndoResult>(await ext.UndoAsync(WritesBoth, authz, default));
             Assert.Equal(0, again.Undone);
             Assert.Equal(1, again.SkippedCount);
 
             Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
-            var retry = UndoValue(await ext.UndoAsync(WritesBoth, authz, default));
+            var retry = ValueOf<UndoResult>(await ext.UndoAsync(WritesBoth, authz, default));
             Assert.Equal(1, retry.Undone);
             Assert.Equal(0, retry.SkippedCount);
 
@@ -199,7 +192,7 @@ public sealed class UndoOperationTests
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "raw.jpg")));
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-            Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).Consumed);
+            Assert.True(ValueOf<LastBatchSummary>(await ext.LastBatchAsync(read, default)).Consumed);
         }
         finally
         {

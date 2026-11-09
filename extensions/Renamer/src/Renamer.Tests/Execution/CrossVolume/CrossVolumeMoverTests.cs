@@ -12,7 +12,7 @@ public sealed class CrossVolumeMoverTests
         var old = dir.Touch("clip.mkv", "hello bytes");
         var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var minted = new List<string>();
-        var mover = new CrossVolumeMover(Recorder(minted));
+        var mover = new CrossVolumeMover(InFlightCopies.Recorder(minted));
 
         var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
@@ -21,7 +21,7 @@ public sealed class CrossVolumeMoverTests
         Assert.True(File.Exists(dest), "dest must exist after a verified promote (parent dir auto-created)");
         Assert.Equal("hello bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old), "source must be deleted only AFTER the verified promote");
-        AssertMintedPathsGone(minted, "the promoted in-flight copy must not also remain at its minted name");
+        InFlightCopies.AssertAllRemoved(minted, "the promoted in-flight copy must not also remain at its minted name");
         Assert.Equal(new[] { dest }, Directory.GetFiles(Path.GetDirectoryName(dest)!));
     }
 
@@ -70,7 +70,7 @@ public sealed class CrossVolumeMoverTests
         Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
         Assert.Equal("the racing writer's file", File.ReadAllText(dest));
         Assert.Equal("payload", File.ReadAllText(old));
-        AssertMintedPathsGone(minted, "the unpromotable in-flight copy must be removed after a lost race");
+        InFlightCopies.AssertAllRemoved(minted, "the unpromotable in-flight copy must be removed after a lost race");
     }
 
     [Theory]
@@ -100,7 +100,7 @@ public sealed class CrossVolumeMoverTests
         Assert.True(File.Exists(old), $"source MUST survive a {corruption} verify failure");
         Assert.Equal(original, File.ReadAllText(old));
         Assert.False(File.Exists(dest), "the suspect destination must be deleted");
-        AssertMintedPathsGone(minted, "the rejected in-flight copy must be removed after a verify failure");
+        InFlightCopies.AssertAllRemoved(minted, "the rejected in-flight copy must be removed after a verify failure");
     }
 
     public static TheoryData<string, Action<string>> VerifyDefeatingCorruptions() => new()
@@ -285,7 +285,7 @@ public sealed class CrossVolumeMoverTests
         File.WriteAllText(orphan, orphanContent);
 
         var minted = new List<string>();
-        var mover = new CrossVolumeMover(Recorder(minted));
+        var mover = new CrossVolumeMover(InFlightCopies.Recorder(minted));
         var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.True(result.Moved);
@@ -305,7 +305,7 @@ public sealed class CrossVolumeMoverTests
         using var dir = new TempDir();
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
         var minted = new List<string>();
-        var mover = new CrossVolumeMover(Recorder(minted));
+        var mover = new CrossVolumeMover(InFlightCopies.Recorder(minted));
 
         for (int i = 0; i < 2; i++)
         {
@@ -357,7 +357,7 @@ public sealed class CrossVolumeMoverTests
         var plantedElsewhere = dir.Touch("moved/Holiday.mkv.rnmc15381a0", UserContent);
 
         var minted = new List<string>();
-        var mover = new CrossVolumeMover(Recorder(minted));
+        var mover = new CrossVolumeMover(InFlightCopies.Recorder(minted));
 
         var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
 
@@ -421,24 +421,6 @@ public sealed class CrossVolumeMoverTests
         {
             Assert.DoesNotContain(path, planted);
             Assert.False(File.Exists(path), $"the in-flight copy the mover minted must be gone: {path}");
-        }
-    }
-
-    // A post-copy seam that only records the path production minted, leaving the copy untouched -
-    // the mover's real behaviour, plus the observation the test needs.
-    private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
-        (inFlight, _) =>
-        {
-            minted.Add(inFlight);
-            return Task.CompletedTask;
-        };
-
-    private static void AssertMintedPathsGone(List<string> minted, string because)
-    {
-        Assert.NotEmpty(minted); // the seam must actually have fired, or the assertion below is vacuous
-        foreach (var path in minted)
-        {
-            Assert.False(File.Exists(path), because);
         }
     }
 }

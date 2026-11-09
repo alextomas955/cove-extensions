@@ -9,6 +9,8 @@ namespace Renamer.Tests.Execution;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class EmptySourceFolderCleanerTests
 {
+    private const string RunId = "run-test";
+
     [Fact]
     public void NonEmptyDir_HoldingAnotherFile_IsLeftIntact()
     {
@@ -114,26 +116,10 @@ public sealed class EmptySourceFolderCleanerTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
-            string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
-            Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
-            Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var executor = NewExecutor(db, out _);
+            var (_, plan, _) = await SeedMoveOutOfSrcAsync(db, dir);
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
-            [
-                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
-                    RenamerStatus.Move, "My Film.mkv", dstFolder),
-            ]);
-
-            var result = await executor.ExecuteAsync(plan, options, default);
+            var result = await NewExecutor(db).ExecuteAsync(plan, options, default);
 
             var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
@@ -157,26 +143,10 @@ public sealed class EmptySourceFolderCleanerTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
-            string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
-            Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
-            Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var executor = NewExecutor(db, out _);
+            var (_, plan, _) = await SeedMoveOutOfSrcAsync(db, dir);
             var options = new RenamerOptions(); // RemoveEmptyFolder defaults to false
 
-            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
-            [
-                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
-                    RenamerStatus.Move, "My Film.mkv", dstFolder),
-            ]);
-
-            var result = await executor.ExecuteAsync(plan, options, default);
+            var result = await NewExecutor(db).ExecuteAsync(plan, options, default);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")));
@@ -197,27 +167,14 @@ public sealed class EmptySourceFolderCleanerTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
-            string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
-            Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
-            Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
-            File.WriteAllText(oldFull, "video-bytes");
+            var (dstFolder, plan, fileId) = await SeedMoveOutOfSrcAsync(db, dir);
 
             var port = new CoveRenamerDataPort(db);
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
-            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
-            [
-                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
-                    RenamerStatus.Move, "My Film.mkv", dstFolder),
-            ]);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test")
+            await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, DateTime.UtcNow);
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, RunId)
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
@@ -244,9 +201,29 @@ public sealed class EmptySourceFolderCleanerTests
         }
     }
 
-    private static RenamerExecutor NewExecutor(DbContext db, out CapturingEventBus bus)
+    // A video seeded at src/clip.mkv, its bytes on disk and an empty dst beside it, with the plan
+    // that moves and renames it. Every cleanup case starts here: the move is what empties src.
+    private static async Task<(string DstFolder, RenamerPlan Plan, int FileId)> SeedMoveOutOfSrcAsync(
+        DbContext db, TempDir dir)
     {
-        bus = new CapturingEventBus();
-        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test");
+        string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
+        string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
+        Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
+        var (_, videoId, fileId) =
+            await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
+
+        string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
+        Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
+        File.WriteAllText(oldFull, "video-bytes");
+
+        var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+        [
+            new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
+                RenamerStatus.Move, "My Film.mkv", dstFolder),
+        ]);
+        return (dstFolder, plan, fileId);
     }
+
+    private static RenamerExecutor NewExecutor(DbContext db) =>
+        new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), RunId);
 }

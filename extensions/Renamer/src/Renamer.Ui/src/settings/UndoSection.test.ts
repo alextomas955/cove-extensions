@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 
 import { createTestQueryClient, withQueryClient } from "../common/lib/testQueryClient";
 import type { LastBatchSummary, UndoResult } from "../wire";
+import { jsonResponse, unparseableResponse } from "../common/lib/testResponses";
 
 // The three counters the summary carries. The server states all three; nothing here derives one
 // from the others.
@@ -58,22 +59,14 @@ const server = vi.hoisted((): ServerScript => ({
 
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (_path: string, init: RequestInit) => {
-    const json = (value: unknown, status = 200) =>
-      Promise.resolve(
-        new Response(typeof value === "string" ? value : JSON.stringify(value), {
-          status,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
     if (String(init.method).toUpperCase() !== "POST") {
       server.summaryReads += 1;
       if (server.failSummaryAfterUndo && server.undone) {
-        return json({ detail: "the summary could not be read" }, 503);
+        return jsonResponse({ detail: "the summary could not be read" }, 503);
       }
       const batch = server.undone ? server.after : server.before;
       // Written just now, so the panel offers the button rather than an expired line.
-      return json({
+      return jsonResponse({
         hasBatch: true,
         ...batch,
         writtenAtUtcTicks: Date.now() * 10000 + 621355968000000000,
@@ -85,8 +78,13 @@ vi.mock("@cove/runtime/api", () => ({
 
     server.undone = true;
     if (server.undoFailure instanceof Error) return Promise.reject(server.undoFailure);
-    if (server.undoFailure) return json(server.undoFailure.body, server.undoFailure.status);
-    return json(server.undoResult);
+    // The scripted bodies are raw text under a JSON content type, so reading one throws inside the
+    // client. That is what a lost undo looks like at this boundary, including the 200 whose body
+    // the client cannot read.
+    if (server.undoFailure) {
+      return unparseableResponse(server.undoFailure.body, server.undoFailure.status);
+    }
+    return jsonResponse(server.undoResult);
   },
 }));
 

@@ -6,7 +6,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
-namespace Renamer.Tests.Preview;
+namespace Renamer.Tests.Api;
 
 public sealed class PreviewPlanningLoadTests
 {
