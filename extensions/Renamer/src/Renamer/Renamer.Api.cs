@@ -116,7 +116,7 @@ public sealed partial class Renamer
                 suppressSuccessAlert: true)
             // Page layout makes the host render the panel full-width with no card chrome. A page
             // sources its content from the panels targeting it, so "RenamerPage" is contributed as a
-            // section, and its componentName has to equal the key in the bundle's defineExtension
+            // section, and its componentName has to equal the key in the bundle entry's
             // components map. Needs the host's page-layout settings support; see minCoveVersion.
             .AddSettingsTab(
                 key: "renamer",

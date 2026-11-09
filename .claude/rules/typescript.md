@@ -62,7 +62,7 @@ repeated Escape close it while the page is blocking a close.
 
 ## Types tell the truth
 
-- Named exports only. The one default export is `defineExtension` in `index.ts`.
+- Named exports only. The one default export is the bundle entry object in `index.ts`.
 - Everything about a route comes from the generated `src/wire/`: the types (`import type`), one
   function per operation, and the TanStack Query helpers over them. Call
   `useQuery(renamerGetOptionsOptions())`, never a hand-written path, method, query key or response

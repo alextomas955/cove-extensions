@@ -82,7 +82,7 @@ public sealed class UIManifestTests
     {
         var panel = Assert.Single(Manifest().SettingsPanels);
         Assert.Equal("renamer", panel.TargetTab);
-        // This literal must match the bundle's defineExtension components map key, or the host mounts
+        // This literal must match the bundle entry's components map key, or the host mounts
         // nothing and reports nothing.
         Assert.Equal("RenamerPage", panel.ComponentName);
     }

@@ -15,7 +15,7 @@ by the host.
 So is a wire-format fact: a PascalCase field that must match a C# options record, or an enum casing
 the server emits.
 
-Write JSDoc only on the public surface: the `defineExtension` entry, exported slot and tab
+Write JSDoc only on the public surface: the bundle entry in `index.ts`, exported slot and tab
 components, `*Logic.ts` contracts. None on tests or internal helpers. XML tags (`<summary>`,
 `<remarks>`) are C# only and render as literal text. Use prose plus `@param` and `@returns`.
 

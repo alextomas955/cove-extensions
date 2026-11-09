@@ -216,7 +216,8 @@ does. Treat a rename as a breaking change to the generated client.
 
 ## Frontend conventions
 
-Use named exports (the one default export is `defineExtension` in `index.ts`) and avoid barrel files.
+Use named exports (the one default export is the bundle entry object in `index.ts`) and avoid
+barrel files.
 
 Data access belongs in a named `use*` hook rather than inline in a view, and hooks are not collected
 into a `hooks/` folder. The hook is where the request, subscription or poll lives; it does not oblige

@@ -148,9 +148,9 @@ export default defineConfig(
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { "import-x": importX },
     rules: {
-      // Named exports only, so every import follows one uniform, greppable pattern. The two extension
-      // entries and the two vite configs legitimately default-export (defineExtension / Vite's config
-      // contract) and are exempted in the override block below.
+      // Named exports only, so every import follows one uniform, greppable pattern. Each extension
+      // entry and each vite config legitimately default-exports (the bundle entry object / Vite's
+      // config contract) and is exempted in the override block below.
       "import-x/no-default-export": "error",
       // No internal barrels: import the concrete module, not an index re-export. The pattern matches
       // only index-file names - deliberately not ".", "./", ".." (a group containing those degenerates
@@ -171,8 +171,8 @@ export default defineConfig(
     },
   },
 
-  // The only files that may default-export: each extension's entry (defineExtension) and each Vite
-  // config (Vite requires a default export). Everything else is named-export-only above.
+  // The only files that may default-export: each extension's entry (the object the host loader reads)
+  // and each Vite config (Vite requires a default export). Everything else is named-export-only above.
   {
     files: ["extensions/*/src/**/index.ts", "extensions/*/src/**/vite.config.ts"],
     rules: { "import-x/no-default-export": "off" },
@@ -254,7 +254,7 @@ export default defineConfig(
   // --- Architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
   // Encodes the slice isolation over both UIs: each feature slice folder is an element, its
   // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by
-  // any slice. The src-root index.ts (each extension's defineExtension entry, the one legitimate
+  // any slice. The src-root index.ts (each extension's bundle entry, the one legitimate
   // barrel) is intentionally left unclassified - the rule does not constrain an unknown source, which
   // is exactly the entry's role: it may import any slice. The TS resolver classifies the
   // `@cove-extensions/ui-shared` alias (via each extension's tsconfig paths) so shared imports land as
