@@ -10,8 +10,23 @@ supplies at runtime. The tests need Cove's EF model, including the `(ParentFolde
 index, and Cove's `SaveChangesAsync` overrides, which derive every touched file's `Path`. In a new
 test, take the context as `DbContext` and name `CoveContext` only where you construct one.
 
+## Where a test file goes and what it is called
+
 The folders mirror `../Renamer/`. `TestSupport/` and the folders named for what they exercise
-(`Concurrency/`, `Elevation/`, `Preview/`, `Wire/`) have no source counterpart.
+(`Concurrency/`, `Elevation/`, `Events/`, `Jobs/`, `Preview/`, `Wire/`) have no source counterpart.
+
+One top-level test class per file, and the file is named for the class. A class testing one
+production type is `<Type>Tests`; `TemplateEngine.cs` is tested by `Engine/TemplateEngineTests.cs`.
+A type with several separable behaviors takes a class per behavior, each named for the type and the
+behavior: `OptionsMigration.cs` is tested by `OptionsMigrationScanTests.cs` and
+`OptionsMigrationConvertTests.cs`. A test that exercises no single production type is named for the
+behavior it covers and lives in the folder for that concern, as `Execution/SourcePathClaimsTests.cs`
+does.
+
+So `--filter-class` built from a filename always matches.
+
+Support types carry no `Tests` suffix and sit in `TestSupport/`, one per file, except where a set of
+small models is only meaningful together.
 
 ## Platform skips
 

@@ -196,10 +196,10 @@ dotnet test CoveExtensions.slnx --filter-class "*DestinationResolverTests"
 dotnet test CoveExtensions.slnx --filter-method "*DirectStudio_OutranksAncestorStudio"
 ```
 
-Filter on the class name, not the file name. A test file here commonly holds several classes, and
-often none of them is named after the file, so a pattern built from a filename matches nothing. When
-a filter matches nothing the summary still reads `failed: 0`, which looks green; the run reports
-`Zero tests ran` and exits non-zero. Read the `total` line, never the `failed` line.
+Filter on the class name. Each C# test file holds one test class named after the file, so a pattern
+built from a filename matches that class. When a filter matches nothing the summary still reads
+`failed: 0`, which looks green; the run reports `Zero tests ran` and exits non-zero. Read the
+`total` line, never the `failed` line.
 
 **UI.** Pass a path, or name a Vitest project. These examples run from Renamer's UI directory:
 
