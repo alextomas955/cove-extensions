@@ -101,6 +101,21 @@ test("a problem body reaches the reader as its detail, not as the envelope", asy
   expect(errorText(err)).toBe("409 A one-time conversion of the stored settings has not run yet.");
 });
 
+// Cove's own authorization middleware refuses a request before the extension is reached, and writes
+// plain JSON with none of RFC 9457's members. The body is copied from the host's middleware, which is
+// where this shape is decided; the wire document declares it beside the problem one.
+test("a refusal the host wrote reads as its message, not as the JSON around it", async () => {
+  const { errorText } = await import("@cove-extensions/ui-shared/extensionRequest");
+  host.reply = new Response(
+    JSON.stringify({ code: "UNAUTHORIZED", message: "Authentication required." }),
+    { status: 401, headers: { "Content-Type": "application/json" } },
+  );
+
+  const err = await failureOf(renamerUndo({ throwOnError: true }));
+
+  expect(errorText(err)).toBe("401 Authentication required.");
+});
+
 test("a route answering something other than a problem still reads as what it sent", async () => {
   const { errorText } = await import("@cove-extensions/ui-shared/extensionRequest");
   host.reply = new Response("upstream exploded", { status: 502, statusText: "Bad Gateway" });

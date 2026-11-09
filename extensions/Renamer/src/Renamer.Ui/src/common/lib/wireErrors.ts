@@ -19,10 +19,17 @@ import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { client } from "../../wire/client.gen";
 
-/** The RFC 9457 members written for a reader, neither of which a problem body must carry. */
+/**
+ * The members a refusal may carry for a reader.
+ *
+ * `detail` and `title` are RFC 9457 and neither is mandatory. `message` is the Cove host's own
+ * spelling: its authorization middleware refuses a request before the extension is reached and
+ * writes a plain JSON body, not a problem document.
+ */
 interface ProblemText {
   detail?: unknown;
   title?: unknown;
+  message?: unknown;
 }
 
 /**
@@ -30,16 +37,17 @@ interface ProblemText {
  *
  * A problem body states its own occurrence in `detail` and its kind in `title`, both written to be
  * read. Serializing the envelope instead puts the type URI, the status and the machine token on
- * screen around the one sentence meant for them. A route answering something other than a problem
- * falls back to whatever it did send.
+ * screen around the one sentence meant for them. A refusal the Cove host wrote before the extension
+ * was reached carries `message` instead. Anything else falls back to whatever it did send.
  */
 function readable(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
   if (typeof error === "object") {
-    const { detail, title } = error as ProblemText;
+    const { detail, title, message } = error as ProblemText;
     if (typeof detail === "string" && detail) return detail;
     if (typeof title === "string" && title) return title;
+    if (typeof message === "string" && message) return message;
   }
   try {
     return JSON.stringify(error) || "";

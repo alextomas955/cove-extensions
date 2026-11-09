@@ -189,6 +189,13 @@ Between the two sits `wire/openapi.json`, committed. A test emits it from the sh
 registrations and fails when the committed copy no longer matches, so the document cannot go stale
 without a red build, and the TypeScript is a pure function of it.
 
+A handler's return type cannot describe what answers in front of it, so the emitter adds those
+responses itself: Cove's authorization middleware refuses a caller with `401` or `403` as plain JSON,
+and ASP.NET Core refuses a wrong content type with `415` and an unbindable body with `400`, both with
+no body. They are derived from the route's own metadata, so a new route carries them without saying
+anything. A second test drives every mounted route over HTTP and fails when the server answers a
+status or a media type the committed document does not declare.
+
 The same run writes the whole of `src/wire/`: the types, a function per operation, and the TanStack
 Query helpers over them. A hook calls `useQuery(renamerGetOptionsOptions())` or
 `useMutation(renamerSaveOptionsMutation())` and writes no path, method, query key or response type

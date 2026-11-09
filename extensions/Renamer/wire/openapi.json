@@ -42,7 +42,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -52,14 +52,32 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -94,7 +112,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -104,14 +122,32 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -158,14 +194,32 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -190,11 +244,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -222,11 +291,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -270,14 +354,35 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
+          },
+          "400": {
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below."
           }
         }
       }
@@ -315,11 +420,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -363,7 +483,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -373,14 +493,32 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -418,11 +556,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -450,11 +603,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -482,11 +650,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -527,11 +710,26 @@
             "description": "Not Found"
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -559,11 +757,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -591,11 +804,26 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
                 }
               }
             }
@@ -644,14 +872,32 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExtensionProblemDetails"
                 }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
               }
             }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
           }
         }
       }
@@ -672,6 +918,36 @@
           "standard",
           "heavy"
         ]
+      },
+      "CoveAuthorizationDenial": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable SCREAMING_SNAKE token: `UNAUTHORIZED` or `FORBIDDEN`."
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Written with `UNAUTHORIZED`. Absent from a permission refusal."
+          },
+          "missing": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The permissions the caller holds none of. Written with `FORBIDDEN`."
+          }
+        },
+        "description": "The body Cove's own extension-endpoint authorization middleware writes when it refuses a request\nbefore the extension's handler runs."
       },
       "Destination": {
         "type": "object",

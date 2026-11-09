@@ -66,9 +66,21 @@ public abstract class ExtensionOpenApiDocumentTests
         builder.WebHost.UseTestServer();
         ConfigureBindingServices(builder.Services);
         builder.Services.AddRouting();
-        builder.Services.AddOpenApi(DocumentName, options => options.AddDocumentTransformer(
-            (document, _, _) =>
+        builder.Services.AddOpenApi(DocumentName, options =>
+        {
+            // What Cove's authorization middleware and ASP.NET Core's body binding write in front of
+            // the handler, which the handler's declared return type cannot express.
+            options.AddOperationTransformer((operation, operationContext, _) =>
             {
+                HostWrittenResponses.Apply(operation, operationContext);
+                return Task.CompletedTask;
+            });
+            options.AddDocumentTransformer(async (document, documentContext, cancellationToken) =>
+            {
+                await HostWrittenResponses
+                    .RegisterSchemasAsync(document, documentContext, cancellationToken)
+                    .ConfigureAwait(false);
+
                 document.Info ??= new OpenApiInfo();
                 document.Info.Title = PinnedTitle;
                 document.Info.Version = PinnedVersion;
@@ -107,8 +119,8 @@ public abstract class ExtensionOpenApiDocumentTests
                     },
                     [],
                 ];
-                return Task.CompletedTask;
-            }));
+            });
+        });
 
         // Strict, not the Web default: the Web default also accepts numbers written as strings, which
         // the generator reports as an integer-or-string union on every numeric field. The server only
@@ -196,7 +208,12 @@ public abstract class ExtensionOpenApiDocumentTests
     private static string NormalizeForCommit(string serialized)
     {
         Assert.NotEmpty(serialized);
-        return serialized.ReplaceLineEndings("\n");
+
+        // The second replace works inside the JSON strings rather than between them. A schema
+        // description taken from a multi-line /// comment carries the source file's own line ending,
+        // escaped, where the first replace never sees it; left alone, the Windows and Linux runs each
+        // rewrite a document neither of them changed.
+        return serialized.ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <summary>The committed wire document's path for <paramref name="extensionId"/>.</summary>
