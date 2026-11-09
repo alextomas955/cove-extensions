@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Renamer.Engine;
 using Renamer.Options;
 
@@ -62,7 +63,7 @@ public sealed class RenamerPlanner
         if (TryGate(entity, options, out var gateReason))
         {
             var gated = entity.Files
-                .Select(f => SkipItem(f, RenamerStatus.SkipGated, gateReason!))
+                .Select(f => SkipItem(f, RenamerStatus.SkipGated, gateReason))
                 .ToList();
             return new RenamerPlan(entity.EntityId, entity.Kind, gated);
         }
@@ -133,7 +134,7 @@ public sealed class RenamerPlanner
             && PathConfinement.IsUnderRoot(root, configured)
             && PathConfinement.IsUnderRoot(configured, root));
 
-    private static bool TryGate(RenamerEntity entity, RenamerOptions options, out string? reason)
+    private static bool TryGate(RenamerEntity entity, RenamerOptions options, [NotNullWhen(true)] out string? reason)
     {
         // The kind switch answers a different question from the other gates: they decide whether this
         // item qualifies, while this one says the extension does not rename the kind at all.
