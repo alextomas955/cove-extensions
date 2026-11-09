@@ -96,6 +96,19 @@ waiting for a one-time conversion, and **Save** is turned off. Restart Cove and 
 The destination conversion also needs at least one library path in Cove. If you have none, add one,
 then restart Cove and reload the page.
 
+### Settings saved. The page couldn't read them back, so what's shown is what was sent
+
+Your settings were saved. The page then asked Cove for them again to show you the stored copy, and
+that read failed. A notice at the top of the page names the reason.
+
+The values on screen are the ones that were saved. Select **Save changes** again, or reload the
+page, once the reason is fixed.
+
+### Couldn't re-read your saved settings
+
+The page already has your settings and could not refresh them. It keeps showing the copy it has,
+including any edits you have not saved. Fix the reason it names, then reload the page.
+
 ### Dry run and Rename all files show different results
 
 A dry run uses your current edits, including ones you haven't saved. **Rename all files** uses saved

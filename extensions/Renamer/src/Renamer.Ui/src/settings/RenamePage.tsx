@@ -30,7 +30,8 @@ function dotClass(saveError: string | null, savedFlash: boolean): string {
 function SaveBarMessage({
   saveError,
   savedFlash,
-}: Readonly<{ saveError: string | null; savedFlash: boolean }>) {
+  unconfirmed,
+}: Readonly<{ saveError: string | null; savedFlash: boolean; unconfirmed: boolean }>) {
   if (saveError) {
     return (
       <StatusText kind="error">
@@ -38,7 +39,16 @@ function SaveBarMessage({
       </StatusText>
     );
   }
-  if (savedFlash) return <StatusText kind="success">Settings saved.</StatusText>;
+  if (savedFlash) {
+    // The reason the read failed is on the notice above the panel.
+    return (
+      <StatusText kind="success">
+        {unconfirmed
+          ? "Settings saved. The page couldn't read them back, so what's shown is what was sent."
+          : "Settings saved."}
+      </StatusText>
+    );
+  }
   return (
     <>
       <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
@@ -48,23 +58,25 @@ function SaveBarMessage({
 }
 
 function SaveBar({
-  dirty,
+  visible,
   saving,
   saveError,
   savedFlash,
+  unconfirmed,
   canSave,
   onSave,
   onDiscard,
 }: Readonly<{
-  dirty: boolean;
+  visible: boolean;
   saving: boolean;
   saveError: string | null;
   savedFlash: boolean;
+  unconfirmed: boolean;
   canSave: boolean;
   onSave: () => void;
   onDiscard: () => void;
 }>) {
-  if (!dirty) return null;
+  if (!visible) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
       {/* py-3.5 is host-absent (Cove's own UI never uses it, so its prebuilt bundle omits it);
@@ -81,7 +93,7 @@ function SaveBar({
           style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
-          <SaveBarMessage saveError={saveError} savedFlash={savedFlash} />
+          <SaveBarMessage saveError={saveError} savedFlash={savedFlash} unconfirmed={unconfirmed} />
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="ghost" onClick={onDiscard} disabled={saving}>
@@ -132,7 +144,9 @@ export function RenamePage() {
   const folderRef = useRef<HTMLInputElement>(null);
   const activeTemplateRef = useRef<"filename" | "folder">("filename");
 
-  if (loadError) {
+  // Only while there is nothing to edit. A later read can fail with a document still in hand, and
+  // blanking the panel there takes the user's unsaved edits off screen.
+  if (loadError && options === null) {
     return (
       <div className="space-y-3">
         <StatusText kind="error">Couldn't load your saved settings: {loadError}. Retry.</StatusText>
@@ -180,9 +194,18 @@ export function RenamePage() {
     .filter((r) => r.flags.includes("empty"))
     .map((r) => r.sampleLabel);
 
+  const barWanted = dirty || savedFlash || saveError !== null;
+
   // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent - inline it.
   return (
-    <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
+    <div className="space-y-6" style={barWanted ? { paddingBottom: "5rem" } : undefined}>
+      {loadError ? (
+        <StatusText kind="error">
+          Couldn&apos;t re-read your saved settings: {loadError}. What&apos;s shown is the last copy
+          this page has.
+        </StatusText>
+      ) : null}
+
       {/* Every other panel renders as a full-width sibling below this grid, so the preview's sticky
           containing block is that column's height, not the whole page. Standard grid-cols-3 and
           col-span-2 only: the host stylesheet carries no arbitrary [..] values. */}
@@ -245,13 +268,14 @@ export function RenamePage() {
 
       {/* The bar and the dialog are both fixed at the same layer, and this one is the later sibling,
           so with the dialog open the bar paints over it and its buttons stay mouse-reachable. The
-          root's bottom padding stays keyed on `dirty` alone: that clearance is for the page behind
-          the dialog, which must not shift under an open overlay. */}
+          clearance below the page is for the page behind the dialog, which must not shift under an
+          open overlay. */}
       <SaveBar
-        dirty={dirty && !dryRunOpen}
+        visible={barWanted && !dryRunOpen}
         saving={saving}
         saveError={saveError}
         savedFlash={savedFlash}
+        unconfirmed={loadError !== null}
         canSave={canSave}
         onSave={() => void onSave()}
         onDiscard={discard}

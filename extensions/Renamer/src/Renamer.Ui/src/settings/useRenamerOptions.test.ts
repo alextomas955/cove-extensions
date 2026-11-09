@@ -22,6 +22,10 @@ const endpoint = vi.hoisted(() => ({
   // read begins, so only the one read is held.
   holdNextRead: false,
   releaseRead: (): void => undefined,
+  // Refuse the next read, or the next write. Each is cleared as it is answered, so a later one
+  // succeeds.
+  failNextRead: false,
+  failNextWrite: false,
 }));
 
 // The seam is the host's own fetch, which the generated client reaches through the adapter in
@@ -35,6 +39,10 @@ vi.mock("@cove/runtime/api", () => ({
       });
 
     if (String(init.method).toUpperCase() === "PUT") {
+      if (endpoint.failNextWrite) {
+        endpoint.failNextWrite = false;
+        return json({ detail: "the settings could not be stored" }, 503);
+      }
       const body = JSON.parse(init.body as string) as RenamerOptions;
       endpoint.sent.push({ path, method: String(init.method), body });
       // The PUT replaces the whole document, so a later GET answers with what was written and no
@@ -49,6 +57,10 @@ vi.mock("@cove/runtime/api", () => ({
       await new Promise<void>((resolve) => {
         endpoint.releaseRead = resolve;
       });
+    }
+    if (endpoint.failNextRead) {
+      endpoint.failNextRead = false;
+      return json({ detail: "the settings could not be read" }, 503);
     }
     return json(structuredClone(endpoint.view));
   },
@@ -99,6 +111,9 @@ function answers(overrides: Partial<OptionsView> = {}) {
 
 beforeEach(() => {
   endpoint.sent.length = 0;
+  endpoint.holdNextRead = false;
+  endpoint.failNextRead = false;
+  endpoint.failNextWrite = false;
   answers();
 });
 
@@ -144,6 +159,7 @@ test.each([["pendingNameMigration" as const], ["pendingDestinationMigration" as 
     });
 
     expect(endpoint.sent, "a save was sent while a conversion was outstanding").toEqual([]);
+    expect(hook.current.saveError).toBeNull();
     expect(hook.current.savedFlash).toBe(false);
   },
 );
@@ -223,6 +239,76 @@ test("a saved edit stays on screen while the re-read it starts is still in fligh
   expect(hook.current.options?.filenameTemplate).toBe(edited);
   expect(hook.current.dirty, "the saved edit still reads as unsaved").toBe(false);
 });
+
+test("a save whose re-read fails keeps the saved values on screen and says so", async () => {
+  const hook = await mountHook();
+  const edited = "$studio - $title";
+
+  commit(() => {
+    hook.current.set("filenameTemplate", edited);
+  });
+
+  endpoint.failNextRead = true;
+  await act(async () => {
+    await hook.current.onSave();
+  });
+
+  expect(endpoint.sent, "the write never went out").toHaveLength(1);
+  expect(
+    hook.current.options?.filenameTemplate,
+    "the pre-save document replaced the values that were written",
+  ).toBe(edited);
+  expect(hook.current.savedFlash, "the write that landed is not reported").toBe(true);
+  expect(hook.current.saveError, "a write that succeeded reads as one that failed").toBeNull();
+  expect(
+    hook.current.loadError,
+    "nothing says why the panel cannot confirm the save",
+  ).not.toBeNull();
+
+  // The next read answers, which is what the panel is waiting for: the server's own copy arrives
+  // and matches, so there is nothing left unsaved.
+  await act(async () => {
+    await hook.current.load();
+  });
+  await hook.settled("the retried read to land", () => hook.current.loadError === null);
+  expect(hook.current.options?.filenameTemplate).toBe(edited);
+  expect(hook.current.dirty, "the confirmed save still reads as unsaved").toBe(false);
+});
+
+test.each([
+  ["a save that failed", { failWrite: true }],
+  ["a save the page could not read back", { failWrite: false }],
+])(
+  "discard after %s leaves no message about changes that are gone",
+  async (_case, { failWrite }) => {
+    // Discard takes the edit off screen. A sentence about it that outlives it describes a state the
+    // user can no longer see, and the save bar has no other condition to hide on.
+    const hook = await mountHook();
+
+    commit(() => {
+      hook.current.set("filenameTemplate", "$studio - $title");
+    });
+
+    if (failWrite) endpoint.failNextWrite = true;
+    else endpoint.failNextRead = true;
+    await act(async () => {
+      await hook.current.onSave();
+    });
+    expect(
+      hook.current.saveError !== null || hook.current.savedFlash,
+      "the save said nothing, so there is no message for discard to clear",
+    ).toBe(true);
+
+    commit(() => {
+      hook.current.discard();
+    });
+
+    expect(hook.current.saveError).toBeNull();
+    expect(hook.current.savedFlash).toBe(false);
+    expect(hook.current.dirty).toBe(false);
+    expect(hook.current.options?.filenameTemplate).toBe(someOptions().filenameTemplate);
+  },
+);
 
 test("an edit made while the save is in flight survives it", async () => {
   // Only the save bar's own two buttons go disabled for a save, so every field stays editable

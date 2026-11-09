@@ -14,8 +14,13 @@ import type { LibraryPathsState } from "./options";
 const page = vi.hoisted(() => ({
   load: vi.fn(() => Promise.resolve()),
   loadError: null as string | null,
+  // Whether a document loaded before `loadError` was set, which is what tells a first load that
+  // failed from a refresh that did.
+  loaded: false,
   dirty: false,
   dryRunOpen: false,
+  saveError: null as string | null,
+  savedFlash: false,
 }));
 
 vi.mock("./useRenamerOptions", async () => {
@@ -23,12 +28,12 @@ vi.mock("./useRenamerOptions", async () => {
   const noop = () => undefined;
   return {
     useRenamerOptions: (): UseRenamerOptions => ({
-      options: page.loadError === null ? someOptions() : null,
+      options: page.loadError === null || page.loaded ? someOptions() : null,
       loading: false,
       loadError: page.loadError,
       saving: false,
-      saveError: null,
-      savedFlash: false,
+      saveError: page.saveError,
+      savedFlash: page.savedFlash,
       recoveredFromBadBlob: false,
       pendingNameMigration: false,
       pendingDestinationMigration: false,
@@ -77,8 +82,11 @@ function renderPage() {
 beforeEach(() => {
   page.load.mockClear();
   page.loadError = null;
+  page.loaded = false;
   page.dirty = false;
   page.dryRunOpen = false;
+  page.saveError = null;
+  page.savedFlash = false;
 });
 
 afterEach(cleanup);
@@ -94,6 +102,39 @@ test("a failed first load shows the error and a Retry that loads again, not a sp
   await user.click(screen.getByRole("button", { name: "Retry" }));
 
   expect(page.load).toHaveBeenCalledTimes(1);
+});
+
+test("a failed refresh keeps the panel and its unsaved edits, and says what is on screen", () => {
+  page.loaded = true;
+  page.loadError = "503 unavailable";
+  page.dirty = true;
+  const view = renderPage();
+
+  expect(view.text()).toContain("Live preview");
+  expect(view.text()).toContain("503 unavailable");
+  expect(view.saveButton()).not.toBeNull();
+});
+
+test("a save the page could not read back says the write landed and the read did not", () => {
+  page.loaded = true;
+  page.loadError = "503 unavailable";
+  page.dirty = true;
+  page.savedFlash = true;
+  const view = renderPage();
+
+  expect(view.text()).toContain(
+    "Settings saved. The page couldn't read them back, so what's shown is what was sent.",
+  );
+});
+
+test("the save bar stays up to report a save that cleared the edit", () => {
+  // The flash is the only confirmation a save gets, and clearing the draft takes `dirty` down with
+  // it in the same commit.
+  page.savedFlash = true;
+  const view = renderPage();
+
+  expect(view.text()).toContain("Settings saved.");
+  expect(view.text()).not.toContain("couldn't read them back");
 });
 
 test("unsaved edits put the save bar on screen", () => {

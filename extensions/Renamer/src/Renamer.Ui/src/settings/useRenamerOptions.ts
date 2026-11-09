@@ -9,15 +9,17 @@
  * The unsaved edit is one piece of local state: `draft`, null until the user changes something.
  * `options` is the draft when there is one and the saved document otherwise, so there is no second
  * copy to seed, no effect to sync it, and nothing to go stale if the query refetches.
+ *
+ * A save is a write and then a re-read, and the two can end differently. The draft is dropped only
+ * once a re-read has succeeded, because until then the cache holds the document from before the
+ * save and falling back to it would put the old values back over a save that worked.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { errorText } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { OptionsView, RenamerOptions, MultiValueOptions } from "./options";
-import { renamerGetOptionsOptions, renamerGetOptionsQueryKey, renamerSaveOptions } from "../wire";
-
-const OPTIONS_KEY = renamerGetOptionsQueryKey();
+import { renamerGetOptionsOptions, renamerSaveOptions } from "../wire";
 
 const SAVED_FLASH_MS = 3000;
 
@@ -29,6 +31,7 @@ export interface UseRenamerOptions {
   loadError: string | null;
   saving: boolean;
   saveError: string | null;
+  /** The write landed. A `loadError` beside it is the re-read after it that did not. */
   savedFlash: boolean;
   recoveredFromBadBlob: boolean;
   pendingNameMigration: boolean;
@@ -43,8 +46,6 @@ export interface UseRenamerOptions {
 }
 
 export function useRenamerOptions(): UseRenamerOptions {
-  const queryClient = useQueryClient();
-
   const query = useQuery({
     ...renamerGetOptionsOptions(),
     // The one assertion in this bundle, and it cannot be made a check. The schema marks every
@@ -74,6 +75,8 @@ export function useRenamerOptions(): UseRenamerOptions {
   const pendingNameMigration = query.data?.pendingNameMigration ?? false;
   const pendingDestinationMigration = query.data?.pendingDestinationMigration ?? false;
 
+  const loadError = query.error === null ? null : errorText(query.error);
+
   const dirty = draft !== null && saved !== null && JSON.stringify(draft) !== JSON.stringify(saved);
   // After recovering from an unreadable blob, the loaded options are the defaults and nothing looks
   // "dirty" - but a Save is still needed to overwrite the bad stored data, so allow it explicitly.
@@ -89,6 +92,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     [],
   );
 
+  const { refetch } = query;
   const onSave = useCallback(async () => {
     // Enforced here, not only on the Save button, because this is the single call site of the
     // write. The endpoint refuses too, and a 409 the panel could have avoided reads to the user as
@@ -96,30 +100,47 @@ export function useRenamerOptions(): UseRenamerOptions {
     if (options === null || pendingNameMigration || pendingDestinationMigration) return;
     setSaving(true);
     setSaveError(null);
+    setSavedFlash(false);
+    // A save inside the previous one's flash window would otherwise have its flash cleared by that
+    // timer.
+    clearTimeout(flashTimer.current);
+
     try {
       await renamerSaveOptions({ body: options, throwOnError: true });
-      // The draft goes only once the re-read has landed, and only while it still holds what was
-      // sent. Dropping it first falls back to the response still in the cache, which is the
-      // document from before this save, so the panel would show the old values for a round trip.
-      // No form input is disabled while a save runs, so an edit made across either round trip is
-      // newer than what was written: clearing it unconditionally loses that edit, and clears the
-      // unsaved mark that would have been the one sign it was gone. The cost of both is that the
-      // mark lingers until the read lands.
-      await queryClient.invalidateQueries({ queryKey: OPTIONS_KEY });
-      setDraft((d) => (d === null || JSON.stringify(d) === JSON.stringify(options) ? null : d));
-      setSavedFlash(true);
-      flashTimer.current = setTimeout(() => {
-        setSavedFlash(false);
-      }, SAVED_FLASH_MS);
     } catch (err) {
       setSaveError(errorText(err));
-    } finally {
       setSaving(false);
+      return;
     }
-  }, [options, pendingNameMigration, pendingDestinationMigration, queryClient]);
+
+    // The write landed, so nothing below may report it as a save that did not happen.
+    //
+    // The read is awaited for its result and not only for its timing. `invalidateQueries` resolves
+    // whether or not the read it starts succeeded, so awaiting one says nothing about what the
+    // cache holds afterwards, which here is still the document from before the save.
+    const refreshed = await refetch();
+    setSaving(false);
+    setSavedFlash(true);
+    flashTimer.current = setTimeout(() => {
+      setSavedFlash(false);
+    }, SAVED_FLASH_MS);
+
+    // The draft goes only once a read has confirmed what is stored, and only while it still holds
+    // what was sent. A failed read leaves the cache on the document from before the save, so
+    // dropping the draft onto it would put the old values back over a save that worked. No form
+    // input is disabled while a save runs either, so an edit made across the round trips is newer
+    // than what was written and must survive it.
+    if (refreshed.isError) return;
+    setDraft((d) => (d === null || JSON.stringify(d) === JSON.stringify(options) ? null : d));
+  }, [options, pendingNameMigration, pendingDestinationMigration, refetch]);
 
   const discard = useCallback(() => {
     setDraft(null);
+    // The bar goes with the edit it was reporting on. Leaving either behind strands a sentence
+    // about changes that are no longer on screen.
+    setSaveError(null);
+    setSavedFlash(false);
+    clearTimeout(flashTimer.current);
   }, []);
 
   const set = useCallback(
@@ -145,7 +166,7 @@ export function useRenamerOptions(): UseRenamerOptions {
   return {
     options,
     loading: query.isPending,
-    loadError: query.error === null ? null : errorText(query.error),
+    loadError,
     saving,
     saveError,
     savedFlash,
@@ -155,7 +176,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     dirty,
     canSave,
     load: async () => {
-      await query.refetch();
+      await refetch();
     },
     onSave,
     discard,
