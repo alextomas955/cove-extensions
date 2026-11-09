@@ -14,13 +14,13 @@ namespace Renamer.Tests.Api;
 
 public sealed class EntityIdsCapTests
 {
-    // The handler's own MaxEntityIdsPerRequest is private, so this copy has to be kept in step with
-    // it; the refusal carries the bound, so a drift shows up as a mismatched ErrorCode value.
-    private const int Cap = 1000;
+    // The handler's own bound, read from it rather than transcribed. A copy here would be a second
+    // declaration of the same number, and the only thing keeping the two in step would be a test
+    // comparing them.
+    private const int Cap = global::Renamer.Renamer.MaxEntityIdsPerRequest;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     // The cap's own refusal, not one of the other 400s, carrying the bound so a caller can batch to fit.
     private static void AssertTooManyIds(IResult result)
