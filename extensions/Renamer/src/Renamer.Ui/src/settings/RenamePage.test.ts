@@ -15,6 +15,7 @@ import { withQueryClient } from "../common/lib/testQueryClient";
 import type { UseRenamePreview } from "./useRenamePreview";
 import type { LibraryPathsState } from "./options";
 import type { OptionsView, RenamerOptions } from "./options";
+import { jsonResponse } from "../common/lib/testResponses";
 
 const endpoint = vi.hoisted(() => ({
   view: null as OptionsView | null,
@@ -28,32 +29,24 @@ const endpoint = vi.hoisted(() => ({
 
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (_path: string, init: RequestInit) => {
-    const json = (value: unknown, status = 200) =>
-      Promise.resolve(
-        new Response(value === undefined ? null : JSON.stringify(value), {
-          status,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
     if (String(init.method).toUpperCase() === "PUT") {
       if (endpoint.failNextWrite) {
         endpoint.failNextWrite = false;
-        return json({ detail: "the settings could not be stored" }, 503);
+        return jsonResponse({ detail: "the settings could not be stored" }, 503);
       }
       const body = JSON.parse(init.body as string) as RenamerOptions;
       endpoint.sent.push(body);
       // The PUT replaces the whole document, so a later read answers with what was written and no
       // longer reports the blob unreadable.
       if (endpoint.view) endpoint.view = { ...endpoint.view, options: body, unreadable: false };
-      return json(undefined, 204);
+      return jsonResponse(undefined, 204);
     }
 
     if (endpoint.failNextRead) {
       endpoint.failNextRead = false;
-      return json({ detail: "the settings could not be read" }, 503);
+      return jsonResponse({ detail: "the settings could not be read" }, 503);
     }
-    return json(structuredClone(endpoint.view));
+    return jsonResponse(structuredClone(endpoint.view));
   },
 }));
 

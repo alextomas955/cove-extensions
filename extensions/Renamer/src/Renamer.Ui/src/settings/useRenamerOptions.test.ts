@@ -11,6 +11,7 @@ import { useRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
 import { withQueryClient } from "../common/lib/testQueryClient";
 import type { OptionsView, RenamerOptions } from "./options";
+import { jsonResponse } from "../common/lib/testResponses";
 
 // The stubbed endpoint's script, hoisted so the module factory below can reach it.
 const endpoint = vi.hoisted(() => ({
@@ -32,16 +33,10 @@ const endpoint = vi.hoisted(() => ({
 // common/lib/wireClient, so what is scripted here is the request the hook really issues.
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: async (path: string, init: RequestInit) => {
-    const json = (value: unknown, status = 200) =>
-      new Response(value === undefined ? null : JSON.stringify(value), {
-        status,
-        headers: { "Content-Type": "application/json" },
-      });
-
     if (String(init.method).toUpperCase() === "PUT") {
       if (endpoint.failNextWrite) {
         endpoint.failNextWrite = false;
-        return json({ detail: "the settings could not be stored" }, 503);
+        return jsonResponse({ detail: "the settings could not be stored" }, 503);
       }
       const body = JSON.parse(init.body as string) as RenamerOptions;
       endpoint.sent.push({ path, method: String(init.method), body });
@@ -49,7 +44,7 @@ vi.mock("@cove/runtime/api", () => ({
       // longer reports the blob unreadable. Modelled here because the hook asks the server rather
       // than assuming either.
       if (endpoint.view) endpoint.view = { ...endpoint.view, options: body, unreadable: false };
-      return json(undefined, 204);
+      return jsonResponse(undefined, 204);
     }
 
     if (endpoint.holdNextRead) {
@@ -60,9 +55,9 @@ vi.mock("@cove/runtime/api", () => ({
     }
     if (endpoint.failNextRead) {
       endpoint.failNextRead = false;
-      return json({ detail: "the settings could not be read" }, 503);
+      return jsonResponse({ detail: "the settings could not be read" }, 503);
     }
-    return json(structuredClone(endpoint.view));
+    return jsonResponse(structuredClone(endpoint.view));
   },
 }));
 

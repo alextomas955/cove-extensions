@@ -16,6 +16,7 @@ import { createTestQueryClient } from "../common/lib/testQueryClient";
 import { useRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
 import type { LibraryRenameEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire";
+import { jsonResponse, unparseableResponse } from "../common/lib/testResponses";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
 interface EndpointScript {
@@ -43,20 +44,12 @@ const host = vi.hoisted((): EndpointScript => ({
 // common/lib/wireClient, so what is scripted here is the request the hook really issues.
 vi.mock("@cove/runtime/api", () => ({
   extensionFetch: (path: string) => {
-    // A string body is sent as it stands, so a case can script a reply that will not parse.
-    const json = (value: unknown, status = 200) =>
-      Promise.resolve(
-        new Response(typeof value === "string" ? value : JSON.stringify(value), {
-          status,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
     host.reads.push(path);
     if (path.includes("/last-library-rename")) {
-      return host.summary === null ? json("boom", 500) : json(host.summary);
+      return host.summary === null ? unparseableResponse("boom", 500) : jsonResponse(host.summary);
     }
     if (path.includes("/job-status/")) {
-      return json({
+      return jsonResponse({
         id: "job-under-test",
         status: host.status,
         progress: host.progress,
@@ -66,8 +59,11 @@ vi.mock("@cove/runtime/api", () => ({
       } satisfies RenamerJobStatus);
     }
     return host.enqueue === null
-      ? json({ jobId: "job-under-test", runId: "run-under-test" } satisfies LibraryRenameEnqueued)
-      : json(host.enqueue.body, host.enqueue.status);
+      ? jsonResponse({
+          jobId: "job-under-test",
+          runId: "run-under-test",
+        } satisfies LibraryRenameEnqueued)
+      : unparseableResponse(host.enqueue.body, host.enqueue.status);
   },
 }));
 
