@@ -26,7 +26,10 @@ const generatorPlugins = (clientConfigPath) => [
   "@hey-api/typescript",
   { name: "@hey-api/client-fetch", runtimeConfigPath: clientConfigPath },
   "@hey-api/sdk",
-  "@tanstack/react-query",
+  // exportFromIndex, so the query helpers leave through the same barrel as the types and the
+  // operations. Without it the generator's own file name is the import path, and
+  // `wire/@tanstack/react-query.gen` reads like the npm package next to it in the same file.
+  { name: "@tanstack/react-query", exportFromIndex: true },
 ];
 
 // Repo-relative and POSIX-spelled: path.join normalizes the separator, and the same string spells
@@ -136,7 +139,9 @@ export async function generateWireTypes({
     await generate({
       documentPath,
       outputPath,
-      plugins: generatorPlugins(clientConfigPath),
+      // Without the extension: the generator echoes this path into the import it writes, and a
+      // generated `.ts` import would need allowImportingTsExtensions turned on for the whole bundle.
+      plugins: generatorPlugins(clientConfigPath.replace(/\.ts$/, "")),
       entry,
     });
 

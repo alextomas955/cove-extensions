@@ -92,9 +92,12 @@ test("a declaring entry is generated from, with the document as input and the UI
     const clientPlugin = calls[0].plugins.find(
       (plugin) => typeof plugin !== "string" && plugin.name === "@hey-api/client-fetch",
     );
+    // Without the extension: the generator echoes this path into the import it writes into
+    // client.gen.ts, and a generated `.ts` import compiles only with allowImportingTsExtensions
+    // turned on for the whole bundle.
     assert.equal(
       clientPlugin.runtimeConfigPath,
-      path.join(root, UI_PATH, "src", "common", "lib", "wireClient.ts"),
+      path.join(root, UI_PATH, "src", "common", "lib", "wireClient"),
     );
     assert.equal(calls[0].entry.id, ID);
 

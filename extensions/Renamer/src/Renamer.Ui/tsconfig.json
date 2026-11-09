@@ -13,9 +13,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    // The generated client imports its siblings with an explicit .ts extension. Safe here because
-    // nothing in this program emits: vite builds the bundle and tsc only checks it.
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "types": ["node", "react", "react-dom"],
