@@ -56,8 +56,6 @@ public sealed class LibraryRenameSummaryTests
         return (ext, store);
     }
 
-    private static int StatusOf(IResult result) =>
-        Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     private static LibraryRenameSummaryView ViewOf(IResult result) =>
         Assert.IsType<LibraryRenameSummaryView>(Assert.IsType<IValueHttpResult>(Unwrap(result), exactMatch: false).Value);

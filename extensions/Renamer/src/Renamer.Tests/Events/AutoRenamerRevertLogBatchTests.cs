@@ -1,7 +1,5 @@
-using Cove.Core.Entities;
 using Cove.Core.Events;
 using Cove.Plugins;
-using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
@@ -20,7 +18,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             string folderPath = dir.Root.Replace('\\', '/');
             // Offset the video id sequence from the file id sequence, so a row that recorded one id in
             // place of the other is visible.
-            await SeedDecoyVideoAsync(db);
+            await ExecutorTestSeed.SeedDecoyVideoAsync(db);
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             Assert.NotEqual(videoId, fileId);
@@ -75,12 +73,5 @@ public sealed class AutoRenamerRevertLogBatchTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
-    }
-
-    // Seeds one throwaway video, so the next seeded video's id runs one ahead of its file's id.
-    private static async Task SeedDecoyVideoAsync(DbContext db)
-    {
-        db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
-        await db.SaveChangesAsync();
     }
 }

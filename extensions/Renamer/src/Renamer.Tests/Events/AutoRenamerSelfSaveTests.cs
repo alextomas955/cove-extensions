@@ -1,4 +1,5 @@
 using Cove.Plugins;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
 
@@ -13,18 +14,7 @@ public sealed class AutoRenamerSelfSaveTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Sibling folders under one temp root, so the same-volume atomic move path applies.
-            string libraryFolder = Path.Combine(dir.Root, "library");
-            string sortedFolder = Path.Combine(dir.Root, "sorted");
-            Directory.CreateDirectory(libraryFolder);
-            Directory.CreateDirectory(sortedFolder);
-
-            string libraryFwd = libraryFolder.Replace('\\', '/');
-            string sortedFwd = sortedFolder.Replace('\\', '/');
-
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
-            File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+            var (libraryFwd, sortedFwd, videoId, fileId) = await SeedOneVideoInLibraryAsync(db, dir);
 
             var options = new RenamerOptions
             {
@@ -48,14 +38,14 @@ public sealed class AutoRenamerSelfSaveTests
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus, libraryFwd, sortedFwd);
 
             // Both destinations, transcribed from the arrangement above and never computed.
-            string atSorted = Path.Combine(sortedFolder, "My Film.mkv");
-            string atLibrary = Path.Combine(libraryFolder, "My Film.mkv");
+            string atSorted = Path.Combine(sortedFwd, "My Film.mkv");
+            string atLibrary = Path.Combine(libraryFwd, "My Film.mkv");
 
             // One genuine edit, one hop: the first rule matches the file's folder and relocates it.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(File.Exists(atSorted), $"the matched rule did not relocate the file to {atSorted}");
-            Assert.False(File.Exists(Path.Combine(libraryFolder, "raw.mkv")));
+            Assert.False(File.Exists(Path.Combine(libraryFwd, "raw.mkv")));
             var (_, pathAfterFirst) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal($"{sortedFwd}/My Film.mkv", pathAfterFirst.Replace('\\', '/'));
             Assert.Single(bus.Published);
@@ -106,26 +96,15 @@ public sealed class AutoRenamerSelfSaveTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Sibling folders under one temp root, so the same-volume atomic move path applies.
-            string libraryFolder = Path.Combine(dir.Root, "library");
-            string sortedFolder = Path.Combine(dir.Root, "sorted");
-            Directory.CreateDirectory(libraryFolder);
-            Directory.CreateDirectory(sortedFolder);
-
-            string libraryFwd = libraryFolder.Replace('\\', '/');
-            string sortedFwd = sortedFolder.Replace('\\', '/');
-
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
-            File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+            var (libraryFwd, sortedFwd, videoId, fileId) = await SeedOneVideoInLibraryAsync(db, dir);
 
             // Files at the destination names that Cove holds no row for. The planner's collision check
             // reads file rows, so it sees a free name and plans the move; the executor measures the disk
             // too and re-suffixes. A suffix format carrying no {n} renders the same name on every attempt,
             // so those two occupied names exhaust the loop and the item skips. Any per-item failure
             // reaches the same place - this is just the shortest one that needs no platform behaviour.
-            string blocker = Path.Combine(sortedFolder, "My Film.mkv");
-            string suffixedBlocker = Path.Combine(sortedFolder, "My Film (copy).mkv");
+            string blocker = Path.Combine(sortedFwd, "My Film.mkv");
+            string suffixedBlocker = Path.Combine(sortedFwd, "My Film (copy).mkv");
             File.WriteAllText(blocker, "someone else's bytes");
             File.WriteAllText(suffixedBlocker, "and someone else's again");
 
@@ -146,7 +125,7 @@ public sealed class AutoRenamerSelfSaveTests
             var bus = new CapturingEventBus();
             var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, bus, libraryFwd, sortedFwd);
 
-            string atLibrary = Path.Combine(libraryFolder, "raw.mkv");
+            string atLibrary = Path.Combine(libraryFwd, "raw.mkv");
 
             // A genuine edit. The rule matches, so the plan acts and the executor is called - and the
             // occupied destination sends every item to a skip, so nothing is saved and no event is
@@ -183,5 +162,25 @@ public sealed class AutoRenamerSelfSaveTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
+    }
+
+    // One seeded video at library/raw.mkv with its bytes on disk, and an empty sorted folder beside
+    // it. The two are siblings under one temp root, so a move between them takes the same-volume
+    // atomic path. Both are returned forward-slashed, the spelling Cove stores and a destination
+    // rule matches on.
+    private static async Task<(string LibraryFwd, string SortedFwd, int VideoId, int FileId)>
+        SeedOneVideoInLibraryAsync(DbContext db, TempDir dir)
+    {
+        string libraryFolder = Path.Combine(dir.Root, "library");
+        string sortedFolder = Path.Combine(dir.Root, "sorted");
+        Directory.CreateDirectory(libraryFolder);
+        Directory.CreateDirectory(sortedFolder);
+
+        string libraryFwd = libraryFolder.Replace('\\', '/');
+        var (_, videoId, fileId) =
+            await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
+        File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+
+        return (libraryFwd, sortedFolder.Replace('\\', '/'), videoId, fileId);
     }
 }

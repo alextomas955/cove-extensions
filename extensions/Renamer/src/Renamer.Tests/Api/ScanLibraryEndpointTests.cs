@@ -57,7 +57,6 @@ public sealed class ScanLibraryEndpointTests
     // 404.
     private static ScanRun RunFor(CovePrincipal? caller) => new(RunId, JobOwner.FromPrincipal(caller)?.Key);
 
-    private static int StatusOf(IResult result) => Assert.IsType<IStatusCodeHttpResult>(Unwrap(result), exactMatch: false).StatusCode ?? 0;
 
     [Fact]
     public async Task ScanLibraryEnqueue_WithAnyReadPermission_Returns202_AndEnqueuesExclusiveOnce()

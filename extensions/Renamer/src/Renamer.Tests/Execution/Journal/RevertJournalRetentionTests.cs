@@ -1,10 +1,9 @@
-using System.Data.Common;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Renamer.Execution;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Journal;
 
@@ -130,11 +129,12 @@ public sealed class RevertJournalRetentionTests
 
             await SeedBatchAsync(db, "run-old", Opened, rows);
 
-            counter.Executed = 0;
+            counter.ReaderCount = 0;
+            counter.NonQueryTexts.Clear();
             await new CoveRevertJournal(db).PurgeExpiredAsync(JustOutside);
 
             Assert.Empty(await RowRunIdsAsync(db, "run-old"));
-            Assert.InRange(counter.Executed, 1, 8);
+            Assert.InRange(counter.ReaderCount + counter.NonQueryTexts.Count, 1, 8);
         }
         finally
         {
@@ -169,36 +169,4 @@ public sealed class RevertJournalRetentionTests
 
     private static Task<List<long>> RowRunIdsAsync(DbContext db, string runId) =>
         db.Set<RevertRowEntity>().AsNoTracking().Where(r => r.RunId == runId).Select(r => r.Seq).ToListAsync();
-
-    private sealed class CommandCountingInterceptor : DbCommandInterceptor
-    {
-        public int Executed { get; set; }
-
-        public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
-        {
-            Executed++;
-            return ValueTask.FromResult(result);
-        }
-
-        public override DbDataReader ReaderExecuted(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
-        {
-            Executed++;
-            return result;
-        }
-
-        public override ValueTask<int> NonQueryExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, int result, CancellationToken cancellationToken = default)
-        {
-            Executed++;
-            return ValueTask.FromResult(result);
-        }
-
-        public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
-        {
-            Executed++;
-            return result;
-        }
-    }
 }

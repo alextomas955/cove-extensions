@@ -19,8 +19,8 @@ public sealed class DerivedTitleWriteTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (titlelessId, titlelessFileId) = await SeedAsync(db, kind, "library/one", "one.bin", title: null);
-            var (titledId, titledFileId) = await SeedAsync(db, kind, "library/two", "two.bin", "Typed In By Hand");
+            var (titlelessId, titlelessFileId) = await ExecutorTestSeed.SeedEntityAsync(db, kind, "library/one", "one.bin", title: null);
+            var (titledId, titledFileId) = await ExecutorTestSeed.SeedEntityAsync(db, kind, "library/two", "two.bin", "Typed In By Hand");
 
             var port = new CoveRenamerDataPort(db);
             await port.ApplyAndSaveAsync(
@@ -107,36 +107,6 @@ public sealed class DerivedTitleWriteTests
         {
             await db.DisposeAsync();
             await conn.DisposeAsync();
-        }
-    }
-
-    private static async Task<(int EntityId, int FileId)> SeedAsync(
-        DbContext db, RenamerFileKind kind, string folderPath, string basename, string? title)
-    {
-        switch (kind)
-        {
-            case RenamerFileKind.Video:
-                {
-                    var (_, id, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, basename, title!);
-                    return (id, fileId);
-                }
-            case RenamerFileKind.Image:
-                {
-                    var (_, id, fileId) = await ExecutorTestSeed.SeedImageAsync(db, folderPath, basename, title!);
-                    return (id, fileId);
-                }
-            case RenamerFileKind.Audio:
-                {
-                    var (_, id, fileId) = await ExecutorTestSeed.SeedAudioAsync(db, folderPath, basename, title!);
-                    return (id, fileId);
-                }
-            case RenamerFileKind.Text:
-                {
-                    var (_, id, fileId) = await ExecutorTestSeed.SeedTextAsync(db, folderPath, basename, title!);
-                    return (id, fileId);
-                }
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind));
         }
     }
 

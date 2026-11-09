@@ -105,45 +105,43 @@ public sealed class StudioDepthLockstepTests
         return chain;
     }
 
+    // Seeds one entity of kind under directStudioId. The studio is written after the seed because the
+    // per-kind seeders take no studio.
     private static async Task<int> SeedEntityWithStudioAsync(
         DbContext db, RenamerFileKind kind, int directStudioId)
     {
+        var (entityId, _) = await ExecutorTestSeed.SeedEntityAsync(
+            db, kind, "media/incoming", BasenameFor(kind), "An Item");
+
         switch (kind)
         {
             case RenamerFileKind.Video:
-                {
-                    var (_, id, _) = await ExecutorTestSeed.SeedVideoAsync(
-                        db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
-                    (await db.Set<Video>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
-                    await db.SaveChangesAsync();
-                    return id;
-                }
+                (await db.Set<Video>().FirstAsync(x => x.Id == entityId)).StudioId = directStudioId;
+                break;
             case RenamerFileKind.Image:
-                {
-                    var (_, id, _) = await ExecutorTestSeed.SeedImageAsync(
-                        db, folderPath: "media/incoming", basename: "shot.jpg", title: "A Shot");
-                    (await db.Set<Image>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
-                    await db.SaveChangesAsync();
-                    return id;
-                }
+                (await db.Set<Image>().FirstAsync(x => x.Id == entityId)).StudioId = directStudioId;
+                break;
             case RenamerFileKind.Audio:
-                {
-                    var (_, id, _) = await ExecutorTestSeed.SeedAudioAsync(
-                        db, folderPath: "media/incoming", basename: "track.mp3", title: "A Track");
-                    (await db.Set<Audio>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
-                    await db.SaveChangesAsync();
-                    return id;
-                }
+                (await db.Set<Audio>().FirstAsync(x => x.Id == entityId)).StudioId = directStudioId;
+                break;
             case RenamerFileKind.Text:
-                {
-                    var (_, id, _) = await ExecutorTestSeed.SeedTextAsync(
-                        db, folderPath: "media/incoming", basename: "notes.pdf", title: "A Note");
-                    (await db.Set<TextDocument>().FirstAsync(x => x.Id == id)).StudioId = directStudioId;
-                    await db.SaveChangesAsync();
-                    return id;
-                }
+                (await db.Set<TextDocument>().FirstAsync(x => x.Id == entityId)).StudioId = directStudioId;
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(kind));
         }
+
+        await db.SaveChangesAsync();
+        return entityId;
     }
+
+    // An extension the kind plausibly carries, so the seeded row looks like one of its kind.
+    private static string BasenameFor(RenamerFileKind kind) => kind switch
+    {
+        RenamerFileKind.Video => "clip.mkv",
+        RenamerFileKind.Image => "shot.jpg",
+        RenamerFileKind.Audio => "track.mp3",
+        RenamerFileKind.Text => "notes.pdf",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 }
