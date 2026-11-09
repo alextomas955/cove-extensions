@@ -17,6 +17,9 @@ const server = vi.hoisted(() => ({
   // server answers with, or null for a clean full restore. A status alone does not settle the arm -
   // the panel may say the batch is untouched only where the server refused to act on it.
   undoFailure: null as Error | { status: number; body: string } | null,
+  // Refuses every summary read from the undo onward, which is the read the undo itself starts.
+  failSummaryAfterUndo: false,
+  undone: false,
 }));
 
 vi.mock("@cove/runtime/api", () => ({
@@ -30,6 +33,9 @@ vi.mock("@cove/runtime/api", () => ({
       );
 
     if (String(init.method).toUpperCase() !== "POST") {
+      if (server.failSummaryAfterUndo && server.undone) {
+        return json({ detail: "the summary could not be read" }, 503);
+      }
       // Written just now, so the panel offers the button rather than an expired line.
       return json({
         hasBatch: true,
@@ -43,6 +49,7 @@ vi.mock("@cove/runtime/api", () => ({
       } satisfies LastBatchSummary);
     }
 
+    server.undone = true;
     if (server.undoFailure instanceof Error) return Promise.reject(server.undoFailure);
     if (server.undoFailure) return json(server.undoFailure.body, server.undoFailure.status);
     return json({
@@ -80,6 +87,8 @@ async function undoAndReadFeedback(): Promise<string> {
 
 beforeEach(() => {
   server.undoFailure = null;
+  server.failSummaryAfterUndo = false;
+  server.undone = false;
 });
 
 afterEach(cleanup);
@@ -123,4 +132,12 @@ test("a clean undo still reports the restore it performed", async () => {
 
   expect(text).not.toMatch(/couldn't/i);
   expect(text).toContain("Undone: 4 files moved back to their original names.");
+});
+
+test("an undo whose summary re-read fails still reports what the undo did", async () => {
+  server.failSummaryAfterUndo = true;
+  const text = await undoAndReadFeedback();
+
+  expect(text).toContain("Undone: 4 files moved back to their original names.");
+  expect(text).toContain("Couldn't check for a recent rename");
 });
