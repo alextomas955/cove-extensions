@@ -75,8 +75,10 @@ public static class Problems
 /// <remarks>
 /// One type per status, because a result declares exactly one response schema and the document is
 /// emitted from the handler's declared return type. The framework's own <c>TypedResults.Problem</c>
-/// writes the right body but declares <c>500</c> whatever status it was given, so it cannot describe
-/// these arms.
+/// returns a single type carrying a <see cref="ProblemDetails"/>, so a handler cannot declare two
+/// statuses through it, and the body it describes has neither extension member. <c>ProducesProblem</c>
+/// does not help: it is generic over the builder, not over the body, so it also describes the base
+/// type.
 /// <para>
 /// Not every refusal uses one. A route answering <c>404</c> says all it has to say in the status, so
 /// it returns no body at all.
