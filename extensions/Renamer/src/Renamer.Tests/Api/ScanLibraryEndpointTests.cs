@@ -2,6 +2,7 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Data;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -461,16 +462,37 @@ public sealed class ScanLibraryEndpointTests
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(RunId, principal, default)));
     }
 
+    // These two cases assert the code and not only the 400. The route answers two different 400s and
+    // the panel reads the code to decide what it says, so a status alone would survive either branch
+    // collapsing into the other.
     [Fact]
-    public async Task ScanRowsAsync_UnknownKindOrBucket_Returns400()
+    public async Task ScanRowsAsync_UnknownKind_RefusesAsUnsupportedEntityType()
     {
         var (ext, _) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, "gallery", null, null, null, null), principal, default)));
-        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, null, null, null, null, "nonsense"), principal, default)));
+        // A null bucket parses as "no filter", so this request reaches the kind check.
+        var result = await ext.ScanRowsAsync(
+            new global::Renamer.Contracts.ScanRowsRequest(null, "gallery", null, null, null, null),
+            principal, default);
+
+        var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
+        Assert.Equal("UNSUPPORTED_ENTITY_TYPE", bad.Problem.Code);
+    }
+
+    [Fact]
+    public async Task ScanRowsAsync_UnknownBucket_RefusesAsUnsupportedBucket()
+    {
+        var (ext, _) = await NewExtensionAsync();
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+        // The bucket is read before the kind, so a request naming no kind still stops here.
+        var result = await ext.ScanRowsAsync(
+            new global::Renamer.Contracts.ScanRowsRequest(null, null, null, null, null, "nonsense"),
+            principal, default);
+
+        var bad = Assert.IsType<BadRequestProblem>(Unwrap(result));
+        Assert.Equal("UNSUPPORTED_BUCKET", bad.Problem.Code);
     }
 
     [Fact]
