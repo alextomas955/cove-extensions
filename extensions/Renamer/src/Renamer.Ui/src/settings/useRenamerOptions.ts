@@ -15,6 +15,9 @@
  * the document from before the save and the panel is the only thing that knows what the server took.
  * Everything measured against what is stored - whether there is an unsaved edit, what Discard goes
  * back to, what a further edit rebases on - reads `stored`, never the cache directly.
+ *
+ * What the page says about saving is one derived value, {@link SaveBarState}, so no two parts of
+ * the screen can disagree about which state the page is in or decide eligibility for themselves.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,24 +30,73 @@ const SAVED_FLASH_MS = 3000;
 
 export type SetOption = <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
 
+/**
+ * What the page has to say about saving, as one value. The states a bar could otherwise be in at
+ * once - an edit reported as saved, a recovery reported as an ordinary unsaved change, a Save
+ * offered where the server refuses one - are not expressible here.
+ *
+ * `unconfirmed` on a save is the re-read after the write that did not land: what is on screen is
+ * what was sent, not what the server read back.
+ */
+export type SaveBarState =
+  | { kind: "unsaved" }
+  | { kind: "recovered" }
+  | { kind: "blocked"; migration: "name" | "destination" }
+  | { kind: "saved"; unconfirmed: boolean }
+  | { kind: "failed"; detail: string };
+
+/**
+ * Whether Save acts in `state`. A blocked save is one the endpoint refuses, and a reported save has
+ * nothing left to send; every other state has a document the server would take.
+ */
+export function canSave(state: SaveBarState): boolean {
+  return state.kind !== "blocked" && state.kind !== "saved";
+}
+
 export interface UseRenamerOptions {
   options: RenamerOptions | null;
   loading: boolean;
   loadError: string | null;
   saving: boolean;
-  saveError: string | null;
-  /** The write landed. A `loadError` beside it is the re-read after it that did not. */
-  savedFlash: boolean;
+  /** Null when the page has nothing to report about saving, which is also when the bar is absent. */
+  saveBar: SaveBarState | null;
   recoveredFromBadBlob: boolean;
   pendingNameMigration: boolean;
   pendingDestinationMigration: boolean;
   dirty: boolean;
-  canSave: boolean;
   load: () => Promise<void>;
   onSave: () => Promise<void>;
   discard: () => void;
   set: SetOption;
   setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
+}
+
+/**
+ * The one state the bar is in, chosen in the order of what the user did last: the attempt they just
+ * made, then an edit they have not sent, then the save that cleared one, then a stored document the
+ * server could not read. An outstanding conversion replaces the two states that would offer a Save
+ * the endpoint refuses, so the bar carries the refusal rather than a dead button.
+ */
+function buildSaveBar(state: {
+  saveError: string | null;
+  dirty: boolean;
+  savedFlash: boolean;
+  loadError: string | null;
+  recovered: boolean;
+  pendingNameMigration: boolean;
+  pendingDestinationMigration: boolean;
+}): SaveBarState | null {
+  const blocked: SaveBarState | null = state.pendingNameMigration
+    ? { kind: "blocked", migration: "name" }
+    : state.pendingDestinationMigration
+      ? { kind: "blocked", migration: "destination" }
+      : null;
+
+  if (state.saveError !== null) return { kind: "failed", detail: state.saveError };
+  if (state.dirty) return blocked ?? { kind: "unsaved" };
+  if (state.savedFlash) return { kind: "saved", unconfirmed: state.loadError !== null };
+  if (state.recovered) return blocked ?? { kind: "recovered" };
+  return null;
 }
 
 export function useRenamerOptions(): UseRenamerOptions {
@@ -72,13 +124,15 @@ export function useRenamerOptions(): UseRenamerOptions {
   const saved = query.data?.options ?? null;
   // Held against the read it was written past, so the next read to land supersedes it with nothing to
   // clear: a successful read is the only thing that moves `dataUpdatedAt`.
-  const stored =
-    written !== null && written.pastRead === query.dataUpdatedAt ? written.options : saved;
+  const outstandingWrite =
+    written !== null && written.pastRead === query.dataUpdatedAt ? written : null;
+  const stored = outstandingWrite?.options ?? saved;
   const options = draft ?? stored;
 
   // The stored blob could not be read and the server answered with defaults. Non-blocking: the panel
-  // renders so a Save rewrites a clean blob over the bad data.
-  const recoveredFromBadBlob = query.data?.unreadable ?? false;
+  // renders so a Save rewrites a clean blob over the bad data. A write that landed is what replaces
+  // that blob, so it ends the recovery whether or not the read after it came back to say so.
+  const recoveredFromBadBlob = outstandingWrite === null && (query.data?.unreadable ?? false);
   // The stored blob still holds a shape the one-time conversion has not resolved. The server refuses
   // a save while either is true; the panel disables Save rather than letting the user meet a 409.
   const pendingNameMigration = query.data?.pendingNameMigration ?? false;
@@ -88,10 +142,6 @@ export function useRenamerOptions(): UseRenamerOptions {
 
   const dirty =
     draft !== null && stored !== null && JSON.stringify(draft) !== JSON.stringify(stored);
-  // After recovering from an unreadable blob, the loaded options are the defaults and nothing looks
-  // "dirty" - but a Save is still needed to overwrite the bad stored data, so allow it explicitly.
-  const canSave =
-    (dirty || recoveredFromBadBlob) && !pendingNameMigration && !pendingDestinationMigration;
 
   // Cleared on unmount, so a save that lands as the panel closes sets no state on a gone component.
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -184,13 +234,19 @@ export function useRenamerOptions(): UseRenamerOptions {
     loading: query.isPending,
     loadError,
     saving,
-    saveError,
-    savedFlash,
+    saveBar: buildSaveBar({
+      saveError,
+      dirty,
+      savedFlash,
+      loadError,
+      recovered: recoveredFromBadBlob,
+      pendingNameMigration,
+      pendingDestinationMigration,
+    }),
     recoveredFromBadBlob,
     pendingNameMigration,
     pendingDestinationMigration,
     dirty,
-    canSave,
     load: async () => {
       await refetch();
     },

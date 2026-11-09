@@ -120,12 +120,12 @@ beforeEach(() => {
 test("an edit is sent back as the whole settings document", async () => {
   const hook = await mountHook();
 
-  expect(hook.current.canSave).toBe(false);
+  expect(hook.current.saveBar).toBeNull();
   commit(() => {
     hook.current.set("filenameTemplate", "$studio - $title");
   });
   expect(hook.current.dirty).toBe(true);
-  expect(hook.current.canSave).toBe(true);
+  expect(hook.current.saveBar).toEqual({ kind: "unsaved" });
 
   await act(async () => {
     await hook.current.onSave();
@@ -140,29 +140,30 @@ test("an edit is sent back as the whole settings document", async () => {
   expect(hook.current.dirty).toBe(false);
 });
 
-test.each([["pendingNameMigration" as const], ["pendingDestinationMigration" as const]])(
-  "an edit over a blob awaiting %s is never sent",
-  async (pending) => {
-    answers({ [pending]: true });
-    const hook = await mountHook();
+test.each([
+  ["pendingNameMigration" as const, "name" as const],
+  ["pendingDestinationMigration" as const, "destination" as const],
+])("an edit over a blob awaiting %s is never sent", async (pending, migration) => {
+  answers({ [pending]: true });
+  const hook = await mountHook();
 
-    commit(() => {
-      hook.current.set("filenameTemplate", "$studio - $title");
-    });
+  commit(() => {
+    hook.current.set("filenameTemplate", "$studio - $title");
+  });
 
-    // Dirty is the usual reason Save lights up, so the refusal has to survive an edit.
-    expect(hook.current.dirty).toBe(true);
-    expect(hook.current.canSave).toBe(false);
+  // Dirty is the usual reason Save lights up, so the refusal has to survive an edit, and the bar
+  // has to carry which conversion is outstanding rather than reading as an ordinary unsaved edit.
+  expect(hook.current.dirty).toBe(true);
+  expect(hook.current.saveBar).toEqual({ kind: "blocked", migration });
 
-    await act(async () => {
-      await hook.current.onSave();
-    });
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
-    expect(endpoint.sent, "a save was sent while a conversion was outstanding").toEqual([]);
-    expect(hook.current.saveError).toBeNull();
-    expect(hook.current.savedFlash).toBe(false);
-  },
-);
+  expect(endpoint.sent, "a save was sent while a conversion was outstanding").toEqual([]);
+  // Unchanged: a save that never went out reports neither an outcome nor a failure.
+  expect(hook.current.saveBar).toEqual({ kind: "blocked", migration });
+});
 
 test("an unreadable stored blob offers a save although nothing is edited", async () => {
   // Nothing is dirty - the endpoint answered with the defaults - but the bad blob is still stored, and
@@ -172,7 +173,7 @@ test("an unreadable stored blob offers a save although nothing is edited", async
 
   expect(hook.current.dirty).toBe(false);
   expect(hook.current.recoveredFromBadBlob).toBe(true);
-  expect(hook.current.canSave).toBe(true);
+  expect(hook.current.saveBar).toEqual({ kind: "recovered" });
 
   await act(async () => {
     await hook.current.onSave();
@@ -185,7 +186,24 @@ test("an unreadable stored blob offers a save although nothing is edited", async
     "the save to re-read the stored blob",
     () => !hook.current.recoveredFromBadBlob,
   );
-  expect(hook.current.canSave).toBe(false);
+  expect(hook.current.saveBar).toEqual({ kind: "saved", unconfirmed: false });
+});
+
+test("a recovery save the page could not read back still ends the recovery", async () => {
+  // The write is what replaces the unreadable document. Until a read lands the cached response
+  // still reports the blob that write replaced, so reading recovery off it asks for the same save
+  // a second time.
+  answers({ unreadable: true });
+  const hook = await mountHook();
+
+  endpoint.failNextRead = true;
+  await act(async () => {
+    await hook.current.onSave();
+  });
+
+  expect(endpoint.sent).toHaveLength(1);
+  expect(hook.current.recoveredFromBadBlob).toBe(false);
+  expect(hook.current.saveBar).toEqual({ kind: "saved", unconfirmed: true });
 });
 
 test("discard restores what the endpoint answered with", async () => {
@@ -258,8 +276,10 @@ test("a save whose re-read fails keeps the saved values on screen and says so", 
     hook.current.options?.filenameTemplate,
     "the pre-save document replaced the values that were written",
   ).toBe(edited);
-  expect(hook.current.savedFlash, "the write that landed is not reported").toBe(true);
-  expect(hook.current.saveError, "a write that succeeded reads as one that failed").toBeNull();
+  expect(
+    hook.current.saveBar,
+    "the write that landed is reported as one that failed, or not at all",
+  ).toEqual({ kind: "saved", unconfirmed: true });
   expect(
     hook.current.loadError,
     "nothing says why the panel cannot confirm the save",
@@ -298,16 +318,15 @@ test.each([
       await hook.current.onSave();
     });
     expect(
-      hook.current.saveError !== null || hook.current.savedFlash,
+      hook.current.saveBar,
       "the save said nothing, so there is no message for discard to clear",
-    ).toBe(true);
+    ).not.toBeNull();
 
     commit(() => {
       hook.current.discard();
     });
 
-    expect(hook.current.saveError).toBeNull();
-    expect(hook.current.savedFlash).toBe(false);
+    expect(hook.current.saveBar).toBeNull();
     expect(hook.current.dirty).toBe(false);
     expect(hook.current.options?.filenameTemplate).toBe(restores);
   },

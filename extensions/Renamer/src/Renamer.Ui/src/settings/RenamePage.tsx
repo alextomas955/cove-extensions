@@ -17,66 +17,77 @@ import { TokenSettingsSection } from "./TokenSettingsSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
 import { useLibraryPaths } from "./useLibraryPaths";
 import { AdvancedSection } from "./AdvancedSection";
-import { useRenamerOptions } from "./useRenamerOptions";
+import { canSave, useRenamerOptions, type SaveBarState } from "./useRenamerOptions";
 import { useRenamePreview } from "./useRenamePreview";
 import { useRenameLibrary } from "./useRenameLibrary";
 
 // The error dot takes its colour from an inline style, so its class carries none.
-function dotClass(saveError: string | null, savedFlash: boolean): string {
-  if (saveError) return "";
-  return savedFlash ? "bg-green-400" : "bg-amber-400";
+function dotClass(state: SaveBarState): string {
+  if (state.kind === "failed") return "";
+  return state.kind === "saved" ? "bg-green-400" : "bg-amber-400";
 }
 
-function SaveBarMessage({
-  saveError,
-  savedFlash,
-  unconfirmed,
-}: Readonly<{ saveError: string | null; savedFlash: boolean; unconfirmed: boolean }>) {
-  if (saveError) {
-    return (
-      <StatusText kind="error">
-        Couldn't save settings: {saveError}. Your changes are still here; try Save again.
-      </StatusText>
-    );
-  }
-  if (savedFlash) {
-    // The reason the read failed is on the notice above the panel.
-    return (
-      <StatusText kind="success">
-        {unconfirmed
-          ? "Settings saved. The page couldn't read them back, so what's shown is what was sent."
-          : "Settings saved."}
-      </StatusText>
-    );
-  }
+function Headline({ title, detail }: Readonly<{ title: string; detail: string }>) {
   return (
     <>
-      <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
-      <div className="mt-0.5 text-xs text-secondary">Nothing on disk changes until you save.</div>
+      <div className="text-sm font-semibold text-foreground">{title}</div>
+      <div className="mt-0.5 text-xs text-secondary">{detail}</div>
     </>
   );
 }
 
+function SaveBarMessage({ state }: Readonly<{ state: SaveBarState }>) {
+  switch (state.kind) {
+    case "failed":
+      return (
+        <StatusText kind="error">
+          Couldn't save settings: {state.detail}. Your changes are still here; try Save again.
+        </StatusText>
+      );
+    case "saved":
+      // The reason the read failed is on the notice above the panel.
+      return (
+        <StatusText kind="success">
+          {state.unconfirmed
+            ? "Settings saved. The page couldn't read them back, so what's shown is what was sent."
+            : "Settings saved."}
+        </StatusText>
+      );
+    case "recovered":
+      return (
+        <Headline
+          title="Recovered settings not stored yet"
+          detail="Your saved settings couldn't be read. Save to replace them with the defaults shown."
+        />
+      );
+    case "blocked":
+      return (
+        <Headline
+          title="Saving is paused"
+          detail={`${
+            state.migration === "name"
+              ? "Your tag and performer rules are"
+              : "Your destination folders are"
+          } waiting for a one-time conversion. Restart Cove, then reload this page.`}
+        />
+      );
+    case "unsaved":
+      return <Headline title="Unsaved changes" detail="Nothing on disk changes until you save." />;
+  }
+}
+
 function SaveBar({
-  visible,
+  state,
   saving,
-  saveError,
-  savedFlash,
-  unconfirmed,
-  canSave,
   onSave,
   onDiscard,
 }: Readonly<{
-  visible: boolean;
+  state: SaveBarState | null;
   saving: boolean;
-  saveError: string | null;
-  savedFlash: boolean;
-  unconfirmed: boolean;
-  canSave: boolean;
   onSave: () => void;
   onDiscard: () => void;
 }>) {
-  if (!visible) return null;
+  if (state === null) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
       {/* py-3.5 is host-absent (Cove's own UI never uses it, so its prebuilt bundle omits it);
@@ -89,17 +100,21 @@ function SaveBar({
             the full-strength utility and the error dot resolved to no fill. The colour scale's custom
             property is declared whether or not a utility using it is, so inline the tone off that. */}
         <span
-          className={`h-2 w-2 shrink-0 rounded-full ${dotClass(saveError, savedFlash)}`}
-          style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
+          className={`h-2 w-2 shrink-0 rounded-full ${dotClass(state)}`}
+          style={state.kind === "failed" ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
-          <SaveBarMessage saveError={saveError} savedFlash={savedFlash} unconfirmed={unconfirmed} />
+          <SaveBarMessage state={state} />
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Button variant="ghost" onClick={onDiscard} disabled={saving}>
-            Discard
-          </Button>
-          <Button onClick={onSave} disabled={!canSave || saving}>
+          {/* Recovery is the one state with no edit and no message behind it, so there is nothing
+              for Discard to take back. */}
+          {state.kind === "recovered" ? null : (
+            <Button variant="ghost" onClick={onDiscard} disabled={saving}>
+              Discard
+            </Button>
+          )}
+          <Button onClick={onSave} disabled={!canSave(state) || saving}>
             {saving ? <Spinner /> : null}
             Save changes
           </Button>
@@ -115,13 +130,11 @@ export function RenamePage() {
     loading,
     loadError,
     saving,
-    saveError,
-    savedFlash,
+    saveBar,
     recoveredFromBadBlob,
     pendingNameMigration,
     pendingDestinationMigration,
     dirty,
-    canSave,
     load,
     onSave,
     discard,
@@ -194,11 +207,9 @@ export function RenamePage() {
     .filter((r) => r.flags.includes("empty"))
     .map((r) => r.sampleLabel);
 
-  const barWanted = dirty || savedFlash || saveError !== null;
-
   // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent - inline it.
   return (
-    <div className="space-y-6" style={barWanted ? { paddingBottom: "5rem" } : undefined}>
+    <div className="space-y-6" style={saveBar ? { paddingBottom: "5rem" } : undefined}>
       {loadError ? (
         <StatusText kind="error">
           Couldn&apos;t re-read your saved settings: {loadError}. What&apos;s shown is the last copy
@@ -266,17 +277,12 @@ export function RenamePage() {
 
       <UndoSection />
 
-      {/* The bar and the dialog are both fixed at the same layer, and this one is the later sibling,
-          so with the dialog open the bar paints over it and its buttons stay mouse-reachable. The
-          clearance below the page is for the page behind the dialog, which must not shift under an
-          open overlay. */}
+      {/* The bar and the dialog are both fixed at the same layer, and this one is the later
+          sibling, so with the dialog open the bar would paint over it. The page keeps its clearance
+          meanwhile, because the page behind the dialog must not shift under an open overlay. */}
       <SaveBar
-        visible={barWanted && !dryRunOpen}
+        state={dryRunOpen ? null : saveBar}
         saving={saving}
-        saveError={saveError}
-        savedFlash={savedFlash}
-        unconfirmed={loadError !== null}
-        canSave={canSave}
         onSave={() => void onSave()}
         onDiscard={discard}
       />
