@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 
 import { createTestQueryClient, withQueryClient } from "../common/lib/testQueryClient";
 import type { LastBatchSummary, UndoResult } from "../wire";
-import { jsonResponse } from "../common/lib/testResponses";
+import { jsonResponse, unparseableResponse } from "../common/lib/testResponses";
 
 // The three counters the summary carries. The server states all three; nothing here derives one
 // from the others.
@@ -78,7 +78,12 @@ vi.mock("@cove/runtime/api", () => ({
 
     server.undone = true;
     if (server.undoFailure instanceof Error) return Promise.reject(server.undoFailure);
-    if (server.undoFailure) return jsonResponse(server.undoFailure.body, server.undoFailure.status);
+    // The scripted bodies are raw text under a JSON content type, so reading one throws inside the
+    // client. That is what a lost undo looks like at this boundary, including the 200 whose body
+    // the client cannot read.
+    if (server.undoFailure) {
+      return unparseableResponse(server.undoFailure.body, server.undoFailure.status);
+    }
     return jsonResponse(server.undoResult);
   },
 }));
