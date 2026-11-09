@@ -151,6 +151,9 @@ test("a job that stops reporting progress ends the run instead of polling foreve
   expect(hook.current.runLibraryFeedback?.kind).toBe("error");
   expect(hook.current.runLibraryFeedback?.text).toContain("Couldn't confirm the rename");
   expect(hook.current.dryRunOpen).toBe(false);
+  // A job nobody can read the end of may have journalled rows, and the footer is the only place
+  // that would say so.
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
 });
 
 test("a completed job still resolves through the same poll", async () => {
@@ -205,6 +208,9 @@ test("a refused rename is the one arm that reports the library as untouched", as
 
   expect(hook.current.runLibraryFeedback?.kind).toBe("error");
   expect(hook.current.runLibraryFeedback?.text).toContain("Nothing was changed");
+  // And the one arm that starts no re-read. The other arms above show the entry does go stale, so
+  // this is not an absence nothing could have produced.
+  expect(hook.lastBatchStale(), "a refused rename still re-read the undo line").toBe(false);
 });
 
 // Neither of these says the job did not start. A 500 can follow an accepted job, and a 202 whose
@@ -221,16 +227,25 @@ test.each([
   expect(hook.current.runLibraryFeedback?.kind).toBe("error");
   expect(hook.current.runLibraryFeedback?.text).not.toContain("Nothing was changed");
   expect(hook.current.runLibraryFeedback?.text).toContain("Some files may already be renamed");
+  expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
 });
 
-test("a job that fails after it started is reported as a rename that stopped part-way", async () => {
-  host.status = "failed";
-  const hook = mountHook();
+// A library rename journals each file as it moves and the journal is flushed as the run unwinds, so
+// both endings leave rows an undo would act on.
+test.each(["failed", "cancelled"] as const)(
+  "a job that ends %s after it started is reported as a rename that stopped part-way",
+  async (status) => {
+    host.status = status;
+    const hook = mountHook();
 
-  await renameToSettlement(hook);
+    await renameToSettlement(hook);
 
-  // The started branch of the error builder, not the refused one: which of the two ran is the hook's
-  // decision, and what each says is renameLibraryBannerLogic's.
-  expect(hook.current.runLibraryFeedback?.kind).toBe("error");
-  expect(hook.current.runLibraryFeedback?.text).toContain("The rename stopped before it finished");
-});
+    // The started branch of the error builder, not the refused one: which of the two ran is the
+    // hook's decision, and what each says is renameLibraryBannerLogic's.
+    expect(hook.current.runLibraryFeedback?.kind).toBe("error");
+    expect(hook.current.runLibraryFeedback?.text).toContain(
+      "The rename stopped before it finished",
+    );
+    expect(hook.lastBatchStale(), "the undo line was not told to re-read").toBe(true);
+  },
+);

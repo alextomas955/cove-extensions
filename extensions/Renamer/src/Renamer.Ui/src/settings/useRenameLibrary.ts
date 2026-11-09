@@ -77,6 +77,9 @@ export function useRenameLibrary(): UseRenameLibrary {
     setRenamingLibrary(true);
     setRunLibraryFeedback(null);
     setRenameProgress(null);
+    // Only a refusal is a statement that no rename began; see the catch. Every other ending may
+    // have journalled rows, so it changes what an undo would put back.
+    let mayHaveRenamed = true;
     try {
       const { jobId, runId } = (await renamerRenameLibrary({ throwOnError: true })).data;
       await runPoll(jobId, (job) => {
@@ -96,9 +99,12 @@ export function useRenameLibrary(): UseRenameLibrary {
       if (!mounted.current) return;
       setDryRunOpen(false);
       setRunLibraryFeedback(buildRenameLibraryResult(summary));
-      // The rename changed what an undo would put back, whoever is rendering that line.
-      void queryClient.invalidateQueries({ queryKey: LAST_BATCH_KEY });
     } catch (err) {
+      // The route authorizes before it enqueues anything, so a refusal is the one failure that
+      // followed no accepted job. Every other failure may follow one - including one whose
+      // acceptance was never read back - so neither the banner nor the undo line may treat the
+      // library as untouched.
+      mayHaveRenamed = !isRefusal(err);
       if (mounted.current) {
         const text = errorText(err);
         setRunLibraryFeedback({
@@ -106,14 +112,17 @@ export function useRenameLibrary(): UseRenameLibrary {
           text:
             err instanceof JobUnresponsiveError
               ? buildRenameLibraryUnconfirmed(err.message)
-              : // Only a refusal is a statement that no rename began: the route authorizes before it
-                // enqueues anything. Every other failure may follow an accepted job - including one
-                // whose acceptance was never read back - so the banner cannot claim the library is
-                // untouched.
-                buildRenameLibraryError(text, !isRefusal(err)),
+              : buildRenameLibraryError(text, mayHaveRenamed),
         });
       }
     } finally {
+      // Every arm but a refusal reaches here with files possibly moved and journalled, so the undo
+      // line re-reads from the success, failure, cancellation and unconfirmed endings alike. Not
+      // awaited: the banner reports the rename and not what undo now holds. An unmount leaves the
+      // query inactive, so this marks it stale and starts no read.
+      if (mayHaveRenamed) {
+        void queryClient.invalidateQueries({ queryKey: LAST_BATCH_KEY });
+      }
       if (mounted.current) {
         setRenamingLibrary(false);
         setRenameProgress(null);

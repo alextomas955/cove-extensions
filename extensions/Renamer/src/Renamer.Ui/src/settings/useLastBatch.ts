@@ -3,9 +3,10 @@
  *
  * The summary is server state, so it is a query on the host's own QueryClient: Cove mounts the
  * provider above every extension surface and its import map serves one copy of the library, so the
- * cache here is the cache the host uses. Anything that changes what undo would act on invalidates
- * {@link LAST_BATCH_KEY} and this re-reads, which is why neither this hook nor the panel passes a
- * refresh token around.
+ * cache here is the cache the host uses. Anything on this page that changes what undo would act on
+ * invalidates {@link LAST_BATCH_KEY} and this re-reads, which is why neither this hook nor the
+ * panel passes a refresh token around. What happens off the page is covered by the freshness
+ * setting below instead.
  *
  * Undo is a plain callback rather than a mutation. It resolves a sentence for every arm and never
  * rejects, so there is no failure for a mutation to carry - and the host's MutationCache reports one
@@ -41,7 +42,16 @@ interface LastBatch {
 export function useLastBatch(): LastBatch {
   const queryClient = useQueryClient();
 
-  const query = useQuery(renamerGetLastBatchOptions());
+  const query = useQuery({
+    ...renamerGetLastBatchOptions(),
+    // Cove's QueryClient holds a query fresh for thirty seconds, and renames happen that this page
+    // never sees: "Rename selected" is enqueued by an action handler, which runs outside React with
+    // no QueryClient to reach, and auto-rename-on-update runs in the host with no client involved at
+    // all. The job also has not run by the time either returns, so there is no moment during the
+    // rename at which a read would be right. Mount and window focus are the moments that are, which
+    // is what freshness of zero buys. The response is a fixed size whatever the rename renamed.
+    staleTime: 0,
+  });
 
   const undo = useCallback(async (): Promise<UndoFeedback> => {
     try {
