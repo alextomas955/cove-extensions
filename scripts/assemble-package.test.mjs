@@ -361,6 +361,53 @@ test("the three marker families produce no hit on a project url value", () => {
   );
 });
 
+test("fails: the same artifact declared twice, rather than copying it over itself", () => {
+  // A duplicate reads as two shipped files in the reported count while one file lands, so the count
+  // the caller prints would describe a package that is not there.
+  const fixture = fixtureRoot({ artifacts: [...DECLARED, "Fixture.dll"] });
+
+  const result = assemble(fixture);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.failures.some((failure) => /^DUPLICATE: artifacts declares Fixture\.dll/.test(failure)),
+    result.failures.join("\n"),
+  );
+  assert.equal(fs.existsSync(fixture.packageDir), false, "nothing was written");
+});
+
+test("only a generic licence name may come from the repo root, so no unrelated root file ships", () => {
+  // The repo-root fallback exists so a package's licence and the repository's are one document. Were
+  // it open to any name, a file sitting at the repository root would satisfy a declaration the
+  // extension's own build never produced - and ship inside that extension's package.
+  const fixture = fixtureRoot({ artifacts: [...DECLARED, "settings.json"] });
+  fs.writeFileSync(path.join(fixture.root, "settings.json"), '{ "not": "this extension\'s" }\n');
+
+  const result = assemble(fixture);
+
+  assert.equal(result.ok, false);
+  const missing = result.failures.find((failure) => failure.startsWith("MISSING:"));
+  assert.match(missing, /declared artifact settings\.json was not found in any source root/);
+  // The repo root is still named among the roots searched, so the message stays truthful about where
+  // it looked.
+  assert.match(missing, /settings\.json/);
+  assert.equal(fs.existsSync(fixture.packageDir), false, "nothing was written");
+});
+
+test("the licence the repo root supplies is the repository's own, recorded as coming from there", () => {
+  // The positive control for the case above: the same fallback that must refuse `settings.json`
+  // has to keep supplying LICENSE, or the restriction would be satisfied by a fallback that never
+  // resolves anything.
+  const fixture = fixtureRoot();
+
+  const result = assemble(fixture);
+
+  assert.equal(result.ok, true, result.failures.join("\n"));
+  const licence = result.copied.find((file) => file.name === "LICENSE");
+  assert.equal(licence.root, "repo-root");
+  assert.equal(fs.readFileSync(path.join(fixture.packageDir, "LICENSE"), "utf8"), "AGPL-3.0\n");
+});
+
 test("rejects a declared name that escapes the package, before any source is read", () => {
   const escapes = [
     "/" + "etc/passwd",

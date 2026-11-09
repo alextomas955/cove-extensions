@@ -488,13 +488,13 @@ test("an entry declaring no test project stays valid", () => {
   }
 });
 
-test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
-  // Both files declare a minCoveVersion. A disagreement is invisible until a user on the version
-  // between the two floors is either locked out or offered a zip their host cannot run.
+// One extension at version 0.3.0 declaring floor 1.1.0, with a registry manifest beside it holding
+// the given versions[] rows. The rows are the only thing the comparison cases vary.
+function registryManifestFixture(versions) {
   const entry = validEntry("com.example.foo", "Foo", {
     registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
   });
-  const root = makeFixture({
+  return makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("1.1.0"),
     extensionJsonByPath: {
@@ -504,11 +504,15 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
       }),
     },
     filesByPath: {
-      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
-        versions: [{ version: "0.3.0", minCoveVersion: "1.0.0" }],
-      }),
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({ versions }),
     },
   });
+}
+
+test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
+  // Both files declare a minCoveVersion. A disagreement is invisible until a user on the version
+  // between the two floors is either locked out or offered a zip their host cannot run.
+  const root = registryManifestFixture([{ version: "0.3.0", minCoveVersion: "1.0.0" }]);
   try {
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
@@ -524,28 +528,11 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
 test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
   // Each registry row describes an immutable published zip whose floor is the floor that zip needs,
   // so the two older rows here are correct precisely by disagreeing with the current one.
-  const entry = validEntry("com.example.foo", "Foo", {
-    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("1.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        version: "0.3.0",
-        minCoveVersion: "1.1.0",
-      }),
-    },
-    filesByPath: {
-      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
-        versions: [
-          { version: "0.3.0", minCoveVersion: "1.1.0" },
-          { version: "0.2.0", minCoveVersion: "1.0.0" },
-          { version: "0.1.0", minCoveVersion: "0.7.1" },
-        ],
-      }),
-    },
-  });
+  const root = registryManifestFixture([
+    { version: "0.3.0", minCoveVersion: "1.1.0" },
+    { version: "0.2.0", minCoveVersion: "1.0.0" },
+    { version: "0.1.0", minCoveVersion: "0.7.1" },
+  ]);
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
@@ -560,27 +547,10 @@ test("older versions[] rows with lower floors are not compared, so history stays
 test("two versions[] rows carrying the same version fail, naming the duplicated version", () => {
   // With two rows claiming one version, "the row describing the current version" is not well
   // defined, and the comparison would take whichever came first.
-  const entry = validEntry("com.example.foo", "Foo", {
-    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("1.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        version: "0.3.0",
-        minCoveVersion: "1.1.0",
-      }),
-    },
-    filesByPath: {
-      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
-        versions: [
-          { version: "0.3.0", minCoveVersion: "1.1.0" },
-          { version: "0.3.0", minCoveVersion: "1.1.0" },
-        ],
-      }),
-    },
-  });
+  const root = registryManifestFixture([
+    { version: "0.3.0", minCoveVersion: "1.1.0" },
+    { version: "0.3.0", minCoveVersion: "1.1.0" },
+  ]);
   try {
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);

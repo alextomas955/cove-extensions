@@ -120,6 +120,76 @@ test("the GA/pre-release split puts every tag carrying a pre-release component i
   );
 });
 
+// The legs decide which Cove hosts every later job runs against, so each role is named here rather
+// than compared against another call of the same resolver.
+const roles = (result) => result.legs.map((leg) => [leg.role, leg.tag, leg.advisory]);
+
+test("the three roles resolve to the floor, the newest GA and a pre-release newer than both", () => {
+  const result = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.0.0", "1.1.0", "1.2.0", "1.3.0-rc.2"],
+  });
+
+  assert.deepEqual(roles(result), [
+    ["floor", "1.1.0", false],
+    ["newest-ga", "1.2.0", false],
+    // Advisory: an upstream release-candidate regression must not gate a merge here.
+    ["newest-prerelease", "1.3.0-rc.2", true],
+  ]);
+});
+
+test("the newest GA is the newest at or above the floor, never a newer tag below it", () => {
+  // Published out of order, which is the state a patch on an older line leaves: 1.0.9 is the newest
+  // tag the registry lists and is below the floor, so it names no leg at all.
+  const result = resolveCoveLegs({ floor: "1.1.0", tags: ["1.1.0", "1.2.0", "1.0.9"] });
+
+  assert.deepEqual(roles(result), [
+    ["floor", "1.1.0", false],
+    ["newest-ga", "1.2.0", false],
+  ]);
+});
+
+test("a pre-release that sorts below the newest GA names no leg", () => {
+  // Upstream numbers a dev build after the release before it, so the newest pre-release published can
+  // sort below the newest GA - and testing it would be testing an older host than the GA leg already
+  // covers.
+  const result = resolveCoveLegs({ floor: "1.1.0", tags: ["1.1.0", "1.2.0", "1.2.0-dev.9"] });
+
+  assert.deepEqual(roles(result), [
+    ["floor", "1.1.0", false],
+    ["newest-ga", "1.2.0", false],
+  ]);
+});
+
+test("roles resolving to one tag merge into one leg, so a leg count is a distinct-image count", () => {
+  const result = resolveCoveLegs({ floor: "1.2.0", tags: ["1.1.0", "1.2.0"] });
+
+  // The floor is also the newest GA. Two legs on one image would read as coverage of two hosts.
+  assert.deepEqual(roles(result), [["floor+newest-ga", "1.2.0", false]]);
+  assert.equal(result.examined.roles, 2);
+});
+
+test("a pre-release floor no GA reaches omits the GA role, and the merged leg still gates a merge", () => {
+  // 1.9.0 is a GA, and it is below the floor. A leg below the floor boots a host that declines to
+  // load the extension, so every route 404s with nothing naming a version - the role is dropped
+  // rather than pointed at the nearest tag.
+  //
+  // The floor is also the newest pre-release, so the advisory role lands on the blocking floor's own
+  // tag. Advisory is the AND of the merged roles, so the leg stays blocking.
+  const result = resolveCoveLegs({ floor: "2.0.0-rc.1", tags: ["1.9.0", "2.0.0-rc.1"] });
+
+  assert.deepEqual(roles(result), [["floor+newest-prerelease", "2.0.0-rc.1", false]]);
+});
+
+test("the examined tally counts what was read, so a report cannot describe a list it never saw", () => {
+  const result = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["latest", "1.0.0", "1.1.0", "1.2.0", "1.3.0-rc.2"],
+  });
+
+  assert.deepEqual(result.examined, { tags: 5, parsed: 4, ga: 3, prerelease: 1, roles: 3 });
+});
+
 test("a floor tag absent from the registry's tag list is refused, never defaulted to something near it", () => {
   // A floor leg pointing at a tag that is not there would otherwise fail later, as an image pull or
   // a checkout, long after the value that caused it was chosen.
