@@ -23,6 +23,10 @@
       ],
       "@cove/runtime/components": ["../../../../.host-types/components/extension-shared.d.ts"],
       "@cove/runtime/api": ["../../../../.host-types/extensions/extension-api.d.ts"],
+      // Every other declaration the emit produced, by its path in the Cove tree, so a host contract
+      // is read from Cove rather than transcribed. Types only: unlike the two above, the host
+      // serves no module behind these, so a value import resolves to nothing at build time.
+      "@cove/host/*": ["../../../../.host-types/*"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],
