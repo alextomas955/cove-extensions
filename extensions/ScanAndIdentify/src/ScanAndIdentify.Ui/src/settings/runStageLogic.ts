@@ -153,7 +153,7 @@ export function runEndText(run: RunView): string | null {
 }
 
 /** States a stage is still moving through, and the only ones a later read can change. */
-const CARRIED_ON: readonly RunStageState[] = ["starting", "queued", "running"];
+const CARRIED_ON: ReadonlySet<RunStageState> = new Set(["starting", "queued", "running"]);
 
 /** One read of the run route: either the run came back, or the read itself failed. */
 export type PollObservation = { read: "ok"; run: RunView } | { read: "failed" };
@@ -183,7 +183,7 @@ export function isRunInFlight(run: RunView | undefined): boolean {
  * which is the window a cancel has nothing to stop in.
  */
 export function stageInFlightOf(run: RunView): RunStageView | null {
-  return run.stages.find((stage) => CARRIED_ON.includes(stage.state)) ?? null;
+  return run.stages.find((stage) => CARRIED_ON.has(stage.state)) ?? null;
 }
 
 /** Whether a stage of this run is claimed, queued or running. */

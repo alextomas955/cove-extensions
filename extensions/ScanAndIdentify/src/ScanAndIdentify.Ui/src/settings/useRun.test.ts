@@ -5,7 +5,13 @@ import "../common/lib/wireErrors";
 
 import { test, expect, afterEach, beforeEach, vi } from "vitest";
 import { createElement } from "react";
-import { configure, render as renderSection, cleanup, waitFor } from "@testing-library/react";
+import {
+  configure,
+  render as renderSection,
+  cleanup,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { calledPaths, refusal, resetServer, runView, server, stageDetail } from "./testRun";
@@ -47,7 +53,7 @@ beforeEach(resetServer);
 afterEach(cleanup);
 
 function render(): HTMLElement {
-  return renderSection(createElement(RunSection)).container;
+  return renderSection(createElement(RunSection, { optionsDirty: false })).container;
 }
 
 /** The state each stage row shows, keyed by the stage it names. */
@@ -426,7 +432,24 @@ test("the poll keeps reading after the run ends and stops once the last stage se
   const readsBefore = calledPaths().length;
   await new Promise((resolve) => setTimeout(resolve, RUN_POLL_INTERVAL_MS * 2));
 
-  expect(calledPaths().length).toBe(readsBefore);
+  expect(calledPaths()).toHaveLength(readsBefore);
+});
+
+test("unsaved options block Run and the reason is announced with the button", async () => {
+  server.reads = [undefined];
+
+  const container = renderSection(createElement(RunSection, { optionsDirty: true }))
+    .container;
+  await waitFor(() => {
+    expect(runButton(container), "the Run button to render").not.toBeNull();
+  });
+
+  const button = runButton(container);
+  expect(button?.disabled, "Run to be refused while the options are unsaved").toBe(true);
+
+  // Announced rather than only drawn: the reason has to reach someone who never sees it beside the
+  // button it refuses.
+  expect(screen.getByRole("status").textContent).toContain("Save the run options first");
 });
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {

@@ -30,7 +30,7 @@ const WAITING: readonly RunStageView[] = RUN_STAGES.map((stage) => ({
 }));
 
 /** What the pass in flight is doing: how far it has got, what it is on, and what it has counted. */
-function StageProgress({ stage }: { stage: RunStageView }) {
+function StageProgress({ stage }: Readonly<{ stage: RunStageView }>) {
   const tally = stageTallyText(stage.detail);
   return (
     <>
@@ -47,7 +47,7 @@ function StageProgress({ stage }: { stage: RunStageView }) {
 }
 
 /** What one pass did, once the run has ended. */
-function StageOutcome({ stage }: { stage: RunStageView }) {
+function StageOutcome({ stage }: Readonly<{ stage: RunStageView }>) {
   const outcome = stageOutcomeText(stage);
   if (outcome === null) return null;
   return <StatusText kind={stage.state === "failed" ? "error" : "muted"}>{outcome}</StatusText>;
@@ -58,7 +58,7 @@ const DIRTY_OPTIONS =
   "Save the run options first. A run reads what is saved, not what is on screen.";
 
 /** The run: one button, and where each of the four stages has got to. */
-export function RunSection({ optionsDirty = false }: Readonly<{ optionsDirty?: boolean }> = {}) {
+export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>) {
   const { run, loading, forbidden, failure, claiming, cancelling, start, cancel } = useRun();
 
   if (forbidden) {
@@ -106,9 +106,9 @@ export function RunSection({ optionsDirty = false }: Readonly<{ optionsDirty?: b
           {claiming ? "Starting…" : "Run"}
         </Button>
         {optionsDirty ? (
-          <span id="scanandidentify-run-blocked" role="status">
+          <output id="scanandidentify-run-blocked">
             <StatusText kind="warning">{DIRTY_OPTIONS}</StatusText>
-          </span>
+          </output>
         ) : null}
         {inFlight ? (
           <Button variant="ghost" onClick={cancel} disabled={cancelling}>
