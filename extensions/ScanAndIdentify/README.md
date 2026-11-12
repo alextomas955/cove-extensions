@@ -45,6 +45,9 @@ own routes, under `/api/extensions/com.alextomas955.scanandidentify`:
 `POST /run/end` takes `cancelled`, `failed` or `stoppedByUser`. `completed` and `interrupted` are
 derived from the stage states, so the route refuses either with `400 INVALID_END_REASON`.
 
+Every refusal answers an RFC 9457 problem document. The code above is its `code` member, and
+`detail` carries the sentence a reader is shown.
+
 Both options routes require `extensions.configure`. The four run routes require `library.scan`,
 `jobs.run`, `library.identify` and `extensions.configure` together, the last because the run view
 answers the options document the options routes gate on it.

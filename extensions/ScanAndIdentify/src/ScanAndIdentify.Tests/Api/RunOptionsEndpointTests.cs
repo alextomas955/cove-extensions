@@ -32,7 +32,7 @@ public sealed class RunOptionsEndpointTests
 
         var result = await extension.GetOptionsAsync(FakePrincipalAccessor.None());
 
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(result));
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(result));
         Assert.Equal(0, store.SetCallCount);
     }
 
@@ -73,8 +73,8 @@ public sealed class RunOptionsEndpointTests
 
         var result = await extension.SaveOptionsAsync(Body("not json"), Configurer);
 
-        var bad = Assert.IsType<BadRequest<ErrorCode>>(HttpResultUnwrap.Unwrap(result));
-        Assert.Equal("INVALID_OPTIONS", bad.Value!.Code);
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("INVALID_OPTIONS", bad.Problem.Code);
         Assert.Equal(0, store.SetCallCount);
     }
 
@@ -87,7 +87,7 @@ public sealed class RunOptionsEndpointTests
         var result = await extension.SaveOptionsAsync(
             Body("""{"BackfillFingerprints":false}"""), FakePrincipalAccessor.None());
 
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(result));
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(result));
         Assert.Equal(0, store.SetCallCount);
     }
 

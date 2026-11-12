@@ -80,14 +80,22 @@ public sealed partial class ScanAndIdentify
         ArgumentNullException.ThrowIfNull(endpoints);
 
         endpoints.MapGet(CapabilitiesRoute, () => Capabilities())
-            .AllowWithoutCovePermission();
+            .AllowWithoutCovePermission()
+            .WithName("ScanAndIdentifyGetCapabilities")
+            .WithSummary("Report the host version and which host services resolved")
+            .WithDescription(
+                "The Cove version captured at startup and whether the job and scan services were available to this extension. Host facts, no library data and no configuration.");
 
         // Gated on extensions.configure, not on a media permission: this one document decides what a
         // later run does to the whole library, and it is the permission Cove's own extension-data
         // routes carry over the same bytes.
         endpoints.MapGet(OptionsRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
-            .RequireCovePermission(Permissions.ExtensionsConfigure);
+            .RequireCovePermission(Permissions.ExtensionsConfigure)
+            .WithName("ScanAndIdentifyGetOptions")
+            .WithSummary("Read the saved run options")
+            .WithDescription(
+                "Returns every member, filling any the stored document omits with its default. A run reads the same document through the same store, so the panel and a run can never disagree about what a stored blob means.");
 
         // Binds the raw HttpContext so a malformed body is this route's own 400 rather than a
         // framework 400 with no schema. .Accepts<> is what puts the request shape in the document.
@@ -95,7 +103,11 @@ public sealed partial class ScanAndIdentify
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SaveOptionsAsync(http.Request, principal, ct))
             .Accepts<RunOptions>("application/json")
-            .RequireCovePermission(Permissions.ExtensionsConfigure);
+            .RequireCovePermission(Permissions.ExtensionsConfigure)
+            .WithName("ScanAndIdentifySaveOptions")
+            .WithSummary("Replace the saved run options")
+            .WithDescription(
+                "The body replaces the whole document; a member it omits takes its default. A malformed body is refused with 400 and nothing is written.");
 
         // Nothing in the host orders the four stages. Identify is enqueued non-exclusive, so it runs
         // the moment it is asked for; only scan and generate share Cove's exclusive queue. The order
@@ -104,26 +116,42 @@ public sealed partial class ScanAndIdentify
         endpoints.MapPost(RunRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, CancellationToken ct)
                 => ClaimRunAsync(principal, jobs, ct))
-            .RequireCovePermission(PermissionMode.All, RunPermissions);
+            .RequireCovePermission(PermissionMode.All, RunPermissions)
+            .WithName("ScanAndIdentifyClaimRun")
+            .WithSummary("Claim a run and write down what it will do")
+            .WithDescription(
+                "Reads the saved options once and carries them on the run, so a switch flipped during the run changes nothing a later stage does. Refused with 409 while a run is still in flight.");
 
         endpoints.MapGet(RunRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, CancellationToken ct)
                 => ReadRunAsync(principal, jobs, ct))
-            .RequireCovePermission(PermissionMode.All, RunPermissions);
+            .RequireCovePermission(PermissionMode.All, RunPermissions)
+            .WithName("ScanAndIdentifyGetRun")
+            .WithSummary("Report the run as it stands")
+            .WithDescription(
+                "Every unsettled stage is re-read from its host job and a newly terminal state is written down. Answers 204 when no run has ever been claimed.");
 
         endpoints.MapPost(RunStagesRoute,
             (RunStageStarted? body, ICurrentPrincipalAccessor principal, IJobService jobs,
                 CancellationToken ct)
                 => RecordStageAsync(body, principal, jobs, ct))
             .Accepts<RunStageStarted>("application/json")
-            .RequireCovePermission(PermissionMode.All, RunPermissions);
+            .RequireCovePermission(PermissionMode.All, RunPermissions)
+            .WithName("ScanAndIdentifyRecordStage")
+            .WithSummary("Record a stage being started, and then its job id")
+            .WithDescription(
+                "The stage write is a transition from a named current state, which is what keeps two open pages from starting the same stage twice. The loser is refused with 409 before it issues a host request.");
 
         endpoints.MapPost(RunEndRoute,
             (RunEnded? body, ICurrentPrincipalAccessor principal, IJobService jobs,
                 CancellationToken ct)
                 => EndRunAsync(body, principal, jobs, ct))
             .Accepts<RunEnded>("application/json")
-            .RequireCovePermission(PermissionMode.All, RunPermissions);
+            .RequireCovePermission(PermissionMode.All, RunPermissions)
+            .WithName("ScanAndIdentifyEndRun")
+            .WithSummary("End a run the stage states cannot end by themselves")
+            .WithDescription(
+                "Only cancelled, failed and stopped-by-user are accepted. Completed and interrupted are read off the stages, so accepting either here would let a caller assert an outcome it cannot observe.");
     }
 
     internal CapabilitiesView Capabilities()
@@ -131,7 +159,7 @@ public sealed partial class ScanAndIdentify
 
     // The saved description of a run, read through the same store a run will read it through, so the
     // panel and a run can never disagree about what a stored blob means.
-    internal async Task<Results<Ok<RunOptions>, ForbiddenCode>> GetOptionsAsync(
+    internal async Task<Results<Ok<RunOptions>, ForbiddenProblem>> GetOptionsAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
         if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
@@ -147,7 +175,7 @@ public sealed partial class ScanAndIdentify
     // The stored document is replaced, not merged: what goes back is the members RunOptions declares.
     // A property only a newer version knows about is readable here, because a load ignores what it
     // does not recognize, but it does not survive this write.
-    internal async Task<Results<NoContent, BadRequest<ErrorCode>, ForbiddenCode>> SaveOptionsAsync(
+    internal async Task<Results<NoContent, BadRequestProblem, ForbiddenProblem>> SaveOptionsAsync(
         HttpRequest request, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -165,12 +193,12 @@ public sealed partial class ScanAndIdentify
         }
         catch (JsonException)
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+            return new BadRequestProblem("INVALID_OPTIONS", "The request body is not a readable options document.");
         }
 
         if (options is null)
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+            return new BadRequestProblem("INVALID_OPTIONS", "The request body is not a readable options document.");
         }
 
         // Repaired before the write, so the stored blob holds what every later load would answer.
@@ -185,7 +213,7 @@ public sealed partial class ScanAndIdentify
     //
     // A stored run is advanced first, so a run whose stages have since settled - or whose job the
     // host no longer knows about - releases the guard rather than refusing every later run.
-    internal async Task<Results<Ok<RunView>, Conflict<ErrorCode>, ForbiddenCode>> ClaimRunAsync(
+    internal async Task<Results<Ok<RunView>, ConflictProblem, ForbiddenProblem>> ClaimRunAsync(
         ICurrentPrincipalAccessor principal, IJobService jobs, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(jobs);
@@ -210,7 +238,7 @@ public sealed partial class ScanAndIdentify
 
                 if (advanced.EndedAt is null)
                 {
-                    return TypedResults.Conflict(new ErrorCode("RUN_IN_FLIGHT"));
+                    return new ConflictProblem("RUN_IN_FLIGHT", "A run is already in flight.");
                 }
             }
 
@@ -241,7 +269,7 @@ public sealed partial class ScanAndIdentify
 
     // The run as it stands, with every unsettled stage re-read from its host job and any newly
     // terminal state written down. A read that learned nothing writes nothing.
-    internal async Task<Results<Ok<RunView>, NoContent, ForbiddenCode>> ReadRunAsync(
+    internal async Task<Results<Ok<RunView>, NoContent, ForbiddenProblem>> ReadRunAsync(
         ICurrentPrincipalAccessor principal, IJobService jobs, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(jobs);
@@ -275,7 +303,7 @@ public sealed partial class ScanAndIdentify
     }
 
     // A caller reporting that it is starting a stage, or that the stage's job now exists.
-    internal async Task<Results<Ok<RunView>, BadRequest<ErrorCode>, Conflict<ErrorCode>, NotFound, ForbiddenCode>>
+    internal async Task<Results<Ok<RunView>, BadRequestProblem, ConflictProblem, NotFound, ForbiddenProblem>>
         RecordStageAsync(
             RunStageStarted? body,
             ICurrentPrincipalAccessor principal,
@@ -291,7 +319,7 @@ public sealed partial class ScanAndIdentify
 
         if (body is null)
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_STAGE"));
+            return new BadRequestProblem("INVALID_STAGE", "The request body is not a readable stage report.");
         }
 
         await _runLock.WaitAsync(ct);
@@ -305,7 +333,7 @@ public sealed partial class ScanAndIdentify
 
             if (!string.Equals(record.RunId, body.RunId, StringComparison.Ordinal))
             {
-                return TypedResults.Conflict(new ErrorCode("STALE_RUN"));
+                return new ConflictProblem("STALE_RUN", "The run named by the request is not the run in flight.");
             }
 
             int index = record.Stages.FindIndex(entry => entry.Stage == body.Stage);
@@ -313,13 +341,14 @@ public sealed partial class ScanAndIdentify
                 .Take(index)
                 .Any(earlier => earlier.State is not (RunStageState.Succeeded or RunStageState.Skipped)))
             {
-                return TypedResults.BadRequest(new ErrorCode("INVALID_STAGE"));
+                return new BadRequestProblem(
+                    "INVALID_STAGE", "That stage is not the next one this run can start.");
             }
 
             var stage = record.Stages[index];
             if (!MayTransition(stage, body.JobId))
             {
-                return TypedResults.Conflict(new ErrorCode("STAGE_TAKEN"));
+                return new ConflictProblem("STAGE_TAKEN", "Another caller already started this stage.");
             }
 
             var now = DateTime.UtcNow;
@@ -343,7 +372,7 @@ public sealed partial class ScanAndIdentify
     //
     // Only the three reasons a caller can know are accepted. Completed and interrupted are read off
     // the stages, so accepting either here would let a caller assert an outcome it cannot observe.
-    internal async Task<Results<Ok<RunView>, BadRequest<ErrorCode>, Conflict<ErrorCode>, NotFound, ForbiddenCode>>
+    internal async Task<Results<Ok<RunView>, BadRequestProblem, ConflictProblem, NotFound, ForbiddenProblem>>
         EndRunAsync(
             RunEnded? body,
             ICurrentPrincipalAccessor principal,
@@ -360,7 +389,7 @@ public sealed partial class ScanAndIdentify
         if (body is null || body.Reason is not
             (RunEndReason.Cancelled or RunEndReason.Failed or RunEndReason.StoppedByUser))
         {
-            return TypedResults.BadRequest(new ErrorCode("INVALID_END_REASON"));
+            return new BadRequestProblem("INVALID_END_REASON", "A run may only be ended as cancelled, failed or stopped by the user.");
         }
 
         await _runLock.WaitAsync(ct);
@@ -374,7 +403,7 @@ public sealed partial class ScanAndIdentify
 
             if (!string.Equals(record.RunId, body.RunId, StringComparison.Ordinal))
             {
-                return TypedResults.Conflict(new ErrorCode("STALE_RUN"));
+                return new ConflictProblem("STALE_RUN", "The run named by the request is not the run in flight.");
             }
 
             if (record.EndedAt is not null)
@@ -411,10 +440,10 @@ public sealed partial class ScanAndIdentify
             || (stage.Stage == RunStage.Scan && stage.State == RunStageState.Starting && stage.JobId is null)
         : stage.State == RunStageState.Starting && stage.JobId is null;
 
-    private static ForbiddenCode? ForbiddenForRun(ICurrentPrincipalAccessor principal)
+    private static ForbiddenProblem? ForbiddenForRun(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.TrueForAll(RunPermissions, current.Has)
             ? null
-            : new ForbiddenCode();
+            : new ForbiddenProblem();
 
     private static RunStageState ClaimedStateFor(RunStage stage, RunOptions options) => stage switch
     {

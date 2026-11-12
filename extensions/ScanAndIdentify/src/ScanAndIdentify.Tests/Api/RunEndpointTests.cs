@@ -81,8 +81,8 @@ public sealed class RunEndpointTests
 
         var second = await extension.ClaimRunAsync(Runner, new RecordingJobService());
 
-        var conflict = Assert.IsType<Conflict<ErrorCode>>(HttpResultUnwrap.Unwrap(second));
-        Assert.Equal("RUN_IN_FLIGHT", conflict.Value!.Code);
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(second));
+        Assert.Equal("RUN_IN_FLIGHT", conflict.Problem.Code);
         Assert.Equal(writes, store.SetCallCount);
     }
 
@@ -95,8 +95,8 @@ public sealed class RunEndpointTests
         var result = await extension.RecordStageAsync(
             new RunStageStarted("a-run-that-ended", RunStage.Scan, null), Runner, NoJobs);
 
-        var conflict = Assert.IsType<Conflict<ErrorCode>>(HttpResultUnwrap.Unwrap(result));
-        Assert.Equal("STALE_RUN", conflict.Value!.Code);
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("STALE_RUN", conflict.Problem.Code);
         Assert.Equal(writes, store.SetCallCount);
     }
 
@@ -109,8 +109,8 @@ public sealed class RunEndpointTests
         var result = await extension.RecordStageAsync(
             new RunStageStarted(run.RunId, RunStage.Identify, null), Runner, NoJobs);
 
-        var bad = Assert.IsType<BadRequest<ErrorCode>>(HttpResultUnwrap.Unwrap(result));
-        Assert.Equal("INVALID_STAGE", bad.Value!.Code);
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("INVALID_STAGE", bad.Problem.Code);
         Assert.Equal(writes, store.SetCallCount);
     }
 
@@ -376,8 +376,8 @@ public sealed class RunEndpointTests
         var result = await extension.EndRunAsync(
             new RunEnded("a-run-that-ended", RunEndReason.Cancelled), Runner, NoJobs);
 
-        var conflict = Assert.IsType<Conflict<ErrorCode>>(HttpResultUnwrap.Unwrap(result));
-        Assert.Equal("STALE_RUN", conflict.Value!.Code);
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("STALE_RUN", conflict.Problem.Code);
         Assert.Equal(writes, store.SetCallCount);
     }
 
@@ -393,8 +393,8 @@ public sealed class RunEndpointTests
 
         var result = await extension.EndRunAsync(new RunEnded(run.RunId, reason), Runner, NoJobs);
 
-        var bad = Assert.IsType<BadRequest<ErrorCode>>(HttpResultUnwrap.Unwrap(result));
-        Assert.Equal("INVALID_END_REASON", bad.Value!.Code);
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("INVALID_END_REASON", bad.Problem.Code);
         Assert.Equal(writes, store.SetCallCount);
     }
 
@@ -410,13 +410,13 @@ public sealed class RunEndpointTests
             [.. RunPermissions.Where(held => held != missing)]);
         int writes = store.SetCallCount;
 
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
             await extension.ClaimRunAsync(partial, new RecordingJobService())));
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
             await extension.ReadRunAsync(partial, new RecordingJobService())));
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
             await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, null), partial, NoJobs)));
-        Assert.IsType<ForbiddenCode>(HttpResultUnwrap.Unwrap(
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
             await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.Cancelled), partial, NoJobs)));
         Assert.Equal(writes, store.SetCallCount);
     }
@@ -468,8 +468,8 @@ public sealed class RunEndpointTests
     private static RunView Answered(IResult result)
         => Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(result)).Value!;
 
-    private static ErrorCode Refused(IResult result)
-        => Assert.IsType<Conflict<ErrorCode>>(HttpResultUnwrap.Unwrap(result)).Value!;
+    private static ExtensionProblemDetails Refused(IResult result)
+        => Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result)).Problem;
 
     private static RunStageView StageOf(RunView run, RunStage stage)
         => run.Stages.Single(entry => entry.Stage == stage);
