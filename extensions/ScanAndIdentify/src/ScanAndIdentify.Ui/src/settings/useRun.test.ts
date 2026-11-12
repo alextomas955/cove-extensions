@@ -448,7 +448,11 @@ test("unsaved options block Run and the reason is announced with the button", as
 
   // Announced rather than only drawn: the reason has to reach someone who never sees it beside the
   // button it refuses.
-  expect(screen.getByRole("status").textContent).toContain("Save the run options first");
+  const reason = screen.getByRole("status");
+  expect(reason.textContent).toContain("Save the run options first");
+  expect(button?.getAttribute("aria-describedby"), "the reason to be tied to the button").toBe(
+    reason.id,
+  );
 });
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {

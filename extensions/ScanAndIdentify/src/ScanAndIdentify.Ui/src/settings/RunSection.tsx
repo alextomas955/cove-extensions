@@ -101,7 +101,7 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
         <Button
           onClick={start}
           disabled={inFlight || claiming || optionsDirty}
-          aria-describedby={optionsDirty ? "scanandidentify-run-blocked" : undefined}
+          describedBy={optionsDirty ? "scanandidentify-run-blocked" : undefined}
         >
           {claiming ? "Starting…" : "Run"}
         </Button>
