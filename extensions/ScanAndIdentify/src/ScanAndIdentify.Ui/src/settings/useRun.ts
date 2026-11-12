@@ -57,10 +57,14 @@ const isStatus = (err: unknown, status: number) => err instanceof ApiError && er
 /**
  * Claims the stage, starts its host job and reports the job id back.
  *
- * A 409 on either write is the ordinary outcome of losing a race with another open page: that page
- * started the stage, so this one abandons the advance before issuing a host request and says nothing
- * to the user. A per-page flag cannot prevent the double start, because the two callers are two
- * pages; the server's stage transition is what does.
+ * A 409 on the claim write is the ordinary outcome of losing a race with another open page: that
+ * page started the stage, so this one abandons the advance before issuing a host request and says
+ * nothing to the user. A per-page flag cannot prevent the double start, because the two callers are
+ * two pages; the server's stage transition is what does.
+ *
+ * Past the host request the advance owns a running whole-library pass, and every way out from there
+ * either records it against a run still in flight or stops it. Nothing else can stop it: until the
+ * report lands, this page is the only thing holding the job id.
  */
 async function startStage(
   run: RunView,
@@ -83,30 +87,43 @@ async function startStage(
     return { outcome: "failed", message: errorText(err), run: await endRun(run.runId, "failed") };
   }
 
-  // The host request is the window a cancel cannot see into: until it answers there is no job id,
-  // so the stage this page is starting is one the cancel passes over. The id exists now, so the
-  // job this page started is this page's to stop.
+  // The host request is a window a cancel cannot see into: until it answers there is no job id, so
+  // the stage this page is starting is one the cancel passes over. The id exists now, so the job
+  // this page started is this page's to stop.
   if (superseded()) {
     await stopQuietly(jobId);
     return { outcome: "abandoned" };
   }
 
+  let recorded: RunView;
   try {
-    return { outcome: "advanced", run: await recordStage(run.runId, stage, jobId) };
+    recorded = await recordStage(run.runId, stage, jobId);
   } catch (err) {
-    if (isStatus(err, 409)) return { outcome: "abandoned" };
-
     // The job is running and the record does not name it, so nothing left can report on it or stop
-    // it: the next read sees a stage still starting, and the server gives up on it once the start
-    // budget expires while the whole-library pass runs on. Stopping it is the only outcome this
-    // page can still deliver.
+    // it. A 409 is another page's job taking the stage first; any other failure leaves the next
+    // read seeing a stage still starting, which the server gives up on once the start budget
+    // expires while the whole-library pass runs on. Stopping it is the only outcome this page can
+    // still deliver either way.
     await stopQuietly(jobId);
+    if (isStatus(err, 409)) return { outcome: "abandoned" };
     return {
       outcome: "failed",
       message: `${REPORT_LOST} ${errorText(err)}`,
       run: await endRun(run.runId, "failed"),
     };
   }
+
+  // The report is the second window a cancel cannot see into: the run the Cancel button reads still
+  // carries this stage with no job id, so the cancel passes over the job and ends the run without
+  // stopping it. The server takes a job id into an ended run rather than refusing it, so that the
+  // page holding that id can be the one to stop it, which is here. The count covers a cancel on
+  // this page; the ended run the report answers with covers one made on another.
+  if (superseded() || !isRunInFlight(recorded)) {
+    await stopQuietly(jobId);
+    return { outcome: "abandoned" };
+  }
+
+  return { outcome: "advanced", run: recorded };
 }
 
 /** Stops a job whose outcome nobody is waiting on, where a refused stop changes nothing. */
@@ -274,8 +291,9 @@ export function useRun(): UseRun {
     if (run === null || !isRunInFlight(run)) return;
 
     void (async () => {
-      // Bumped first, so an advance already past its own check stops the job it started rather
-      // than reporting it into a run this is about to end.
+      // Bumped before anything else, so an advance waiting on the report of the job it started
+      // reads the run as stopped when that report lands, and stops the job rather than leaving it
+      // running against a run the user ended.
       runChanges.current += 1;
       setCancelling(true);
       setFailure(null);

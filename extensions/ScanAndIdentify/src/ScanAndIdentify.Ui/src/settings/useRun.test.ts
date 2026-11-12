@@ -560,6 +560,58 @@ test("a cancel during a stage start stops the job that start was creating", asyn
   expect(calledPaths()).not.toContain(GENERATE_PATH);
 });
 
+test("a cancel while the started job is being reported stops that job", async () => {
+  server.reads = [undefined, runView({ scan: "starting" })];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+  // The window after the one above: the host has answered, so the pass is running, and the report
+  // naming it has not landed, so the run the Cancel button reads still carries no job id for it.
+  server.holdReport = true;
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  void pressRun(container);
+  await waitFor(() => {
+    expect(stagesWritten().length, "the job id to be on its way to the record").toBe(2);
+  });
+
+  await pressCancel(container);
+  server.releaseReport();
+
+  await waitFor(() => {
+    expect(calledPaths().includes(CANCEL_PATH), "the started job to be stopped").toBe(true);
+  });
+  expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("a job reported into a run another page ended is stopped", async () => {
+  server.reads = [
+    undefined,
+    runView({ scan: "starting" }),
+    // What the report answers with. The server takes the job id rather than refusing it, and says
+    // the run it went into has ended, which is how this page learns of a cancel made elsewhere.
+    runView(
+      { scan: "starting" },
+      { endedAt: "2026-10-30T10:00:00Z", endedReason: "stoppedByUser" },
+    ),
+  ];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+
+  await waitFor(() => {
+    expect(calledPaths().includes(CANCEL_PATH), "the started job to be stopped").toBe(true);
+  });
+  expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
 test("a read from before the claim does not stop the run started while it was out", async () => {
   // Nothing is in flight on the first render, so Run is offered while the first read is still out.
   // That read answers for the library as it was before the claim, so it reports no run at all.

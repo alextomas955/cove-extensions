@@ -47,6 +47,9 @@ export const server = {
   stageError: null as Refusal | null,
   /** What the write that reports a started job's id fails with. */
   reportError: null as Refusal | null,
+  /** Holds that report open, which is the second window a cancel cannot see a job id in. */
+  holdReport: false,
+  releaseReport: (): void => undefined,
   /** Holds the next host start open, which is the window a cancel cannot see a job id in. */
   holdHostStart: false,
   releaseHostStart: (): void => undefined,
@@ -66,6 +69,8 @@ export function resetServer(): void {
   server.releaseClaim = () => undefined;
   server.stageError = null;
   server.reportError = null;
+  server.holdReport = false;
+  server.releaseReport = () => undefined;
   server.holdNextRead = false;
   server.releaseRead = () => undefined;
   server.holdHostStart = false;
@@ -138,11 +143,15 @@ export function coveRuntimeApiDouble() {
       }
 
       if (route === `${RUN_PATH}/stages`) {
-        const failure =
-          (body as { jobId: string | null }).jobId === null
-            ? server.stageError
-            : server.reportError;
-        return Promise.resolve(failure === null ? reply(nextRead()) : refused(failure));
+        // Only the write carrying a job id can be held: the claim before it has no job behind it
+        // for a cancel to miss.
+        const reporting = (body as { jobId: string | null }).jobId !== null;
+        const failure = reporting ? server.reportError : server.stageError;
+        const hold = reporting && server.holdReport;
+        if (hold) server.holdReport = false;
+        return held(hold, (release) => (server.releaseReport = release)).then(() =>
+          failure === null ? reply(nextRead()) : refused(failure),
+        );
       }
 
       if (route === `${RUN_PATH}/end`) {
