@@ -568,6 +568,53 @@ test("a read from before the claim does not stop the run started while it was ou
   });
 });
 
+test("no read is taken while the claim is still out", async () => {
+  // A read issued now would reach a server the claim has not arrived at, be told there is no run,
+  // and carry the same change count the claim already bumped, so nothing downstream could tell it
+  // was answered for a library that no longer exists. The page must not issue one at all.
+  server.holdNextRead = true;
+  server.holdClaim = true;
+  server.reads = [
+    runView({ scan: "starting" }),
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    runView({ scan: "succeeded" }, {}, { scan: "host-scan-7" }),
+  ];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+
+  const reads = (): number =>
+    server.calls.filter((call) => call.path === RUN_PATH && call.method === "GET").length;
+
+  const container = render();
+  await waitFor(() => {
+    expect(reads(), "the first read to be in flight").toBe(1);
+  });
+
+  await pressRun(container);
+  await waitFor(() => {
+    expect(
+      server.calls.some((call) => call.path === RUN_PATH && call.method === "POST"),
+      "the claim to be in flight",
+    ).toBe(true);
+  });
+
+  // Real elapsed time, because the absence is the assertion: several poll intervals pass with the
+  // claim still unanswered, and every tick in them has to decline to read.
+  await new Promise((resolve) => setTimeout(resolve, 3 * RUN_POLL_INTERVAL_MS));
+  expect(reads(), "no read taken across the claim").toBe(1);
+
+  server.releaseClaim();
+  await waitFor(() => {
+    expect(rawStageState(container, "scan"), "the scan to be reported running").toBe("running");
+  });
+
+  // The control for that absence: the ticks were running the whole time, and once the claim has
+  // answered they read again and carry the run on.
+  await waitFor(() => {
+    expect(calledPaths().includes(GENERATE_PATH), "the next pass to start").toBe(true);
+  });
+}, 25000);
+
 test("a stage report that fails stops the job it could not record", async () => {
   server.reads = [undefined, runView({ scan: "starting" })];
   server.claimAnswer = runView({ scan: "starting" });

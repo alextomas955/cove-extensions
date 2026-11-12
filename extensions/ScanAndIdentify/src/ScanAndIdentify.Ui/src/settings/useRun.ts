@@ -241,31 +241,27 @@ export function useRun(): UseRun {
       // library as having no run and stop the one this is about to create.
       runChanges.current += 1;
       const beforeClaim = runChanges.current;
+      // Held from before the claim rather than from after it, because the count alone cannot cover
+      // this stretch: a read issued now carries the bumped count and still reaches a server the
+      // claim has not arrived at, so it would answer no run and pass the comparison. The claim also
+      // writes the scan stage as started, so this page is the one that has to put a host job behind
+      // it; the poll's own advance only ever picks up a stage still waiting.
+      advancing.current = true;
       setClaiming(true);
       setFailure(null);
       try {
         const claimed = await claimRun();
         setRun(claimed);
 
-        // The claim writes the scan stage as started, so this page is the one that has to put a host
-        // job behind it; the poll's own advance only ever picks up a stage still waiting.
-        advancing.current = true;
-        try {
-          const advance = await startStage(
-            claimed,
-            "scan",
-            () => runChanges.current !== beforeClaim,
-          );
-          if (advance.outcome !== "abandoned") {
-            setRun(advance.run);
-            if (advance.outcome === "failed") setFailure(advance.message);
-          }
-        } finally {
-          advancing.current = false;
+        const advance = await startStage(claimed, "scan", () => runChanges.current !== beforeClaim);
+        if (advance.outcome !== "abandoned") {
+          setRun(advance.run);
+          if (advance.outcome === "failed") setFailure(advance.message);
         }
       } catch (err) {
         setFailure(isStatus(err, 409) ? ALREADY_IN_FLIGHT : errorText(err));
       } finally {
+        advancing.current = false;
         setClaiming(false);
         // Watching again either way: a refused claim means someone else's run is in flight, and the
         // next read adopts it.

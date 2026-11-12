@@ -40,6 +40,9 @@ export const server = {
   releaseRead: (): void => undefined,
   claimAnswer: null as RunView | null,
   claimError: null as Refusal | null,
+  /** Holds the claim open, which is the stretch a tick can still read a library with no run in. */
+  holdClaim: false,
+  releaseClaim: (): void => undefined,
   /** What the write that claims a stage fails with. The one carrying a job id is `reportError`. */
   stageError: null as Refusal | null,
   /** What the write that reports a started job's id fails with. */
@@ -59,6 +62,8 @@ export function resetServer(): void {
   server.readError = null;
   server.claimAnswer = null;
   server.claimError = null;
+  server.holdClaim = false;
+  server.releaseClaim = () => undefined;
   server.stageError = null;
   server.reportError = null;
   server.holdNextRead = false;
@@ -150,9 +155,13 @@ export function coveRuntimeApiDouble() {
       }
 
       if (route === RUN_PATH && method === "POST") {
-        if (server.claimError !== null) return Promise.resolve(refused(server.claimError));
-        if (server.claimAnswer === null) throw new Error(`unconfigured claim to ${route}`);
-        return Promise.resolve(reply(server.claimAnswer));
+        const hold = server.holdClaim;
+        server.holdClaim = false;
+        return held(hold, (release) => (server.releaseClaim = release)).then(() => {
+          if (server.claimError !== null) return refused(server.claimError);
+          if (server.claimAnswer === null) throw new Error(`unconfigured claim to ${route}`);
+          return reply(server.claimAnswer);
+        });
       }
 
       if (route === RUN_PATH) {
