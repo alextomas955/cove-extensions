@@ -9,13 +9,13 @@ import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { withQueryClient } from "../common/lib/testQueryClient";
 import {
   answered,
   resetServer as resetOptionsServer,
   server as optionsServer,
 } from "./testRunOptions";
 import { resetServer as resetRunServer, server as runServer } from "./testRun";
+import { withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 // One stand-in split by route, because both cards reach the host through the same fetch.
 vi.mock("@cove/runtime/api", async () => {

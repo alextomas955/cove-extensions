@@ -23,7 +23,7 @@ export default defineConfig({
     // A bundle externalizes these, so nothing resolves them there. A test run has to, and the shared
     // package's source - including the JSX runtime the transform injects into it - would otherwise
     // resolve them against a node_modules that package does not have.
-    dedupe: ["react", "react-dom", "lucide-react"],
+    dedupe: ["react", "react-dom", "lucide-react", "@tanstack/react-query"],
   },
   test: {
     coverage: {

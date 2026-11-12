@@ -162,9 +162,10 @@ cache, an authorization check, or a UI component.
 - `npm run generate:wire` turns that document into the gitignored `src/wire/`: the types, the
   client, one function per operation and the TanStack Query helpers over them. Consume the types
   with `import type`, and reach a route through the generated function or query helper.
-- Each UI supplies `src/common/lib/wireClient.ts`, which binds the host's `extensionFetch` into
-  that client. The generator refuses an extension without one, because a client on the global
-  `fetch` answers 401 for every request.
+- The client takes its fetch from `shared/ui-shared/src/wireClient.ts`, one module for every
+  extension, which binds the host's `extensionFetch` in. A client left on the global `fetch`
+  answers 401 for every request. Each UI keeps only `src/common/lib/wireErrors.ts`, which registers
+  the shared interceptor on its own client.
 - Never hand-write a TypeScript wire type. A wrong one type-checks and reads `undefined` at runtime.
 
 ## Tests

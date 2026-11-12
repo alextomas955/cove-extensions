@@ -8,9 +8,9 @@ import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { withQueryClient } from "../common/lib/testQueryClient";
 import { answered, refusal, resetServer, server } from "./testRunOptions";
 import { RUN_OPTION_FIELDS } from "./runOptions";
+import { withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 // The seam is the host's own fetch, which the generated client reaches through the adapter in
 // common/lib/wireClient, so what is scripted here is the request the form really issues.

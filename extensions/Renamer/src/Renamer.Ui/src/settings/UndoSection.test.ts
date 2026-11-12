@@ -9,9 +9,13 @@ import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { createTestQueryClient, withQueryClient } from "../common/lib/testQueryClient";
 import type { LastBatchSummary, UndoResult } from "../wire";
-import { jsonResponse, unparseableResponse } from "../common/lib/testResponses";
+import {
+  createTestQueryClient,
+  jsonResponse,
+  unparseableResponse,
+  withQueryClient,
+} from "@cove-extensions/ui-shared/testing";
 
 // The three counters the summary carries. The server states all three; nothing here derives one
 // from the others.

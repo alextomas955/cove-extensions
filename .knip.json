@@ -10,14 +10,14 @@
       "entry": [
         "src/index.ts",
         "src/settings/options.ts",
-        "src/common/lib/wireClient.ts",
+        "src/common/lib/wireErrors.ts",
         "vite.config.ts"
       ],
       "project": ["src/**/*.{ts,tsx}"]
     },
     "extensions/ScanAndIdentify/src/ScanAndIdentify.Ui": {
       "vite": false,
-      "entry": ["src/index.ts", "src/common/lib/wireClient.ts", "vite.config.ts"],
+      "entry": ["src/index.ts", "src/common/lib/wireErrors.ts", "vite.config.ts"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["lucide-react"]
     },
@@ -25,7 +25,8 @@
       "entry": [
         "vite/createExtensionViteConfig.ts",
         "scripts/*.{mjs,cjs}",
-        "src/coveRuntime*Stub.{ts,tsx}"
+        "src/coveRuntime*Stub.{ts,tsx}",
+        "src/wireClient.ts"
       ],
       "includeEntryExports": true,
       "project": ["src/**/*.{ts,tsx}", "vite/**/*.ts", "scripts/**/*.{mjs,cjs}"],
@@ -33,6 +34,7 @@
         "react",
         "react-dom",
         "@cove/runtime",
+        "@tanstack/react-query",
         "lucide-react",
         "vite",
         "vitest"

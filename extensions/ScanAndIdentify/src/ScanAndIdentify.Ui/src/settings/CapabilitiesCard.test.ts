@@ -6,9 +6,8 @@ import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 
-import { withQueryClient } from "../common/lib/testQueryClient";
-import { jsonResponse } from "../common/lib/testResponses";
 import type { CapabilitiesView } from "../wire";
+import { jsonResponse, withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 // The seam is the host's own fetch, which the generated client reaches through the adapter in
 // common/lib/wireClient, so what is scripted here is the request the card really issues.
