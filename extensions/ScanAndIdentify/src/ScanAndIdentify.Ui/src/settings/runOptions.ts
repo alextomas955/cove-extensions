@@ -6,7 +6,7 @@
  * and sends the result back. Per-member documentation stays on the C# record.
  */
 
-import type * as Wire from "../wire/api";
+import type * as Wire from "../wire";
 import type { Complete } from "../common/lib/wire";
 
 export type RunOptions = Complete<Wire.RunOptions>;

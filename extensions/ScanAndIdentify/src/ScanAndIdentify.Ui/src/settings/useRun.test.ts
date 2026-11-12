@@ -1,16 +1,20 @@
 // @vitest-environment jsdom
+// Registers the interceptor that turns a failed request from the generated client into an ApiError
+// carrying the status, which every error branch below reads.
+import "../common/lib/wireErrors";
+
 import { test, expect, afterEach, beforeEach, vi } from "vitest";
 import { createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { configure, render as renderSection, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { waitFor } from "../common/lib/flushRender";
-import { FakeApiError, calledPaths, resetServer, runView, server, stageDetail } from "./testRun";
+import { calledPaths, refusal, resetServer, runView, server, stageDetail } from "./testRun";
 import { answered } from "./testRunOptions";
 import { RUN_POLL_INTERVAL_MS } from "./runStageLogic";
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
-  const { extensionRequestDouble } = await import("./testRun");
-  return extensionRequestDouble();
+vi.mock("@cove/runtime/api", async () => {
+  const { coveRuntimeApiDouble } = await import("./testRun");
+  return coveRuntimeApiDouble();
 });
 
 const { RunSection } = await import("./RunSection");
@@ -32,24 +36,18 @@ const stagesWritten = (): unknown[] =>
     .filter((call) => call.path === STAGES_PATH)
     .map((call) => (call.body as { stage: string }).stage);
 
+// The chain advances on a poll, so the state a wait is for arrives on the next read rather than on
+// the next render. The default window is one interval, which expires before that read lands.
+configure({ asyncUtilTimeout: 5 * RUN_POLL_INTERVAL_MS });
+
 beforeEach(resetServer);
 
-// Unmounted rather than only detached: the hook polls on an interval, so a root left mounted keeps
+// Unmounted rather than only detached: the hook polls on an interval, so a tree left mounted keeps
 // reading into the next test's stand-in.
-let mounted: Root | null = null;
-
-afterEach(() => {
-  mounted?.unmount();
-  mounted = null;
-  document.body.replaceChildren();
-});
+afterEach(cleanup);
 
 function render(): HTMLElement {
-  const container = document.createElement("div");
-  document.body.append(container);
-  mounted = createRoot(container);
-  mounted.render(createElement(RunSection));
-  return container;
+  return renderSection(createElement(RunSection)).container;
 }
 
 /** The state each stage row shows, keyed by the stage it names. */
@@ -87,26 +85,28 @@ function cancelButton(container: HTMLElement): HTMLButtonElement | null {
   );
 }
 
-function pressCancel(container: HTMLElement): void {
+async function pressCancel(container: HTMLElement): Promise<void> {
   const button = cancelButton(container);
   if (button === null) throw new Error("no Cancel button");
-  button.click();
+  await userEvent.click(button);
 }
 
-function pressRun(container: HTMLElement): void {
+async function pressRun(container: HTMLElement): Promise<void> {
   const button = runButton(container);
   if (button === null) throw new Error("no Run button");
-  button.click();
+  await userEvent.click(button);
 }
 
 test("with no run, the page offers Run and shows four waiting stages", async () => {
   server.reads = [undefined];
 
   const container = render();
-  await waitFor(
-    "the stage rows to render",
-    () => container.querySelectorAll("[data-stage]").length === 4,
-  );
+  await waitFor(() => {
+    expect(
+      container.querySelectorAll("[data-stage]").length === 4,
+      "the stage rows to render",
+    ).toBe(true);
+  });
 
   expect(stageStates(container)).toEqual({
     scan: "waiting",
@@ -128,9 +128,12 @@ test("a stage that failed starts nothing after it, and those stages are still wa
   ];
 
   const container = render();
-  await waitFor("the failed line to render", () =>
-    container.textContent.includes("The run stopped: the Fingerprints pass failed."),
-  );
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("The run stopped: the Fingerprints pass failed."),
+      "the failed line to render",
+    ).toBe(true);
+  });
 
   expect(stageStates(container)).toEqual({
     scan: "done",
@@ -145,7 +148,9 @@ test("a run already in flight is adopted on mount, with nothing pressed", async 
   server.reads = [runView({ scan: "running" })];
 
   const container = render();
-  await waitFor("the scan row to read running", () => stageStates(container).scan === "running");
+  await waitFor(() => {
+    expect(stageStates(container).scan === "running", "the scan row to read running").toBe(true);
+  });
 
   expect(calledPaths()).toContain(RUN_PATH);
   // Reads only: nothing claimed the run this page adopted, and nothing advanced it.
@@ -159,9 +164,13 @@ test("pressing Run claims the run, reports the stage, posts the scan and reports
   server.hostJobId = "host-scan-7";
 
   const container = render();
-  await waitFor("the Run button to be offered", () => offersRun(container));
-  pressRun(container);
-  await waitFor("the job id to be reported", () => calledPaths().includes(SCAN_PATH));
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(SCAN_PATH), "the job id to be reported").toBe(true);
+  });
 
   expect(calledPaths().slice(0, 5)).toEqual([
     RUN_PATH,
@@ -178,10 +187,11 @@ test("a second Run is impossible while a run is in flight", async () => {
   server.reads = [runView({ scan: "queued" })];
 
   const container = render();
-  await waitFor(
-    "the scan row to read queued",
-    () => stageStates(container).scan === "queued in Cove",
-  );
+  await waitFor(() => {
+    expect(stageStates(container).scan === "queued in Cove", "the scan row to read queued").toBe(
+      true,
+    );
+  });
 
   expect(runButton(container)?.disabled).toBe(true);
 });
@@ -194,7 +204,9 @@ test("once the scan is done the fingerprint pass starts, with the host's thumbna
   ];
 
   render();
-  await waitFor("the generate pass to be posted", () => calledPaths().includes(GENERATE_PATH));
+  await waitFor(() => {
+    expect(calledPaths().includes(GENERATE_PATH), "the generate pass to be posted").toBe(true);
+  });
 
   expect(stagesWritten()).toEqual(["fingerprints", "fingerprints"]);
   expect(bodySentTo(GENERATE_PATH)).toEqual({
@@ -217,7 +229,9 @@ test("with the fingerprint switch off, identify starts straight after the scan",
   ];
 
   render();
-  await waitFor("identify to be posted", () => calledPaths().includes(IDENTIFY_PATH));
+  await waitFor(() => {
+    expect(calledPaths().includes(IDENTIFY_PATH), "identify to be posted").toBe(true);
+  });
 
   expect(calledPaths()).not.toContain(GENERATE_PATH);
   expect(bodySentTo(IDENTIFY_PATH)).toEqual({
@@ -245,7 +259,9 @@ test("once identify is done the images pass starts, even with every visual switc
   ];
 
   render();
-  await waitFor("the images pass to be posted", () => calledPaths().includes(GENERATE_PATH));
+  await waitFor(() => {
+    expect(calledPaths().includes(GENERATE_PATH), "the images pass to be posted").toBe(true);
+  });
 
   expect(stagesWritten()).toEqual(["images", "images"]);
   expect(bodySentTo(GENERATE_PATH)).toEqual({
@@ -268,9 +284,11 @@ test("a run the server ended as completed says so, and the page ends nothing its
   ];
 
   const container = render();
-  await waitFor("the finished line to render", () =>
-    container.textContent.includes("The run finished."),
-  );
+  await waitFor(() => {
+    expect(container.textContent.includes("The run finished."), "the finished line to render").toBe(
+      true,
+    );
+  });
 
   expect(calledPaths()).not.toContain(END_PATH);
   expect(offersRun(container)).toBe(true);
@@ -288,18 +306,25 @@ test("Cancel asks Cove to stop the job in flight, then ends the run", async () =
   ];
 
   const container = render();
-  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
-  pressCancel(container);
-  await waitFor("the run to be ended", () => calledPaths().includes(END_PATH));
+  await waitFor(() => {
+    expect(cancelButton(container) !== null, "the Cancel button to render").toBe(true);
+  });
+  await pressCancel(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(END_PATH), "the run to be ended").toBe(true);
+  });
 
   // The order is the behavior: ending the run first would leave the page watching a job it has
   // stopped reporting, and the DELETE answers before a running job has settled.
   expect(calledPaths().indexOf(CANCEL_PATH)).toBeLessThan(calledPaths().indexOf(END_PATH));
   expect(server.calls.find((call) => call.path === CANCEL_PATH)?.method).toBe("DELETE");
   expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "stoppedByUser" });
-  await waitFor("the stopped line to render", () =>
-    container.textContent.includes("You stopped the run at the Scan pass."),
-  );
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("You stopped the run at the Scan pass."),
+      "the stopped line to render",
+    ).toBe(true);
+  });
 });
 
 test("Cancel with no host job to stop ends the run and asks Cove to stop nothing", async () => {
@@ -313,9 +338,13 @@ test("Cancel with no host job to stop ends the run and asks Cove to stop nothing
   ];
 
   const container = render();
-  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
-  pressCancel(container);
-  await waitFor("the run to be ended", () => calledPaths().includes(END_PATH));
+  await waitFor(() => {
+    expect(cancelButton(container) !== null, "the Cancel button to render").toBe(true);
+  });
+  await pressCancel(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(END_PATH), "the run to be ended").toBe(true);
+  });
 
   expect(calledPaths().filter((path) => path.startsWith("/jobs/"))).toEqual([]);
 });
@@ -329,14 +358,19 @@ test("a cancel Cove refuses still ends the run and says the stage could not be s
       { scan: "host-scan-7" },
     ),
   ];
-  server.cancelError = new FakeApiError(403, '{"code":"FORBIDDEN","missing":["jobs.cancel"]}');
+  server.cancelError = refusal(403, '{"code":"FORBIDDEN","missing":["jobs.cancel"]}');
 
   const container = render();
-  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
-  pressCancel(container);
-  await waitFor("the refusal to render", () =>
-    container.textContent.includes("would not stop the stage already in flight"),
-  );
+  await waitFor(() => {
+    expect(cancelButton(container) !== null, "the Cancel button to render").toBe(true);
+  });
+  await pressCancel(container);
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("would not stop the stage already in flight"),
+      "the refusal to render",
+    ).toBe(true);
+  });
 
   expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "stoppedByUser" });
 });
@@ -353,9 +387,13 @@ test("after a cancel no further stage starts, even when the stopped job reports 
   ];
 
   const container = render();
-  await waitFor("the Cancel button to render", () => cancelButton(container) !== null);
-  pressCancel(container);
-  await waitFor("the stopped job to report done", () => stageStates(container).scan === "done");
+  await waitFor(() => {
+    expect(cancelButton(container) !== null, "the Cancel button to render").toBe(true);
+  });
+  await pressCancel(container);
+  await waitFor(() => {
+    expect(stageStates(container).scan === "done", "the stopped job to report done").toBe(true);
+  });
 
   expect(calledPaths()).not.toContain(GENERATE_PATH);
 });
@@ -377,7 +415,9 @@ test("the poll keeps reading after the run ends and stops once the last stage se
   const container = render();
   // The row changing is the positive control: the page read the run again after its end time was
   // written, which is the only way the cancelled state could arrive.
-  await waitFor("the scan row to settle", () => stageStates(container).scan === "cancelled");
+  await waitFor(() => {
+    expect(stageStates(container).scan === "cancelled", "the scan row to settle").toBe(true);
+  });
   const readsBefore = calledPaths().length;
   await new Promise((resolve) => setTimeout(resolve, RUN_POLL_INTERVAL_MS * 2));
 
@@ -386,15 +426,22 @@ test("the poll keeps reading after the run ends and stops once the last stage se
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {
   server.reads = [undefined, runView({ scan: "running" })];
-  server.claimError = new FakeApiError(409, '{"code":"RUN_IN_FLIGHT"}');
+  server.claimError = refusal(409, '{"code":"RUN_IN_FLIGHT"}');
 
   const container = render();
-  await waitFor("the Run button to be offered", () => offersRun(container));
-  pressRun(container);
-  await waitFor("the conflict to be reported", () =>
-    container.textContent.includes("A run is already in flight."),
-  );
-  await waitFor("the other run to be adopted", () => stageStates(container).scan === "running");
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("A run is already in flight."),
+      "the conflict to be reported",
+    ).toBe(true);
+  });
+  await waitFor(() => {
+    expect(stageStates(container).scan === "running", "the other run to be adopted").toBe(true);
+  });
 
   expect(calledPaths()).not.toContain(SCAN_PATH);
 });
@@ -402,14 +449,18 @@ test("a claim refused with a conflict says a run is already in flight and adopts
 test("a host post that fails shows the failure and ends the run", async () => {
   server.reads = [undefined, runView({ scan: "starting" })];
   server.claimAnswer = runView({ scan: "starting" });
-  server.hostError = new FakeApiError(403, "cannot scan");
+  server.hostError = refusal(403, "cannot scan");
 
   const container = render();
-  await waitFor("the Run button to be offered", () => offersRun(container));
-  pressRun(container);
-  await waitFor("the failure to be reported", () =>
-    container.textContent.includes("403 cannot scan"),
-  );
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+  await waitFor(() => {
+    expect(container.textContent.includes("403 cannot scan"), "the failure to be reported").toBe(
+      true,
+    );
+  });
 
   expect(server.calls.find((call) => call.path === END_PATH)?.body).toEqual({
     runId: "run-1",
@@ -420,28 +471,36 @@ test("a host post that fails shows the failure and ends the run", async () => {
 test("a stage write refused with a conflict posts nothing to the host and reports nothing", async () => {
   server.reads = [undefined, runView({ scan: "starting" })];
   server.claimAnswer = runView({ scan: "starting" });
-  server.stageError = new FakeApiError(409, '{"code":"STAGE_TAKEN"}');
+  server.stageError = refusal(409, '{"code":"STAGE_TAKEN"}');
 
   const container = render();
-  await waitFor("the Run button to be offered", () => offersRun(container));
-  pressRun(container);
-  await waitFor("the stage write to be refused", () => calledPaths().includes(STAGES_PATH));
-  await waitFor(
-    "the other caller's stage to be shown",
-    () => stageStates(container).scan === "starting",
-  );
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(STAGES_PATH), "the stage write to be refused").toBe(true);
+  });
+  await waitFor(() => {
+    expect(stageStates(container).scan === "starting", "the other caller's stage to be shown").toBe(
+      true,
+    );
+  });
 
   expect(calledPaths()).not.toContain(SCAN_PATH);
   expect(container.querySelector('[class*="text-red"]')).toBeNull();
 });
 
 test("a read refused with a forbidden says the account cannot start or watch a run", async () => {
-  server.readError = new FakeApiError(403, '{"code":"FORBIDDEN"}');
+  server.readError = refusal(403, '{"code":"FORBIDDEN"}');
 
   const container = render();
-  await waitFor("the refusal to render", () =>
-    container.textContent.includes("cannot start or watch a run"),
-  );
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("cannot start or watch a run"),
+      "the refusal to render",
+    ).toBe(true);
+  });
 
   expect([...container.querySelectorAll("button")]).toEqual([]);
 });
@@ -459,10 +518,12 @@ test("the stage in flight draws its host job's progress", async () => {
   ];
 
   const container = render();
-  await waitFor(
-    "the scan stage's bar to render",
-    () => stageRow(container, "scan")?.querySelector('[role="progressbar"]') != null,
-  );
+  await waitFor(() => {
+    expect(
+      stageRow(container, "scan")?.querySelector('[role="progressbar"]') != null,
+      "the scan stage's bar to render",
+    ).toBe(true);
+  });
 
   expect(
     stageRow(container, "scan")
@@ -490,11 +551,12 @@ test("the pass in flight shows what it is working on and what it has counted", a
   ];
 
   const container = render();
-  await waitFor(
-    "the fingerprint row to report its subtask",
-    () =>
+  await waitFor(() => {
+    expect(
       stageRow(container, "fingerprints")?.textContent.includes("Fingerprinting clip.mp4") === true,
-  );
+      "the fingerprint row to report its subtask",
+    ).toBe(true);
+  });
 
   expect(stageRow(container, "fingerprints")?.textContent).toContain("1,204 of 5,000 done");
   expect(stageRow(container, "scan")?.textContent).not.toContain("1,204");
@@ -511,13 +573,14 @@ test("a pass that failed shows the reason Cove gave", async () => {
   ];
 
   const container = render();
-  await waitFor(
-    "the identify row to report the reason",
-    () =>
+  await waitFor(() => {
+    expect(
       stageRow(container, "identify")?.textContent.includes(
         "the metadata provider refused the request",
       ) === true,
-  );
+      "the identify row to report the reason",
+    ).toBe(true);
+  });
 
   expect(stageRow(container, "identify")?.querySelector('[class*="text-red"]')).not.toBeNull();
 });
@@ -532,10 +595,12 @@ test("once a run has ended, every pass says what it did", async () => {
   ];
 
   const container = render();
-  await waitFor(
-    "the scan row to say it was stopped",
-    () => stageRow(container, "scan")?.textContent.includes("stopped") === true,
-  );
+  await waitFor(() => {
+    expect(
+      stageRow(container, "scan")?.textContent.includes("stopped") === true,
+      "the scan row to say it was stopped",
+    ).toBe(true);
+  });
 
   expect(stageRow(container, "fingerprints")?.textContent).toContain("did not run");
   expect(stageRow(container, "identify")?.textContent).toContain("did not run");

@@ -8,7 +8,8 @@
  * that record later would otherwise start reaching a host route nobody intended, and one host
  * member defaults on rather than off.
  */
-import { request, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { extensionFetch } from "@cove/runtime/api";
+import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { RunStage } from "./run";
 import type { RunOptions } from "./runOptions";
@@ -110,6 +111,33 @@ const HOST_STAGE_ROUTES: Record<
 export const STARTABLE_STAGES: readonly RunStage[] = RUN_STAGES;
 
 /**
+ * Sends one request to a Cove route of the host's own.
+ *
+ * The generated client covers this extension's routes and no others, so the four host routes a run
+ * drives are reached directly. `extensionFetch` is what carries the signed-in credential; a bare
+ * `fetch` answers 401 on an instance with auth enabled. A refusal is raised as the same
+ * {@link ApiError} the generated client's interceptor raises, so one error branch reads both.
+ */
+async function hostRequest(path: string, init: RequestInit): Promise<string> {
+  // Through Headers rather than an object spread: HeadersInit is a union whose arms do not survive
+  // one. Spreading a Headers instance yields {} and spreading the entry-array form yields index
+  // keys, so in both cases the caller's headers vanish with no error.
+  const headers = new Headers(init.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await extensionFetch(`/api${path}`, { ...init, headers });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new ApiError(response.status, text || response.statusText, path);
+  }
+
+  return response.text();
+}
+
+/**
  * Starts one stage as a Cove job and answers the job id the host minted for it.
  *
  * @param options the options the run was claimed with, never the settings form's current values.
@@ -117,10 +145,15 @@ export const STARTABLE_STAGES: readonly RunStage[] = RUN_STAGES;
 export async function startHostStage(stage: RunStage, options: RunOptions): Promise<string> {
   const { route, body } = HOST_STAGE_ROUTES[stage];
 
-  const started = await requestJson<HostJobStarted>(route, {
+  const answered = await hostRequest(route, {
     method: "POST",
     body: JSON.stringify(body(options)),
   });
+  if (!answered) {
+    throw new ApiError(200, "the start route answered no job id", route);
+  }
+
+  const started = JSON.parse(answered) as HostJobStarted;
   return started.jobId;
 }
 
@@ -132,5 +165,5 @@ export async function startHostStage(stage: RunStage, options: RunOptions): Prom
  * cancelled, so the stage's outcome is read from the next run report rather than from this call.
  */
 export async function cancelHostJob(jobId: string): Promise<void> {
-  await request(`/jobs/${jobId}`, { method: "DELETE" });
+  await hostRequest(`/jobs/${jobId}`, { method: "DELETE" });
 }

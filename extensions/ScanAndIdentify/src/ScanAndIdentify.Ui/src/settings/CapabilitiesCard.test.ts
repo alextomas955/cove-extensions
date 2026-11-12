@@ -1,71 +1,71 @@
 // @vitest-environment jsdom
-import { test, expect, vi, beforeEach } from "vitest";
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 
-import { waitFor } from "../common/lib/flushRender";
-import type { CapabilitiesView } from "../wire/api";
+import { withQueryClient } from "../common/lib/testQueryClient";
+import { jsonResponse } from "../common/lib/testResponses";
+import type { CapabilitiesView } from "../wire";
 
-const server = vi.hoisted(() => ({
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the card really issues.
+const endpoint = vi.hoisted(() => ({
   // What the capabilities request answers with. Null until a test sets it, so an unconfigured call
   // fails loudly rather than resolving something nobody chose.
-  respond: null as (() => Promise<CapabilitiesView>) | null,
+  respond: null as (() => Promise<Response>) | null,
 }));
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
-  errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  requestJson: (path: string) => {
-    if (server.respond === null) throw new Error(`unconfigured request to ${path}`);
-    return server.respond();
+vi.mock("@cove/runtime/api", () => ({
+  extensionFetch: (path: string) => {
+    if (endpoint.respond === null) throw new Error(`unconfigured request to ${path}`);
+    return endpoint.respond();
   },
 }));
 
 const { CapabilitiesCard } = await import("./CapabilitiesCard");
 
-function mount(): HTMLElement {
-  const container = document.createElement("div");
-  document.body.append(container);
-  createRoot(container).render(createElement(CapabilitiesCard));
-  return container;
-}
+const answers = (view: CapabilitiesView) => () => jsonResponse(view);
 
-const rendered = (container: HTMLElement) => container.querySelector("section") !== null;
+const mount = () => render(withQueryClient(createElement(CapabilitiesCard)));
 
 beforeEach(() => {
-  server.respond = null;
-  document.body.replaceChildren();
+  endpoint.respond = null;
 });
 
-test("a request still in flight shows the spinner and neither the values nor an error", async () => {
-  server.respond = () => new Promise<CapabilitiesView>(() => undefined);
-  const container = mount();
+afterEach(cleanup);
 
-  await waitFor(
-    "the spinner to render",
-    () => container.querySelector("svg.animate-spin") !== null,
-  );
+test("a request still in flight shows the spinner and neither the values nor an error", async () => {
+  endpoint.respond = () => new Promise<Response>(() => undefined);
+  const { container } = mount();
+
+  await waitFor(() => {
+    expect(container.querySelector("svg.animate-spin")).not.toBeNull();
+  });
 
   expect(container.textContent).not.toMatch(/couldn't read/i);
 });
 
 test("a rejected request shows the failure the request reported and no values", async () => {
-  server.respond = () => Promise.reject(new Error("403 forbidden"));
-  const container = mount();
+  endpoint.respond = () => jsonResponse({ detail: "the host would not say" }, 403);
+  const { container } = mount();
 
-  await waitFor("the failure to render", () => /couldn't read/i.test(container.textContent));
-
-  expect(container.textContent).toContain("403 forbidden");
+  expect(await screen.findByText(/couldn't read/i)).toBeDefined();
+  expect(container.textContent).toContain("403 the host would not say");
   expect(container.querySelector("svg.animate-spin")).toBeNull();
 });
 
 test("a host that supplied everything renders nothing at all", async () => {
-  server.respond = () =>
-    Promise.resolve({ coveVersion: "1.7.0", jobService: true, scanService: true });
-  const container = mount();
+  endpoint.respond = answers({ coveVersion: "1.7.0", jobService: true, scanService: true });
+  const { container } = mount();
 
-  await waitFor("the spinner to go", () => container.querySelector("svg.animate-spin") === null);
+  await waitFor(() => {
+    expect(container.querySelector("svg.animate-spin")).toBeNull();
+  });
 
-  expect(rendered(container)).toBe(false);
+  expect(container.querySelector("section")).toBeNull();
   expect(container.textContent).toBe("");
 });
 
@@ -76,12 +76,10 @@ test.each([
 ])(
   "a host missing %s says so and names the version",
   async (_case, jobService, scanService, named) => {
-    server.respond = () => Promise.resolve({ coveVersion: "1.7.0", jobService, scanService });
-    const container = mount();
+    endpoint.respond = answers({ coveVersion: "1.7.0", jobService, scanService });
+    const { container } = mount();
 
-    await waitFor("the warning to render", () => rendered(container));
-
-    expect(container.textContent).toContain(named);
+    expect(await screen.findByText(new RegExp(named))).toBeDefined();
     expect(container.textContent).toContain("a run cannot start");
     expect(container.textContent).toContain("1.7.0");
   },

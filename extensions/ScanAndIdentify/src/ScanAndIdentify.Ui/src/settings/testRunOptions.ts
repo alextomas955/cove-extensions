@@ -1,51 +1,93 @@
 /**
- * The stand-in server and the DOM lookups the options suites share.
+ * The stand-in Cove and the DOM lookups the options suites share.
  *
- * The request double refuses a call no test configured, so a suite that forgets to seed a response
- * fails loudly instead of rendering something nobody chose.
+ * The seam is the host's own fetch, which the generated client reaches through the adapter in
+ * common/lib/wireClient, so what is scripted here is the request the form really issues. A read no
+ * test configured is refused, so a suite that forgets to seed a response fails loudly instead of
+ * rendering something nobody chose.
  */
 import type { RunOptions } from "./runOptions";
 
-/** One request the form issued through the write stand-in. */
+/** One write the form issued through the stand-in. */
 export interface RecordedWrite {
   path: string;
   method: string | undefined;
   body: string | undefined;
 }
 
+/** A reply the server refuses with: the status it sends and the body it writes. */
+export interface Refusal {
+  status: number;
+  body: string;
+}
+
+/** A refusal the stand-in answers with, in the two parts an error branch reads. */
+export const refusal = (status: number, body: string): Refusal => ({ status, body });
+
 export const server = {
   /** What the options read answers with. Null until a test sets it. */
   respond: null as (() => Promise<RunOptions>) | null,
+  /**
+   * The document the last write stored, which every later read answers with.
+   *
+   * The PUT replaces the whole document, so a read after it reports what was written. Modelled
+   * here because the hook asks the server rather than assuming either.
+   */
+  stored: null as RunOptions | null,
+  /** What the options read fails with, in place of answering. */
+  readError: null as Refusal | null,
   writes: [] as RecordedWrite[],
   /** What the write fails with. Null means it succeeds. */
-  writeError: null as Error | null,
+  writeError: null as Refusal | null,
 };
 
 /** Resets the stand-in and the document between tests. */
 export function resetServer(): void {
   server.respond = null;
+  server.stored = null;
+  server.readError = null;
   server.writes = [];
   server.writeError = null;
   document.body.replaceChildren();
 }
 
-/** The module shape `vi.mock` returns for `@cove-extensions/ui-shared/extensionRequest`. */
-export function extensionRequestDouble() {
-  return {
-    errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-    requestJson: (path: string) => {
-      if (server.respond === null) throw new Error(`unconfigured request to ${path}`);
-      return server.respond();
-    },
-    request: (path: string, options: RequestInit) => {
-      server.writes.push({
-        path,
-        method: options.method,
-        body: typeof options.body === "string" ? options.body : undefined,
+// The generated client reads a reply by its Content-Type, so every reply carries one: a bare
+// Response takes a different path through the client than the server's own reply does.
+// A bodyless reply carries no Content-Type: the generated client reads a reply by that header, and
+// a 204 that claims JSON is parsed as an empty document and fails with "Unexpected end of JSON
+// input" before any handler sees the status.
+const reply = (value: unknown, status = 200): Response =>
+  value === undefined
+    ? new Response(null, { status: status === 200 ? 204 : status })
+    : new Response(JSON.stringify(value), {
+        status,
+        headers: { "Content-Type": "application/json" },
       });
-      return server.writeError === null
-        ? Promise.resolve(undefined)
-        : Promise.reject(server.writeError);
+
+const refused = ({ status, body }: Refusal): Response =>
+  new Response(body, { status, headers: { "Content-Type": "application/json" } });
+
+/** The module shape `vi.mock` returns for `@cove/runtime/api`. */
+export function coveRuntimeApiDouble() {
+  return {
+    extensionFetch: async (path: string, init: RequestInit = {}): Promise<Response> => {
+      // Recorded without the `/api` prefix every caller shares, so a recorded path reads as the
+      // route rather than as the mount point.
+      const route = path.startsWith("/api") ? path.slice(4) : path;
+      const method = (init.method ?? "GET").toUpperCase();
+
+      if (method === "PUT") {
+        const body = typeof init.body === "string" ? init.body : undefined;
+        server.writes.push({ path: route, method, body });
+        if (server.writeError !== null) return refused(server.writeError);
+        if (body !== undefined) server.stored = JSON.parse(body) as RunOptions;
+        return reply(undefined);
+      }
+
+      if (server.readError !== null) return refused(server.readError);
+      if (server.stored !== null) return reply(server.stored);
+      if (server.respond === null) throw new Error(`unconfigured request to ${route}`);
+      return reply(await server.respond());
     },
   };
 }

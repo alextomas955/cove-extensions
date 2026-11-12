@@ -1,38 +1,40 @@
 // @vitest-environment jsdom
+// The two cards together: the page is what holds the options and the run, so only here can a test
+// see the Run button refuse a dirty form.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
 import { test, expect, vi, afterEach, beforeEach } from "vitest";
 import { createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { waitFor } from "../common/lib/flushRender";
+import { withQueryClient } from "../common/lib/testQueryClient";
 import {
   answered,
-  buttonNamed,
-  switchNamed,
-  switchStates,
   resetServer as resetOptionsServer,
   server as optionsServer,
 } from "./testRunOptions";
 import { resetServer as resetRunServer, server as runServer } from "./testRun";
 
-// The cards share one stand-in, split by path, because the page is what holds the options and the
-// run together: a test that mounted them apart could not see the Run button refuse a dirty form.
-vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
-  const run = (await import("./testRun")).extensionRequestDouble();
-  const options = (await import("./testRunOptions")).extensionRequestDouble();
-  const optionsPath = (path: string) => path.endsWith("/options");
+// One stand-in split by route, because both cards reach the host through the same fetch.
+vi.mock("@cove/runtime/api", async () => {
+  const run = (await import("./testRun")).coveRuntimeApiDouble();
+  const options = (await import("./testRunOptions")).coveRuntimeApiDouble();
 
   return {
-    ...run,
-    requestJson: (path: string, init?: RequestInit) =>
-      optionsPath(path) ? options.requestJson(path) : run.requestJson(path, init),
-    request: (path: string, init?: RequestInit) =>
-      optionsPath(path) ? options.request(path, init ?? {}) : run.request(path, init),
+    extensionFetch: (path: string, init?: RequestInit) =>
+      path.endsWith("/options")
+        ? options.extensionFetch(path, init)
+        : run.extensionFetch(path, init),
   };
 });
 
 const { ScanAndIdentifyPage } = await import("./ScanAndIdentifyPage");
 
-let mounted: Root | null = null;
+const runButton = () => screen.getByRole<HTMLButtonElement>("button", { name: "Run" });
+
+const spriteSwitch = () => screen.getByRole("switch", { name: "Sprite sheets" });
 
 beforeEach(() => {
   resetRunServer();
@@ -42,54 +44,51 @@ beforeEach(() => {
   optionsServer.respond = () => Promise.resolve(answered());
 });
 
-afterEach(() => {
-  mounted?.unmount();
-  mounted = null;
-  document.body.replaceChildren();
-});
+afterEach(cleanup);
 
-function render(): HTMLElement {
-  const container = document.createElement("div");
-  document.body.append(container);
-  mounted = createRoot(container);
-  mounted.render(createElement(ScanAndIdentifyPage));
-  return container;
-}
-
-// Found without throwing, because the first predicate runs before React has committed anything and
-// a throw there ends the wait instead of retrying it.
-const runButton = (container: HTMLElement): HTMLButtonElement | undefined =>
-  [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "Run");
-
-async function mountIdle(): Promise<HTMLElement> {
-  const container = render();
-  await waitFor("the page to offer a run", () => runButton(container)?.disabled === false);
-  return container;
+async function mountIdle() {
+  const rendered = render(withQueryClient(createElement(ScanAndIdentifyPage)));
+  // Both cards: the options form is what a later edit acts on, and the run button is what it has
+  // to refuse. Waiting on one alone leaves the other still loading.
+  await screen.findByRole("switch", { name: "Sprite sheets" });
+  await waitFor(() => {
+    expect(runButton().disabled).toBe(false);
+  });
+  return rendered;
 }
 
 test("the page mounts the run section and the run options form", async () => {
-  const container = await mountIdle();
+  await mountIdle();
 
-  expect([...container.querySelectorAll("h3")].map((e) => e.textContent)).toContain("Run options");
+  expect(screen.getByRole("heading", { name: "Run options" })).toBeDefined();
 });
 
 test("an unsaved option edit refuses a run and says why, without discarding the edit", async () => {
-  const container = await mountIdle();
+  const user = userEvent.setup();
+  await mountIdle();
 
-  switchNamed(container, "Sprite sheets").click();
-  await waitFor("the run to be refused", () => runButton(container)?.disabled === true);
+  await user.click(spriteSwitch());
+  await waitFor(() => {
+    expect(runButton().disabled).toBe(true);
+  });
 
-  expect(container.querySelector("[role='status']")?.textContent).toContain("Save the run options");
-  expect(switchStates(container)["Sprite sheets"]).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("Save the run options");
+  expect(spriteSwitch().getAttribute("aria-checked")).toBe("false");
 });
 
 test("saving the edit offers the run again", async () => {
-  const container = await mountIdle();
-  switchNamed(container, "Sprite sheets").click();
-  await waitFor("the run to be refused", () => runButton(container)?.disabled === true);
+  const user = userEvent.setup();
+  await mountIdle();
 
-  buttonNamed(container, "Save").click();
-  await waitFor("the run to be offered again", () => runButton(container)?.disabled === false);
+  await user.click(spriteSwitch());
+  await waitFor(() => {
+    expect(runButton().disabled).toBe(true);
+  });
 
-  expect(switchStates(container)["Sprite sheets"]).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => {
+    expect(runButton().disabled).toBe(false);
+  });
+
+  expect(spriteSwitch().getAttribute("aria-checked")).toBe("false");
 });

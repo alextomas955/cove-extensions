@@ -3,9 +3,9 @@ import { test, expect, beforeEach, vi } from "vitest";
 import { resetServer, server } from "./testRun";
 import { answered } from "./testRunOptions";
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
-  const { extensionRequestDouble } = await import("./testRun");
-  return extensionRequestDouble();
+vi.mock("@cove/runtime/api", async () => {
+  const { coveRuntimeApiDouble } = await import("./testRun");
+  return coveRuntimeApiDouble();
 });
 
 const { fingerprintBody, identifyBody, imagesBody, scanBody, startHostStage } =

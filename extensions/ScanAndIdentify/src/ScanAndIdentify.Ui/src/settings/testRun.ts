@@ -1,14 +1,18 @@
 /**
- * The stand-in server and the whole-record helper the run suites share.
+ * The stand-in Cove and the whole-record helper the run suites share.
  *
- * The request double refuses a call no test configured, so a suite that forgets to seed a response
- * fails loudly instead of driving the chain against something nobody chose.
+ * The seam is the host's own fetch, which the generated client reaches through the adapter in
+ * common/lib/wireClient and the host-route helper calls directly, so what is scripted here is the
+ * request the page really issues. A call no test configured is refused, so a suite that forgets to
+ * seed a response fails loudly instead of driving the chain against something nobody chose.
  */
 import type { RunEndReason, RunStage, RunStageDetail, RunStageState, RunView } from "./run";
 import { answered } from "./testRunOptions";
 
 /** The stage order, written out rather than read from the module the suites are testing. */
 const STAGES: readonly RunStage[] = ["scan", "fingerprints", "identify", "images"];
+
+const RUN_PATH = "/extensions/com.alextomas955.scanandidentify/run";
 
 /** One request the page issued through the stand-in. */
 export interface RecordedCall {
@@ -17,28 +21,27 @@ export interface RecordedCall {
   body: unknown;
 }
 
-/** A request failure as the real module raises one: a status and a body. */
-export class FakeApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: string,
-  ) {
-    super(`${status} ${body}`);
-  }
+/** A reply the server refuses with: the status it sends and the body it writes. */
+export interface Refusal {
+  status: number;
+  body: string;
 }
+
+/** A refusal the stand-in answers with, in the two parts an error branch reads. */
+export const refusal = (status: number, body: string): Refusal => ({ status, body });
 
 export const server = {
   calls: [] as RecordedCall[],
   /** What each successive run read answers; the last entry repeats. Undefined is the 204. */
   reads: [] as (RunView | undefined)[],
-  readError: null as Error | null,
+  readError: null as Refusal | null,
   claimAnswer: null as RunView | null,
-  claimError: null as Error | null,
-  stageError: null as Error | null,
-  hostError: null as Error | null,
+  claimError: null as Refusal | null,
+  stageError: null as Refusal | null,
+  hostError: null as Refusal | null,
   hostJobId: "scan-job",
   /** What the host's job cancel fails with. Null means it answers 200. */
-  cancelError: null as Error | null,
+  cancelError: null as Refusal | null,
 };
 
 export function resetServer(): void {
@@ -59,50 +62,78 @@ function nextRead(): RunView | undefined {
   return server.reads.length === 1 ? server.reads[0] : server.reads.shift();
 }
 
-/** The module shape `vi.mock` returns for `@cove-extensions/ui-shared/extensionRequest`. */
-export function extensionRequestDouble() {
-  const record = (path: string, options: RequestInit | undefined): unknown => {
-    const body: unknown = typeof options?.body === "string" ? JSON.parse(options.body) : undefined;
-    server.calls.push({ path, method: options?.method ?? "GET", body });
-    return body;
-  };
+// The generated client reads a reply by its Content-Type, so every reply carries one: a bare
+// Response takes a different path through the client than the server's own reply does.
+// A bodyless reply carries no Content-Type: the generated client reads a reply by that header, and
+// a 204 that claims JSON is parsed as an empty document and fails with "Unexpected end of JSON
+// input" before any handler sees the status.
+const reply = (value: unknown, status = 200): Response =>
+  value === undefined
+    ? new Response(null, { status: status === 200 ? 204 : status })
+    : new Response(JSON.stringify(value), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
 
+const refused = ({ status, body }: Refusal): Response =>
+  new Response(body, { status, headers: { "Content-Type": "application/json" } });
+
+/** The module shape `vi.mock` returns for `@cove/runtime/api`. */
+export function coveRuntimeApiDouble() {
   return {
-    ApiError: FakeApiError,
-    errorText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-    request: (path: string, options?: RequestInit) => {
-      record(path, options);
-      if (path.startsWith("/jobs/")) {
-        return server.cancelError === null
-          ? Promise.resolve(undefined)
-          : Promise.reject(server.cancelError);
+    extensionFetch: (path: string, init: RequestInit = {}): Promise<Response> => {
+      // Recorded without the `/api` prefix every caller shares, so a recorded path reads as the
+      // route rather than as the mount point.
+      const route = path.startsWith("/api") ? path.slice(4) : path;
+      const method = (init.method ?? "GET").toUpperCase();
+      // Parsed only when there is something to parse: a POST with no body reaches here with an
+      // empty string, which JSON.parse refuses.
+      const body: unknown =
+        typeof init.body === "string" && init.body !== "" ? JSON.parse(init.body) : undefined;
+      server.calls.push({ path: route, method, body });
+
+      if (route.startsWith("/jobs/")) {
+        return Promise.resolve(
+          server.cancelError === null ? reply(undefined) : refused(server.cancelError),
+        );
       }
-      if (server.readError !== null) return Promise.reject(server.readError);
-      return Promise.resolve(nextRead());
-    },
-    requestJson: (path: string, options?: RequestInit) => {
-      const sent = record(path, options);
-      if (path.endsWith("/run")) {
-        if (server.claimError !== null) return Promise.reject(server.claimError);
-        if (server.claimAnswer === null) throw new Error(`unconfigured claim to ${path}`);
-        return Promise.resolve(server.claimAnswer);
+
+      if (route.startsWith("/metadata/")) {
+        return Promise.resolve(
+          server.hostError === null
+            ? reply({ jobId: server.hostJobId })
+            : refused(server.hostError),
+        );
       }
-      if (path.endsWith("/run/stages")) {
-        if (server.stageError !== null) return Promise.reject(server.stageError);
-        return Promise.resolve(nextRead());
+
+      if (route === `${RUN_PATH}/stages`) {
+        return Promise.resolve(
+          server.stageError === null ? reply(nextRead()) : refused(server.stageError),
+        );
       }
-      if (path.endsWith("/run/end")) {
-        const { reason } = sent as { reason: RunEndReason };
+
+      if (route === `${RUN_PATH}/end`) {
+        const { reason } = body as { reason: RunEndReason };
         const current = nextRead();
         if (current === undefined) throw new Error("ended a run the read does not know about");
-        return Promise.resolve({
-          ...current,
-          endedAt: "2026-10-30T10:00:00Z",
-          endedReason: reason,
-        });
+        return Promise.resolve(
+          reply({ ...current, endedAt: "2026-10-30T10:00:00Z", endedReason: reason }),
+        );
       }
-      if (server.hostError !== null) return Promise.reject(server.hostError);
-      return Promise.resolve({ jobId: server.hostJobId });
+
+      if (route === RUN_PATH && method === "POST") {
+        if (server.claimError !== null) return Promise.resolve(refused(server.claimError));
+        if (server.claimAnswer === null) throw new Error(`unconfigured claim to ${route}`);
+        return Promise.resolve(reply(server.claimAnswer));
+      }
+
+      if (route === RUN_PATH) {
+        return Promise.resolve(
+          server.readError === null ? reply(nextRead()) : refused(server.readError),
+        );
+      }
+
+      throw new Error(`unconfigured ${method} to ${route}`);
     },
   };
 }

@@ -1,15 +1,22 @@
 // @vitest-environment jsdom
-import { test, expect, vi, beforeEach } from "vitest";
+// What the options hook shows from one `GET /options`, and what it sends back.
+// Registers the interceptor that turns a failed request into an ApiError carrying its status.
+import "../common/lib/wireErrors";
+
+import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { waitFor } from "../common/lib/flushRender";
+import { withQueryClient } from "../common/lib/testQueryClient";
 import type { RunOptions } from "./runOptions";
-import { answered, buttonNamed, resetServer, server, switchNamed } from "./testRunOptions";
+import { answered, refusal, resetServer, server } from "./testRunOptions";
 
-vi.mock("@cove-extensions/ui-shared/extensionRequest", async () => {
-  const { extensionRequestDouble } = await import("./testRunOptions");
-  return extensionRequestDouble();
+// The seam is the host's own fetch, which the generated client reaches through the adapter in
+// common/lib/wireClient, so what is scripted here is the request the hook really issues.
+vi.mock("@cove/runtime/api", async () => {
+  const { coveRuntimeApiDouble } = await import("./testRunOptions");
+  return coveRuntimeApiDouble();
 });
 
 const { RunOptionsForm } = await import("./RunOptionsForm");
@@ -20,56 +27,49 @@ function Harness() {
   return createElement(RunOptionsForm, { controller: useRunOptions() });
 }
 
-function mount(): HTMLElement {
-  const container = document.createElement("div");
-  document.body.append(container);
-  createRoot(container).render(createElement(Harness));
-  return container;
-}
+const mount = () => render(withQueryClient(createElement(Harness)));
 
-const switches = (container: HTMLElement) => container.querySelectorAll('button[role="switch"]');
+const switches = () => screen.queryAllByRole("switch");
 
-beforeEach(() => {
-  resetServer();
-});
+beforeEach(resetServer);
+
+afterEach(cleanup);
 
 test("a read still in flight shows the spinner and no switch", async () => {
   server.respond = () => new Promise<RunOptions>(() => undefined);
-  const container = mount();
+  const { container } = mount();
 
-  await waitFor(
-    "the spinner to render",
-    () => container.querySelector("svg.animate-spin") !== null,
-  );
+  await waitFor(() => {
+    expect(container.querySelector("svg.animate-spin")).not.toBeNull();
+  });
 
-  expect(switches(container)).toHaveLength(0);
+  expect(switches()).toHaveLength(0);
 });
 
 test("Save issues one PUT carrying the whole record with the edited value in it", async () => {
+  const user = userEvent.setup();
   server.respond = () => Promise.resolve(answered());
-  const container = mount();
-  await waitFor("the switches to render", () => switches(container).length > 0);
+  mount();
 
-  switchNamed(container, "Fill in missing fingerprints").click();
-  await waitFor("Save to become enabled", () => !buttonNamed(container, "Save").disabled);
-  buttonNamed(container, "Save").click();
-  await waitFor("the write to be issued", () => server.writes.length > 0);
+  await user.click(await screen.findByRole("switch", { name: "Fill in missing fingerprints" }));
+  await user.click(screen.getByRole("button", { name: "Save" }));
 
-  expect(server.writes).toEqual([
-    {
-      path: "/extensions/com.alextomas955.scanandidentify/options",
-      method: "PUT",
-      body: JSON.stringify(answered({ backfillFingerprints: false })),
-    },
-  ]);
+  await waitFor(() => {
+    expect(server.writes).toEqual([
+      {
+        path: "/extensions/com.alextomas955.scanandidentify/options",
+        method: "PUT",
+        body: JSON.stringify(answered({ backfillFingerprints: false })),
+      },
+    ]);
+  });
 });
 
 test("a rejected read shows the failure the request reported and no switch", async () => {
-  server.respond = () => Promise.reject(new Error("403 forbidden"));
-  const container = mount();
+  server.readError = refusal(403, '{"detail":"forbidden"}');
+  const { container } = mount();
 
-  await waitFor("the failure to render", () => /couldn't read/i.test(container.textContent));
-
+  expect(await screen.findByText(/couldn't read/i)).toBeDefined();
   expect(container.textContent).toContain("403 forbidden");
-  expect(switches(container)).toHaveLength(0);
+  expect(switches()).toHaveLength(0);
 });

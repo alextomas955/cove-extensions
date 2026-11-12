@@ -18,7 +18,6 @@
     "types": ["node", "react", "react-dom"],
     "paths": {
       "@cove-extensions/ui-shared": ["../../../../shared/ui-shared/src/index.ts"],
-      "@cove-extensions/ui-shared/postAction": ["../../../../shared/ui-shared/src/postAction.ts"],
       "@cove-extensions/ui-shared/extensionRequest": [
         "../../../../shared/ui-shared/src/extensionRequest.ts"
       ],

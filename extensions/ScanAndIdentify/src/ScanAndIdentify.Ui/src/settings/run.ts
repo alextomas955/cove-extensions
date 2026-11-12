@@ -6,7 +6,7 @@
  * Per-member documentation stays on the C# contract.
  */
 
-import type * as Wire from "../wire/api";
+import type * as Wire from "../wire";
 import type { Complete } from "../common/lib/wire";
 
 export type RunView = Complete<Wire.RunView>;
