@@ -17,7 +17,7 @@
     "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "3.14.25"
+    "@tanstack/react-virtual": "3.14.26"
   },
   "devDependencies": {
     "@tanstack/react-query": "5.103.1",
