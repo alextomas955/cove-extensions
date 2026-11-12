@@ -129,7 +129,8 @@ public sealed class RunEndpointTests
         int afterTheRefusedStart = store.SetCallCount;
 
         var running = await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Identify, "identify-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Identify, "identify-job"), Runner,
+            Hosting("identify-job", "identify"));
         int reported = store.SetCallCount;
         var lostTheReport = await extension.RecordStageAsync(
             new RunStageStarted(run.RunId, RunStage.Identify, "a-second-identify-job"), Runner, NoJobs);
@@ -155,7 +156,7 @@ public sealed class RunEndpointTests
     public async Task Read_DerivesTheScanStageFromItsHostJob(JobStatus status, RunStageState expected)
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
-        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
 
         var read = await ReadAsync(extension, Jobs("scan-job", status));
 
@@ -167,7 +168,7 @@ public sealed class RunEndpointTests
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
         await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
 
         var read = await ReadAsync(extension, new RecordingJobService().With(
             "scan-job",
@@ -190,7 +191,7 @@ public sealed class RunEndpointTests
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
         await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
 
         var read = await ReadAsync(extension, Jobs("scan-job", JobStatus.Running));
 
@@ -204,7 +205,7 @@ public sealed class RunEndpointTests
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
         await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
         string overlong = new('x', RunStageDetail.MaxTextLength + 1);
 
         var read = await ReadAsync(extension, new RecordingJobService().With(
@@ -217,7 +218,7 @@ public sealed class RunEndpointTests
     public async Task Read_AnswersASettledStageFromTheRecord_WhenTheHostHasForgottenItsJob()
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
-        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
         await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
 
         var later = await ReadAsync(extension, new RecordingJobService());
@@ -230,7 +231,7 @@ public sealed class RunEndpointTests
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
         await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
         await ReadAsync(extension, new RecordingJobService().With(
             "scan-job",
             JobStatus.Completed,
@@ -257,7 +258,7 @@ public sealed class RunEndpointTests
     {
         var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
         await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
         var first = await ReadAsync(extension, new RecordingJobService().With(
             "scan-job", JobStatus.Running, progress: 0.1));
         int writes = store.SetCallCount;
@@ -274,7 +275,7 @@ public sealed class RunEndpointTests
     public async Task Read_EndsTheRunAsInterrupted_WhenAStagesJobNoLongerResolves()
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
-        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
 
         var read = await ReadAsync(extension, new RecordingJobService());
         var next = await extension.ClaimRunAsync(Runner, new RecordingJobService());
@@ -398,6 +399,57 @@ public sealed class RunEndpointTests
         Assert.Equal(writes, store.SetCallCount);
     }
 
+    [Fact]
+    public async Task RecordStage_RefusesANewStage_AfterTheRunHasEnded()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
+        await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.StoppedByUser), Runner, NoJobs);
+        int writes = store.SetCallCount;
+
+        // The stages after the one the user stopped at are still pending, so a second page holding
+        // a read from before the end passes every other check.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Fingerprints, null), Runner, NoJobs);
+
+        Assert.Equal("RUN_ENDED", Refused(result).Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_StillTakesTheJobId_ForAStageStartedBeforeTheRunEnded()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.StoppedByUser), Runner, NoJobs);
+
+        // The caller issued the host request before the run ended, so the job exists. Refusing the
+        // report would leave a running job the record does not name and nothing can go on to stop.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        Assert.Equal("scan-job", StageOf(Answered(result), RunStage.Scan).JobId);
+    }
+
+    [Fact]
+    public async Task RecordStage_RefusesAJobTheHostHoldsAsSomethingOtherThanThisStagesPass()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        // A rename job's id, which the run record would otherwise store and whose summary and error
+        // the run view would then answer with.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "someone-elses-job"),
+            Runner,
+            new RecordingJobService().With("someone-elses-job", JobStatus.Running, "renamer-library"));
+
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("UNKNOWN_JOB", bad.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
     [Theory]
     [InlineData(Permissions.LibraryScan)]
     [InlineData(Permissions.JobsRun)]
@@ -435,6 +487,11 @@ public sealed class RunEndpointTests
     // so they take the job service too. These tests assert the record, not the projection.
     private static RecordingJobService NoJobs => new();
 
+    // The host a report is made against. The route refuses a job id the host does not hold as the
+    // pass that stage runs, so a test that reports one says which pass it is.
+    private static RecordingJobService Hosting(string jobId, string type = "scan")
+        => new RecordingJobService().With(jobId, JobStatus.Running, type);
+
     private static RecordingJobService Jobs(string jobId, JobStatus status)
         => new RecordingJobService().With(jobId, status);
 
@@ -457,7 +514,7 @@ public sealed class RunEndpointTests
     private static async Task SucceedScanAsync(
         global::ScanAndIdentify.ScanAndIdentify extension, RunView run)
     {
-        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, NoJobs);
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
         await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
     }
 

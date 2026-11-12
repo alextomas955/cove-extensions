@@ -35,9 +35,18 @@ export const server = {
   /** What each successive run read answers; the last entry repeats. Undefined is the 204. */
   reads: [] as (RunView | undefined)[],
   readError: null as Refusal | null,
+  /** Holds the next run read open, so a test can act while one is in flight. */
+  holdNextRead: false,
+  releaseRead: (): void => undefined,
   claimAnswer: null as RunView | null,
   claimError: null as Refusal | null,
+  /** What the write that claims a stage fails with. The one carrying a job id is `reportError`. */
   stageError: null as Refusal | null,
+  /** What the write that reports a started job's id fails with. */
+  reportError: null as Refusal | null,
+  /** Holds the next host start open, which is the window a cancel cannot see a job id in. */
+  holdHostStart: false,
+  releaseHostStart: (): void => undefined,
   hostError: null as Refusal | null,
   hostJobId: "scan-job",
   /** What the host's job cancel fails with. Null means it answers 200. */
@@ -51,6 +60,11 @@ export function resetServer(): void {
   server.claimAnswer = null;
   server.claimError = null;
   server.stageError = null;
+  server.reportError = null;
+  server.holdNextRead = false;
+  server.releaseRead = () => undefined;
+  server.holdHostStart = false;
+  server.releaseHostStart = () => undefined;
   server.hostError = null;
   server.hostJobId = "scan-job";
   server.cancelError = null;
@@ -74,6 +88,14 @@ const reply = (value: unknown, status = 200): Response =>
         status,
         headers: { "Content-Type": "application/json" },
       });
+
+// Waits only when a test asked to hold this call open, so every other request stays synchronous.
+const held = (hold: boolean, keep: (release: () => void) => void): Promise<void> =>
+  hold
+    ? new Promise<void>((resolve) => {
+        keep(resolve);
+      })
+    : Promise.resolve();
 
 const refused = ({ status, body }: Refusal): Response =>
   new Response(body, { status, headers: { "Content-Type": "application/json" } });
@@ -99,7 +121,11 @@ export function coveRuntimeApiDouble() {
       }
 
       if (route.startsWith("/metadata/")) {
-        return Promise.resolve(
+        // Consumed as the call begins, not as it resolves, so a test can wait for the hold to be
+        // taken rather than for the answer it is holding back.
+        const hold = server.holdHostStart;
+        server.holdHostStart = false;
+        return held(hold, (release) => (server.releaseHostStart = release)).then(() =>
           server.hostError === null
             ? reply({ jobId: server.hostJobId })
             : refused(server.hostError),
@@ -107,9 +133,11 @@ export function coveRuntimeApiDouble() {
       }
 
       if (route === `${RUN_PATH}/stages`) {
-        return Promise.resolve(
-          server.stageError === null ? reply(nextRead()) : refused(server.stageError),
-        );
+        const failure =
+          (body as { jobId: string | null }).jobId === null
+            ? server.stageError
+            : server.reportError;
+        return Promise.resolve(failure === null ? reply(nextRead()) : refused(failure));
       }
 
       if (route === `${RUN_PATH}/end`) {
@@ -128,7 +156,9 @@ export function coveRuntimeApiDouble() {
       }
 
       if (route === RUN_PATH) {
-        return Promise.resolve(
+        const hold = server.holdNextRead;
+        server.holdNextRead = false;
+        return held(hold, (release) => (server.releaseRead = release)).then(() =>
           server.readError === null ? reply(nextRead()) : refused(server.readError),
         );
       }

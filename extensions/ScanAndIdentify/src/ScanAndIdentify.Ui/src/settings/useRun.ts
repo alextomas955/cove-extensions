@@ -31,6 +31,9 @@ const ALREADY_IN_FLIGHT = "A run is already in flight.";
 /** What a refused cancel means: the run is over, the job it was running may not be. */
 const CANCEL_REFUSED = "The run has stopped, but Cove would not stop the stage already in flight:";
 
+/** What a lost stage report means: the pass was started and then stopped, so nothing ran on. */
+const REPORT_LOST = "The pass was started but could not be recorded, so it was stopped again:";
+
 export interface UseRun {
   run: RunView | null;
   loading: boolean;
@@ -59,7 +62,11 @@ const isStatus = (err: unknown, status: number) => err instanceof ApiError && er
  * to the user. A per-page flag cannot prevent the double start, because the two callers are two
  * pages; the server's stage transition is what does.
  */
-async function startStage(run: RunView, stage: RunStage): Promise<Advance> {
+async function startStage(
+  run: RunView,
+  stage: RunStage,
+  superseded: () => boolean,
+): Promise<Advance> {
   try {
     await recordStage(run.runId, stage);
   } catch (err) {
@@ -76,11 +83,39 @@ async function startStage(run: RunView, stage: RunStage): Promise<Advance> {
     return { outcome: "failed", message: errorText(err), run: await endRun(run.runId, "failed") };
   }
 
+  // The host request is the window a cancel cannot see into: until it answers there is no job id,
+  // so the stage this page is starting is one the cancel passes over. The id exists now, so the
+  // job this page started is this page's to stop.
+  if (superseded()) {
+    await stopQuietly(jobId);
+    return { outcome: "abandoned" };
+  }
+
   try {
     return { outcome: "advanced", run: await recordStage(run.runId, stage, jobId) };
   } catch (err) {
     if (isStatus(err, 409)) return { outcome: "abandoned" };
-    throw err;
+
+    // The job is running and the record does not name it, so nothing left can report on it or stop
+    // it: the next read sees a stage still starting, and the server gives up on it once the start
+    // budget expires while the whole-library pass runs on. Stopping it is the only outcome this
+    // page can still deliver.
+    await stopQuietly(jobId);
+    return {
+      outcome: "failed",
+      message: `${REPORT_LOST} ${errorText(err)}`,
+      run: await endRun(run.runId, "failed"),
+    };
+  }
+}
+
+/** Stops a job whose outcome nobody is waiting on, where a refused stop changes nothing. */
+async function stopQuietly(jobId: string): Promise<void> {
+  try {
+    await cancelHostJob(jobId);
+  } catch {
+    // The caller is already reporting why it gave up on this job, and a second sentence about the
+    // stop it also could not make says nothing it can act on.
   }
 }
 
@@ -97,6 +132,10 @@ export function useRun(): UseRun {
   // posting cannot start the same stage twice from this page.
   const advancing = useRef(false);
   const failures = useRef(0);
+
+  // Bumped by Cancel. An advance captures it before its host request and compares afterwards,
+  // which is how a start that was in flight when the user stopped the run finds out.
+  const cancels = useRef(0);
 
   useEffect(() => {
     if (!watching) return undefined;
@@ -163,8 +202,9 @@ export function useRun(): UseRun {
       if (next === null) return;
 
       advancing.current = true;
+      const beforeAdvance = cancels.current;
       try {
-        const advance = await startStage(observed, next);
+        const advance = await startStage(observed, next, () => cancels.current !== beforeAdvance);
         if (!stillLive() || advance.outcome === "abandoned") return;
         setRun(advance.run);
         if (advance.outcome === "failed") setFailure(advance.message);
@@ -185,6 +225,7 @@ export function useRun(): UseRun {
 
   const start = useCallback(() => {
     void (async () => {
+      const beforeClaim = cancels.current;
       setClaiming(true);
       setFailure(null);
       try {
@@ -195,7 +236,7 @@ export function useRun(): UseRun {
         // job behind it; the poll's own advance only ever picks up a stage still waiting.
         advancing.current = true;
         try {
-          const advance = await startStage(claimed, "scan");
+          const advance = await startStage(claimed, "scan", () => cancels.current !== beforeClaim);
           if (advance.outcome !== "abandoned") {
             setRun(advance.run);
             if (advance.outcome === "failed") setFailure(advance.message);
@@ -218,6 +259,9 @@ export function useRun(): UseRun {
     if (run === null || !isRunInFlight(run)) return;
 
     void (async () => {
+      // Bumped first, so an advance already past its own check stops the job it started rather
+      // than reporting it into a run this is about to end.
+      cancels.current += 1;
       setCancelling(true);
       setFailure(null);
       // Held across the whole cancel so a tick cannot start the next stage in the window between

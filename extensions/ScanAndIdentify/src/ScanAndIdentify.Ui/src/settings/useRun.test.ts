@@ -505,6 +505,55 @@ test("a read refused with a forbidden says the account cannot start or watch a r
   expect([...container.querySelectorAll("button")]).toEqual([]);
 });
 
+test("a cancel during a stage start stops the job that start was creating", async () => {
+  server.reads = [undefined, runView({ scan: "starting" })];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+  // The window the cancel cannot see into: the stage is claimed, the host request is out, and no
+  // job id has come back for the Cancel button to act on.
+  server.holdHostStart = true;
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  void pressRun(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(SCAN_PATH), "the host start to be in flight").toBe(true);
+  });
+
+  await pressCancel(container);
+  server.releaseHostStart();
+
+  await waitFor(() => {
+    expect(calledPaths().includes(CANCEL_PATH), "the started job to be stopped").toBe(true);
+  });
+  // Not reported into a run the user has ended, and nothing started after it.
+  expect(stagesWritten()).toEqual(["scan"]);
+  expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("a stage report that fails stops the job it could not record", async () => {
+  server.reads = [undefined, runView({ scan: "starting" })];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+  // The host started the pass and the record never learned its id, so nothing left could report on
+  // that job or stop it.
+  server.reportError = refusal(503, '{"detail":"the run could not be written"}');
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+
+  await waitFor(() => {
+    expect(calledPaths().includes(CANCEL_PATH), "the unrecorded job to be stopped").toBe(true);
+  });
+  expect(container.textContent).toContain("could not be recorded");
+  expect(bodySentTo(END_PATH)).toEqual({ runId: "run-1", reason: "failed" });
+});
+
 test("the stage in flight draws its host job's progress", async () => {
   server.reads = [
     runView(

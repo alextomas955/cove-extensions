@@ -13,6 +13,10 @@ internal sealed class RecordingJobService : IJobService
     public RecordingJobService With(
         string jobId,
         JobStatus status,
+        // Cove's own type for the pass: "scan", "generate" or "identify". The stage report route
+        // refuses an id the host does not hold as the pass that stage runs, so a test reporting one
+        // has to say which pass it is.
+        string type = "scan",
         double progress = 0,
         string? subTask = null,
         string? summary = null,
@@ -24,7 +28,7 @@ internal sealed class RecordingJobService : IJobService
         int? unitsSkipped = null)
     {
         _jobs[jobId] = new JobInfo(
-            jobId, "scan", "Scanning", status, progress, subTask, DateTime.UtcNow, null, error,
+            jobId, type, "Scanning", status, progress, subTask, DateTime.UtcNow, null, error,
             unitsTotal, unitsCompleted, unitsSucceeded, unitsFailed, unitsSkipped, summary);
         return this;
     }

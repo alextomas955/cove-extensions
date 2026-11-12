@@ -336,6 +336,20 @@ public sealed partial class ScanAndIdentify
                 return new ConflictProblem("STALE_RUN", "The run named by the request is not the run in flight.");
             }
 
+            // A run that has ended starts nothing more. The stages after the one it stopped at stay
+            // pending, so without this a second page holding a read from before the end passes both
+            // the run-id and the ordering check and starts the next whole-library job against a run
+            // the user cancelled.
+            //
+            // Only a new claim is refused. The job id for a stage already starting is still taken,
+            // because the caller that issued that host request has to be able to say what it
+            // started: the job is running either way, and a report refused here is a job nothing
+            // can go on to cancel.
+            if (record.EndedAt is not null && body.JobId is null)
+            {
+                return new ConflictProblem("RUN_ENDED", "This run has ended, so no stage can start.");
+            }
+
             int index = record.Stages.FindIndex(entry => entry.Stage == body.Stage);
             if (index < 0 || record.Stages
                 .Take(index)
@@ -349,6 +363,12 @@ public sealed partial class ScanAndIdentify
             if (!MayTransition(stage, body.JobId))
             {
                 return new ConflictProblem("STAGE_TAKEN", "Another caller already started this stage.");
+            }
+
+            if (body.JobId is { } claimedJobId && !IsHostJobForStage(jobs, claimedJobId, body.Stage))
+            {
+                return new BadRequestProblem(
+                    "UNKNOWN_JOB", "The job named by the request is not the pass this stage runs.");
             }
 
             var now = DateTime.UtcNow;
@@ -439,6 +459,38 @@ public sealed partial class ScanAndIdentify
         ? stage.State == RunStageState.Pending
             || (stage.Stage == RunStage.Scan && stage.State == RunStageState.Starting && stage.JobId is null)
         : stage.State == RunStageState.Starting && stage.JobId is null;
+
+    // The host job type each stage is started as, taken from Cove's own enqueue calls: the scan
+    // runner, the generate service and the identify action. A stage is reported against one of
+    // these or not at all.
+    private static readonly Dictionary<RunStage, string> HostJobTypes = new()
+    {
+        [RunStage.Scan] = "scan",
+        [RunStage.Fingerprints] = "generate",
+        [RunStage.Identify] = "identify",
+        [RunStage.Images] = "generate",
+    };
+
+    /// <summary>
+    /// Whether <paramref name="jobId"/> names a host job of the kind <paramref name="stage"/> runs.
+    /// </summary>
+    /// <remarks>
+    /// The job id travels in the request body, so without this the run record is a place to park
+    /// any job's id, and the stage detail the run routes then answer with carries that job's
+    /// sub-task, summary and error. A rename, an export or a bulk delete is where one account's
+    /// file names would come from; the type check keeps all three out.
+    /// <para>
+    /// Ownership would be the stronger test and is not available: Cove enqueues all three pipeline
+    /// passes with no owner, so the host cannot say who started one, and
+    /// <c>GetJobFor(owner, id, includeAll: false)</c> answers null even for the caller's own job.
+    /// What remains reachable with a matching type is another concurrent pass over the same whole
+    /// library, which carries no one account's data.
+    /// </para>
+    /// </remarks>
+    private static bool IsHostJobForStage(IJobService jobs, string jobId, RunStage stage)
+        => HostJobTypes.TryGetValue(stage, out var type)
+            && jobs.GetJob(jobId) is { } job
+            && string.Equals(job.Type, type, StringComparison.Ordinal);
 
     private static ForbiddenProblem? ForbiddenForRun(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.TrueForAll(RunPermissions, current.Has)
