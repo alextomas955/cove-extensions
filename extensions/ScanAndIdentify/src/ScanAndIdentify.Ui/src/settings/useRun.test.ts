@@ -60,6 +60,11 @@ function stageStates(container: HTMLElement): Record<string, string> {
   return states;
 }
 
+/** The state one stage row carries, unlabelled, so a test names the server's own spelling. */
+const rawStageState = (container: HTMLElement, stage: string): string | null =>
+  container.querySelector(`[data-stage="${stage}"] [data-state]`)?.getAttribute("data-state") ??
+  null;
+
 /** The row one stage draws, or null before the first render has committed. */
 function stageRow(container: HTMLElement, stage: string): HTMLElement | null {
   return container.querySelector(`[data-stage="${stage}"]`);
@@ -531,6 +536,36 @@ test("a cancel during a stage start stops the job that start was creating", asyn
   // Not reported into a run the user has ended, and nothing started after it.
   expect(stagesWritten()).toEqual(["scan"]);
   expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("a read from before the claim does not stop the run started while it was out", async () => {
+  // Nothing is in flight on the first render, so Run is offered while the first read is still out.
+  // That read answers for the library as it was before the claim, so it reports no run at all.
+  server.holdNextRead = true;
+  server.reads = [
+    runView({ scan: "starting" }),
+    runView({ scan: "running" }, {}, { scan: "host-scan-7" }),
+    undefined,
+    runView({ scan: "succeeded" }, {}, { scan: "host-scan-7" }),
+  ];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+
+  const container = render();
+  await waitFor(() => {
+    expect(calledPaths().includes(RUN_PATH), "the first read to be in flight").toBe(true);
+  });
+
+  await pressRun(container);
+  await waitFor(() => {
+    expect(rawStageState(container, "scan"), "the scan to be reported running").toBe("running");
+  });
+
+  server.releaseRead();
+
+  await waitFor(() => {
+    expect(calledPaths().includes(GENERATE_PATH), "the next pass to start").toBe(true);
+  });
 });
 
 test("a stage report that fails stops the job it could not record", async () => {

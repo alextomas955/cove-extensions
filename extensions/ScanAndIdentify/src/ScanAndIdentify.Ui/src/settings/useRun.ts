@@ -133,9 +133,11 @@ export function useRun(): UseRun {
   const advancing = useRef(false);
   const failures = useRef(0);
 
-  // Bumped by Cancel. An advance captures it before its host request and compares afterwards,
-  // which is how a start that was in flight when the user stopped the run finds out.
-  const cancels = useRef(0);
+  // Counts the times this page changed the run itself. Two things compare it across a request they
+  // are waiting on: an advance, which is how a start that was in flight when the user stopped the
+  // run finds out, and a read, which is how an answer describing the run as it was before a claim
+  // is kept from clearing the run that claim created.
+  const runChanges = useRef(0);
 
   useEffect(() => {
     if (!watching) return undefined;
@@ -148,12 +150,18 @@ export function useRun(): UseRun {
     const tick = async () => {
       if (advancing.current) return;
 
+      // The run this answer describes is the one that existed when the read went out. A claim or an
+      // end since then has made it a report of a state that is gone, and acting on it would clear a
+      // run this page had just started.
+      const beforeRead = runChanges.current;
+      const usable = () => live && runChanges.current === beforeRead;
+
       let observed: RunView | undefined;
       try {
         observed = await readRun();
         failures.current = 0;
       } catch (err) {
-        if (!stillLive()) return;
+        if (!usable()) return;
         if (isStatus(err, 403)) {
           setForbidden(true);
           setLoading(false);
@@ -175,7 +183,7 @@ export function useRun(): UseRun {
         return;
       }
 
-      if (!stillLive()) return;
+      if (!usable()) return;
       setLoading(false);
       setRun(observed ?? null);
 
@@ -202,9 +210,13 @@ export function useRun(): UseRun {
       if (next === null) return;
 
       advancing.current = true;
-      const beforeAdvance = cancels.current;
+      const beforeAdvance = runChanges.current;
       try {
-        const advance = await startStage(observed, next, () => cancels.current !== beforeAdvance);
+        const advance = await startStage(
+          observed,
+          next,
+          () => runChanges.current !== beforeAdvance,
+        );
         if (!stillLive() || advance.outcome === "abandoned") return;
         setRun(advance.run);
         if (advance.outcome === "failed") setFailure(advance.message);
@@ -225,7 +237,10 @@ export function useRun(): UseRun {
 
   const start = useCallback(() => {
     void (async () => {
-      const beforeClaim = cancels.current;
+      // Bumped before the claim, so a read already out when the user pressed Run cannot report the
+      // library as having no run and stop the one this is about to create.
+      runChanges.current += 1;
+      const beforeClaim = runChanges.current;
       setClaiming(true);
       setFailure(null);
       try {
@@ -236,7 +251,11 @@ export function useRun(): UseRun {
         // job behind it; the poll's own advance only ever picks up a stage still waiting.
         advancing.current = true;
         try {
-          const advance = await startStage(claimed, "scan", () => cancels.current !== beforeClaim);
+          const advance = await startStage(
+            claimed,
+            "scan",
+            () => runChanges.current !== beforeClaim,
+          );
           if (advance.outcome !== "abandoned") {
             setRun(advance.run);
             if (advance.outcome === "failed") setFailure(advance.message);
@@ -261,7 +280,7 @@ export function useRun(): UseRun {
     void (async () => {
       // Bumped first, so an advance already past its own check stops the job it started rather
       // than reporting it into a run this is about to end.
-      cancels.current += 1;
+      runChanges.current += 1;
       setCancelling(true);
       setFailure(null);
       // Held across the whole cancel so a tick cannot start the next stage in the window between
