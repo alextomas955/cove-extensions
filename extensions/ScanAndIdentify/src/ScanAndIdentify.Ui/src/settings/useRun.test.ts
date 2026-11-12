@@ -438,8 +438,7 @@ test("the poll keeps reading after the run ends and stops once the last stage se
 test("unsaved options block Run and the reason is announced with the button", async () => {
   server.reads = [undefined];
 
-  const container = renderSection(createElement(RunSection, { optionsDirty: true }))
-    .container;
+  const container = renderSection(createElement(RunSection, { optionsDirty: true })).container;
   await waitFor(() => {
     expect(runButton(container), "the Run button to render").not.toBeNull();
   });
