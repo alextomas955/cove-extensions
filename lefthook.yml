@@ -8,12 +8,13 @@
 pre-commit:
   parallel: true
   commands:
-    # --- TypeScript/JS: one repo-root Prettier, then one repo-root ESLint ---
+    # --- Prettier for the file types ESLint does not read ---
     # Selected by file type and never by location, so a second extension or a second shared package
     # needs no entry here. Formatting settings resolve per file by walking up from it, so a package
-    # that needs its own conventions declares them without this entry knowing.
+    # that needs its own conventions declares them without this entry knowing. TypeScript and JS are
+    # formatted in js-lint instead, after its fixer has run.
     format:
-      glob: "*.{ts,tsx,mjs,cjs,json,jsonc,css,md,mdx,yml,yaml}"
+      glob: "*.{json,jsonc,css,md,mdx,yml,yaml}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
 
@@ -46,9 +47,12 @@ pre-commit:
     # Single monorepo-wide ESLint (root eslint.config.mjs): every extension's TS/React UI + all
     # first-party .mjs/.cjs helper/build/test scripts. Type-aware, so it resolves each UI's installed
     # deps on the dev box.
+    # Prettier runs here rather than in the format entry above, because it has to run last: a lint
+    # fix that changes a line's length leaves the file formatted for the line it replaced, and CI
+    # checks formatting.
     js-lint:
       glob: "*.{ts,tsx,mjs,cjs}"
-      run: npx eslint --fix {staged_files}
+      run: npx eslint --fix {staged_files} && npx prettier --write {staged_files}
       stage_fixed: true
 
     # --- C#: format changed projects in place (cheap; no full build) ---
