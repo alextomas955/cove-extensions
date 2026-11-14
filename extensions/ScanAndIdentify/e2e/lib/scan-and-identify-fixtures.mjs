@@ -8,8 +8,18 @@
 //
 // The harness is imported by package name through npm workspaces. A second @playwright/test install
 // under this directory would break Playwright's module singleton, so this must never declare one.
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, createApiClient } from "@cove-extensions/e2e";
 import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
+
+// The harness's own media fixtures, found through the package rather than by counting `..`
+// segments from this file, so moving either directory is a resolution error and not a copy of
+// nothing.
+const FIXTURES_DIR = join(
+  dirname(fileURLToPath(import.meta.resolve("@cove-extensions/e2e/seed-media"))),
+  "fixtures-media",
+);
 
 export const EXTENSION_ID = "com.alextomas955.scanandidentify";
 export const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -48,5 +58,38 @@ export async function readRun(api) {
 /** One stage of a run view, by name. */
 export const stageOf = (run, stage) => run.stages.find((entry) => entry.stage === stage);
 
-export { seedVideo } from "@cove-extensions/e2e/seed-media";
+/**
+ * Copies a media fixture into the container's library path and registers it with nothing, which is
+ * what gives a scan something to discover. `seedVideo` imports through the host's own route, so a
+ * library seeded with it is already complete and a scan over it is a scan that finds nothing.
+ *
+ * @returns the path the file now has inside the container.
+ */
+export async function placeUnregisteredVideo(harness, name) {
+  const containerPath = `/data/${name}`;
+  await harness.container.copyFilesToContainer([
+    { source: join(FIXTURES_DIR, "test-video.mp4"), target: containerPath },
+  ]);
+  // Copied in as root, and the scan reads as the host's own user.
+  await harness.container.exec(["chown", "cove:cove", containerPath], { user: "root" });
+  return containerPath;
+}
+
+/** The video whose file sits at `path`, or undefined while the library holds none. */
+export async function videoAtPath(api, path) {
+  const answer = await api.get("/api/videos?page=1&perPage=200");
+  expect(answer.ok, `listing videos answered ${answer.status}: ${answer.text}`).toBe(true);
+  const items = answer.json.items ?? answer.json;
+  return items.find((video) => video.files?.some((file) => file.path === path));
+}
+
+/** The fingerprint kinds recorded against a video's files, as the detail route reports them. */
+export async function fingerprintKinds(api, videoId) {
+  const answer = await api.get(`/api/videos/${videoId}`);
+  expect(answer.ok, `reading video ${videoId} answered ${answer.status}: ${answer.text}`).toBe(
+    true,
+  );
+  return answer.json.files.flatMap((file) => file.fingerprints.map((print) => print.type));
+}
+
 export { attemptUntil } from "@cove-extensions/e2e/poll";
