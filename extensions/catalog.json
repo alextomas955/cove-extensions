@@ -44,7 +44,9 @@
         "ScanAndIdentify.runtimeconfig.json",
         "README.md",
         "LICENSE"
-      ]
+      ],
+      "e2ePath": "extensions/ScanAndIdentify/e2e",
+      "e2eProject": "scanandidentify"
     }
   ]
 }
