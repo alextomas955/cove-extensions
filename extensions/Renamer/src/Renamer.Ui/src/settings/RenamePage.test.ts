@@ -11,10 +11,9 @@ import { createElement } from "react";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { withQueryClient } from "../common/lib/testQueryClient";
 import type { UseRenamePreview } from "./useRenamePreview";
 import type { LibraryPathsState, OptionsView, RenamerOptions } from "./options";
-import { jsonResponse } from "../common/lib/testResponses";
+import { jsonResponse, withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 const endpoint = vi.hoisted(() => ({
   view: null as OptionsView | null,

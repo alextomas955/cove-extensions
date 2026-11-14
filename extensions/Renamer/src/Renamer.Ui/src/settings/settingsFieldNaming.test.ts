@@ -13,13 +13,12 @@ import { someOptions } from "./testOptions";
 import { HOST_SELECTOR_MARK } from "../../../../../../shared/ui-shared/src/coveRuntimeComponentsStub";
 import type { LibraryPathsState, RenamerOptions } from "./options";
 
-import { withQueryClient } from "../common/lib/testQueryClient";
-
 import { AdvancedSection } from "./AdvancedSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
 import { FilenameSection } from "./FilenameSection";
 import { TokenSettingsSection } from "./TokenSettingsSection";
 import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
+import { withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 // Options seeded so every conditional control is actually on screen. An empty list draws no chip and
 // no button, and a format matching a preset reveals no custom input, so a run against the defaults

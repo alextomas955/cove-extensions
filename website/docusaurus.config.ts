@@ -65,6 +65,15 @@ const config: Config = {
       },
     ],
     [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "scanandidentify",
+        path: "../extensions/ScanAndIdentify/docs",
+        routeBasePath: "/extensions/scan-and-identify",
+        sidebarPath: "./sidebars-scanandidentify.ts",
+      },
+    ],
+    [
       "@docusaurus/plugin-client-redirects",
       {
         // Pages that were renamed or split, so a link someone saved still lands somewhere useful.
@@ -85,8 +94,8 @@ const config: Config = {
         indexBlog: false,
         // One entry per docs instance. docsRouteBasePath (where pages route) and docsDir (where the
         // markdown lives) must be parallel arrays, or the indexer won't read the external instances.
-        docsRouteBasePath: ["/", "/extensions/renamer"],
-        docsDir: ["docs", "../extensions/Renamer/docs"],
+        docsRouteBasePath: ["/", "/extensions/renamer", "/extensions/scan-and-identify"],
+        docsDir: ["docs", "../extensions/Renamer/docs", "../extensions/ScanAndIdentify/docs"],
       },
     ],
   ],
@@ -109,6 +118,12 @@ const config: Config = {
               docsPluginId: "renamer",
               sidebarId: "renamerSidebar",
               label: "Renamer",
+            },
+            {
+              type: "docSidebar",
+              docsPluginId: "scanandidentify",
+              sidebarId: "scanAndIdentifySidebar",
+              label: "Scan and Identify",
             },
           ],
         },
@@ -133,6 +148,7 @@ const config: Config = {
           items: [
             { label: "All extensions", to: "/#extensions" },
             { label: "Renamer", to: "/extensions/renamer" },
+            { label: "Scan and Identify", to: "/extensions/scan-and-identify" },
           ],
         },
         {

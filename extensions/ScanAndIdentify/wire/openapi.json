@@ -1,0 +1,816 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "cove extension wire contract",
+    "description": "The HTTP surface one Cove extension adds to its host. Every route is mounted under /api/extensions/<extension id> and is reached same-origin from the host page.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The Cove host."
+    }
+  ],
+  "paths": {
+    "/api/extensions/com.alextomas955.scanandidentify/capabilities": {
+      "get": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Report the host version and which host services resolved",
+        "description": "The Cove version captured at startup and whether the job and scan services were available to this extension. Host facts, no library data and no configuration.",
+        "operationId": "ScanAndIdentifyGetCapabilities",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/options": {
+      "get": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Read the saved run options",
+        "description": "Returns every member, filling any the stored document omits with its default. A run reads the same document through the same store, so the panel and a run can never disagree about what a stored blob means.",
+        "operationId": "ScanAndIdentifyGetOptions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOptions"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Replace the saved run options",
+        "description": "The body replaces the whole document; a member it omits takes its default. A malformed body is refused with 400 and nothing is written.",
+        "operationId": "ScanAndIdentifySaveOptions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Claim a run and write down what it will do",
+        "description": "Reads the saved options once and carries them on the run, so a switch flipped during the run changes nothing a later stage does. Refused with 409 while a run is still in flight.",
+        "operationId": "ScanAndIdentifyClaimRun",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Report the run as it stands",
+        "description": "Every unsettled stage is re-read from its host job and a newly terminal state is written down. Answers 204 when no run has ever been claimed.",
+        "operationId": "ScanAndIdentifyGetRun",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run/stages": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "Record a stage being started, and then its job id",
+        "description": "The stage write is a transition from a named current state, which is what keeps two open pages from starting the same stage twice. The loser is refused with 409 before it issues a host request.",
+        "operationId": "ScanAndIdentifyRecordStage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RunStageStarted"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.scanandidentify/run/end": {
+      "post": {
+        "tags": [
+          "ScanAndIdentify"
+        ],
+        "summary": "End a run the stage states cannot end by themselves",
+        "description": "Only cancelled, failed and stopped-by-user are accepted. Completed and interrupted are read off the stages, so accepting either here would let a caller assert an outcome it cannot observe.",
+        "operationId": "ScanAndIdentifyEndRun",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RunEnded"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A request body the framework could not bind is refused here with no body at all, before the handler runs. Where the handler itself refuses the request, the body is the problem document below.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "The caller holds none of the permissions the route declares, so the Cove host refused it as application/json, or the extension's own handler refused the narrower permission the request names, as application/problem+json. Both are reachable, and the media type is what tells them apart.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Cove host has authentication on and the caller presented no credential. Written by the host; the extension is never reached. A host with authentication off, which is its default, never answers this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveAuthorizationDenial"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request declared a content type the route does not accept. Written with no body."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CapabilitiesView": {
+        "required": [
+          "coveVersion",
+          "jobService",
+          "scanService"
+        ],
+        "type": "object",
+        "properties": {
+          "coveVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jobService": {
+            "type": "boolean"
+          },
+          "scanService": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CoveAuthorizationDenial": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable SCREAMING_SNAKE token: `UNAUTHORIZED` or `FORBIDDEN`."
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Written with `UNAUTHORIZED`. Absent from a permission refusal."
+          },
+          "missing": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The permissions the caller holds none of. Written with `FORBIDDEN`."
+          }
+        },
+        "description": "The body Cove's own extension-endpoint authorization middleware writes when it refuses a request\nbefore the extension's handler runs."
+      },
+      "ExtensionProblemDetails": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "max": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RunEnded": {
+        "required": [
+          "runId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RunEndReason"
+          }
+        }
+      },
+      "RunEndReason": {
+        "enum": [
+          "completed",
+          "failed",
+          "cancelled",
+          "stoppedByUser",
+          "interrupted",
+          null
+        ]
+      },
+      "RunOptions": {
+        "type": "object",
+        "properties": {
+          "thumbnails": {
+            "type": "boolean"
+          },
+          "previews": {
+            "type": "boolean"
+          },
+          "sprites": {
+            "type": "boolean"
+          },
+          "vrStereo": {
+            "type": "boolean"
+          },
+          "imageThumbnails": {
+            "type": "boolean"
+          },
+          "galleryThumbnails": {
+            "type": "boolean"
+          },
+          "backfillFingerprints": {
+            "type": "boolean"
+          },
+          "rescan": {
+            "type": "boolean"
+          },
+          "createMissingEntities": {
+            "type": "boolean"
+          },
+          "markOrganized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RunStage": {
+        "enum": [
+          "scan",
+          "fingerprints",
+          "identify",
+          "images"
+        ]
+      },
+      "RunStageDetail": {
+        "required": [
+          "progress",
+          "subTask",
+          "unitsTotal",
+          "unitsCompleted",
+          "unitsSucceeded",
+          "unitsFailed",
+          "unitsSkipped",
+          "summary",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "progress": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "subTask": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unitsTotal": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsCompleted": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsSucceeded": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsFailed": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "unitsSkipped": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RunStageStarted": {
+        "required": [
+          "runId",
+          "stage",
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/RunStage"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RunStageState": {
+        "enum": [
+          "pending",
+          "starting",
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "skipped",
+          "indeterminate"
+        ]
+      },
+      "RunStageView": {
+        "required": [
+          "stage",
+          "state",
+          "jobId",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/RunStage"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RunStageState"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunStageDetail"
+              }
+            ]
+          }
+        }
+      },
+      "RunView": {
+        "required": [
+          "runId",
+          "startedAt",
+          "endedAt",
+          "endedReason",
+          "options",
+          "stages"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endedReason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunEndReason"
+              }
+            ]
+          },
+          "options": {
+            "$ref": "#/components/schemas/RunOptions"
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunStageView"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "coveBearer": {
+        "type": "http",
+        "description": "Issued by the Cove host and attached by its own authenticated fetch. Required only where the host has authentication turned on, which is not its default; where it is on, a caller without one is refused by the host before the extension is reached.",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "coveBearer": [ ]
+    },
+    { }
+  ],
+  "tags": [
+    {
+      "name": "ScanAndIdentify"
+    }
+  ]
+}

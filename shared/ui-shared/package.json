@@ -10,6 +10,7 @@
     "./primitivesLogic": "./src/primitivesLogic.ts",
     "./overlay": "./src/overlay.ts",
     "./actions": "./src/actions.ts",
-    "./extensionRequest": "./src/extensionRequest.ts"
+    "./extensionRequest": "./src/extensionRequest.ts",
+    "./testing": "./src/testing.ts"
   }
 }

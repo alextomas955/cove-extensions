@@ -1,0 +1,18 @@
+{
+  "id": "com.alextomas955.scanandidentify",
+  "name": "ScanAndIdentify",
+  "version": "0.1.0",
+  "description": "Scans your library for new files, fingerprints each one, identifies what it is, and fetches the artwork and metadata to match.",
+  "author": "alextomas955",
+  "url": "https://github.com/alextomas955/cove-extensions",
+  "categories": ["tools", "automation"],
+  "minCoveVersion": "1.7.0",
+  "entryDll": "ScanAndIdentify.dll",
+  "jsBundle": "index.mjs",
+  "permissions": {
+    "network": [],
+    "scraperRuntime": [],
+    "downloaderRuntime": []
+  },
+  "dependencies": {}
+}

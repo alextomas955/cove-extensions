@@ -11,12 +11,14 @@ import { createElement } from "react";
 import { renderHook, cleanup, act } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-import { createTestQueryClient } from "../common/lib/testQueryClient";
-
 import { useRenameLibrary } from "./useRenameLibrary";
 import { LAST_BATCH_KEY } from "./useLastBatch";
 import type { LibraryRenameEnqueued, LibraryRenameSummaryView, RenamerJobStatus } from "../wire";
-import { jsonResponse, unparseableResponse } from "../common/lib/testResponses";
+import {
+  createTestQueryClient,
+  jsonResponse,
+  unparseableResponse,
+} from "@cove-extensions/ui-shared/testing";
 
 // The stubbed endpoint's script, hoisted so the module factories below can reach it.
 interface EndpointScript {

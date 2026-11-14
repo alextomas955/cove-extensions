@@ -1,0 +1,548 @@
+using System.Text.Json;
+using Cove.Core.Auth;
+using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using ScanAndIdentify.Contracts;
+using ScanAndIdentify.Options;
+using ScanAndIdentify.Run;
+using ScanAndIdentify.Tests.TestSupport;
+
+namespace ScanAndIdentify.Tests.Api;
+
+public sealed class RunEndpointTests
+{
+    [Fact]
+    public async Task Claim_StartsTheScanStage_AndLeavesTheOthersWaiting()
+    {
+        var (_, _, run) = await ClaimedAsync(new RecordingJobService());
+
+        Assert.NotEmpty(run.RunId);
+        Assert.Null(run.EndedAt);
+        Assert.Equal(
+            [RunStage.Scan, RunStage.Fingerprints, RunStage.Identify, RunStage.Images],
+            run.Stages.Select(stage => stage.Stage));
+        Assert.Equal(
+            [
+                RunStageState.Starting,
+                RunStageState.Pending,
+                RunStageState.Pending,
+                RunStageState.Pending,
+            ],
+            run.Stages.Select(stage => stage.State));
+        Assert.All(run.Stages, stage => Assert.Null(stage.JobId));
+    }
+
+    [Theory]
+    [InlineData(true, RunStageState.Pending)]
+    [InlineData(false, RunStageState.Skipped)]
+    public async Task Claim_WritesTheFingerprintStageFromTheSavedBackfillSwitch(
+        bool backfill, RunStageState expected)
+    {
+        var (_, _, run) = await ClaimedAsync(
+            new RecordingJobService(), new RunOptions { BackfillFingerprints = backfill });
+
+        Assert.Equal(expected, StageOf(run, RunStage.Fingerprints).State);
+        Assert.Equal(backfill, run.Options.BackfillFingerprints);
+    }
+
+    [Theory]
+    [InlineData(nameof(RunOptions.Thumbnails), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.Previews), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.Sprites), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.VrStereo), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.ImageThumbnails), RunStageState.Pending)]
+    [InlineData(nameof(RunOptions.GalleryThumbnails), RunStageState.Pending)]
+    [InlineData(null, RunStageState.Skipped)]
+    public async Task Claim_WritesTheImagesStageFromTheSixGenerateSwitches(
+        string? theOneLeftOn, RunStageState expected)
+    {
+        var options = new RunOptions
+        {
+            Thumbnails = theOneLeftOn == nameof(RunOptions.Thumbnails),
+            Previews = theOneLeftOn == nameof(RunOptions.Previews),
+            Sprites = theOneLeftOn == nameof(RunOptions.Sprites),
+            VrStereo = theOneLeftOn == nameof(RunOptions.VrStereo),
+            ImageThumbnails = theOneLeftOn == nameof(RunOptions.ImageThumbnails),
+            GalleryThumbnails = theOneLeftOn == nameof(RunOptions.GalleryThumbnails),
+        };
+
+        var (_, _, run) = await ClaimedAsync(new RecordingJobService(), options);
+
+        Assert.Equal(expected, StageOf(run, RunStage.Images).State);
+    }
+
+    [Fact]
+    public async Task Claim_Refuses_WhileTheFirstRunHasNotEnded()
+    {
+        var (extension, store, _) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        var second = await extension.ClaimRunAsync(Runner, new RecordingJobService());
+
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(second));
+        Assert.Equal("RUN_IN_FLIGHT", conflict.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_Refuses_ForARunIdThatIsNotTheCurrentRun()
+    {
+        var (extension, store, _) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted("a-run-that-ended", RunStage.Scan, null), Runner, NoJobs);
+
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("STALE_RUN", conflict.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_Refuses_WhenAnEarlierStageHasNotFinished()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Identify, null), Runner, NoJobs);
+
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("INVALID_STAGE", bad.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_RefusesASecondCallerStartingTheSameStage_AndKeepsTheFirstJobId()
+    {
+        var (extension, store, run) = await ClaimedAsync(
+            new RecordingJobService(), new RunOptions { BackfillFingerprints = false });
+        await SucceedScanAsync(extension, run);
+
+        var started = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Identify, null), Runner, NoJobs);
+        int writes = store.SetCallCount;
+        var lostTheStart = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Identify, null), Runner, NoJobs);
+        int afterTheRefusedStart = store.SetCallCount;
+
+        var running = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Identify, "identify-job"), Runner,
+            Hosting("identify-job", "identify"));
+        int reported = store.SetCallCount;
+        var lostTheReport = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Identify, "a-second-identify-job"), Runner, NoJobs);
+
+        Assert.Equal(
+            RunStageState.Starting,
+            StageOf(Answered(started), RunStage.Identify).State);
+        Assert.Equal("STAGE_TAKEN", Refused(lostTheStart).Code);
+        Assert.Equal(writes, afterTheRefusedStart);
+
+        Assert.Equal(RunStageState.Running, StageOf(Answered(running), RunStage.Identify).State);
+        Assert.Equal("STAGE_TAKEN", Refused(lostTheReport).Code);
+        Assert.Equal(reported, store.SetCallCount);
+        Assert.Equal("identify-job", StageOf(await ReadAsync(extension, Jobs("identify-job", JobStatus.Running)), RunStage.Identify).JobId);
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Pending, RunStageState.Queued)]
+    [InlineData(JobStatus.Running, RunStageState.Running)]
+    [InlineData(JobStatus.Completed, RunStageState.Succeeded)]
+    [InlineData(JobStatus.Failed, RunStageState.Failed)]
+    [InlineData(JobStatus.Cancelled, RunStageState.Cancelled)]
+    public async Task Read_DerivesTheScanStageFromItsHostJob(JobStatus status, RunStageState expected)
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        var read = await ReadAsync(extension, Jobs("scan-job", status));
+
+        Assert.Equal(expected, StageOf(read, RunStage.Scan).State);
+    }
+
+    [Fact]
+    public async Task Read_ReportsWhatTheRunningStagesHostJobSaysAboutItself()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        var read = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job",
+            JobStatus.Running,
+            progress: 0.42,
+            subTask: "Scanning clip.mp4",
+            unitsTotal: 5000,
+            unitsCompleted: 1204));
+
+        var detail = StageOf(read, RunStage.Scan).Detail;
+        Assert.NotNull(detail);
+        Assert.Equal(0.42, detail.Progress);
+        Assert.Equal("Scanning clip.mp4", detail.SubTask);
+        Assert.Equal(5000, detail.UnitsTotal);
+        Assert.Equal(1204, detail.UnitsCompleted);
+    }
+
+    [Fact]
+    public async Task Read_AnswersNoDetail_ForAStageThatHasNoHostJob()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        var read = await ReadAsync(extension, Jobs("scan-job", JobStatus.Running));
+
+        Assert.NotNull(StageOf(read, RunStage.Scan).Detail);
+        Assert.Null(StageOf(read, RunStage.Identify).JobId);
+        Assert.Null(StageOf(read, RunStage.Identify).Detail);
+    }
+
+    [Fact]
+    public async Task Read_TruncatesAHostTextLine_AtTheLengthTheContractCaps()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        string overlong = new('x', RunStageDetail.MaxTextLength + 1);
+
+        var read = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job", JobStatus.Running, subTask: overlong));
+
+        Assert.Equal(RunStageDetail.MaxTextLength, StageOf(read, RunStage.Scan).Detail!.SubTask!.Length);
+    }
+
+    [Fact]
+    public async Task Read_AnswersASettledStageFromTheRecord_WhenTheHostHasForgottenItsJob()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
+
+        var later = await ReadAsync(extension, new RecordingJobService());
+
+        Assert.Equal(RunStageState.Succeeded, StageOf(later, RunStage.Scan).State);
+    }
+
+    [Fact]
+    public async Task Read_KeepsWhatAStageReported_AfterTheHostHasForgottenItsJob()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job",
+            JobStatus.Completed,
+            progress: 1,
+            summary: "4,920 of 5,000 units succeeded",
+            unitsTotal: 5000,
+            unitsCompleted: 5000,
+            unitsSucceeded: 4920,
+            unitsFailed: 80));
+
+        var later = await ReadAsync(extension, new RecordingJobService());
+
+        var stage = StageOf(later, RunStage.Scan);
+        Assert.Equal(RunStageState.Succeeded, stage.State);
+        Assert.NotNull(stage.Detail);
+        Assert.Equal("4,920 of 5,000 units succeeded", stage.Detail.Summary);
+        Assert.Equal(5000, stage.Detail.UnitsTotal);
+        Assert.Equal(4920, stage.Detail.UnitsSucceeded);
+        Assert.Equal(80, stage.Detail.UnitsFailed);
+    }
+
+    [Fact]
+    public async Task Read_WritesNothing_WhenAllThatMovedWasARunningStagesProgress()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        var first = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job", JobStatus.Running, progress: 0.1));
+        int writes = store.SetCallCount;
+
+        var second = await ReadAsync(extension, new RecordingJobService().With(
+            "scan-job", JobStatus.Running, progress: 0.5));
+
+        Assert.Equal(0.1, StageOf(first, RunStage.Scan).Detail!.Progress);
+        Assert.Equal(0.5, StageOf(second, RunStage.Scan).Detail!.Progress);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task Read_EndsTheRunAsInterrupted_WhenAStagesJobNoLongerResolves()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        var read = await ReadAsync(extension, new RecordingJobService());
+        var next = await extension.ClaimRunAsync(Runner, new RecordingJobService());
+
+        Assert.Equal(RunStageState.Indeterminate, StageOf(read, RunStage.Scan).State);
+        Assert.Null(StageOf(read, RunStage.Scan).Detail);
+        Assert.Equal(RunEndReason.Interrupted, read.EndedReason);
+        Assert.NotNull(read.EndedAt);
+        Assert.NotEqual(run.RunId, Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(next)).Value!.RunId);
+    }
+
+    [Fact]
+    public async Task Read_GivesUpOnAStageLeftStartingWithNoJobId_PastTheStartBudget()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Starting, startedAt: DateTime.UtcNow.AddHours(-1)),
+            Stage(RunStage.Fingerprints, RunStageState.Pending),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)));
+
+        var read = await ReadAsync(extension, new RecordingJobService());
+
+        Assert.Equal(RunStageState.Indeterminate, StageOf(read, RunStage.Scan).State);
+        Assert.Equal(RunEndReason.Interrupted, read.EndedReason);
+    }
+
+    [Fact]
+    public async Task Read_EndsTheRunAsCompleted_WhenEveryStageHasSucceededOrBeenSkipped()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Succeeded),
+            Stage(RunStage.Fingerprints, RunStageState.Skipped),
+            Stage(RunStage.Identify, RunStageState.Succeeded),
+            Stage(RunStage.Images, RunStageState.Running, jobId: "images-job")));
+
+        var read = await ReadAsync(extension, Jobs("images-job", JobStatus.Completed));
+
+        Assert.Equal(RunStageState.Succeeded, StageOf(read, RunStage.Images).State);
+        Assert.Equal(RunEndReason.Completed, read.EndedReason);
+        Assert.NotNull(read.EndedAt);
+    }
+
+    [Fact]
+    public async Task Read_EndsTheRunAsFailed_AndLeavesTheStagesAfterTheFailureWaiting()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Succeeded),
+            Stage(RunStage.Fingerprints, RunStageState.Running, jobId: "fingerprints-job"),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)));
+
+        var read = await ReadAsync(extension, Jobs("fingerprints-job", JobStatus.Failed));
+
+        Assert.Equal(RunEndReason.Failed, read.EndedReason);
+        Assert.Equal(RunStageState.Failed, StageOf(read, RunStage.Fingerprints).State);
+        Assert.Equal(RunStageState.Pending, StageOf(read, RunStage.Identify).State);
+        Assert.Equal(RunStageState.Pending, StageOf(read, RunStage.Images).State);
+    }
+
+    [Fact]
+    public async Task Read_AnswersNoContent_WhenNoRunHasEverBeenClaimed()
+    {
+        var extension = ScanAndIdentifyFixture.Create(new FakeStore());
+
+        var read = await extension.ReadRunAsync(Runner, new RecordingJobService());
+
+        Assert.IsType<NoContent>(HttpResultUnwrap.Unwrap(read));
+    }
+
+    [Theory]
+    // The three a caller can observe: the host cancelled the stage, the caller's own host request
+    // failed, or a person pressed Cancel.
+    [InlineData(RunEndReason.Cancelled)]
+    [InlineData(RunEndReason.Failed)]
+    [InlineData(RunEndReason.StoppedByUser)]
+    public async Task EndRun_StopsTheCurrentRunWithTheReasonTheCallerNamed(RunEndReason reason)
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+
+        var ended = await extension.EndRunAsync(new RunEnded(run.RunId, reason), Runner, NoJobs);
+
+        var view = Answered(ended);
+        Assert.Equal(reason, view.EndedReason);
+        Assert.NotNull(view.EndedAt);
+    }
+
+    [Fact]
+    public async Task EndRun_Refuses_ForARunIdThatIsNotTheCurrentRun()
+    {
+        var (extension, store, _) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        var result = await extension.EndRunAsync(
+            new RunEnded("a-run-that-ended", RunEndReason.Cancelled), Runner, NoJobs);
+
+        var conflict = Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("STALE_RUN", conflict.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Theory]
+    // The two reasons the stage states decide. A caller asserting either would be claiming an
+    // outcome only the derivation can observe.
+    [InlineData(RunEndReason.Completed)]
+    [InlineData(RunEndReason.Interrupted)]
+    public async Task EndRun_RefusesAReasonThatIsDerived(RunEndReason reason)
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        var result = await extension.EndRunAsync(new RunEnded(run.RunId, reason), Runner, NoJobs);
+
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("INVALID_END_REASON", bad.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_RefusesANewStage_AfterTheRunHasEnded()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
+        await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.StoppedByUser), Runner, NoJobs);
+        int writes = store.SetCallCount;
+
+        // The stages after the one the user stopped at are still pending, so a second page holding
+        // a read from before the end passes every other check.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Fingerprints, null), Runner, NoJobs);
+
+        Assert.Equal("RUN_ENDED", Refused(result).Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task RecordStage_StillTakesTheJobId_ForAStageStartedBeforeTheRunEnded()
+    {
+        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
+        await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.StoppedByUser), Runner, NoJobs);
+
+        // The caller issued the host request before the run ended, so the job exists. Refusing the
+        // report would leave a running job the record does not name and nothing can go on to stop.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        Assert.Equal("scan-job", StageOf(Answered(result), RunStage.Scan).JobId);
+    }
+
+    [Fact]
+    public async Task RecordStage_RefusesAJobTheHostHoldsAsSomethingOtherThanThisStagesPass()
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        int writes = store.SetCallCount;
+
+        // A rename job's id, which the run record would otherwise store and whose summary and error
+        // the run view would then answer with.
+        var result = await extension.RecordStageAsync(
+            new RunStageStarted(run.RunId, RunStage.Scan, "someone-elses-job"),
+            Runner,
+            new RecordingJobService().With("someone-elses-job", JobStatus.Running, "renamer-library"));
+
+        var bad = Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(result));
+        Assert.Equal("UNKNOWN_JOB", bad.Problem.Code);
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    [Theory]
+    [InlineData(Permissions.LibraryScan)]
+    [InlineData(Permissions.JobsRun)]
+    [InlineData(Permissions.LibraryIdentify)]
+    [InlineData(Permissions.ExtensionsConfigure)]
+    public async Task EveryRunRoute_Refuses_ForAPrincipalMissingOneOfTheFourPermissions(string missing)
+    {
+        var (extension, store, run) = await ClaimedAsync(new RecordingJobService());
+        var partial = FakePrincipalAccessor.WithPermissions(
+            [.. RunPermissions.Where(held => held != missing)]);
+        int writes = store.SetCallCount;
+
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
+            await extension.ClaimRunAsync(partial, new RecordingJobService())));
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
+            await extension.ReadRunAsync(partial, new RecordingJobService())));
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
+            await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, null), partial, NoJobs)));
+        Assert.IsType<ForbiddenProblem>(HttpResultUnwrap.Unwrap(
+            await extension.EndRunAsync(new RunEnded(run.RunId, RunEndReason.Cancelled), partial, NoJobs)));
+        Assert.Equal(writes, store.SetCallCount);
+    }
+
+    private static readonly string[] RunPermissions =
+    [
+        Permissions.LibraryScan,
+        Permissions.JobsRun,
+        Permissions.LibraryIdentify,
+        Permissions.ExtensionsConfigure,
+    ];
+
+    private static FakePrincipalAccessor Runner => FakePrincipalAccessor.WithPermissions(RunPermissions);
+
+    // The routes that record a stage or end a run project the same view as the two that read one,
+    // so they take the job service too. These tests assert the record, not the projection.
+    private static RecordingJobService NoJobs => new();
+
+    // The host a report is made against. The route refuses a job id the host does not hold as the
+    // pass that stage runs, so a test that reports one says which pass it is.
+    private static RecordingJobService Hosting(string jobId, string type = "scan")
+        => new RecordingJobService().With(jobId, JobStatus.Running, type);
+
+    private static RecordingJobService Jobs(string jobId, JobStatus status)
+        => new RecordingJobService().With(jobId, status);
+
+    private static async Task<(global::ScanAndIdentify.ScanAndIdentify Extension, FakeStore Store, RunView Run)>
+        ClaimedAsync(IJobService jobs, RunOptions? options = null)
+    {
+        var store = new FakeStore();
+        if (options is not null)
+        {
+            await store.SetAsync(
+                RunOptionsStore.Key, JsonSerializer.Serialize(options, RunOptions.JsonOptions));
+        }
+
+        var extension = ScanAndIdentifyFixture.Create(store);
+        var claimed = await extension.ClaimRunAsync(Runner, jobs);
+        return (extension, store, Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(claimed)).Value!);
+    }
+
+    // Takes the scan stage through to succeeded, which is what lets a later stage be started at all.
+    private static async Task SucceedScanAsync(
+        global::ScanAndIdentify.ScanAndIdentify extension, RunView run)
+    {
+        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+        await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
+    }
+
+    private static async Task<RunView> ReadAsync(
+        global::ScanAndIdentify.ScanAndIdentify extension, IJobService jobs)
+        => Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(await extension.ReadRunAsync(Runner, jobs))).Value!;
+
+    private static RunView Answered(IResult result)
+        => Assert.IsType<Ok<RunView>>(HttpResultUnwrap.Unwrap(result)).Value!;
+
+    private static ExtensionProblemDetails Refused(IResult result)
+        => Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result)).Problem;
+
+    private static RunStageView StageOf(RunView run, RunStage stage)
+        => run.Stages.Single(entry => entry.Stage == stage);
+
+    private static RunStageEntry Stage(
+        RunStage stage, RunStageState state, string? jobId = null, DateTime? startedAt = null)
+        => new() { Stage = stage, State = state, JobId = jobId, StartedAt = startedAt };
+
+    private static RunRecord WithStages(params RunStageEntry[] stages) => new()
+    {
+        RunId = "7f1c",
+        StartedAt = DateTime.UtcNow.AddHours(-1),
+        Stages = [.. stages],
+    };
+
+    private static async Task Seed(FakeStore store, RunRecord record)
+        => await store.SetAsync(
+            RunRecordStore.Key, JsonSerializer.Serialize(record, RunRecord.JsonOptions));
+}
