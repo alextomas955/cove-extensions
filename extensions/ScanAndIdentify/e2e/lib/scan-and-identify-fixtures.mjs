@@ -65,15 +65,23 @@ export const stageOf = (run, stage) => run.stages.find((entry) => entry.stage ==
  *
  * @returns the path the file now has inside the container.
  */
-export async function placeUnregisteredVideo(harness, name) {
+async function placeUnregistered(harness, fixtureName, name) {
   const containerPath = `/data/${name}`;
   await harness.container.copyFilesToContainer([
-    { source: join(FIXTURES_DIR, "test-video.mp4"), target: containerPath },
+    { source: join(FIXTURES_DIR, fixtureName), target: containerPath },
   ]);
   // Copied in as root, and the scan reads as the host's own user.
   await harness.container.exec(["chown", "cove:cove", containerPath], { user: "root" });
   return containerPath;
 }
+
+/** Places a video for a scan to find. See {@link placeUnregistered}. */
+export const placeUnregisteredVideo = (harness, name) =>
+  placeUnregistered(harness, "test-video.mp4", name);
+
+/** Places an image for a scan to find. See {@link placeUnregistered}. */
+export const placeUnregisteredImage = (harness, name) =>
+  placeUnregistered(harness, "test-image.png", name);
 
 /** The video whose file sits at `path`, or undefined while the library holds none. */
 export async function videoAtPath(api, path) {
@@ -81,6 +89,29 @@ export async function videoAtPath(api, path) {
   expect(answer.ok, `listing videos answered ${answer.status}: ${answer.text}`).toBe(true);
   const items = answer.json.items ?? answer.json;
   return items.find((video) => video.files?.some((file) => file.path === path));
+}
+
+/** The image whose file sits at `path`, or undefined while the library holds none. */
+export async function imageAtPath(api, path) {
+  const answer = await api.get("/api/images?page=1&perPage=200");
+  expect(answer.ok, `listing images answered ${answer.status}: ${answer.text}`).toBe(true);
+  const items = answer.json.items ?? answer.json;
+  return items.find((image) => image.files?.some((file) => file.path === path));
+}
+
+/**
+ * Cove's own count of what a generate run over the whole library would still have to make, one
+ * entry per option, each `{ missing, total }`.
+ *
+ * This is how an image pass is observed. The image routes report a file without its fingerprints
+ * and no route reports a generated thumbnail, so nothing an image pass produces is directly
+ * readable; the host counts what is still missing through the same thumbnail and fingerprint
+ * lookups the run writes through.
+ */
+export async function generateEstimate(api) {
+  const answer = await api.post("/api/metadata/generate/estimate", {});
+  expect(answer.ok, `the generate estimate answered ${answer.status}: ${answer.text}`).toBe(true);
+  return answer.json;
 }
 
 /** The fingerprint kinds recorded against a video's files, as the detail route reports them. */

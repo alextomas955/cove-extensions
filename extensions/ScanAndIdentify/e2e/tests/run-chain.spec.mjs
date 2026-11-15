@@ -15,8 +15,11 @@ import {
   stageOf,
   attemptUntil,
   placeUnregisteredVideo,
+  placeUnregisteredImage,
   videoAtPath,
+  imageAtPath,
   fingerprintKinds,
+  generateEstimate,
   SCAN_AND_IDENTIFY_EXTENSION,
   ROUTE,
   STAGES,
@@ -119,6 +122,39 @@ test("a run finds a file nothing registered, fingerprints it, and walks the pass
   expect(stageOf(ended, "scan").jobId).not.toBe(stageOf(ended, "fingerprints").jobId);
 });
 
+test("a run hashes and makes a thumbnail for an image nothing registered", async ({
+  page,
+  isolatedHarness,
+  baseUrl,
+}) => {
+  const api = clientFor(isolatedHarness);
+  const path = await placeUnregisteredImage(isolatedHarness, `chain-${Date.now()}.png`);
+
+  // The premise: nothing has imported this file, so the row and both generated items below are the
+  // run's own work.
+  expect(await imageAtPath(api, path), "the library to hold no image for the placed file").toBe(
+    undefined,
+  );
+
+  const ended = await runToEnd(page, api, baseUrl);
+
+  expect(stageOf(ended, "fingerprints").state, "the fingerprint pass").toBe("succeeded");
+  expect(stageOf(ended, "images").state, "the images pass").toBe("succeeded");
+
+  expect(await imageAtPath(api, path), `the scan to have imported ${path}`).toBeDefined();
+
+  // The two passes reach images through different host switches: the phash is the fingerprint
+  // pass's `imagePhashes`, the thumbnail is the images pass's `imageThumbnails`. Nothing else in
+  // the run writes either, because the scan is started with both of its own image generators off.
+  // The skip test below is the control that this count reads non-zero when a pass does not run.
+  const estimate = await generateEstimate(api);
+  expect(estimate.imagePhashes, "the host to count image phashes").toBeDefined();
+  expect(estimate.imagePhashes.total, "the image the scan imported").toBeGreaterThan(0);
+  expect(estimate.imagePhashes.missing, "image phashes the run left unmade").toBe(0);
+  expect(estimate.imageThumbnails.total, "the image the scan imported").toBeGreaterThan(0);
+  expect(estimate.imageThumbnails.missing, "image thumbnails the run left unmade").toBe(0);
+});
+
 test("a run claimed with the fingerprint backfill off skips that pass", async ({
   page,
   isolatedHarness,
@@ -130,6 +166,7 @@ test("a run claimed with the fingerprint backfill off skips that pass", async ({
   expect(saved.ok, `saving the options answered ${saved.status}: ${saved.text}`).toBe(true);
 
   await placeUnregisteredVideo(isolatedHarness, `skip-${Date.now()}.mp4`);
+  await placeUnregisteredImage(isolatedHarness, `skip-${Date.now()}.png`);
   const ended = await runToEnd(page, api, baseUrl);
 
   // The run carries the options it was claimed with, and the stage that switch governs never starts.
@@ -141,4 +178,14 @@ test("a run claimed with the fingerprint backfill off skips that pass", async ({
   // still did its work and the chain still advanced past the skip.
   expect(stageOf(ended, "scan").state, "the scan pass").toBe("succeeded");
   expect(stageOf(ended, "identify").state, "the pass after the skipped one").not.toBe("pending");
+
+  // The two counts split on the one switch, which is what shows each is read from the pass that
+  // writes it: the skipped pass is the only thing that hashes an image, and the images pass, which
+  // still ran, is the only thing that makes its thumbnail.
+  const estimate = await generateEstimate(api);
+  expect(
+    estimate.imagePhashes.missing,
+    "image phashes the skipped pass never made",
+  ).toBeGreaterThan(0);
+  expect(estimate.imageThumbnails.missing, "image thumbnails the images pass made").toBe(0);
 });
