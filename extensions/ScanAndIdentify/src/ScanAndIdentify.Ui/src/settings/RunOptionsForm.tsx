@@ -31,6 +31,23 @@ export function RunOptionsForm({ controller }: Readonly<{ controller: UseRunOpti
     <SectionCard
       title="Run options"
       description="What a run does. A run reads them once, when it starts."
+      headerRight={
+        options === null ? undefined : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={discard} disabled={!canSave}>
+              Discard
+            </Button>
+            <Button
+              onClick={() => {
+                void onSave();
+              }}
+              disabled={!canSave}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        )
+      }
     >
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-secondary">
@@ -45,43 +62,34 @@ export function RunOptionsForm({ controller }: Readonly<{ controller: UseRunOpti
 
       {options === null ? null : (
         <div className="space-y-4">
-          {RUN_OPTION_GROUPS.map((group) => (
-            <FieldGroup key={group} label={group} labelStyle="group">
-              {GROUP_NOTES[group] === undefined ? null : (
-                <p className="mb-2 text-xs text-secondary">{GROUP_NOTES[group]}</p>
-              )}
-              <div className="space-y-2">
-                {RUN_OPTION_FIELDS.filter((field) => field.group === group).map((field) => (
-                  <Toggle
-                    key={field.key}
-                    label={field.label}
-                    helper={field.helper}
-                    checked={options[field.key]}
-                    onChange={(checked) => {
-                      set(field.key, checked);
-                    }}
-                  />
-                ))}
-              </div>
-            </FieldGroup>
-          ))}
-
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => {
-                void onSave();
-              }}
-              disabled={!canSave}
-            >
-              {saving ? "Saving…" : "Save"}
-            </Button>
-            <Button variant="ghost" onClick={discard} disabled={!canSave}>
-              Discard
-            </Button>
-            {saveError === null ? null : (
-              <StatusText kind="error">Couldn&apos;t save: {saveError}</StatusText>
-            )}
+          {/* Two columns from medium width up. One column put ten switches in a single list long
+              enough that the group a switch belongs to had scrolled off above it. */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {RUN_OPTION_GROUPS.map((group) => (
+              <FieldGroup key={group} label={group} labelStyle="group">
+                {GROUP_NOTES[group] === undefined ? null : (
+                  <p className="mb-2 text-xs text-secondary">{GROUP_NOTES[group]}</p>
+                )}
+                <div className="space-y-2">
+                  {RUN_OPTION_FIELDS.filter((field) => field.group === group).map((field) => (
+                    <Toggle
+                      key={field.key}
+                      label={field.label}
+                      helper={field.helper}
+                      checked={options[field.key]}
+                      onChange={(checked) => {
+                        set(field.key, checked);
+                      }}
+                    />
+                  ))}
+                </div>
+              </FieldGroup>
+            ))}
           </div>
+
+          {saveError === null ? null : (
+            <StatusText kind="error">Couldn&apos;t save: {saveError}</StatusText>
+          )}
         </div>
       )}
     </SectionCard>

@@ -53,6 +53,51 @@ function StageOutcome({ stage }: Readonly<{ stage: RunStageView }>) {
   return <StatusText kind={stage.state === "failed" ? "error" : "muted"}>{outcome}</StatusText>;
 }
 
+/**
+ * One pass, as a tile in the row the four of them form.
+ *
+ * The row reads left to right in the order the passes run, so the position carries the sequence and
+ * nothing numbers them. Only the pass in flight is drawn with the accent border; the others keep
+ * the plain hairline, so which one is moving is legible without reading a single word.
+ */
+function StageTile({
+  stage,
+  moving,
+  ended,
+}: Readonly<{ stage: RunStageView; moving: boolean; ended: boolean }>) {
+  return (
+    <li
+      data-stage={stage.stage}
+      className={`min-w-0 flex-1 rounded-lg border p-3 ${
+        moving ? "border-accent bg-card" : "border-border bg-card/40"
+      }`}
+    >
+      {/* Stacked rather than set opposite each other: a tile is a quarter of a settings panel
+          wide, so a name on the left and its state on the right read as two separate things. */}
+      <div className="flex flex-col items-start gap-1.5">
+        <span className="min-w-0 text-sm font-medium text-foreground">
+          {RUN_STAGE_LABELS[stage.stage]}
+        </span>
+        <span data-state={stage.state}>
+          <StatusPill variant={RUN_STAGE_STATE_VARIANTS[stage.state]}>
+            {RUN_STAGE_STATE_LABELS[stage.state]}
+          </StatusPill>
+        </span>
+      </div>
+      {moving ? (
+        <div className="mt-2 space-y-1">
+          <StageProgress stage={stage} />
+        </div>
+      ) : null}
+      {ended ? (
+        <div className="mt-2">
+          <StageOutcome stage={stage} />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 /** Why a run cannot start right now, or null when it can. */
 const DIRTY_OPTIONS =
   "Save the run options first. A run reads what is saved, not what is on screen.";
@@ -80,15 +125,34 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
   return (
     <SectionCard
       title="Run"
-      description="Finds library items Cove holds no metadata for and identifies them. A run scans, fills in the missing fingerprints, identifies, then generates the images. Each pass starts only once the one before it has finished."
+      description="Finds library items Cove holds no metadata for and identifies them. Each pass starts only once the one before it has finished."
+      headerRight={
+        <div className="flex items-center gap-2">
+          {inFlight ? (
+            <Button variant="ghost" onClick={cancel} disabled={cancelling}>
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </Button>
+          ) : null}
+          <Button
+            onClick={start}
+            disabled={inFlight || claiming || optionsDirty}
+            describedBy={optionsDirty ? "scanandidentify-run-blocked" : undefined}
+          >
+            {claiming ? "Starting…" : "Run"}
+          </Button>
+        </div>
+      }
     >
-      <p className="text-sm text-secondary">
-        A run covers your whole library. On a large library it takes hours.
-      </p>
-      <StatusText kind={inFlight ? "warning" : "muted"}>
+      {/* The one constraint that decides whether a run finishes, so it is drawn as a notice rather
+          than set in the body text it used to sit in. */}
+      <p
+        className={`max-w-3xl border-l-2 py-1 pl-3 text-sm ${
+          inFlight ? "border-accent text-foreground" : "border-border text-secondary"
+        }`}
+      >
         Keep this page open. A run advances only while it is open, and stops where it is if you
-        close it.
-      </StatusText>
+        close it. It covers your whole library, which on a large one takes hours.
+      </p>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-secondary">
@@ -97,48 +161,28 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <Button
-          onClick={start}
-          disabled={inFlight || claiming || optionsDirty}
-          describedBy={optionsDirty ? "scanandidentify-run-blocked" : undefined}
-        >
-          {claiming ? "Starting…" : "Run"}
-        </Button>
-        {optionsDirty ? (
-          <output id="scanandidentify-run-blocked">
-            <StatusText kind="warning">{DIRTY_OPTIONS}</StatusText>
-          </output>
-        ) : null}
-        {inFlight ? (
-          <Button variant="ghost" onClick={cancel} disabled={cancelling}>
-            {cancelling ? "Cancelling…" : "Cancel"}
-          </Button>
-        ) : null}
-        {endText === null ? null : (
-          <StatusText kind={run?.endedReason === "completed" ? "success" : "muted"}>
-            {endText}
-          </StatusText>
-        )}
-      </div>
-
-      <ul className="space-y-2">
+      {/* Four tiles in the order the passes run, wrapping to a column on a narrow panel. */}
+      <ul className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
         {stages.map((stage) => (
-          <li key={stage.stage} data-stage={stage.stage} className="space-y-1 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-secondary">{RUN_STAGE_LABELS[stage.stage]}</span>
-              <span data-state={stage.state}>
-                <StatusPill variant={RUN_STAGE_STATE_VARIANTS[stage.state]}>
-                  {RUN_STAGE_STATE_LABELS[stage.state]}
-                </StatusPill>
-              </span>
-            </div>
-            {stage.stage === moving?.stage ? <StageProgress stage={stage} /> : null}
-            {run?.endedAt == null ? null : <StageOutcome stage={stage} />}
-          </li>
+          <StageTile
+            key={stage.stage}
+            stage={stage}
+            moving={stage.stage === moving?.stage}
+            ended={run?.endedAt != null}
+          />
         ))}
       </ul>
 
+      {optionsDirty ? (
+        <output id="scanandidentify-run-blocked" className="block">
+          <StatusText kind="warning">{DIRTY_OPTIONS}</StatusText>
+        </output>
+      ) : null}
+      {endText === null ? null : (
+        <StatusText kind={run?.endedReason === "completed" ? "success" : "muted"}>
+          {endText}
+        </StatusText>
+      )}
       {failure === null ? null : <StatusText kind="error">{failure}</StatusText>}
     </SectionCard>
   );

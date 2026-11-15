@@ -44,10 +44,12 @@ function assertOrdered(run, seen) {
   expect(moving.length, `two passes were in flight at once: ${states.join(",")}`).toBeLessThan(2);
 
   for (let i = 1; i < states.length; i += 1) {
-    if (states[i] === "pending") continue;
+    // A pass the options disable is written `skipped` when the run is claimed, before the run has
+    // reached it, so it carries no ordering claim. Only a pass that started does.
+    if (states[i] === "pending" || states[i] === "skipped") continue;
     expect(
       TERMINAL.has(states[i - 1]),
-      `${STAGES[i]} left pending while ${STAGES[i - 1]} was still ${states[i - 1]}: ${states.join(",")}`,
+      `${STAGES[i]} started while ${STAGES[i - 1]} was still ${states[i - 1]}: ${states.join(",")}`,
     ).toBe(true);
   }
 }
@@ -101,10 +103,14 @@ test("a run finds a file nothing registered, fingerprints it, and walks the pass
   const discovered = await videoAtPath(api, path);
   expect(discovered, `the scan to have imported ${path}`).toBeDefined();
 
-  // The run asks Cove for phashes, so the file carries one afterwards. A pass that ran and
-  // generated nothing reaches `succeeded` just the same, which is what this separates.
+  // Hashed, not merely rowed. Nothing imported this file, so every fingerprint on it was computed
+  // by the pass the page started, and a pass that ran and did nothing reaches `succeeded` just the
+  // same. Which kinds Cove derives from a given file is Cove's business and not asserted here: the
+  // extension sends one fixed request and offers no switch, so there is no control to read against.
   const kinds = await fingerprintKinds(api, discovered.id);
-  expect(kinds, "the fingerprints the run asked Cove for").toContain("phash");
+  expect(kinds, `the fingerprints the run produced, which were [${kinds.join(", ")}]`).not.toEqual(
+    [],
+  );
 
   // Each pass ran as a host job of its own.
   for (const stage of ["scan", "fingerprints"]) {
