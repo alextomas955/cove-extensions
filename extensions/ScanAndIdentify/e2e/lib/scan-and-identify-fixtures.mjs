@@ -100,18 +100,37 @@ export async function imageAtPath(api, path) {
 }
 
 /**
- * Cove's own count of what a generate run over the whole library would still have to make, one
- * entry per option, each `{ missing, total }`.
+ * How many images carry a non-empty perceptual hash.
  *
- * This is how an image pass is observed. The image routes report a file without its fingerprints
- * and no route reports a generated thumbnail, so nothing an image pass produces is directly
- * readable; the host counts what is still missing through the same thumbnail and fingerprint
- * lookups the run writes through.
+ * An image's files are reported without their fingerprints, so the search filter is what makes one
+ * observable: `notNull` on a fingerprint criterion keeps the images holding a phash. The route and
+ * the criterion both exist at the host floor, which the generate estimate that reports the same
+ * thing does not.
  */
-export async function generateEstimate(api) {
-  const answer = await api.post("/api/metadata/generate/estimate", {});
-  expect(answer.ok, `the generate estimate answered ${answer.status}: ${answer.text}`).toBe(true);
-  return answer.json;
+export async function imagesWithPhash(api) {
+  const answer = await api.post("/api/images/find", {
+    findFilter: { page: 1, perPage: 1 },
+    objectFilter: { fingerprintCriterion: { type: "phash", modifier: "notNull" } },
+  });
+  expect(answer.ok, `searching images answered ${answer.status}: ${answer.text}`).toBe(true);
+  return answer.json.totalCount;
+}
+
+/**
+ * How many generated image thumbnails the instance holds.
+ *
+ * No route reports whether one was made, so this counts the files. Cove writes an image thumbnail
+ * under its generated path's `thumbnails` and a video's cover under `screenshots`, so this
+ * directory holds the image pass's own output and nothing else.
+ */
+export async function imageThumbnailCount(harness) {
+  const result = await harness.exec([
+    "sh",
+    "-c",
+    "find /generated/thumbnails -type f 2>/dev/null | wc -l",
+  ]);
+  expect(result.exitCode, `counting image thumbnails failed: ${result.output}`).toBe(0);
+  return Number(result.output.trim());
 }
 
 /** The fingerprint kinds recorded against a video's files, as the detail route reports them. */
