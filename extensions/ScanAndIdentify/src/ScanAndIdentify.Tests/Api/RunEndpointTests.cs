@@ -132,8 +132,13 @@ public sealed class RunEndpointTests
             new RunStageStarted(run.RunId, RunStage.Identify, "identify-job"), Runner,
             Hosting("identify-job", "identify"));
         int reported = store.SetCallCount;
+        // Both jobs are hosted, so the re-read this route makes before it judges anything learns
+        // nothing and writes nothing. The refusal below is then the only thing that could have.
         var lostTheReport = await extension.RecordStageAsync(
-            new RunStageStarted(run.RunId, RunStage.Identify, "a-second-identify-job"), Runner, NoJobs);
+            new RunStageStarted(run.RunId, RunStage.Identify, "a-second-identify-job"), Runner,
+            new RecordingJobService()
+                .With("identify-job", JobStatus.Running, "identify")
+                .With("a-second-identify-job", JobStatus.Running, "identify"));
 
         Assert.Equal(
             RunStageState.Starting,
@@ -528,6 +533,98 @@ public sealed class RunEndpointTests
     private static ExtensionProblemDetails Refused(IResult result)
         => Assert.IsType<ConflictProblem>(HttpResultUnwrap.Unwrap(result)).Problem;
 
+    [Fact]
+    public async Task RecordStage_TakesTheJobId_ForAStageTheStartBudgetGaveUpOn()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Starting, startedAt: DateTime.UtcNow.AddHours(-1)),
+            Stage(RunStage.Fingerprints, RunStageState.Pending),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)));
+
+        // A read lands while the host request is still out. It gives up on the stage and ends the
+        // run, which is what puts the stage in a settled state before the job id arrives.
+        var gaveUp = await ReadAsync(extension, new RecordingJobService());
+
+        var reported = await extension.RecordStageAsync(
+            new RunStageStarted(SeededRunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
+
+        Assert.Equal(RunStageState.Indeterminate, StageOf(gaveUp, RunStage.Scan).State);
+        Assert.NotNull(gaveUp.EndedAt);
+
+        // The job is running regardless of what the record gave up on, and this caller holds the
+        // only copy of its id. Refusing it here is a whole-library scan nothing can stop.
+        Assert.Equal("scan-job", StageOf(Answered(reported), RunStage.Scan).JobId);
+    }
+
+    [Fact]
+    public async Task ClaimRun_IsRefused_WhileAStageOfTheEndedRunIsStillRunning()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Running, jobId: "scan-job"),
+            Stage(RunStage.Fingerprints, RunStageState.Pending),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)) with
+        {
+            EndedAt = DateTime.UtcNow,
+            EndedReason = RunEndReason.StoppedByUser,
+        });
+
+        var refused = await extension.ClaimRunAsync(Runner, Jobs("scan-job", JobStatus.Running));
+        var allowed = await extension.ClaimRunAsync(Runner, Jobs("scan-job", JobStatus.Completed));
+
+        // The record is one key, so claiming over a live pass drops the only copy of its job id.
+        Assert.Equal("RUN_SETTLING", Refused(refused).Code);
+        Assert.NotEqual(SeededRunId, Answered(allowed).RunId);
+    }
+
+    [Fact]
+    public async Task RecordStage_RefusesAJobAlreadyRecordedAgainstAnotherStage()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Succeeded, jobId: "scan-job"),
+            Stage(RunStage.Fingerprints, RunStageState.Succeeded, jobId: "generate-job"),
+            Stage(RunStage.Identify, RunStageState.Succeeded, jobId: "identify-job"),
+            Stage(RunStage.Images, RunStageState.Starting)));
+
+        var reused = await extension.RecordStageAsync(
+            new RunStageStarted(SeededRunId, RunStage.Images, "generate-job"), Runner,
+            new RecordingJobService().With("generate-job", JobStatus.Completed, "generate"));
+
+        // Both generate passes run as a host job of the same type, so nothing else tells the image
+        // pass's job from the fingerprint pass's already-finished one.
+        Assert.Equal(
+            "UNKNOWN_JOB",
+            Assert.IsType<BadRequestProblem>(HttpResultUnwrap.Unwrap(reused)).Problem.Code);
+    }
+
+    [Fact]
+    public async Task RecordStage_StartsTheNextStage_WhenOnlyTheHostKnowsTheOneBeforeItFinished()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Running, jobId: "scan-job"),
+            Stage(RunStage.Fingerprints, RunStageState.Pending),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)));
+
+        // No read came between the host finishing the scan and this report, so the stored scan state
+        // is still running and only the job says otherwise.
+        var started = await extension.RecordStageAsync(
+            new RunStageStarted(SeededRunId, RunStage.Fingerprints, null), Runner,
+            Jobs("scan-job", JobStatus.Completed));
+
+        Assert.Equal(
+            RunStageState.Starting, StageOf(Answered(started), RunStage.Fingerprints).State);
+    }
+
     private static RunStageView StageOf(RunView run, RunStage stage)
         => run.Stages.Single(entry => entry.Stage == stage);
 
@@ -535,9 +632,11 @@ public sealed class RunEndpointTests
         RunStage stage, RunStageState state, string? jobId = null, DateTime? startedAt = null)
         => new() { Stage = stage, State = state, JobId = jobId, StartedAt = startedAt };
 
+    private const string SeededRunId = "7f1c";
+
     private static RunRecord WithStages(params RunStageEntry[] stages) => new()
     {
-        RunId = "7f1c",
+        RunId = SeededRunId,
         StartedAt = DateTime.UtcNow.AddHours(-1),
         Stages = [.. stages],
     };

@@ -240,6 +240,18 @@ public sealed partial class ScanAndIdentify
                 {
                     return new ConflictProblem("RUN_IN_FLIGHT", "A run is already in flight.");
                 }
+
+                // An ended run can still have a pass running: ending one does not stop its host job,
+                // and a cancel is a request the host may take a batch to honor. The record is one
+                // store key, so claiming over it drops the only copy of that job's id and nothing
+                // can offer to stop it again. The stage settles on its own once the host job does,
+                // and the start budget settles one that never named a job, so this releases without
+                // anything having to intervene.
+                if (advanced.Stages.Any(stage => HasLiveWork(stage.State)))
+                {
+                    return new ConflictProblem(
+                        "RUN_SETTLING", "A pass of the previous run is still running in Cove.");
+                }
             }
 
             // Read once, here, and carried on the record: a switch flipped during the run must not
@@ -326,9 +338,18 @@ public sealed partial class ScanAndIdentify
         try
         {
             var store = StoredRun;
-            if (await store.LoadAsync(ct) is not { } record)
+            if (await store.LoadAsync(ct) is not { } loaded)
             {
                 return TypedResults.NotFound();
+            }
+
+            // Re-read against the host before anything is judged, so the ordering below tests the
+            // state each stage's job is actually in. Reading the stored states instead refuses the
+            // next stage of a run whose caller polls the host job rather than this route.
+            var (record, advanced) = Advance(loaded, jobs, DateTime.UtcNow);
+            if (advanced)
+            {
+                await store.SaveAsync(record, ct);
             }
 
             if (!string.Equals(record.RunId, body.RunId, StringComparison.Ordinal))
@@ -344,33 +365,22 @@ public sealed partial class ScanAndIdentify
             // Only a new claim is refused. The job id for a stage already starting is still taken,
             // because the caller that issued that host request has to be able to say what it
             // started: the job is running either way, and a report refused here is a job nothing
-            // can go on to cancel.
+            // can go on to cancel. That holds for a stage the start budget has given up on too, and
+            // the run it ends arrives here as one that has ended.
             if (record.EndedAt is not null && body.JobId is null)
             {
                 return new ConflictProblem("RUN_ENDED", "This run has ended, so no stage can start.");
             }
 
             int index = record.Stages.FindIndex(entry => entry.Stage == body.Stage);
-            if (index < 0 || record.Stages
-                .Take(index)
-                .Any(earlier => earlier.State is not (RunStageState.Succeeded or RunStageState.Skipped)))
+            if (RefuseStageReport(record, body, jobs, index) is { } refusal)
             {
-                return new BadRequestProblem(
-                    "INVALID_STAGE", "That stage is not the next one this run can start.");
+                return refusal.Conflict
+                    ? new ConflictProblem(refusal.Code, refusal.Message)
+                    : new BadRequestProblem(refusal.Code, refusal.Message);
             }
 
             var stage = record.Stages[index];
-            if (!MayTransition(stage, body.JobId))
-            {
-                return new ConflictProblem("STAGE_TAKEN", "Another caller already started this stage.");
-            }
-
-            if (body.JobId is { } claimedJobId && !IsHostJobForStage(jobs, claimedJobId, body.Stage))
-            {
-                return new BadRequestProblem(
-                    "UNKNOWN_JOB", "The job named by the request is not the pass this stage runs.");
-            }
-
             var now = DateTime.UtcNow;
             var written = body.JobId is null
                 ? stage with { State = RunStageState.Starting, StartedAt = stage.StartedAt ?? now }
@@ -416,22 +426,37 @@ public sealed partial class ScanAndIdentify
         try
         {
             var store = StoredRun;
-            if (await store.LoadAsync(ct) is not { } record)
+            if (await store.LoadAsync(ct) is not { } loaded)
             {
                 return TypedResults.NotFound();
             }
 
+            // Advanced first, so a run the stages have already ended keeps the reason they give it
+            // rather than taking the caller's.
+            var now = DateTime.UtcNow;
+            var (record, advanced) = Advance(loaded, jobs, now);
+
             if (!string.Equals(record.RunId, body.RunId, StringComparison.Ordinal))
             {
+                if (advanced)
+                {
+                    await store.SaveAsync(record, ct);
+                }
+
                 return new ConflictProblem("STALE_RUN", "The run named by the request is not the run in flight.");
             }
 
             if (record.EndedAt is not null)
             {
+                if (advanced)
+                {
+                    await store.SaveAsync(record, ct);
+                }
+
                 return TypedResults.Ok(ViewOf(record, jobs));
             }
 
-            var ended = record with { EndedAt = DateTime.UtcNow, EndedReason = body.Reason };
+            var ended = record with { EndedAt = now, EndedReason = body.Reason };
             await store.SaveAsync(ended, ct);
             return TypedResults.Ok(ViewOf(ended, jobs));
         }
@@ -439,6 +464,58 @@ public sealed partial class ScanAndIdentify
         {
             _runLock.Release();
         }
+    }
+
+    /// <summary>Why a stage report cannot be written, or null when it can.</summary>
+    /// <remarks><c>Conflict</c> answers 409 and anything else 400.</remarks>
+    private readonly record struct StageRefusal(bool Conflict, string Code, string Message);
+
+    /// <summary>
+    /// The stage-level guards a report has to pass: it names the next stage, it starts from the
+    /// state it claims, and any job it names is this stage's own and is not already recorded.
+    /// </summary>
+    /// <remarks>
+    /// Held together here rather than inline so that each guard reads against the one before it, and
+    /// because the route that calls it is already at the cognitive-complexity ceiling the build
+    /// enforces.
+    /// </remarks>
+    private static StageRefusal? RefuseStageReport(
+        RunRecord record, RunStageStarted body, IJobService jobs, int index)
+    {
+        if (index < 0 || record.Stages
+            .Take(index)
+            .Any(earlier => earlier.State is not (RunStageState.Succeeded or RunStageState.Skipped)))
+        {
+            return new StageRefusal(
+                false, "INVALID_STAGE", "That stage is not the next one this run can start.");
+        }
+
+        if (!MayTransition(record.Stages[index], body.JobId))
+        {
+            return new StageRefusal(
+                true, "STAGE_TAKEN", "Another caller already started this stage.");
+        }
+
+        if (body.JobId is not { } jobId)
+        {
+            return null;
+        }
+
+        if (!IsHostJobForStage(jobs, jobId, body.Stage))
+        {
+            return new StageRefusal(
+                false, "UNKNOWN_JOB", "The job named by the request is not the pass this stage runs.");
+        }
+
+        // The fingerprint and image passes are both Cove generate jobs, so the type check above
+        // cannot tell one from the other. Without this, the job the fingerprint pass finished under
+        // satisfies the image pass as well, and the run reports four passes done with no image job
+        // ever enqueued.
+        return record.Stages.Any(other => other.Stage != body.Stage
+            && string.Equals(other.JobId, jobId, StringComparison.Ordinal))
+            ? new StageRefusal(
+                false, "UNKNOWN_JOB", "That job is already recorded against another pass of this run.")
+            : null;
     }
 
     /// <summary>Whether the stage is in the state the caller's write starts from.</summary>
@@ -454,11 +531,18 @@ public sealed partial class ScanAndIdentify
     /// The claim writes the scan stage as <c>Starting</c>, so the first caller's no-job-id write for
     /// that stage starts from <c>Starting</c> rather than from <c>Pending</c>.
     /// </para>
+    /// <para>
+    /// A job id is also taken into an <c>Indeterminate</c> stage that names no job, which is the one
+    /// way that pairing arises: the start budget gives up on a stage left <c>Starting</c>, and a
+    /// stage that reached <c>Indeterminate</c> from a job that stopped resolving carries that job's
+    /// id. Refusing it would strand the whole-library job whose id the caller is reporting, which is
+    /// the outcome the budget exists to surface rather than to cause.
+    /// </para>
     /// </remarks>
     private static bool MayTransition(RunStageEntry stage, string? jobId) => jobId is null
         ? stage.State == RunStageState.Pending
             || (stage.Stage == RunStage.Scan && stage.State == RunStageState.Starting && stage.JobId is null)
-        : stage.State == RunStageState.Starting && stage.JobId is null;
+        : (stage.State is RunStageState.Starting or RunStageState.Indeterminate) && stage.JobId is null;
 
     // The host job type each stage is started as, taken from Cove's own enqueue calls: the scan
     // runner, the generate service and the identify action. A stage is reported against one of
@@ -513,6 +597,16 @@ public sealed partial class ScanAndIdentify
         or RunStageState.Cancelled
         or RunStageState.Skipped
         or RunStageState.Indeterminate;
+
+    /// <summary>Whether the stage may still have a host job of its own in flight.</summary>
+    /// <remarks>
+    /// Narrower than the negation of <see cref="IsSettled"/>: a pending stage is unsettled and has
+    /// nothing running, because the run never reached it.
+    /// </remarks>
+    private static bool HasLiveWork(RunStageState state) => state
+        is RunStageState.Starting
+        or RunStageState.Queued
+        or RunStageState.Running;
 
     /// <summary>
     /// Re-reads every unsettled stage from its host job, writes a terminal state into the record the
