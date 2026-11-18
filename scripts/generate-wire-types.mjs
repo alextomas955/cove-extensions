@@ -17,10 +17,13 @@ const scriptRoot = path.resolve(import.meta.dirname, "..");
 // Everything the UI needs to reach a route comes from the document: the path, the method, the
 // request body, the response, the error, and the query key.
 //
-// The client plugin takes a runtime config module from the consuming UI. That module is what binds
-// the host's authenticated `extensionFetch` in, so nothing generated here ever calls `fetch`
-// directly, where a request would carry no credential and answer 401.
-const CLIENT_CONFIG_SUBPATH = "src/common/lib/wireClient.ts";
+// The client plugin takes a runtime config module. That module binds the host's authenticated
+// `extensionFetch` in, so nothing generated here ever calls `fetch` directly, where a request would
+// carry no credential and answer 401.
+//
+// One module for every extension, because the binding does not vary by one. A per-extension copy
+// was the earlier arrangement, and each was the same file.
+const CLIENT_CONFIG_PATH = "shared/ui-shared/src/wireClient.ts";
 
 const generatorPlugins = (clientConfigPath) => [
   "@hey-api/typescript",
@@ -99,6 +102,7 @@ export async function generateWireTypes({
   const generated = [];
 
   const absoluteRoot = path.resolve(root);
+  const clientConfigPath = path.join(absoluteRoot, CLIENT_CONFIG_PATH);
   const catalog = readJson(path.join(absoluteRoot, "extensions", "catalog.json"));
   const all = Array.isArray(catalog.extensions) ? catalog.extensions : [];
 
@@ -123,15 +127,6 @@ export async function generateWireTypes({
     if (!fs.existsSync(documentPath)) {
       failures.push(
         `MISSING: ${entry.id} declares a uiPath, so ${entry.path}/${DOCUMENT_SUBPATH} must exist; it does not.`,
-      );
-      continue;
-    }
-
-    // Resolved against this entry's own UI, so the generated client binds that bundle's host fetch.
-    const clientConfigPath = path.join(absoluteRoot, entry.uiPath, CLIENT_CONFIG_SUBPATH);
-    if (!fs.existsSync(clientConfigPath)) {
-      failures.push(
-        `MISSING: ${entry.id} declares a uiPath, so ${entry.uiPath}/${CLIENT_CONFIG_SUBPATH} must exist; it does not. Without it the generated client calls fetch directly and every request answers 401.`,
       );
       continue;
     }

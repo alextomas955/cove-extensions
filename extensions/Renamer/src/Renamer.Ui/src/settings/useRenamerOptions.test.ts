@@ -9,9 +9,8 @@ import { renderHook, act, cleanup, waitFor } from "@testing-library/react";
 
 import { useRenamerOptions } from "./useRenamerOptions";
 import { someOptions } from "./testOptions";
-import { withQueryClient } from "../common/lib/testQueryClient";
 import type { OptionsView, RenamerOptions } from "./options";
-import { jsonResponse } from "../common/lib/testResponses";
+import { jsonResponse, withQueryClient } from "@cove-extensions/ui-shared/testing";
 
 // The stubbed endpoint's script, hoisted so the module factory below can reach it.
 const endpoint = vi.hoisted(() => ({

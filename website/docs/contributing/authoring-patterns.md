@@ -201,11 +201,13 @@ Query helpers over them. A hook calls `useQuery(renamerGetOptionsOptions())` or
 `useMutation(renamerSaveOptionsMutation())` and writes no path, method, query key or response type
 of its own - all six come from the document.
 
-The generated client takes its fetch from `src/common/lib/wireClient.ts`, which is hand-written and
-is where the host's authenticated `extensionFetch` is bound in. The generator refuses an extension
-that has no such module, because a client left on the global `fetch` carries no credential and
-every request answers 401. `src/common/lib/wireErrors.ts` registers the interceptor that turns a
-refused request into an `ApiError` carrying its status, which is what an error branch reads.
+The generated client takes its fetch from `shared/ui-shared/src/wireClient.ts`, which is
+hand-written and is where the host's authenticated `extensionFetch` is bound in. One module serves
+every extension, because the binding does not vary by one, and a client left on the global `fetch`
+carries no credential so every request answers 401. What each UI still owns is
+`src/common/lib/wireErrors.ts`, which registers the shared interceptor on that extension's own
+client; the interceptor turns a refused request into an `ApiError` carrying its status, which is
+what an error branch reads.
 
 Every route carries a `.WithName()`, which is both its ASP.NET endpoint name and its `operationId`
 in that document. Endpoint names must be unique across the host process, which every installed

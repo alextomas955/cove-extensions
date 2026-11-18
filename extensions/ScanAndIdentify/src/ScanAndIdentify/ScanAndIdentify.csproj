@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- RepositoryUrl mirrors extension.json's url. The extension class declares no Url, because the host
+       reads a class property in preference to the manifest. -->
+  <PropertyGroup>
+    <Authors>alextomas955</Authors>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- CS8524 asks a switch over an enum to also handle an unnamed cast value, which needs a catch-all
+         arm that would also swallow a named member added later. CS8509, which catches that, stays on. -->
+    <NoWarn>$(NoWarn);CS8524</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\..\..\shared\Cove.Extensions.Shared\Cove.Extensions.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="extension.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+</Project>
