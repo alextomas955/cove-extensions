@@ -72,7 +72,8 @@ test("an unsaved option edit refuses a run and says why, without discarding the 
     expect(runButton().disabled).toBe(true);
   });
 
-  expect(screen.getByRole("status").textContent).toContain("Save the run options");
+  const reason = document.getElementById(runButton().getAttribute("aria-describedby") ?? "");
+  expect(reason?.textContent).toContain("Save the run options");
   expect(spriteSwitch().getAttribute("aria-checked")).toBe("false");
 });
 

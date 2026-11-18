@@ -34,6 +34,13 @@ const CANCEL_REFUSED = "The run has stopped, but Cove would not stop the stage a
 /** What a lost stage report means: the pass was started and then stopped, so nothing ran on. */
 const REPORT_LOST = "The pass was started but could not be recorded, so it was stopped again:";
 
+/**
+ * What a stop this page could not make means: a whole-library pass is running that no later read
+ * reports and nothing can stop, because its id was only ever held here.
+ */
+const STOP_REFUSED =
+  "A pass was started and then handed over, but Cove would not stop it. It is still running:";
+
 export interface UseRun {
   run: RunView | null;
   loading: boolean;
@@ -49,7 +56,12 @@ export interface UseRun {
 /** What starting one stage came to. */
 type Advance =
   | { outcome: "advanced"; run: RunView }
-  | { outcome: "abandoned" }
+  /**
+   * Another caller owns the stage, or the run ended under this one. Silent, except where the job
+   * this page handed over could not be stopped: nothing else holds that id, so a refused stop is
+   * the user's only notice that a pass is still running.
+   */
+  | { outcome: "abandoned"; message?: string }
   | { outcome: "failed"; message: string; run: RunView };
 
 const isStatus = (err: unknown, status: number) => err instanceof ApiError && err.status === status;
@@ -91,8 +103,7 @@ async function startStage(
   // the stage this page is starting is one the cancel passes over. The id exists now, so the job
   // this page started is this page's to stop.
   if (superseded()) {
-    await stopQuietly(jobId);
-    return { outcome: "abandoned" };
+    return abandonedAfter(await stopQuietly(jobId));
   }
 
   let recorded: RunView;
@@ -104,11 +115,12 @@ async function startStage(
     // read seeing a stage still starting, which the server gives up on once the start budget
     // expires while the whole-library pass runs on. Stopping it is the only outcome this page can
     // still deliver either way.
-    await stopQuietly(jobId);
-    if (isStatus(err, 409)) return { outcome: "abandoned" };
+    const stopError = await stopQuietly(jobId);
+    if (isStatus(err, 409)) return abandonedAfter(stopError);
     return {
       outcome: "failed",
-      message: `${REPORT_LOST} ${errorText(err)}`,
+      message:
+        stopError === null ? `${REPORT_LOST} ${errorText(err)}` : `${STOP_REFUSED} ${stopError}`,
       run: await endRun(run.runId, "failed"),
     };
   }
@@ -119,21 +131,38 @@ async function startStage(
   // page holding that id can be the one to stop it, which is here. The count covers a cancel on
   // this page; the ended run the report answers with covers one made on another.
   if (superseded() || !isRunInFlight(recorded)) {
-    await stopQuietly(jobId);
-    return { outcome: "abandoned" };
+    return abandonedAfter(await stopQuietly(jobId));
   }
 
   return { outcome: "advanced", run: recorded };
 }
 
-/** Stops a job whose outcome nobody is waiting on, where a refused stop changes nothing. */
-async function stopQuietly(jobId: string): Promise<void> {
+/**
+ * Stops a job this page is giving up on.
+ *
+ * @returns null when the job is stopped, otherwise what Cove refused with.
+ */
+async function stopQuietly(jobId: string): Promise<string | null> {
   try {
     await cancelHostJob(jobId);
-  } catch {
-    // The caller is already reporting why it gave up on this job, and a second sentence about the
-    // stop it also could not make says nothing it can act on.
+    return null;
+  } catch (err) {
+    return errorText(err);
   }
+}
+
+/**
+ * Gives up on a stage another caller now owns.
+ *
+ * Silent when the job was stopped, because losing the stage is the ordinary outcome of two open
+ * pages. A refused stop is not ordinary: the id was this page's alone, so no later read names the
+ * job and nothing else can stop it, and saying nothing leaves a whole-library pass running with no
+ * trace of it anywhere on screen.
+ */
+function abandonedAfter(stopError: string | null): Advance {
+  return stopError === null
+    ? { outcome: "abandoned" }
+    : { outcome: "abandoned", message: `${STOP_REFUSED} ${stopError}` };
 }
 
 export function useRun(): UseRun {
@@ -145,8 +174,10 @@ export function useRun(): UseRun {
   const [cancelling, setCancelling] = useState(false);
   const [watching, setWatching] = useState(true);
 
-  // Holds across the whole three-request advance, so a tick firing while the previous one is still
-  // posting cannot start the same stage twice from this page.
+  // Holds across the whole three-request advance. A tick that finds it set issues no read, and one
+  // whose read was already out when it was set discards the answer, so neither acts on a view of
+  // the run from before the advance. What keeps two pages from starting the same stage is the
+  // server's stage transition, not this.
   const advancing = useRef(false);
   const failures = useRef(0);
 
@@ -167,11 +198,12 @@ export function useRun(): UseRun {
     const tick = async () => {
       if (advancing.current) return;
 
-      // The run this answer describes is the one that existed when the read went out. A claim or an
-      // end since then has made it a report of a state that is gone, and acting on it would clear a
-      // run this page had just started.
+      // The run this answer describes is the one that existed when the read went out. A claim, an
+      // end, or an advance by a later tick since then has made it a report of a state that is gone.
+      // Acting on it would clear a run this page had just started, or put the stage row back to
+      // waiting and post a second report for a stage already started.
       const beforeRead = runChanges.current;
-      const usable = () => live && runChanges.current === beforeRead;
+      const usable = () => live && runChanges.current === beforeRead && !advancing.current;
 
       let observed: RunView | undefined;
       try {
@@ -234,7 +266,11 @@ export function useRun(): UseRun {
           next,
           () => runChanges.current !== beforeAdvance,
         );
-        if (!stillLive() || advance.outcome === "abandoned") return;
+        if (!stillLive()) return;
+        if (advance.outcome === "abandoned") {
+          if (advance.message !== undefined) setFailure(advance.message);
+          return;
+        }
         setRun(advance.run);
         if (advance.outcome === "failed") setFailure(advance.message);
       } catch (err) {
@@ -258,6 +294,10 @@ export function useRun(): UseRun {
       // library as having no run and stop the one this is about to create.
       runChanges.current += 1;
       const beforeClaim = runChanges.current;
+      // The budget is the watch's, not the page's: it is spent by consecutive failed reads and
+      // restored by a successful one, so a watch restarted after it ran out would otherwise give up
+      // on its first failed read and the user's retry would have no budget at all.
+      failures.current = 0;
       // Held from before the claim rather than from after it, because the count alone cannot cover
       // this stretch: a read issued now carries the bumped count and still reaches a server the
       // claim has not arrived at, so it would answer no run and pass the comparison. The claim also
@@ -271,7 +311,9 @@ export function useRun(): UseRun {
         setRun(claimed);
 
         const advance = await startStage(claimed, "scan", () => runChanges.current !== beforeClaim);
-        if (advance.outcome !== "abandoned") {
+        if (advance.outcome === "abandoned") {
+          if (advance.message !== undefined) setFailure(advance.message);
+        } else {
           setRun(advance.run);
           if (advance.outcome === "failed") setFailure(advance.message);
         }

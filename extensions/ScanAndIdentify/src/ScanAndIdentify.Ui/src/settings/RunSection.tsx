@@ -6,6 +6,7 @@ import {
   StatusPill,
   StatusText,
 } from "@cove-extensions/ui-shared";
+import type { StatusKind } from "@cove-extensions/ui-shared";
 
 import type { RunStageView } from "./run";
 import {
@@ -98,9 +99,25 @@ function StageTile({
   );
 }
 
-/** Why a run cannot start right now, or null when it can. */
 const DIRTY_OPTIONS =
   "Save the run options first. A run reads what is saved, not what is on screen.";
+
+const RUN_UNDERWAY = "A run is already underway. Cancel it to start another.";
+
+/**
+ * Why the Run button is disabled, or null when it is not.
+ *
+ * The button names this as its description, so every reason it is disabled needs one: a disabled
+ * control that explains itself only in some states leaves a screen reader with a bare button in the
+ * others.
+ */
+function runBlockedReason(
+  optionsDirty: boolean,
+  inFlight: boolean,
+): { kind: StatusKind; message: string } | null {
+  if (optionsDirty) return { kind: "warning", message: DIRTY_OPTIONS };
+  return inFlight ? { kind: "muted", message: RUN_UNDERWAY } : null;
+}
 
 /** The run: one button, and where each of the four stages has got to. */
 export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>) {
@@ -121,6 +138,7 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
   const inFlight = isRunInFlight(run ?? undefined);
   const moving = run === null ? null : stageInFlightOf(run);
   const endText = run === null ? null : runEndText(run);
+  const runBlocked = runBlockedReason(optionsDirty, inFlight);
 
   return (
     <SectionCard
@@ -136,7 +154,7 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
           <Button
             onClick={start}
             disabled={inFlight || claiming || optionsDirty}
-            describedBy={optionsDirty ? "scanandidentify-run-blocked" : undefined}
+            describedBy={runBlocked === null ? undefined : "scanandidentify-run-blocked"}
           >
             {claiming ? "Starting…" : "Run"}
           </Button>
@@ -162,7 +180,7 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
       ) : null}
 
       {/* Four tiles in the order the passes run, wrapping to a column on a narrow panel. */}
-      <ul className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+      <ul className="flex flex-col gap-2 sm:flex-row">
         {stages.map((stage) => (
           <StageTile
             key={stage.stage}
@@ -173,11 +191,14 @@ export function RunSection({ optionsDirty }: Readonly<{ optionsDirty: boolean }>
         ))}
       </ul>
 
-      {optionsDirty ? (
-        <output id="scanandidentify-run-blocked" className="block">
-          <StatusText kind="warning">{DIRTY_OPTIONS}</StatusText>
-        </output>
-      ) : null}
+      {/* A paragraph rather than an output: the Run button names this element as its description,
+          and an output is a live region, so a screen reader reading the button would announce the
+          same sentence a second time. */}
+      {runBlocked === null ? null : (
+        <p id="scanandidentify-run-blocked" className="block">
+          <StatusText kind={runBlocked.kind}>{runBlocked.message}</StatusText>
+        </p>
+      )}
       {endText === null ? null : (
         <StatusText kind={run?.endedReason === "completed" ? "success" : "muted"}>
           {endText}

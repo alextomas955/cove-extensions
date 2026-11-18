@@ -447,12 +447,28 @@ test("unsaved options block Run and the reason is announced with the button", as
   expect(button?.disabled, "Run to be refused while the options are unsaved").toBe(true);
 
   // Announced rather than only drawn: the reason has to reach someone who never sees it beside the
-  // button it refuses.
-  const reason = screen.getByRole("status");
-  expect(reason.textContent).toContain("Save the run options first");
-  expect(button?.getAttribute("aria-describedby"), "the reason to be tied to the button").toBe(
-    reason.id,
-  );
+  // button it refuses. Read through the button's own description, because that is the tie a screen
+  // reader follows, and the element carrying it must not be a live region of its own.
+  const describedBy = button?.getAttribute("aria-describedby");
+  expect(describedBy, "the button to name its reason").not.toBeNull();
+  const reason = container.querySelector(`#${describedBy ?? ""}`);
+  expect(reason?.textContent).toContain("Save the run options first");
+  expect(screen.queryByRole("status"), "the reason not to also be a live region").toBeNull();
+});
+
+test("a run in flight gives the disabled Run button a reason of its own", async () => {
+  server.reads = [runView({ scan: "running" }, {}, { scan: "host-scan-7" })];
+
+  const container = renderSection(createElement(RunSection, { optionsDirty: false })).container;
+  await waitFor(() => {
+    expect(runButton(container)?.disabled, "Run to be refused while a run is in flight").toBe(true);
+  });
+
+  // The other reason the button is disabled. Without this the control explains itself in one state
+  // and is a bare disabled button in the other.
+  const button = runButton(container);
+  const reason = container.querySelector(`#${button?.getAttribute("aria-describedby") ?? ""}`);
+  expect(reason?.textContent).toContain("A run is already underway");
 });
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {
@@ -562,6 +578,36 @@ test("a cancel during a stage start stops the job that start was creating", asyn
   // Not reported into a run the user has ended, and nothing started after it.
   expect(stagesWritten()).toEqual(["scan"]);
   expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("a job handed over that Cove will not stop is reported, not passed over in silence", async () => {
+  server.reads = [undefined, runView({ scan: "starting" })];
+  server.claimAnswer = runView({ scan: "starting" });
+  server.hostJobId = "host-scan-7";
+  server.holdHostStart = true;
+  // The account may run a chain without holding jobs.cancel, which is the same refusal the Cancel
+  // button already reports. Here the id is this page's alone: the record never took it, so no later
+  // read names the job and nothing else can stop it.
+  server.cancelError = refusal(403, '{"code":"FORBIDDEN","missing":["jobs.cancel"]}');
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  void pressRun(container);
+  await waitFor(() => {
+    expect(calledPaths().includes(SCAN_PATH), "the host start to be in flight").toBe(true);
+  });
+
+  await pressCancel(container);
+  server.releaseHostStart();
+
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("Cove would not stop it. It is still running"),
+      "the running pass nobody can stop to be reported",
+    ).toBe(true);
+  });
 });
 
 test("a cancel while the started job is being reported stops that job", async () => {
