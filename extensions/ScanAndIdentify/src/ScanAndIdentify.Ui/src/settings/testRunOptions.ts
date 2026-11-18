@@ -110,20 +110,6 @@ export const answered = (overrides: Partial<RunOptions> = {}): RunOptions => ({
   ...overrides,
 });
 
-/**
- * The switch a label names.
- *
- * jsdom computes no accessible name, so the pairing is read the way the browser builds it: the
- * `label` whose text is this name, and the control its `for` points at.
- */
-export function switchNamed(container: HTMLElement, name: string): HTMLButtonElement {
-  const label = [...container.querySelectorAll("label")].find((e) => e.textContent.trim() === name);
-  const control =
-    label === undefined ? null : container.querySelector(`#${CSS.escape(label.htmlFor)}`);
-  if (!(control instanceof HTMLButtonElement)) throw new Error(`no switch named ${name}`);
-  return control;
-}
-
 /** The state every switch is in, keyed by the label that names it. */
 export function switchStates(container: HTMLElement): Record<string, boolean> {
   const states: Record<string, boolean> = {};
@@ -133,13 +119,4 @@ export function switchStates(container: HTMLElement): Record<string, boolean> {
       control.getAttribute("aria-checked") === "true";
   }
   return states;
-}
-
-/** The button whose text reads exactly `text`. */
-export function buttonNamed(container: HTMLElement, text: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll("button")].find(
-    (e) => e.textContent.trim() === text,
-  );
-  if (found === undefined) throw new Error(`no button reading ${text}`);
-  return found;
 }

@@ -28,8 +28,9 @@ import {
 
 const COLD_START_BUDGET_MS = 60_000;
 
-/** A stage the run has finished with, in the server's own spelling. */
-const TERMINAL = new Set(["succeeded", "failed", "skipped", "cancelled", "unknown"]);
+// The server's own spelling, from the RunStageState enum rather than from the page, which draws
+// `indeterminate` as the word "unknown".
+const TERMINAL = new Set(["succeeded", "failed", "skipped", "cancelled", "indeterminate"]);
 const IN_FLIGHT = new Set(["starting", "queued", "running"]);
 
 const test = base.extend(isolatedHarnessFixtures(SCAN_AND_IDENTIFY_EXTENSION));
@@ -109,11 +110,11 @@ test("a run finds a file nothing registered, fingerprints it, and walks the pass
 
   // Hashed, not merely rowed. Nothing imported this file, so every fingerprint on it was computed
   // by the pass the page started, and a pass that ran and did nothing reaches `succeeded` just the
-  // same. Which kinds Cove derives from a given file is Cove's business and not asserted here: the
-  // extension sends one fixed request and offers no switch, so there is no control to read against.
+  // same. MD5 is the one the request asks for that any readable file yields; a perceptual hash of
+  // a three-kilobyte clip is up to Cove's decoder, so it is not asserted.
   const kinds = await fingerprintKinds(api, discovered.id);
-  expect(kinds, `the fingerprints the run produced, which were [${kinds.join(", ")}]`).not.toEqual(
-    [],
+  expect(kinds, `the fingerprints the run produced, which were [${kinds.join(", ")}]`).toContain(
+    "md5",
   );
 
   // Each pass ran as a host job of its own.
@@ -176,7 +177,7 @@ test("a run claimed with the fingerprint backfill off skips that pass", async ({
   // The control: the switch skipped one pass rather than stopping the run, so the pass before it
   // still did its work and the chain still advanced past the skip.
   expect(stageOf(ended, "scan").state, "the scan pass").toBe("succeeded");
-  expect(stageOf(ended, "identify").state, "the pass after the skipped one").not.toBe("pending");
+  expect(stageOf(ended, "identify").state, "the pass after the skipped one").toBe("succeeded");
 
   // The two observations split on the one switch, which is what shows each is read from the pass
   // that writes it: the skipped pass is the only thing that hashes an image, and the images pass,

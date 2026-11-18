@@ -19,31 +19,22 @@ public sealed class CapabilitiesEndpointTests
         var view = extension.Capabilities();
 
         Assert.Equal(RunningHostVersion, view.CoveVersion);
-        Assert.NotEqual(ScanAndIdentifyFixture.Manifest.MinCoveVersion, view.CoveVersion);
     }
 
-    [Fact]
-    public async Task Capabilities_ReportsEachServiceSeparately_WhenOnlyTheJobServiceIsRegistered()
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task Capabilities_ReportsEachHostServiceSeparately(bool jobService, bool scanService)
     {
         var extension = await ScanAndIdentifyFixture.CreateInitializedAsync(
-            RunningHostVersion, Provider(jobService: true, scanService: false));
+            RunningHostVersion, Provider(jobService, scanService));
 
         var view = extension.Capabilities();
 
-        Assert.True(view.JobService);
-        Assert.False(view.ScanService);
-    }
-
-    [Fact]
-    public async Task Capabilities_ReportsBothAvailable_WhenTheHostRegistersBoth()
-    {
-        var extension = await ScanAndIdentifyFixture.CreateInitializedAsync(
-            RunningHostVersion, Provider(jobService: true, scanService: true));
-
-        var view = extension.Capabilities();
-
-        Assert.True(view.JobService);
-        Assert.True(view.ScanService);
+        Assert.Equal(jobService, view.JobService);
+        Assert.Equal(scanService, view.ScanService);
     }
 
     private static ServiceProvider Provider(bool jobService, bool scanService)

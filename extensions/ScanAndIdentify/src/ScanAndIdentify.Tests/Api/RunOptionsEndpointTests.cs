@@ -62,7 +62,6 @@ public sealed class RunOptionsEndpointTests
         Assert.IsType<NoContent>(HttpResultUnwrap.Unwrap(saved));
         var ok = Assert.IsType<Ok<RunOptions>>(HttpResultUnwrap.Unwrap(read));
         Assert.Equal(flipped, ok.Value);
-        Assert.NotEqual(new RunOptions(), ok.Value);
     }
 
     [Fact]

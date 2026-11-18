@@ -122,8 +122,26 @@ test("the fingerprint and images stages post to the same generate route with the
     "/metadata/generate",
     "/metadata/generate",
   ]);
-  expect(server.calls[0].body).toEqual(fingerprintBody());
-  expect(server.calls[1].body).toEqual(imagesBody(answered()));
+  // Written out rather than compared against the body builders, which would agree with whatever
+  // they produce. The two share a route, so what tells them apart is the members each one sends.
+  expect(server.calls[0].body).toEqual({
+    md5: true,
+    phashes: true,
+    imagePhashes: true,
+    audioPhashes: true,
+    textPhashes: true,
+    thumbnails: false,
+    overwrite: false,
+  });
+  expect(server.calls[1].body).toEqual({
+    thumbnails: true,
+    previews: true,
+    sprites: true,
+    vrStereo: false,
+    imageThumbnails: true,
+    galleryThumbnails: true,
+    overwrite: false,
+  });
 });
 
 test("starting identify posts to Cove's own identify route", async () => {

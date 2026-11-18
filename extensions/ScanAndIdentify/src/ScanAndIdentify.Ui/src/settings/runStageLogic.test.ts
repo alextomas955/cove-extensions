@@ -119,12 +119,21 @@ describe("whether the poll keeps reading", () => {
     expect(decision.action).toBe("giveUp");
   });
 
-  test("a stage queued in Cove is read again however many ticks pass", () => {
+  test("a stage queued in Cove is read again, and the failure allowance does not bound it", () => {
     const run = runView({ scan: "queued" });
 
-    for (let tick = 0; tick < RUN_FAILURE_ALLOWANCE * 100; tick++) {
-      expect(decidePoll({ read: "ok", run }, fresh)).toEqual({ action: "continue" });
-    }
+    // A successful read spends none of the allowance, which is what lets a queued stage sit behind
+    // Cove's exclusive queue for longer than the allowance without the watch giving up on it.
+    expect(decidePoll({ read: "ok", run }, fresh)).toEqual({ action: "continue" });
+    expect(
+      decidePoll(
+        { read: "ok", run },
+        {
+          consecutiveFailures: RUN_FAILURE_ALLOWANCE * 100,
+          failureAllowance: RUN_FAILURE_ALLOWANCE,
+        },
+      ),
+    ).toEqual({ action: "continue" });
   });
 });
 

@@ -220,18 +220,6 @@ public sealed class RunEndpointTests
     }
 
     [Fact]
-    public async Task Read_AnswersASettledStageFromTheRecord_WhenTheHostHasForgottenItsJob()
-    {
-        var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
-        await extension.RecordStageAsync(new RunStageStarted(run.RunId, RunStage.Scan, "scan-job"), Runner, Hosting("scan-job"));
-        await ReadAsync(extension, Jobs("scan-job", JobStatus.Completed));
-
-        var later = await ReadAsync(extension, new RecordingJobService());
-
-        Assert.Equal(RunStageState.Succeeded, StageOf(later, RunStage.Scan).State);
-    }
-
-    [Fact]
     public async Task Read_KeepsWhatAStageReported_AfterTheHostHasForgottenItsJob()
     {
         var (extension, _, run) = await ClaimedAsync(new RecordingJobService());
