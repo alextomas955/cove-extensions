@@ -46,7 +46,7 @@
       NuGetAudit stay a real gate. Hold this on the 2.x line - 3.x is the next major API surface and
       the ASP.NET Core integration is compiled against 2.x.
     -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
