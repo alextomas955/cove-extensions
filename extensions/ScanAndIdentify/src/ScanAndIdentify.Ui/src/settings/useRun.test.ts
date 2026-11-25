@@ -473,7 +473,12 @@ test("a run in flight gives the disabled Run button a reason of its own", async 
 
 test("a claim refused with a conflict says a run is already in flight and adopts it", async () => {
   server.reads = [undefined, runView({ scan: "running" })];
-  server.claimError = refusal(409, '{"code":"RUN_IN_FLIGHT"}');
+  // The sentence spelled the way the route sends it, as a problem detail. Every conflict the claim
+  // route answers carries one, and it is what the page shows.
+  server.claimError = refusal(
+    409,
+    '{"code":"RUN_IN_FLIGHT","detail":"A run is already in flight."}',
+  );
 
   const container = render();
   await waitFor(() => {
@@ -578,6 +583,30 @@ test("a cancel during a stage start stops the job that start was creating", asyn
   // Not reported into a run the user has ended, and nothing started after it.
   expect(stagesWritten()).toEqual(["scan"]);
   expect(calledPaths()).not.toContain(GENERATE_PATH);
+});
+
+test("a claim refused because the last run is still settling says so, not that one is in flight", async () => {
+  server.reads = [undefined, undefined];
+  server.claimError = refusal(
+    409,
+    '{"code":"RUN_SETTLING","detail":"A pass of the previous run is still running in Cove."}',
+  );
+
+  const container = render();
+  await waitFor(() => {
+    expect(offersRun(container), "the Run button to be offered").toBe(true);
+  });
+  await pressRun(container);
+
+  // The two conflicts mean different things, and the stage rows beside this message already show
+  // the previous run ended, so naming it a run in flight contradicts the page itself.
+  await waitFor(() => {
+    expect(
+      container.textContent.includes("still running in Cove"),
+      "the settling run to be reported",
+    ).toBe(true);
+  });
+  expect(container.textContent).not.toContain("A run is already in flight.");
 });
 
 test("a job handed over that Cove will not stop is reported, not passed over in silence", async () => {

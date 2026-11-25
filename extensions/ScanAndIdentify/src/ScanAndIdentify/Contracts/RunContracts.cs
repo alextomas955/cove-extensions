@@ -80,9 +80,9 @@ public enum RunEndReason
 
 /// <summary>What the host job behind one stage reports about itself.</summary>
 /// <remarks>
-/// Every member is nullable because the host leaves most of them unset: only a job run through
-/// <c>RunBatchAsync</c> counts units, which the scan and identify passes do not, so their tallies are
-/// absent rather than zero.
+/// Every member is nullable because the host leaves most of them unset. The scan pass declares no
+/// units at all, so its tallies are absent rather than zero; identify declares one per video, and
+/// the two generate passes count theirs through <c>RunBatchAsync</c>.
 /// <para>
 /// <c>Progress</c> runs 0 to 1 as the host reports it, and <c>SubTask</c> is the host's free-text
 /// line, which can name a file. The three text members are truncated at <see cref="MaxTextLength"/>:

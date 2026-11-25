@@ -67,6 +67,19 @@ type Advance =
 const isStatus = (err: unknown, status: number) => err instanceof ApiError && err.status === status;
 
 /**
+ * What a refused claim says.
+ *
+ * The claim route answers 409 for more than one reason, and each sends the sentence a reader is
+ * shown as the problem's detail. Reading that rather than mapping the status keeps the page from
+ * naming the wrong reason: a run still settling is not a run in flight, and the stage rows beside
+ * this message already show the previous run ended.
+ */
+function refusedClaimText(err: unknown): string {
+  if (!isStatus(err, 409)) return errorText(err);
+  return err instanceof ApiError && err.body.length > 0 ? err.body : ALREADY_IN_FLIGHT;
+}
+
+/**
  * Claims the stage, starts its host job and reports the job id back.
  *
  * A 409 on the claim write is the ordinary outcome of losing a race with another open page: that
@@ -227,6 +240,9 @@ export function useRun(): UseRun {
         );
         if (decision.action === "giveUp") {
           setFailure(decision.message);
+          // Cleared here too: it is otherwise only cleared by a read that succeeded, so giving up
+          // on the first reads leaves the spinner on screen beside the message saying they failed.
+          setLoading(false);
           setWatching(false);
         }
         return;
@@ -318,7 +334,7 @@ export function useRun(): UseRun {
           if (advance.outcome === "failed") setFailure(advance.message);
         }
       } catch (err) {
-        setFailure(isStatus(err, 409) ? ALREADY_IN_FLIGHT : errorText(err));
+        setFailure(refusedClaimText(err));
       } finally {
         advancing.current = false;
         setClaiming(false);
@@ -361,6 +377,9 @@ export function useRun(): UseRun {
       } finally {
         advancing.current = false;
         setCancelling(false);
+        // Restored with the watch, as the claim does: the budget belongs to the watch, so one
+        // restarted after it ran out would otherwise give up again on its first failed read.
+        failures.current = 0;
         // The stage in flight settles after the end time is written, so the watch carries on until
         // it does.
         setWatching(true);

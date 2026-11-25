@@ -600,12 +600,19 @@ public sealed partial class ScanAndIdentify
 
     /// <summary>Whether the stage may still have a host job of its own in flight.</summary>
     /// <remarks>
-    /// Narrower than the negation of <see cref="IsSettled"/>: a pending stage is unsettled and has
-    /// nothing running, because the run never reached it.
+    /// Narrower than the negation of <see cref="IsSettled"/>, in two ways. A pending stage is
+    /// unsettled and has nothing running, because the run never reached it.
+    /// <para>
+    /// A starting one has nothing running either. It names no job, because the write that takes a
+    /// job id moves the stage to <c>Running</c>, so there is no id here for a later claim to drop.
+    /// A run that ended while a stage was starting either failed to reach the host at all, or was
+    /// stopped by a caller that holds the id itself and stops the job without this record. Counting
+    /// it as live would refuse every claim until the start budget expired, which is the delay the
+    /// caller ends the run to avoid.
+    /// </para>
     /// </remarks>
     private static bool HasLiveWork(RunStageState state) => state
-        is RunStageState.Starting
-        or RunStageState.Queued
+        is RunStageState.Queued
         or RunStageState.Running;
 
     /// <summary>

@@ -571,6 +571,29 @@ public sealed class RunEndpointTests
     }
 
     [Fact]
+    public async Task ClaimRun_IsAllowed_WhenTheEndedRunsStageWasOnlyEverStarting()
+    {
+        var store = new FakeStore();
+        var extension = ScanAndIdentifyFixture.Create(store);
+        await Seed(store, WithStages(
+            Stage(RunStage.Scan, RunStageState.Starting, startedAt: DateTime.UtcNow),
+            Stage(RunStage.Fingerprints, RunStageState.Pending),
+            Stage(RunStage.Identify, RunStageState.Pending),
+            Stage(RunStage.Images, RunStageState.Pending)) with
+        {
+            EndedAt = DateTime.UtcNow,
+            EndedReason = RunEndReason.Failed,
+        });
+
+        var claimed = await extension.ClaimRunAsync(Runner, new RecordingJobService());
+
+        // The host request for that stage never produced a job, which is why the caller ended the
+        // run. Holding the claim until the start budget expires refuses every run in between for a
+        // pass that never began.
+        Assert.NotEqual(SeededRunId, Answered(claimed).RunId);
+    }
+
+    [Fact]
     public async Task RecordStage_RefusesAJobAlreadyRecordedAgainstAnotherStage()
     {
         var store = new FakeStore();
