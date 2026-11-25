@@ -1,0 +1,9 @@
+{
+  "id": "com.alextomas955.scanandidentify",
+  "name": "ScanAndIdentify",
+  "summary": "Scans your library for new files, fingerprints each one, identifies what it is, and fetches the artwork and metadata to match.",
+  "repositoryUrl": "https://github.com/alextomas955/cove-extensions",
+  "sourceManifestUrl": "https://raw.githubusercontent.com/alextomas955/cove-extensions/main/extensions/ScanAndIdentify/src/ScanAndIdentify/extension.json",
+  "categories": ["tools", "automation"],
+  "versions": []
+}

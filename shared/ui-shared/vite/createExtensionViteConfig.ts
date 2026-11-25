@@ -37,6 +37,7 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");
   const sharedSrcExtensionRequest = path.resolve(factoryDir, "../src/extensionRequest.ts");
+  const sharedSrcTesting = path.resolve(factoryDir, "../src/testing.ts");
 
   return {
     plugins: [
@@ -60,6 +61,7 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
       // barrel entry or the barrel would match it first.
       alias: {
         "@cove-extensions/ui-shared/extensionRequest": sharedSrcExtensionRequest,
+        "@cove-extensions/ui-shared/testing": sharedSrcTesting,
         "@cove-extensions/ui-shared": sharedSrcIndex,
       },
     },

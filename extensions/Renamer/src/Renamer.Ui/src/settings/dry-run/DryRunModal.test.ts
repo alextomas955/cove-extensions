@@ -12,13 +12,15 @@ import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { render, screen, cleanup, act } from "@testing-library/react";
 
-import { createTestQueryClient, withQueryClient } from "../../common/lib/testQueryClient";
-
 import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
 import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire";
-import { jsonResponse } from "../../common/lib/testResponses";
+import {
+  createTestQueryClient,
+  jsonResponse,
+  withQueryClient,
+} from "@cove-extensions/ui-shared/testing";
 
 // The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails.
 const RUN_ID = "run-under-test";
